@@ -1,16 +1,20 @@
 import { NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Pool } from 'pg';
+import { SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { RoutersService } from './routers.service';
 
 describe('RoutersService', () => {
   const query = jest.fn();
-  const db = { query } as any;
-  const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) } as any;
+  const db = { query } as unknown as Pool;
+  const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+  const config = { get: jest.fn() } as unknown as ConfigService;
   let service: RoutersService;
 
   beforeEach(() => {
     query.mockReset();
     audit.record.mockClear();
-    service = new RoutersService(db, audit);
+    service = new RoutersService(db, audit, new SecureNetworkCredentials(config));
   });
 
   it('lists only routers belonging to the tenant', async () => {
@@ -53,5 +57,20 @@ describe('RoutersService', () => {
       { staleMinutes: 5, routerIds: ['router-a'], count: 1 },
       { userId: 'admin-a' },
     );
+  });
+
+  it('infers a native management protocol when a vendor is supplied without one', async () => {
+    query.mockResolvedValueOnce({
+      rows: [{
+        id: 'router-unifi', name: 'AP', vendor: 'Ubiquiti UniFi', managementProtocol: 'UNIFI_NETWORK_API',
+        capabilities: { vendor: 'Ubiquiti UniFi', capabilities: ['telemetry'] }, managementCredentialsConfigured: false,
+      }],
+      rowCount: 1,
+    });
+
+    const result = await service.create('tenant-a', { name: 'AP', vendor: 'Ubiquiti UniFi' });
+
+    expect(result.managementProtocol).toBe('UNIFI_NETWORK_API');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('management_protocol'), expect.arrayContaining(['UNIFI_NETWORK_API']));
   });
 });
