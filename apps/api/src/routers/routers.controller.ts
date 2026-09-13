@@ -20,21 +20,21 @@ export class RoutersController {
 
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateRouterDto) {
-    return this.routers.create(req.user!.tenantId, dto);
+    return this.routers.create(req.user!.tenantId, dto, { userId: req.user!.id });
   }
 
   @Patch(':id')
   update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateRouterDto) {
-    return this.routers.update(req.user!.tenantId, id, dto);
+    return this.routers.update(req.user!.tenantId, id, dto, { userId: req.user!.id });
   }
 
   @Post(':id/heartbeat')
   heartbeat(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: RouterHeartbeatDto) {
-    return this.routers.heartbeat(req.user!.tenantId, id, dto);
+    return this.routers.heartbeat(req.user!.tenantId, id, dto, { userId: req.user!.id });
   }
 
   @Post('maintenance/mark-stale-offline')
   markStaleOffline(@Req() req: AuthenticatedRequest, @Query('minutes') minutes?: string) {
-    return this.routers.markOfflineStale(req.user!.tenantId, Number(minutes ?? 5));
+    return this.routers.markOfflineStale(req.user!.tenantId, Number(minutes ?? 5), { userId: req.user!.id });
   }
 }
