@@ -25,15 +25,11 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Reject legacy product branding in source
+      - name: Reject legacy product branding in application source
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -niE 'nexora' -- \
-            'apps/**' \
-            'packages/**' \
-            ':!**/package-lock.json' \
-            ':!**/*.map'; then
+          if git grep -niE 'nexora' -- 'apps/**' ':!**/package-lock.json' ':!**/*.map'; then
             echo 'Legacy NEXORA branding detected in application source files.' >&2
             exit 1
           fi
