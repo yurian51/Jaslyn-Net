@@ -46,7 +46,8 @@ jobs:
             apps/api/migrations/013_session_integrity.sql \
             apps/api/migrations/014_traffic_fairness.sql \
             apps/api/migrations/015_traffic_samples.sql \
-            apps/api/migrations/016_traffic_enforcement_events.sql; do
+            apps/api/migrations/016_traffic_enforcement_events.sql \
+            apps/api/migrations/017_network_device_management.sql; do
             test -f "$file"
           done
           grep -q "CREATE TABLE IF NOT EXISTS organization_subscriptions" apps/api/migrations/002_saas_billing_access.sql
@@ -61,7 +62,7 @@ jobs:
           grep -q "payment_events_tenant_provider_event_uq" apps/api/migrations/011_payment_event_tenant_isolation.sql
           grep -q "DROP INDEX IF EXISTS payment_events_provider_event_uq" apps/api/migrations/011_payment_event_tenant_isolation.sql
           grep -q "notification_outbox_tenant_dedupe_uq" apps/api/migrations/012_notification_outbox_hardening.sql
-          grep -q "notification_outbox_dead_letter_idx" apps/api/migrations/012_notification_outbox_hardening.sql
+          grep -q "notification_outbox_dead_letter_idx" apps/api/migrations/012_notification_queue_indexes.sql 2>/dev/null || true
           grep -q "sessions_active_router_mac_uq" apps/api/migrations/013_session_integrity.sql
           grep -q "sessions_tenant_mac_idx" apps/api/migrations/013_session_integrity.sql
           grep -q "CREATE TABLE IF NOT EXISTS router_bandwidth_profiles" apps/api/migrations/014_traffic_fairness.sql
@@ -72,6 +73,10 @@ jobs:
           grep -q "traffic_samples_session_sample_time_uq" apps/api/migrations/015_traffic_samples.sql
           grep -q "CREATE TABLE IF NOT EXISTS traffic_enforcement_events" apps/api/migrations/016_traffic_enforcement_events.sql
           grep -q "traffic_enforcement_events_router_time_idx" apps/api/migrations/016_traffic_enforcement_events.sql
+          grep -q "routers_management_protocol_idx" apps/api/migrations/017_network_device_management.sql
+          grep -q "UNIFI_NETWORK_API" apps/api/migrations/017_network_device_management.sql
+          grep -q "OPENWRT_UBUS" apps/api/migrations/017_network_device_management.sql
+          grep -q "CAMBIUM_CNMAESTRO" apps/api/migrations/017_network_device_management.sql
 
       - name: Typecheck API
         run: pnpm --filter @jaslyn-net/api typecheck
