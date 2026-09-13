@@ -13,6 +13,23 @@ const PASSWORD_KEY_LENGTH = 64;
 const ISSUER = 'jaslyn-net';
 const AUDIENCE = 'jaslyn-net-api';
 
+interface UserTokenRecord {
+  id: string;
+  tenant_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}
+
+interface TenantTokenRecord {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  currency: string;
+  timezone: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -29,11 +46,11 @@ export class AuthService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      const tenant = await client.query(
+      const tenant = await client.query<TenantTokenRecord>(
         'INSERT INTO tenants (name, slug, status) VALUES ($1, $2, $3) RETURNING id, name, slug, status, currency, timezone',
         [input.businessName.trim(), slug, 'TRIAL'],
       );
-      const user = await client.query(
+      const user = await client.query<UserTokenRecord>(
         'INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, tenant_id, email, full_name, role, is_active',
         [tenant.rows[0].id, input.email.toLowerCase().trim(), passwordHash, input.fullName.trim(), 'OWNER'],
       );
@@ -48,7 +65,15 @@ export class AuthService {
   }
 
   async login(input: LoginDto) {
-    const result = await this.db.query(
+    const result = await this.db.query<UserTokenRecord & {
+      is_active: boolean;
+      password_hash: string;
+      tenant_name: string;
+      tenant_slug: string;
+      tenant_status: string;
+      currency: string;
+      timezone: string;
+    }>(
       `SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.is_active,
               u.password_hash, t.name AS tenant_name, t.slug AS tenant_slug,
               t.status AS tenant_status, t.currency, t.timezone
@@ -75,7 +100,7 @@ export class AuthService {
     });
   }
 
-  private async issueTokens(user: any, tenant: any) {
+  private async issueTokens(user: UserTokenRecord, tenant: TenantTokenRecord) {
     const secret = this.config.get<string>('JWT_SECRET');
     if (!secret || secret.length < 32) throw new Error('JWT_SECRET must be configured with at least 32 characters');
 
