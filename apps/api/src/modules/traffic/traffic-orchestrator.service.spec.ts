@@ -21,7 +21,7 @@ describe('TrafficOrchestratorService', () => {
     const result = await service.evaluateRouter('tenant-1', 'r1', false);
 
     expect(result.users).toBe(1);
-    expect(result.allocations[0].requestedMbps).toBeCloseTo(1.6e-6, 9);
+    expect(result.allocations[0].requestedMbps).toBeCloseTo(0.0016, 10);
     expect(result.reason).toBe('DRY_RUN');
     expect(enforcement.evaluateAndApply).not.toHaveBeenCalled();
   });
