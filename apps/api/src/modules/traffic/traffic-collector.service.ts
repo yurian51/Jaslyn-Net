@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { NetworkDeviceAdapterRegistry, NormalizedWifiClient } from './network-device.adapter';
@@ -41,27 +41,35 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
 
   async collectAll(): Promise<{ routers: number; samples: number; errors: number }> {
     if (this.running) return { routers: 0, samples: 0, errors: 0 };
-    this.running = true; let samples = 0; let errors = 0;
-    const lock = await this.db.query<{ locked: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS locked', ['jaslyn:traffic-collector']);
-    if (!lock.rows[0]?.locked) { this.running = false; return { routers: 0, samples: 0, errors: 0 }; }
+    this.running = true;
+    let client: PoolClient | undefined;
     try {
-      const routers = await this.db.query<RouterRecord>(
-        `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint", controller_endpoint AS "controllerEndpoint",
-                management_protocol AS "managementProtocol", capabilities, management_credentials_encrypted AS "managementCredentialsEncrypted"
-         FROM routers WHERE management_enabled=true AND enabled=true AND (api_enabled=true OR controller_endpoint IS NOT NULL) ORDER BY id`,
-      );
-      for (const router of routers.rows) {
-        try { samples += await this.collectRouter(router); }
-        catch (error) {
-          errors += 1;
-          const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown traffic collection error';
-          this.logger.warn(`Traffic collection failed for router ${router.id}: ${message}`);
-          await this.db.query(`UPDATE routers SET status='DEGRADED', sync_error=$2, updated_at=now() WHERE tenant_id=$1 AND id=$3`, [router.tenantId, message, router.id]).catch(() => undefined);
+      client = await this.db.connect();
+      const lock = await client.query<{ locked: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS locked', ['jaslyn:traffic-collector']);
+      if (!lock.rows[0]?.locked) return { routers: 0, samples: 0, errors: 0 };
+
+      let samples = 0; let errors = 0;
+      try {
+        const routers = await client.query<RouterRecord>(
+          `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint", controller_endpoint AS "controllerEndpoint",
+                  management_protocol AS "managementProtocol", capabilities, management_credentials_encrypted AS "managementCredentialsEncrypted"
+           FROM routers WHERE management_enabled=true AND enabled=true AND (api_enabled=true OR controller_endpoint IS NOT NULL) ORDER BY id`,
+        );
+        for (const router of routers.rows) {
+          try { samples += await this.collectRouter(router); }
+          catch (error) {
+            errors += 1;
+            const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown traffic collection error';
+            this.logger.warn(`Traffic collection failed for router ${router.id}: ${message}`);
+            await client.query(`UPDATE routers SET status='DEGRADED', sync_error=$2, updated_at=now() WHERE tenant_id=$1 AND id=$3`, [router.tenantId, message, router.id]).catch(() => undefined);
+          }
         }
+        return { routers: routers.rowCount ?? 0, samples, errors };
+      } finally {
+        await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['jaslyn:traffic-collector']).catch(() => undefined);
       }
-      return { routers: routers.rowCount ?? 0, samples, errors };
     } finally {
-      await this.db.query('SELECT pg_advisory_unlock(hashtext($1))', ['jaslyn:traffic-collector']).catch(() => undefined);
+      client?.release();
       this.running = false;
     }
   }
