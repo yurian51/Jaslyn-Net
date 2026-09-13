@@ -25,6 +25,15 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Reject legacy product branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -niE 'nexora' -- ':!package-lock.json'; then
+            echo 'Legacy NEXORA branding detected in tracked source files.' >&2
+            exit 1
+          fi
+
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile --ignore-scripts
 
