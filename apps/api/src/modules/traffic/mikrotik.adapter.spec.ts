@@ -50,7 +50,7 @@ describe('MikroTikTrafficEnforcementAdapter', () => {
 
   it('patches an existing managed queue', async () => {
     fetchMock
-      .mockResolvedValueOnce(response([{ '.id': '*7', name: 'JASLYN-session-1' }]))
+      .mockResolvedValueOnce(response([{ '.id': '*7', name: 'JASLYN-session-1', comment: 'JASLYN NET traffic fairness' }]))
       .mockResolvedValueOnce(response({}));
 
     const adapter = new MikroTikTrafficEnforcementAdapter(config);
@@ -62,6 +62,37 @@ describe('MikroTikTrafficEnforcementAdapter', () => {
 
     expect(fetchMock.mock.calls[1][0]).toBe('https://192.168.1.1/rest/queue/simple/%2A7');
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).target).toBe('2001:db8::20/128');
+  });
+
+  it('does not patch an unrelated queue with the same name', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response([{ '.id': '*9', name: 'JASLYN-session-1', comment: 'operator-managed' }]))
+      .mockResolvedValueOnce(response({}));
+
+    const adapter = new MikroTikTrafficEnforcementAdapter(config);
+    await adapter.apply([{
+      routerId: 'router-1', customerId: 'customer-1', sessionId: 'session-1',
+      targetAddress: '192.168.1.20', apiEndpoint: 'https://192.168.1.1/rest',
+      maxDownloadMbps: 8, maxUploadMbps: 4, priority: 1,
+    }]);
+
+    expect(fetchMock.mock.calls[1][0]).toBe('https://192.168.1.1/rest/queue/simple');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).comment).toBe('JASLYN NET traffic fairness');
+  });
+
+  it('clears only JASLYN-managed queues', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response([
+        { '.id': '*1', name: 'JASLYN-session-1', comment: 'JASLYN NET traffic fairness' },
+        { '.id': '*2', name: 'operator-queue', comment: 'JASLYN NET traffic fairness' },
+        { '.id': '*3', name: 'JASLYN-session-2', comment: 'operator-managed' },
+      ]))
+      .mockResolvedValueOnce(response({}));
+
+    const adapter = new MikroTikTrafficEnforcementAdapter(config);
+    await expect(adapter.clearManaged('https://192.168.1.1/rest')).resolves.toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe('https://192.168.1.1/rest/queue/simple/%2A1');
   });
 
   it('rejects insecure router endpoints unless explicitly enabled', async () => {
