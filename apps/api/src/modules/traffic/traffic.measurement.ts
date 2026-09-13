@@ -1,6 +1,6 @@
 export interface TrafficCounterSample {
-  bytesIn: number;
-  bytesOut: number;
+  bytesIn: string | number;
+  bytesOut: string | number;
   sampledAt: Date;
 }
 
@@ -11,16 +11,20 @@ export interface ThroughputSample {
   intervalSeconds: number;
 }
 
+function counterDelta(current: string | number, previous: string | number): bigint {
+  const currentValue = BigInt(current);
+  const previousValue = BigInt(previous);
+  return currentValue > previousValue ? currentValue - previousValue : 0n;
+}
+
 export function calculateThroughput(previous: TrafficCounterSample, current: TrafficCounterSample): ThroughputSample {
   const intervalMs = current.sampledAt.getTime() - previous.sampledAt.getTime();
   const intervalSeconds = intervalMs > 0 ? intervalMs / 1000 : 0;
-  if (intervalSeconds <= 0) {
-    return { downloadMbps: 0, uploadMbps: 0, totalMbps: 0, intervalSeconds: 0 };
-  }
+  if (intervalSeconds <= 0) return { downloadMbps: 0, uploadMbps: 0, totalMbps: 0, intervalSeconds: 0 };
 
-  const inDelta = Math.max(0, current.bytesIn - previous.bytesIn);
-  const outDelta = Math.max(0, current.bytesOut - previous.bytesOut);
-  const bytesToMbps = (bytes: number) => (bytes * 8) / intervalSeconds / 1_000_000;
+  const inDelta = counterDelta(current.bytesIn, previous.bytesIn);
+  const outDelta = counterDelta(current.bytesOut, previous.bytesOut);
+  const bytesToMbps = (bytes: bigint) => Number(bytes) * 8 / intervalSeconds / 1_000_000;
   const downloadMbps = bytesToMbps(inDelta);
   const uploadMbps = bytesToMbps(outDelta);
 
