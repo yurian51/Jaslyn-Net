@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
 import { MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
@@ -12,14 +13,14 @@ import { TrafficCollectorService } from './traffic-collector.service';
 @Module({
   controllers: [TrafficSamplesController, TrafficOrchestratorController],
   providers: [
+    SecureNetworkCredentials,
     FairnessService,
     TrafficSamplesService,
     MikroTikTrafficEnforcementAdapter,
     NetworkDeviceAdapterRegistry,
     {
       provide: TrafficEnforcementService,
-      useFactory: (fairnessService: FairnessService, adapter: MikroTikTrafficEnforcementAdapter) =>
-        new TrafficEnforcementService(fairnessService, adapter),
+      useFactory: (fairnessService: FairnessService, adapter: MikroTikTrafficEnforcementAdapter) => new TrafficEnforcementService(fairnessService, adapter),
       inject: [FairnessService, MikroTikTrafficEnforcementAdapter],
     },
     TrafficOrchestratorService,
