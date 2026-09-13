@@ -18,24 +18,12 @@ export interface NormalizedWifiClient {
   bytesOut: string;
 }
 
-export interface NetworkDeviceAdapter {
-  supports(protocol: NetworkManagementProtocol): boolean;
-  readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]>;
-}
-
 @Injectable()
 export class NetworkDeviceAdapterRegistry {
   constructor(
     private readonly config: ConfigService,
     private readonly mikrotik: MikroTikTrafficEnforcementAdapter,
   ) {}
-
-  private readonly genericProtocols = new Set<NetworkManagementProtocol>([
-    'UNIFI_NETWORK_API',
-    'OPENWRT_UBUS',
-    'CAMBIUM_CNMAESTRO',
-    'GENERIC_HTTP',
-  ]);
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     if (connection.protocol === 'MIKROTIK_REST') {
@@ -49,12 +37,12 @@ export class NetworkDeviceAdapterRegistry {
       }));
     }
 
-    if (this.genericProtocols.has(connection.protocol)) {
+    if (['UNIFI_NETWORK_API', 'OPENWRT_UBUS', 'CAMBIUM_CNMAESTRO', 'GENERIC_HTTP'].includes(connection.protocol)) {
       return this.readGenericHttp(connection);
     }
 
     if (connection.protocol === 'SNMP' || connection.protocol === 'RADIUS_NAS') {
-      throw new ServiceUnavailableException(`${connection.protocol} requires its telemetry collector; no unsafe device command will be issued`);
+      throw new ServiceUnavailableException(`${connection.protocol} telemetry is not enabled for this device yet; refusing unsafe commands`);
     }
     throw new ServiceUnavailableException(`Unsupported network management protocol: ${connection.protocol}`);
   }
@@ -83,8 +71,7 @@ export class NetworkDeviceAdapterRegistry {
       const response = await fetch(url, { headers, signal: controller.signal });
       if (!response.ok) throw new ServiceUnavailableException(`Network device API request failed (${response.status})`);
       const body = await response.json() as unknown;
-      const records = this.extractRecords(body);
-      return records.map((record) => ({
+      return this.extractRecords(body).map((record) => ({
         username: this.stringValue(record, ['username', 'user', 'name']),
         address: this.stringValue(record, ['ipAddress', 'ip', 'address']),
         macAddress: this.stringValue(record, ['macAddress', 'mac', 'mac-address']),
@@ -118,8 +105,6 @@ export class NetworkDeviceAdapterRegistry {
     return undefined;
   }
 
-  private counter(record: Record<string, unknown>, keys: string): never;
-  private counter(record: Record<string, unknown>, keys: string[]): string;
   private counter(record: Record<string, unknown>, keys: string[]): string {
     for (const key of keys) {
       const value = record[key];
