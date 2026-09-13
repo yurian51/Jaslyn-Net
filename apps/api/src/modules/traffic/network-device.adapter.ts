@@ -1,5 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
 import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
@@ -123,16 +125,35 @@ export class NetworkDeviceAdapterRegistry {
   }
 
   private async fetchJson(url: string, headers: Record<string, string>, body?: unknown): Promise<unknown> {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' && this.config.get<string>('JASLYN_NETWORK_ALLOW_HTTP', 'false') !== 'true') throw new ServiceUnavailableException('Network device API must use HTTPS in production');
+    const parsed = await this.validateEndpoint(url);
     const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000')); const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(parsed, { method: body === undefined ? 'GET' : 'POST', headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+      const response = await fetch(parsed, { method: body === undefined ? 'GET' : 'POST', headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal, redirect: 'error' });
       if (!response.ok) throw new ServiceUnavailableException(`Network device API request failed (${response.status})`);
       return await response.json() as unknown;
     } catch (error) { if (error instanceof ServiceUnavailableException) throw error; throw new ServiceUnavailableException('Network device API request failed or timed out'); }
     finally { clearTimeout(timer); }
+  }
+
+  private async validateEndpoint(rawUrl: string): Promise<URL> {
+    let parsed: URL;
+    try { parsed = new URL(rawUrl); } catch { throw new ServiceUnavailableException('Network device API endpoint is not a valid URL'); }
+    if (parsed.protocol !== 'https:' && this.config.get<string>('JASLYN_NETWORK_ALLOW_HTTP', 'false') !== 'true') throw new ServiceUnavailableException('Network device API must use HTTPS in production');
+    if (parsed.username || parsed.password) throw new ServiceUnavailableException('Network device API endpoint must not contain embedded credentials');
+    if (parsed.hostname === 'localhost' || parsed.hostname.endsWith('.localhost') || parsed.hostname === 'metadata.google.internal') throw new ServiceUnavailableException('Network device API endpoint hostname is not allowed');
+    const addresses = isIP(parsed.hostname) ? [parsed.hostname] : (await lookup(parsed.hostname, { all: true })).map((entry) => entry.address);
+    if (!addresses.length || addresses.some((address) => this.isForbiddenAddress(address))) throw new ServiceUnavailableException('Network device API endpoint resolves to a restricted address');
+    return parsed;
+  }
+
+  private isForbiddenAddress(address: string): boolean {
+    if (isIP(address) === 4) {
+      const [a, b, c] = address.split('.').map(Number);
+      return a === 0 || a === 127 || (a === 169 && b === 254) || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0);
+    }
+    const normalized = address.toLowerCase();
+    return normalized === '::' || normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('ff') || normalized.startsWith('::ffff:127.') || normalized.startsWith('::ffff:0.');
   }
 
   private extractRecords(body: unknown, preferredKeys: string[] = []): Record<string, unknown>[] {
