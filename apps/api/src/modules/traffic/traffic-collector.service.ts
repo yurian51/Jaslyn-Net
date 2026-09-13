@@ -2,13 +2,15 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
-import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
+import { NetworkDeviceAdapterRegistry, NormalizedWifiClient } from './network-device.adapter';
 import { TrafficSamplesService } from './traffic-samples.service';
 
 interface RouterRecord {
   id: string;
   tenantId: string;
-  apiEndpoint: string;
+  apiEndpoint?: string;
+  controllerEndpoint?: string;
+  managementProtocol: 'MIKROTIK_REST' | 'UNIFI_NETWORK_API' | 'OPENWRT_UBUS' | 'CAMBIUM_CNMAESTRO' | 'GENERIC_HTTP' | 'SNMP' | 'RADIUS_NAS';
 }
 
 interface SessionRecord {
@@ -27,7 +29,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly config: ConfigService,
-    private readonly adapter: MikroTikTrafficEnforcementAdapter,
+    private readonly devices: NetworkDeviceAdapterRegistry,
     private readonly samples: TrafficSamplesService,
   ) {}
 
@@ -49,9 +51,11 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
     let errors = 0;
     try {
       const routers = await this.db.query<RouterRecord>(
-        `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint"
+        `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint", controller_endpoint AS "controllerEndpoint",
+                management_protocol AS "managementProtocol"
          FROM routers
-         WHERE api_enabled=true AND enabled=true AND api_endpoint IS NOT NULL
+         WHERE management_enabled=true AND enabled=true
+           AND (api_enabled=true OR controller_endpoint IS NOT NULL)
          ORDER BY id`,
       );
       for (const router of routers.rows) {
@@ -62,7 +66,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
           const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown traffic collection error';
           this.logger.warn(`Traffic collection failed for router ${router.id}: ${message}`);
           await this.db.query(
-            `UPDATE routers SET sync_error=$2, updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+            `UPDATE routers SET status='DEGRADED', sync_error=$2, updated_at=now() WHERE tenant_id=$1 AND id=$3`,
             [router.tenantId, message, router.id],
           ).catch(() => undefined);
         }
@@ -74,9 +78,14 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async collectRouter(router: RouterRecord): Promise<number> {
-    const active = await this.adapter.readHotspotActive(router.apiEndpoint);
+    const active = await this.devices.readClients({
+      routerId: router.id,
+      protocol: router.managementProtocol,
+      endpoint: router.apiEndpoint,
+      controllerEndpoint: router.controllerEndpoint,
+    });
     if (!active.length) {
-      await this.db.query(`UPDATE routers SET last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE tenant_id=$1 AND id=$2`, [router.tenantId, router.id]);
+      await this.markHealthy(router);
       return 0;
     }
 
@@ -95,37 +104,40 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
 
     const sampledAt = new Date();
     let recorded = 0;
-    for (const record of active) {
-      const session = this.matchSession(record, byIp, byUsername);
-      if (!session) continue;
-      const bytesIn = this.counter(record['bytes-in']);
-      const bytesOut = this.counter(record['bytes-out']);
-      if (bytesIn === null || bytesOut === null) continue;
+    for (const client of active) {
+      const session = this.matchSession(client, byIp, byUsername);
+      if (!session || !this.validCounter(client.bytesIn) || !this.validCounter(client.bytesOut)) continue;
       await this.samples.record(router.tenantId, {
         routerId: router.id,
         customerId: session.customerId,
         sessionId: session.id,
-        bytesIn,
-        bytesOut,
+        bytesIn: client.bytesIn,
+        bytesOut: client.bytesOut,
         sampledAt,
       });
       recorded += 1;
     }
-    await this.db.query(`UPDATE routers SET last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE tenant_id=$1 AND id=$2`, [router.tenantId, router.id]);
+    await this.markHealthy(router);
     return recorded;
   }
 
-  private matchSession(record: MikroTikHotspotActiveRecord, byIp: Map<string, SessionRecord>, byUsername: Map<string, SessionRecord>) {
-    const address = record.address?.trim();
+  private matchSession(client: NormalizedWifiClient, byIp: Map<string, SessionRecord>, byUsername: Map<string, SessionRecord>) {
+    const address = client.address?.trim();
     if (address && byIp.has(address)) return byIp.get(address);
-    const username = record.user?.trim();
+    const username = client.username?.trim();
     if (username && byUsername.has(username)) return byUsername.get(username);
     return undefined;
   }
 
-  private counter(value?: string): string | null {
-    if (!value || !/^\d+$/.test(value)) return null;
-    const parsed = BigInt(value);
-    return parsed <= 9223372036854775807n ? value : null;
+  private validCounter(value: string) {
+    if (!/^\d+$/.test(value)) return false;
+    try { return BigInt(value) <= 9223372036854775807n; } catch { return false; }
+  }
+
+  private async markHealthy(router: RouterRecord) {
+    await this.db.query(
+      `UPDATE routers SET status='ONLINE', last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+      [router.tenantId, router.id],
+    );
   }
 }
