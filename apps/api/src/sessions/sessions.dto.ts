@@ -1,4 +1,4 @@
-import { IsIP, IsInt, IsMacAddress, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsIP, IsInt, IsMACAddress, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class StartSessionDto {
   @IsOptional()
@@ -19,7 +19,7 @@ export class StartSessionDto {
   ipAddress?: string;
 
   @IsOptional()
-  @IsMacAddress()
+  @IsMACAddress()
   macAddress?: string;
 }
 
@@ -27,12 +27,12 @@ export class UpdateSessionUsageDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(Number.MAX_SAFE_INTEGER)
+  @Max(9223372036854775807)
   bytesIn?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(Number.MAX_SAFE_INTEGER)
+  @Max(9223372036854775807)
   bytesOut?: number;
 }
