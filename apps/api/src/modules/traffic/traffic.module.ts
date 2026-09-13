@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
 import { NoopTrafficEnforcementAdapter } from './enforcement.adapter';
+import { TrafficSamplesService } from './traffic-samples.service';
 
 @Module({
   providers: [
     FairnessService,
+    TrafficSamplesService,
     NoopTrafficEnforcementAdapter,
     {
       provide: TrafficEnforcementService,
@@ -14,6 +16,6 @@ import { NoopTrafficEnforcementAdapter } from './enforcement.adapter';
       inject: [FairnessService, NoopTrafficEnforcementAdapter],
     },
   ],
-  exports: [FairnessService, TrafficEnforcementService],
+  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService],
 })
 export class TrafficModule {}
