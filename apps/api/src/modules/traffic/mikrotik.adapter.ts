@@ -9,6 +9,8 @@ interface RouterQueueRecord {
   comment?: string;
 }
 
+const MANAGED_COMMENT = 'JASLYN NET traffic fairness';
+
 @Injectable()
 export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
   constructor(private readonly config: ConfigService) {}
@@ -21,12 +23,12 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
     const { headers, base } = this.connection(apiEndpoint);
     const response = await this.request(`${base}/queue/simple/print`, {
       method: 'POST', headers,
-      body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': ['comment=JASLYN NET traffic fairness'] }),
+      body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': [`comment=${MANAGED_COMMENT}`] }),
     });
     const records = (await response.json()) as RouterQueueRecord[];
     let deleted = 0;
     for (const record of records) {
-      if (!record['.id'] || record.comment !== 'JASLYN NET traffic fairness') continue;
+      if (!record['.id'] || record.comment !== MANAGED_COMMENT || !this.isManagedName(record.name)) continue;
       await this.request(`${base}/queue/simple/${encodeURIComponent(record['.id'])}`, { method: 'DELETE', headers });
       deleted += 1;
     }
@@ -45,13 +47,13 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
       body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': [`name=${queueName}`] }),
     });
     const records = (await queryResponse.json()) as RouterQueueRecord[];
-    const existing = records.find((record) => record.name === queueName && record.comment === 'JASLYN NET traffic fairness' && record['.id']);
+    const existing = records.find((record) => record.name === queueName && record.comment === MANAGED_COMMENT && record['.id']);
     const payload = {
       name: queueName,
       target: `${command.targetAddress}/${isIP(command.targetAddress) === 4 ? 32 : 128}`,
       'max-limit': `${this.mbps(command.maxUploadMbps)}/${this.mbps(command.maxDownloadMbps)}`,
       priority: String(Math.min(8, Math.max(1, command.priority))),
-      comment: 'JASLYN NET traffic fairness',
+      comment: MANAGED_COMMENT,
     };
     if (existing?.['.id']) {
       await this.request(`${base}/queue/simple/${encodeURIComponent(existing['.id'])}`, { method: 'PATCH', headers, body: JSON.stringify(payload) });
@@ -102,6 +104,10 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
 
   private queueName(command: BandwidthEnforcementCommand): string {
     return `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60);
+  }
+
+  private isManagedName(name?: string): boolean {
+    return typeof name === 'string' && name.startsWith('JASLYN-');
   }
 
   private mbps(value: number): string {
