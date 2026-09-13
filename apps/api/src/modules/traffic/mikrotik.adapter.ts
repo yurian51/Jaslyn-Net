@@ -6,6 +6,7 @@ import { BandwidthEnforcementCommand, TrafficEnforcementAdapter } from './enforc
 interface RouterQueueRecord {
   ['.id']?: string;
   name?: string;
+  comment?: string;
 }
 
 @Injectable()
@@ -16,28 +17,35 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
     for (const command of commands) await this.applyOne(command);
   }
 
+  async clearManaged(apiEndpoint: string): Promise<number> {
+    const { headers, base } = this.connection(apiEndpoint);
+    const response = await this.request(`${base}/queue/simple/print`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': ['comment=JASLYN NET traffic fairness'] }),
+    });
+    const records = (await response.json()) as RouterQueueRecord[];
+    let deleted = 0;
+    for (const record of records) {
+      if (!record['.id'] || record.comment !== 'JASLYN NET traffic fairness') continue;
+      await this.request(`${base}/queue/simple/${encodeURIComponent(record['.id'])}`, { method: 'DELETE', headers });
+      deleted += 1;
+    }
+    return deleted;
+  }
+
   private async applyOne(command: BandwidthEnforcementCommand) {
     if (!command.apiEndpoint) throw new ServiceUnavailableException(`Router API endpoint is not configured for ${command.routerId}`);
     if (!command.targetAddress || !isIP(command.targetAddress)) {
       throw new ServiceUnavailableException(`A valid client IP is required for session ${command.sessionId ?? command.customerId}`);
     }
-
-    const username = this.config.get<string>('JASLYN_ROUTER_API_USERNAME');
-    const password = this.config.get<string>('JASLYN_ROUTER_API_PASSWORD');
-    if (!username || password === undefined) throw new ServiceUnavailableException('JASLYN router API credentials are not configured');
-
-    const base = this.normalizeEndpoint(command.apiEndpoint);
+    const { headers, base } = this.connection(command.apiEndpoint);
     const queueName = this.queueName(command);
-    const auth = Buffer.from(`${username}:${password}`).toString('base64');
-    const headers = { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' };
-
     const queryResponse = await this.request(`${base}/queue/simple/print`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ '.proplist': ['.id', 'name'], '.query': [`name=${queueName}`] }),
+      method: 'POST', headers,
+      body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': [`name=${queueName}`] }),
     });
     const records = (await queryResponse.json()) as RouterQueueRecord[];
-    const existing = records.find((record) => record.name === queueName && record['.id']);
+    const existing = records.find((record) => record.name === queueName && record.comment === 'JASLYN NET traffic fairness' && record['.id']);
     const payload = {
       name: queueName,
       target: `${command.targetAddress}/${isIP(command.targetAddress) === 4 ? 32 : 128}`,
@@ -45,14 +53,20 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
       priority: String(Math.min(8, Math.max(1, command.priority))),
       comment: 'JASLYN NET traffic fairness',
     };
-
     if (existing?.['.id']) {
-      await this.request(`${base}/queue/simple/${encodeURIComponent(existing['.id'])}`, {
-        method: 'PATCH', headers, body: JSON.stringify(payload),
-      });
+      await this.request(`${base}/queue/simple/${encodeURIComponent(existing['.id'])}`, { method: 'PATCH', headers, body: JSON.stringify(payload) });
       return;
     }
     await this.request(`${base}/queue/simple`, { method: 'PUT', headers, body: JSON.stringify(payload) });
+  }
+
+  private connection(endpoint: string) {
+    const username = this.config.get<string>('JASLYN_ROUTER_API_USERNAME');
+    const password = this.config.get<string>('JASLYN_ROUTER_API_PASSWORD');
+    if (!username || password === undefined) throw new ServiceUnavailableException('JASLYN router API credentials are not configured');
+    const base = this.normalizeEndpoint(endpoint);
+    const auth = Buffer.from(`${username}:${password}`).toString('base64');
+    return { base, headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' } };
   }
 
   private async request(url: string, init: RequestInit): Promise<Response> {
