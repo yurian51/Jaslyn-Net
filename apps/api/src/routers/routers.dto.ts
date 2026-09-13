@@ -66,7 +66,11 @@ export class UpdateRouterDto {
 
   @IsOptional()
   @IsUUID()
-  locationId?: string | null;
+  locationId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  clearLocation?: boolean;
 
   @IsOptional()
   @IsBoolean()
