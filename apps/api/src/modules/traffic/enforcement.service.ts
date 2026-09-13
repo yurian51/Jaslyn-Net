@@ -5,6 +5,7 @@ import {
   toEnforcementCommands,
 } from './enforcement.adapter';
 import { FairnessInput } from './fairness.engine';
+import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 export interface EnforcementTarget {
   targetAddress?: string;
@@ -31,10 +32,11 @@ export class TrafficEnforcementService {
     activeUsers: FairnessInput['activeUsers'],
     targets: Record<string, EnforcementTarget> = {},
     uploadRatio = 0.5,
+    credentials?: NetworkCredentials,
   ): Promise<EnforcementResult> {
     const state = this.fairnessService.evaluate(policy, activeUsers);
     const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets);
-    await this.adapter.apply(commands);
+    await this.adapter.apply(commands, credentials);
     return {
       applied: commands.length > 0,
       commandCount: commands.length,
@@ -44,11 +46,11 @@ export class TrafficEnforcementService {
     };
   }
 
-  async clearManaged(apiEndpoint: string) {
-    return this.adapter.clearManaged(apiEndpoint);
+  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials) {
+    return this.adapter.clearManaged(apiEndpoint, credentials);
   }
 
-  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[]) {
-    return this.adapter.reconcileManaged(apiEndpoint, keepQueueNames);
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials) {
+    return this.adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials);
   }
 }
