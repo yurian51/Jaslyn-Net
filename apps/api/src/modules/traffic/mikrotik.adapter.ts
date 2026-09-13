@@ -9,6 +9,14 @@ interface RouterQueueRecord {
   comment?: string;
 }
 
+export interface MikroTikHotspotActiveRecord {
+  user?: string;
+  address?: string;
+  ['mac-address']?: string;
+  ['bytes-in']?: string;
+  ['bytes-out']?: string;
+}
+
 const MANAGED_COMMENT = 'JASLYN NET traffic fairness';
 
 @Injectable()
@@ -43,6 +51,18 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
       deleted += 1;
     }
     return deleted;
+  }
+
+  async readHotspotActive(apiEndpoint: string): Promise<MikroTikHotspotActiveRecord[]> {
+    const { headers, base } = this.connection(apiEndpoint);
+    const response = await this.request(`${base}/ip/hotspot/active/print`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ '.proplist': ['user', 'address', 'mac-address', 'bytes-in', 'bytes-out'] }),
+    });
+    const records = (await response.json()) as MikroTikHotspotActiveRecord[];
+    if (!Array.isArray(records)) throw new ServiceUnavailableException('Router returned an invalid hotspot active response');
+    return records;
   }
 
   private async managedQueues(base: string, headers: Record<string, string>): Promise<RouterQueueRecord[]> {
