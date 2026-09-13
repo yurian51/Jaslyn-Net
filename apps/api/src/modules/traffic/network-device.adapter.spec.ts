@@ -47,7 +47,7 @@ describe('NetworkDeviceAdapterRegistry', () => {
       protocol: 'MERAKI_DASHBOARD_API',
       capabilities: { networkId: 'N_123' },
     })).resolves.toEqual([
-      { username: 'phone', address: '10.0.0.4', macAddress: 'CC', bytesIn: '0', bytesOut: '0' },
+      { username: 'phone', address: '10.0.0.4', macAddress: 'CC', bytesIn: '1000', bytesOut: '2000' },
     ]);
     expect((global.fetch as jest.Mock).mock.calls[0][1].headers['X-Cisco-Meraki-API-Key']).toBe('meraki-key');
   });
