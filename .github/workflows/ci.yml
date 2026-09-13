@@ -45,6 +45,8 @@ jobs:
           grep -q "CAMBIUM_CNMAESTRO" apps/api/migrations/017_network_device_management.sql
           grep -q "management_credentials_encrypted" apps/api/migrations/018_network_device_credentials.sql
           grep -q "management_credentials_version" apps/api/migrations/018_network_device_credentials.sql
+      - name: Lint API
+        run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API
         run: pnpm --filter @jaslyn-net/api typecheck
       - name: Test API
