@@ -23,30 +23,60 @@ export class FairnessEngine {
     return { mode, utilizationPercent, capacityMbps: capacity, allocations: this.allocate(normalized, capacity) };
   }
 
+  /**
+   * Weighted max-min allocation in O(n log n).
+   * The previous repeated redistribution loop could degrade to O(n²) when many
+   * users had capped demand. Sorting demand/fairness-factor lets us solve the
+   * same water-filling problem without repeatedly scanning the whole pool.
+   */
   private allocate(users: FairnessInput['activeUsers'], capacity: number): FairnessAllocation[] {
-    const remaining = new Map<string, number>();
-    const allocated = new Map<string, number>();
-    for (const u of users) { const key = this.key(u); remaining.set(key, u.requestedMbps); allocated.set(key, 0); }
-    let pool = users.slice();
-    let remainingCapacity = capacity;
-    for (let pass = 0; pass < users.length && pool.length > 0 && remainingCapacity > 0; pass += 1) {
-      const totalWeight = pool.reduce((sum, u) => sum + (u.weight ?? 1) * (u.priority ?? 1), 0);
-      if (totalWeight <= 0) break;
-      let usedThisPass = 0;
-      const next: typeof pool = [];
-      for (const u of pool) {
-        const key = this.key(u); const demand = remaining.get(key) ?? 0;
-        const share = remainingCapacity * (((u.weight ?? 1) * (u.priority ?? 1)) / totalWeight);
-        const grant = Math.min(demand, share);
-        allocated.set(key, (allocated.get(key) ?? 0) + grant); remaining.set(key, demand - grant); usedThisPass += grant;
-        if (demand - grant > 0.000001) next.push(u);
+    const remainingCapacity = Math.max(0, capacity);
+    if (remainingCapacity <= 0) return users.map((u) => this.allocation(u, 0));
+
+    const ordered = users
+      .map((user, index) => {
+        const weight = Math.max(0.1, user.weight ?? 1);
+        const priority = Math.max(1, user.priority ?? 1);
+        return { user, index, factor: weight * priority, demand: user.requestedMbps };
+      })
+      .sort((a, b) => (a.demand / a.factor) - (b.demand / b.factor));
+
+    const allocated = new Array<number>(users.length).fill(0);
+    let remainingWeight = ordered.reduce((sum, item) => sum + item.factor, 0);
+    let remaining = remainingCapacity;
+
+    for (let position = 0; position < ordered.length; position += 1) {
+      const item = ordered[position];
+      if (remainingWeight <= 0 || remaining <= 0) break;
+
+      const fairShare = remaining * (item.factor / remainingWeight);
+      if (item.demand <= fairShare + 0.000001) {
+        allocated[item.index] = item.demand;
+        remaining -= item.demand;
+        remainingWeight -= item.factor;
+        continue;
       }
-      remainingCapacity = Math.max(0, remainingCapacity - usedThisPass);
-      if (next.length === pool.length || usedThisPass <= 0.000001) break;
-      pool = next;
+
+      const share = Math.max(0, fairShare);
+      for (let i = position; i < ordered.length; i += 1) {
+        const active = ordered[i];
+        allocated[active.index] = Math.min(active.demand, share * (active.factor / remainingWeight));
+      }
+      remaining = 0;
+      break;
     }
-    return users.map((u) => { const key = this.key(u); return { customerId: u.customerId, sessionId: u.sessionId, requestedMbps: u.requestedMbps, allocatedMbps: Math.max(0, Math.min(u.requestedMbps, allocated.get(key) ?? 0)), weight: Math.max(0.1, u.weight ?? 1), priority: Math.max(1, u.priority ?? 1) }; });
+
+    return users.map((user, index) => this.allocation(user, Math.min(user.requestedMbps, allocated[index] ?? 0)));
   }
 
-  private key(user: { customerId: string; sessionId?: string }): string { return `${user.customerId}:${user.sessionId ?? ''}`; }
+  private allocation(user: FairnessInput['activeUsers'][number], allocatedMbps: number): FairnessAllocation {
+    return {
+      customerId: user.customerId,
+      sessionId: user.sessionId,
+      requestedMbps: user.requestedMbps,
+      allocatedMbps: Math.max(0, Math.min(user.requestedMbps, allocatedMbps)),
+      weight: Math.max(0.1, user.weight ?? 1),
+      priority: Math.max(1, user.priority ?? 1),
+    };
+  }
 }
