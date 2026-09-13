@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { TrafficEnforcementService } from './enforcement.service';
@@ -20,6 +21,7 @@ export class TrafficOrchestratorService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly fairness: FairnessService,
     private readonly enforcement: TrafficEnforcementService,
+    private readonly config: ConfigService,
   ) {}
 
   async evaluateRouter(tenantId: string, routerId: string, apply = true) {
@@ -36,23 +38,36 @@ export class TrafficOrchestratorService {
     const config = router.rows[0];
     if (config.capacityMbps === null) throw new ServiceUnavailableException('Router bandwidth profile is not configured');
 
+    const activeSessions = await this.db.query(
+      `SELECT COUNT(*)::int AS count
+       FROM sessions
+       WHERE tenant_id=$1 AND router_id=$2 AND status='ACTIVE' AND customer_id IS NOT NULL`,
+      [tenantId, routerId],
+    );
+    const activeSessionCount = Number(activeSessions.rows[0]?.count ?? 0);
+    const configuredAge = Number(this.config.get<string>('JASLYN_TRAFFIC_SAMPLE_MAX_AGE_SECONDS', '120'));
+    const maxSampleAgeSeconds = Math.min(Math.max(Number.isFinite(configuredAge) ? configuredAge : 120, 15), 900);
+
     const samples = await this.db.query(
       `SELECT s.id AS "sessionId", s.customer_id AS "customerId", s.ip_address::text AS "ipAddress",
-              GREATEST(0, EXTRACT(EPOCH FROM (newest.sampled_at - previous.sampled_at))) AS "intervalSeconds",
+              EXTRACT(EPOCH FROM (newest.sampled_at - previous.sampled_at)) AS "intervalSeconds",
               GREATEST(0, newest.bytes_in - previous.bytes_in) AS "bytesInDelta",
               GREATEST(0, newest.bytes_out - previous.bytes_out) AS "bytesOutDelta"
        FROM sessions s
        CROSS JOIN LATERAL (
          SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at FROM traffic_samples ts
-         WHERE ts.tenant_id=$1 AND ts.session_id=s.id ORDER BY ts.sampled_at DESC LIMIT 1
+         WHERE ts.tenant_id=$1 AND ts.session_id=s.id
+           AND ts.sampled_at >= NOW() - ($3::int * INTERVAL '1 second')
+         ORDER BY ts.sampled_at DESC LIMIT 1
        ) newest
        CROSS JOIN LATERAL (
          SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at FROM traffic_samples ts
          WHERE ts.tenant_id=$1 AND ts.session_id=s.id AND ts.sampled_at < newest.sampled_at
          ORDER BY ts.sampled_at DESC LIMIT 1
        ) previous
-       WHERE s.tenant_id=$1 AND s.router_id=$2 AND s.status='ACTIVE' AND s.customer_id IS NOT NULL`,
-      [tenantId, routerId],
+       WHERE s.tenant_id=$1 AND s.router_id=$2 AND s.status='ACTIVE' AND s.customer_id IS NOT NULL
+         AND newest.sampled_at - previous.sampled_at <= ($3::int * INTERVAL '1 second')`,
+      [tenantId, routerId, maxSampleAgeSeconds],
     );
 
     const users: ActiveTrafficUser[] = samples.rows.map((row) => {
@@ -81,12 +96,18 @@ export class TrafficOrchestratorService {
       utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
       capacityMbps: state.capacityMbps,
       users: users.length,
+      activeSessions: activeSessionCount,
+      sampleMaxAgeSeconds: maxSampleAgeSeconds,
       allocations: state.allocations,
     };
 
     if (!apply) return { ...baseResult, applied: false, reason: 'DRY_RUN' };
     if (!config.apiEnabled) return { ...baseResult, applied: false, reason: 'ROUTER_API_DISABLED' };
     if (!config.apiEndpoint) return { ...baseResult, applied: false, reason: 'ROUTER_API_ENDPOINT_MISSING' };
+
+    if (activeSessionCount > 0 && samples.rowCount === 0) {
+      return { ...baseResult, applied: false, reason: 'NO_RECENT_TRAFFIC_MEASUREMENTS' };
+    }
 
     if (state.mode === 'NORMAL') {
       const cleared = await this.enforcement.clearManaged(config.apiEndpoint);
