@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'NEXORA | Connected Business Operations',
+  title: 'JASLYN NET | Network Operations Platform',
   description: 'Network, billing and connectivity operations platform for connected businesses.',
 };
 
