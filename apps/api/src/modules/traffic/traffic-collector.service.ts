@@ -7,6 +7,7 @@ import { TrafficSamplesService } from './traffic-samples.service';
 
 interface RouterRecord {
   id: string;
+  tenantId: string;
   apiEndpoint: string;
 }
 
@@ -48,7 +49,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
     let errors = 0;
     try {
       const routers = await this.db.query<RouterRecord>(
-        `SELECT id, api_endpoint AS "apiEndpoint"
+        `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint"
          FROM routers
          WHERE api_enabled=true AND enabled=true AND api_endpoint IS NOT NULL
          ORDER BY id`,
@@ -61,8 +62,8 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
           const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown traffic collection error';
           this.logger.warn(`Traffic collection failed for router ${router.id}: ${message}`);
           await this.db.query(
-            `UPDATE routers SET sync_error=$3, updated_at=now() WHERE id=$1 AND api_enabled=true AND enabled=true AND $2::text IS NOT NULL`,
-            [router.id, router.apiEndpoint, message],
+            `UPDATE routers SET sync_error=$2, updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+            [router.tenantId, message, router.id],
           ).catch(() => undefined);
         }
       }
@@ -75,15 +76,15 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
   private async collectRouter(router: RouterRecord): Promise<number> {
     const active = await this.adapter.readHotspotActive(router.apiEndpoint);
     if (!active.length) {
-      await this.db.query(`UPDATE routers SET last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE id=$1`, [router.id]);
+      await this.db.query(`UPDATE routers SET last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE tenant_id=$1 AND id=$2`, [router.tenantId, router.id]);
       return 0;
     }
 
     const sessions = await this.db.query<SessionRecord>(
       `SELECT id, customer_id AS "customerId", username, ip_address AS "ipAddress"
        FROM sessions
-       WHERE router_id=$1 AND status='ACTIVE' AND customer_id IS NOT NULL`,
-      [router.id],
+       WHERE tenant_id=$1 AND router_id=$2 AND status='ACTIVE' AND customer_id IS NOT NULL`,
+      [router.tenantId, router.id],
     );
     const byIp = new Map<string, SessionRecord>();
     const byUsername = new Map<string, SessionRecord>();
@@ -100,7 +101,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       const bytesIn = this.counter(record['bytes-in']);
       const bytesOut = this.counter(record['bytes-out']);
       if (bytesIn === null || bytesOut === null) continue;
-      await this.samples.record('' + (await this.tenantForRouter(router.id)), {
+      await this.samples.record(router.tenantId, {
         routerId: router.id,
         customerId: session.customerId,
         sessionId: session.id,
@@ -110,7 +111,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       });
       recorded += 1;
     }
-    await this.db.query(`UPDATE routers SET last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE id=$1`, [router.id]);
+    await this.db.query(`UPDATE routers SET last_seen_at=now(), sync_error=NULL, updated_at=now() WHERE tenant_id=$1 AND id=$2`, [router.tenantId, router.id]);
     return recorded;
   }
 
@@ -126,13 +127,5 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
     if (!value || !/^\d+$/.test(value)) return null;
     const parsed = BigInt(value);
     return parsed <= 9223372036854775807n ? value : null;
-  }
-
-  private async tenantForRouter(routerId: string): Promise<string> {
-    const result = await this.db.query<{ tenantId: string }>(
-      `SELECT tenant_id AS "tenantId" FROM routers WHERE id=$1 LIMIT 1`,
-      [routerId],
-    );
-    return result.rows[0]?.tenantId ?? (() => { throw new Error(`Tenant not found for router ${routerId}`); })();
   }
 }
