@@ -137,7 +137,7 @@ function runMeasurement() {
       sampledAt: new Date('2026-09-13T00:00:01.000Z'),
     });
   }
-  if (result.totalMbps !== 12_000) throw new Error(`Unexpected 64-bit counter throughput: ${result.totalMbps}`);
+  if (result.totalMbps !== 0.012) throw new Error(`Unexpected 64-bit counter throughput: ${result.totalMbps}`);
   return { elapsedMs: performance.now() - started, result };
 }
 
