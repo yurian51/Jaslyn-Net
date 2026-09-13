@@ -1,4 +1,5 @@
 import { FairnessAllocation } from './traffic.types';
+import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 export interface BandwidthEnforcementCommand {
   routerId: string;
@@ -12,9 +13,9 @@ export interface BandwidthEnforcementCommand {
 }
 
 export interface TrafficEnforcementAdapter {
-  apply(commands: BandwidthEnforcementCommand[]): Promise<void>;
-  clearManaged(apiEndpoint: string): Promise<number>;
-  reconcileManaged(apiEndpoint: string, keepQueueNames: string[]): Promise<number>;
+  apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void>;
+  clearManaged(apiEndpoint: string, credentials?: NetworkCredentials): Promise<number>;
+  reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials): Promise<number>;
 }
 
 export function toEnforcementCommands(
@@ -43,7 +44,7 @@ export function toEnforcementCommands(
 }
 
 export class NoopTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
-  async apply(_commands: BandwidthEnforcementCommand[]): Promise<void> {}
-  async clearManaged(_apiEndpoint: string): Promise<number> { return 0; }
-  async reconcileManaged(_apiEndpoint: string, _keepQueueNames: string[]): Promise<number> { return 0; }
+  async apply(_commands: BandwidthEnforcementCommand[], _credentials?: NetworkCredentials): Promise<void> {}
+  async clearManaged(_apiEndpoint: string, _credentials?: NetworkCredentials): Promise<number> { return 0; }
+  async reconcileManaged(_apiEndpoint: string, _keepQueueNames: string[], _credentials?: NetworkCredentials): Promise<number> { return 0; }
 }
