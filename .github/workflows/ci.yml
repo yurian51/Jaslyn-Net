@@ -41,7 +41,8 @@ jobs:
             apps/api/migrations/008_operational_hardening.sql \
             apps/api/migrations/009_payment_concurrency.sql \
             apps/api/migrations/010_notification_queue_indexes.sql \
-            apps/api/migrations/011_payment_event_tenant_isolation.sql; do
+            apps/api/migrations/011_payment_event_tenant_isolation.sql \
+            apps/api/migrations/012_notification_outbox_hardening.sql; do
             test -f "$file"
           done
           grep -q "CREATE TABLE IF NOT EXISTS organization_subscriptions" apps/api/migrations/002_saas_billing_access.sql
@@ -55,6 +56,8 @@ jobs:
           grep -q "notification_outbox_processing_lock_idx" apps/api/migrations/010_notification_queue_indexes.sql
           grep -q "payment_events_tenant_provider_event_uq" apps/api/migrations/011_payment_event_tenant_isolation.sql
           grep -q "DROP INDEX IF EXISTS payment_events_provider_event_uq" apps/api/migrations/011_payment_event_tenant_isolation.sql
+          grep -q "notification_outbox_tenant_dedupe_uq" apps/api/migrations/012_notification_outbox_hardening.sql
+          grep -q "notification_outbox_dead_letter_idx" apps/api/migrations/012_notification_outbox_hardening.sql
 
       - name: Typecheck API
         run: pnpm --filter @jaslyn-net/api typecheck
