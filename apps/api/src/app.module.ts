@@ -11,6 +11,7 @@ import { OverviewModule } from './overview/overview.module';
 import { PackagesModule } from './packages/packages.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { PaymentsModule } from './payments/payments.module';
+import { RoutersModule } from './routers/routers.module';
 import { VouchersModule } from './vouchers/vouchers.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 
@@ -28,6 +29,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     PackagesModule,
     PurchasesModule,
     PaymentsModule,
+    RoutersModule,
     VouchersModule,
   ],
 })
