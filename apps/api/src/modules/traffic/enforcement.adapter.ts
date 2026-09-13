@@ -14,6 +14,7 @@ export interface BandwidthEnforcementCommand {
 export interface TrafficEnforcementAdapter {
   apply(commands: BandwidthEnforcementCommand[]): Promise<void>;
   clearManaged(apiEndpoint: string): Promise<number>;
+  reconcileManaged(apiEndpoint: string, keepQueueNames: string[]): Promise<number>;
 }
 
 export function toEnforcementCommands(
@@ -44,4 +45,5 @@ export function toEnforcementCommands(
 export class NoopTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
   async apply(_commands: BandwidthEnforcementCommand[]): Promise<void> {}
   async clearManaged(_apiEndpoint: string): Promise<number> { return 0; }
+  async reconcileManaged(_apiEndpoint: string, _keepQueueNames: string[]): Promise<number> { return 0; }
 }
