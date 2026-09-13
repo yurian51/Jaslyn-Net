@@ -95,6 +95,22 @@ describe('MikroTikTrafficEnforcementAdapter', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('https://192.168.1.1/rest/queue/simple/%2A1');
   });
 
+  it('reconciles stale managed queues without touching kept or operator queues', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response([
+        { '.id': '*1', name: 'JASLYN-session-keep', comment: 'JASLYN NET traffic fairness' },
+        { '.id': '*2', name: 'JASLYN-session-stale', comment: 'JASLYN NET traffic fairness' },
+        { '.id': '*3', name: 'JASLYN-session-operator', comment: 'operator-managed' },
+        { '.id': '*4', name: 'operator-queue', comment: 'JASLYN NET traffic fairness' },
+      ]))
+      .mockResolvedValueOnce(response({}));
+
+    const adapter = new MikroTikTrafficEnforcementAdapter(config);
+    await expect(adapter.reconcileManaged('https://192.168.1.1/rest', ['JASLYN-session-keep'])).resolves.toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe('https://192.168.1.1/rest/queue/simple/%2A2');
+  });
+
   it('rejects insecure router endpoints unless explicitly enabled', async () => {
     const adapter = new MikroTikTrafficEnforcementAdapter(config);
     await expect(adapter.apply([{
