@@ -9,7 +9,8 @@
     "migrate": "node dist/database/migrate.js",
     "lint": "eslint .",
     "test": "jest --runInBand",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark": "pnpm build && node benchmarks/traffic.benchmark.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.11",
