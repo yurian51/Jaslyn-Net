@@ -2,7 +2,8 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
-import { CreateRouterDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
+import { CreateRouterDto, NetworkManagementProtocol, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
+import { WORLDWIDE_NETWORK_CAPABILITIES } from '../modules/traffic/network-capabilities';
 
 @Injectable()
 export class RoutersService {
@@ -18,6 +19,22 @@ export class RoutersService {
               controller_endpoint AS "controllerEndpoint", capabilities,
               sync_error AS "syncError", created_at AS "createdAt", updated_at AS "updatedAt"
        FROM routers`;
+
+  private capabilityMetadata(vendor?: string, protocol?: NetworkManagementProtocol) {
+    const normalizedVendor = vendor?.trim().toLowerCase();
+    const match = WORLDWIDE_NETWORK_CAPABILITIES.find((item) =>
+      normalizedVendor && item.vendor.toLowerCase() === normalizedVendor,
+    );
+    if (match) return {
+      vendor: match.vendor,
+      protocols: match.protocols,
+      integrationModes: match.integrationModes,
+      deviceFamilies: match.deviceFamilies,
+      capabilities: match.capabilities,
+      notes: match.notes,
+    };
+    return protocol ? { protocol, capabilities: [] } : {};
+  }
 
   async list(tenantId: string) {
     const result = await this.db.query(`${this.selectRouter} WHERE tenant_id=$1 ORDER BY created_at DESC`, [tenantId]);
@@ -35,10 +52,12 @@ export class RoutersService {
       const location = await this.db.query(`SELECT id FROM locations WHERE tenant_id=$1 AND id=$2`, [tenantId, input.locationId]);
       if (!location.rowCount) throw new NotFoundException('Location not found');
     }
+    const managementProtocol = input.managementProtocol ?? 'MIKROTIK_REST';
+    const capabilities = this.capabilityMetadata(input.vendor, managementProtocol);
     const result = await this.db.query(
       `INSERT INTO routers (tenant_id,name,vendor,model,ip_address,mac_address,os_version,location_id,api_endpoint,
-                            management_protocol,management_enabled,controller_endpoint)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10,'MIKROTIK_REST'),COALESCE($11,true),$12)
+                            management_protocol,management_enabled,controller_endpoint,capabilities)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,true),$12,$13::jsonb)
        RETURNING id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
                  os_version AS "osVersion", status, active_users AS "activeUsers", location_id AS "locationId",
                  last_seen_at AS "lastSeenAt", api_enabled AS "apiEnabled", api_endpoint AS "apiEndpoint",
@@ -47,29 +66,36 @@ export class RoutersService {
                  sync_error AS "syncError", created_at AS "createdAt", updated_at AS "updatedAt"`,
       [tenantId, input.name.trim(), input.vendor?.trim() || null, input.model?.trim() || null, input.ipAddress || null,
        input.macAddress?.trim() || null, input.osVersion?.trim() || null, input.locationId || null, input.apiEndpoint?.trim() || null,
-       input.managementProtocol ?? null, input.managementEnabled ?? null, input.controllerEndpoint?.trim() || null],
+       managementProtocol, input.managementEnabled ?? null, input.controllerEndpoint?.trim() || null, JSON.stringify(capabilities)],
     );
     const router = result.rows[0];
     await this.audit.record(tenantId, 'ROUTER_CREATED', 'router', router.id, {
       name: router.name, apiConfigured: Boolean(router.apiEndpoint), managementProtocol: router.managementProtocol,
+      capabilityCount: Array.isArray(router.capabilities?.capabilities) ? router.capabilities.capabilities.length : 0,
     }, context);
     return router;
   }
 
   async update(tenantId: string, id: string, input: UpdateRouterDto, context: AuditContext = {}) {
-    await this.get(tenantId, id);
+    const existing = await this.get(tenantId, id);
     if (input.locationId) {
       const location = await this.db.query(`SELECT id FROM locations WHERE tenant_id=$1 AND id=$2`, [tenantId, input.locationId]);
       if (!location.rowCount) throw new NotFoundException('Location not found');
     }
     const locationExpression = input.clearLocation ? 'NULL' : 'COALESCE($9,location_id)';
+    const nextVendor = input.vendor ?? existing.vendor;
+    const nextProtocol = input.managementProtocol ?? existing.managementProtocol;
+    const capabilities = this.capabilityMetadata(nextVendor, nextProtocol);
+    const hasCatalogMetadata = Object.keys(capabilities).length > 0;
     const result = await this.db.query(
       `UPDATE routers SET
         name=COALESCE($3,name), vendor=COALESCE($4,vendor), model=COALESCE($5,model), ip_address=COALESCE($6,ip_address),
         mac_address=COALESCE($7,mac_address), os_version=COALESCE($8,os_version),
         location_id=${locationExpression}, api_enabled=COALESCE($10,api_enabled), api_endpoint=COALESCE($11,api_endpoint),
         management_protocol=COALESCE($12,management_protocol), management_enabled=COALESCE($13,management_enabled),
-        controller_endpoint=COALESCE($14,controller_endpoint), updated_at=now()
+        controller_endpoint=COALESCE($14,controller_endpoint),
+        capabilities=CASE WHEN $15::boolean THEN $16::jsonb ELSE capabilities END,
+        updated_at=now()
        WHERE tenant_id=$1 AND id=$2
        RETURNING id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
                  os_version AS "osVersion", status, active_users AS "activeUsers", location_id AS "locationId",
@@ -80,7 +106,8 @@ export class RoutersService {
       [tenantId, id, input.name?.trim() || null, input.vendor?.trim() || null, input.model?.trim() || null,
        input.ipAddress || null, input.macAddress?.trim() || null, input.osVersion?.trim() || null,
        input.locationId ?? null, input.apiEnabled ?? null, input.apiEndpoint?.trim() || null,
-       input.managementProtocol ?? null, input.managementEnabled ?? null, input.controllerEndpoint?.trim() || null],
+       input.managementProtocol ?? null, input.managementEnabled ?? null, input.controllerEndpoint?.trim() || null,
+       hasCatalogMetadata, JSON.stringify(capabilities)],
     );
     const router = result.rows[0];
     await this.audit.record(tenantId, 'ROUTER_UPDATED', 'router', id, {
