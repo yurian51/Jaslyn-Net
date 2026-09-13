@@ -27,12 +27,12 @@ export class UpdateSessionUsageDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(9223372036854775807)
+  @Max(Number.MAX_SAFE_INTEGER)
   bytesIn?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(9223372036854775807)
+  @Max(Number.MAX_SAFE_INTEGER)
   bytesOut?: number;
 }
