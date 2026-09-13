@@ -1,4 +1,4 @@
-import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateRouterDto {
   @IsString()
@@ -32,6 +32,11 @@ export class CreateRouterDto {
   @IsOptional()
   @IsUUID()
   locationId?: string;
+
+  @IsOptional()
+  @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
+  @MaxLength(300)
+  apiEndpoint?: string;
 }
 
 export class UpdateRouterDto {
@@ -75,6 +80,11 @@ export class UpdateRouterDto {
   @IsOptional()
   @IsBoolean()
   apiEnabled?: boolean;
+
+  @IsOptional()
+  @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
+  @MaxLength(300)
+  apiEndpoint?: string;
 }
 
 export class RouterHeartbeatDto {
