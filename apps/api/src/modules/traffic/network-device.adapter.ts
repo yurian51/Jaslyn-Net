@@ -4,42 +4,22 @@ import { NetworkManagementProtocol } from '../../routers/routers.dto';
 import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 
-export interface NetworkDeviceConnection {
-  routerId: string;
-  protocol: NetworkManagementProtocol;
-  endpoint?: string;
-  controllerEndpoint?: string;
-  capabilities?: Record<string, unknown>;
-  credentials?: NetworkCredentials;
-}
-
-export interface NormalizedWifiClient {
-  username?: string;
-  address?: string;
-  macAddress?: string;
-  bytesIn: string;
-  bytesOut: string;
-}
+export interface NetworkDeviceConnection { routerId: string; protocol: NetworkManagementProtocol; endpoint?: string; controllerEndpoint?: string; capabilities?: Record<string, unknown>; credentials?: NetworkCredentials; }
+export interface NormalizedWifiClient { username?: string; address?: string; macAddress?: string; bytesIn: string; bytesOut: string; }
 
 @Injectable()
 export class NetworkDeviceAdapterRegistry {
-  constructor(
-    private readonly config: ConfigService,
-    private readonly mikrotik: MikroTikTrafficEnforcementAdapter,
-  ) {}
+  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter) {}
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     switch (connection.protocol) {
       case 'MIKROTIK_REST': {
         const records = await this.mikrotik.readHotspotActive(connection.endpoint ?? '', connection.credentials);
-        return records.map((record: MikroTikHotspotActiveRecord) => ({
-          username: record.user, address: record.address, macAddress: record['mac-address'],
-          bytesIn: record['bytes-in'] ?? '0', bytesOut: record['bytes-out'] ?? '0',
-        }));
+        return records.map((record: MikroTikHotspotActiveRecord) => ({ username: record.user, address: record.address, macAddress: record['mac-address'], bytesIn: record['bytes-in'] ?? '0', bytesOut: record['bytes-out'] ?? '0' }));
       }
       case 'UNIFI_NETWORK_API': return this.readUniFi(connection);
       case 'MERAKI_DASHBOARD_API': return this.readMeraki(connection);
-      case 'OPENWRT_UBUS':
+      case 'OPENWRT_UBUS': return this.readOpenWrt(connection);
       case 'CAMBIUM_CNMAESTRO':
       case 'OMADA_CONTROLLER_API':
       case 'ARUBA_CENTRAL_API':
@@ -51,10 +31,52 @@ export class NetworkDeviceAdapterRegistry {
       case 'PFSENSE_API':
       case 'GENERIC_HTTP': return this.readGenericHttp(connection);
       case 'SNMP':
-      case 'RADIUS_NAS':
-        throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
+      case 'RADIUS_NAS': throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
       default: throw new ServiceUnavailableException(`Unsupported network management protocol: ${connection.protocol}`);
     }
+  }
+
+  private async readOpenWrt(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
+    const endpoint = (connection.controllerEndpoint ?? connection.endpoint)?.replace(/\/+$/, '');
+    const username = connection.credentials?.username;
+    const password = connection.credentials?.password;
+    if (!endpoint || !username || password === undefined) throw new ServiceUnavailableException(`OpenWrt ubus endpoint and credentials are required for ${connection.routerId}`);
+    const base = endpoint.endsWith('/ubus') ? endpoint : `${endpoint}/ubus`;
+    const session = await this.ubusCall(base, 'session', 'login', { username, password, timeout: 300 });
+    const sid = this.stringValue(session, ['ubus_rpc_session']);
+    if (!sid) throw new ServiceUnavailableException('OpenWrt ubus login did not return a session');
+    const devices = await this.ubusCall(base, 'iwinfo', 'devices', {}, sid);
+    const names = this.extractDeviceNames(devices);
+    const clients: NormalizedWifiClient[] = [];
+    for (const device of names) {
+      const payload = await this.ubusCall(base, 'iwinfo', 'assoclist', { device }, sid);
+      for (const row of this.extractAssocRecords(payload)) {
+        const mac = this.stringValue(row, ['mac', 'mac-address', 'macaddr']);
+        if (!mac) continue;
+        clients.push({ macAddress: mac, address: this.stringValue(row, ['ip', 'ipAddress', 'address']), bytesIn: this.counter(row, ['rx_bytes', 'rxBytes', 'bytesIn']), bytesOut: this.counter(row, ['tx_bytes', 'txBytes', 'bytesOut']) });
+      }
+    }
+    return clients;
+  }
+
+  private async ubusCall(endpoint: string, object: string, method: string, args: Record<string, unknown>, sid?: string): Promise<unknown> {
+    const params = [sid ?? '00000000000000000000000000000000', object, method, args];
+    const body = await this.fetchJson(endpoint, { 'Content-Type': 'application/json', Accept: 'application/json' }, { jsonrpc: '2.0', id: Date.now(), method: 'call', params });
+    if (!this.isRecord(body) || !Array.isArray(body.result) || body.result[0] !== 0) throw new ServiceUnavailableException(`OpenWrt ubus call ${object}.${method} failed`);
+    return body.result[1];
+  }
+
+  private extractDeviceNames(payload: unknown): string[] {
+    if (!this.isRecord(payload)) return [];
+    const values = payload.devices;
+    if (Array.isArray(values)) return values.map((value) => typeof value === 'string' ? value : this.stringValue(this.isRecord(value) ? value : undefined, ['device', 'name'])).filter((value): value is string => Boolean(value));
+    return [];
+  }
+
+  private extractAssocRecords(payload: unknown): Record<string, unknown>[] {
+    if (!this.isRecord(payload)) return [];
+    for (const key of ['results', 'assoclist', 'clients', 'data']) if (Array.isArray(payload[key])) return payload[key].filter(this.isRecord);
+    return [];
   }
 
   private async readUniFi(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
@@ -62,13 +84,10 @@ export class NetworkDeviceAdapterRegistry {
     if (!base) throw new ServiceUnavailableException(`UniFi API endpoint is not configured for ${connection.routerId}`);
     const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken ?? this.config.get<string>('JASLYN_UNIFI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('UniFi API credentials are not configured');
-    const root = base.replace(/\/$/, '');
-    const apiRoot = root.endsWith('/v1') ? root : `${root}/v1`;
-    const sites = await this.fetchJson(`${apiRoot}/sites`, { 'X-API-Key': apiKey });
-    const clients: NormalizedWifiClient[] = [];
+    const root = base.replace(/\/$/, ''); const apiRoot = root.endsWith('/v1') ? root : `${root}/v1`;
+    const sites = await this.fetchJson(`${apiRoot}/sites`, { 'X-API-Key': apiKey }); const clients: NormalizedWifiClient[] = [];
     for (const site of this.extractRecords(sites, ['data', 'sites'])) {
-      const siteId = this.stringValue(site, ['siteId', 'id']);
-      if (!siteId) continue;
+      const siteId = this.stringValue(site, ['siteId', 'id']); if (!siteId) continue;
       const payload = await this.fetchJson(`${apiRoot}/sites/${encodeURIComponent(siteId)}/clients`, { 'X-API-Key': apiKey });
       for (const record of this.extractRecords(payload, ['data', 'clients'])) clients.push(this.normalizeRecord(record));
     }
@@ -103,57 +122,30 @@ export class NetworkDeviceAdapterRegistry {
     return headers;
   }
 
-  private async fetchJson(url: string, headers: Record<string, string>): Promise<unknown> {
+  private async fetchJson(url: string, headers: Record<string, string>, body?: unknown): Promise<unknown> {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:' && this.config.get<string>('JASLYN_NETWORK_ALLOW_HTTP', 'false') !== 'true') throw new ServiceUnavailableException('Network device API must use HTTPS in production');
-    const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000'));
-    const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000')); const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(parsed, { headers, signal: controller.signal });
+      const response = await fetch(parsed, { method: body === undefined ? 'GET' : 'POST', headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
       if (!response.ok) throw new ServiceUnavailableException(`Network device API request failed (${response.status})`);
       return await response.json() as unknown;
-    } catch (error) {
-      if (error instanceof ServiceUnavailableException) throw error;
-      throw new ServiceUnavailableException('Network device API request failed or timed out');
-    } finally { clearTimeout(timer); }
+    } catch (error) { if (error instanceof ServiceUnavailableException) throw error; throw new ServiceUnavailableException('Network device API request failed or timed out'); }
+    finally { clearTimeout(timer); }
   }
 
   private extractRecords(body: unknown, preferredKeys: string[] = []): Record<string, unknown>[] {
     if (Array.isArray(body)) return body.filter(this.isRecord);
     if (!this.isRecord(body)) throw new ServiceUnavailableException('Network device API returned invalid JSON');
-    for (const key of [...preferredKeys, 'clients', 'users', 'sessions', 'data', 'results']) {
-      const value = body[key];
-      if (Array.isArray(value)) return value.filter(this.isRecord);
-    }
+    for (const key of [...preferredKeys, 'clients', 'users', 'sessions', 'data', 'results']) { const value = body[key]; if (Array.isArray(value)) return value.filter(this.isRecord); }
     throw new ServiceUnavailableException('Network device API response has no supported client collection');
   }
-
   private normalizeRecord(record: Record<string, unknown>): NormalizedWifiClient {
     const usage = this.isRecord(record.usage) ? record.usage : undefined;
-    return {
-      username: this.stringValue(record, ['username', 'user', 'name', 'description']),
-      address: this.stringValue(record, ['ipAddress', 'ip', 'address', 'ip6']),
-      macAddress: this.stringValue(record, ['macAddress', 'mac', 'mac-address', 'macAddr']),
-      bytesIn: this.counter(record, ['bytesIn', 'bytes_in', 'rxBytes', 'downloadBytes', 'usageDown', 'downBytes']) || this.counter(usage, ['recv', 'rx', 'download']),
-      bytesOut: this.counter(record, ['bytesOut', 'bytes_out', 'txBytes', 'uploadBytes', 'usageUp', 'upBytes']) || this.counter(usage, ['sent', 'tx', 'upload']),
-    };
+    return { username: this.stringValue(record, ['username', 'user', 'name', 'description']), address: this.stringValue(record, ['ipAddress', 'ip', 'address', 'ip6']), macAddress: this.stringValue(record, ['macAddress', 'mac', 'mac-address', 'macAddr']), bytesIn: this.counter(record, ['bytesIn', 'bytes_in', 'rxBytes', 'downloadBytes', 'usageDown', 'downBytes']) || this.counter(usage, ['recv', 'rx', 'download']), bytesOut: this.counter(record, ['bytesOut', 'bytes_out', 'txBytes', 'uploadBytes', 'usageUp', 'upBytes']) || this.counter(usage, ['sent', 'tx', 'upload']) };
   }
-
   private isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
-  private stringValue(record: Record<string, unknown> | undefined, keys: string[]) {
-    if (!record) return undefined;
-    for (const key of keys) if (typeof record[key] === 'string' && record[key].trim()) return record[key] as string;
-    return undefined;
-  }
-  private counter(record: Record<string, unknown> | undefined, keys: string[]): string {
-    if (!record) return '';
-    for (const key of keys) {
-      const value = record[key];
-      const text = typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : typeof value === 'string' ? value : '';
-      if (/^\d+$/.test(text)) return text;
-    }
-    return '';
-  }
+  private stringValue(record: Record<string, unknown> | undefined, keys: string[]) { if (!record) return undefined; for (const key of keys) if (typeof record[key] === 'string' && record[key].trim()) return record[key] as string; return undefined; }
+  private counter(record: Record<string, unknown> | undefined, keys: string[]): string { if (!record) return ''; for (const key of keys) { const value = record[key]; const text = typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : typeof value === 'string' ? value : ''; if (/^\d+$/.test(text)) return text; } return ''; }
 }
