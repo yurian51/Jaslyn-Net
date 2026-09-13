@@ -4,13 +4,15 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { NetworkDeviceAdapterRegistry, NormalizedWifiClient } from './network-device.adapter';
 import { TrafficSamplesService } from './traffic-samples.service';
+import { NetworkManagementProtocol } from '../../routers/routers.dto';
 
 interface RouterRecord {
   id: string;
   tenantId: string;
   apiEndpoint?: string;
   controllerEndpoint?: string;
-  managementProtocol: 'MIKROTIK_REST' | 'UNIFI_NETWORK_API' | 'OPENWRT_UBUS' | 'CAMBIUM_CNMAESTRO' | 'GENERIC_HTTP' | 'SNMP' | 'RADIUS_NAS';
+  managementProtocol: NetworkManagementProtocol;
+  capabilities: Record<string, unknown>;
 }
 
 interface SessionRecord {
@@ -52,7 +54,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
     try {
       const routers = await this.db.query<RouterRecord>(
         `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint", controller_endpoint AS "controllerEndpoint",
-                management_protocol AS "managementProtocol"
+                management_protocol AS "managementProtocol", capabilities
          FROM routers
          WHERE management_enabled=true AND enabled=true
            AND (api_enabled=true OR controller_endpoint IS NOT NULL)
@@ -83,6 +85,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       protocol: router.managementProtocol,
       endpoint: router.apiEndpoint,
       controllerEndpoint: router.controllerEndpoint,
+      capabilities: router.capabilities,
     });
     if (!active.length) {
       await this.markHealthy(router);
