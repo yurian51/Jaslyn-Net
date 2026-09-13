@@ -14,6 +14,8 @@ export class RoutersService {
   private readonly selectRouter = `SELECT id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
               os_version AS "osVersion", status, active_users AS "activeUsers", location_id AS "locationId",
               last_seen_at AS "lastSeenAt", api_enabled AS "apiEnabled", api_endpoint AS "apiEndpoint",
+              management_protocol AS "managementProtocol", management_enabled AS "managementEnabled",
+              controller_endpoint AS "controllerEndpoint", capabilities,
               sync_error AS "syncError", created_at AS "createdAt", updated_at AS "updatedAt"
        FROM routers`;
 
@@ -34,17 +36,23 @@ export class RoutersService {
       if (!location.rowCount) throw new NotFoundException('Location not found');
     }
     const result = await this.db.query(
-      `INSERT INTO routers (tenant_id,name,vendor,model,ip_address,mac_address,os_version,location_id,api_endpoint)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `INSERT INTO routers (tenant_id,name,vendor,model,ip_address,mac_address,os_version,location_id,api_endpoint,
+                            management_protocol,management_enabled,controller_endpoint)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10,'MIKROTIK_REST'),COALESCE($11,true),$12)
        RETURNING id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
                  os_version AS "osVersion", status, active_users AS "activeUsers", location_id AS "locationId",
                  last_seen_at AS "lastSeenAt", api_enabled AS "apiEnabled", api_endpoint AS "apiEndpoint",
+                 management_protocol AS "managementProtocol", management_enabled AS "managementEnabled",
+                 controller_endpoint AS "controllerEndpoint", capabilities,
                  sync_error AS "syncError", created_at AS "createdAt", updated_at AS "updatedAt"`,
       [tenantId, input.name.trim(), input.vendor?.trim() || null, input.model?.trim() || null, input.ipAddress || null,
-       input.macAddress?.trim() || null, input.osVersion?.trim() || null, input.locationId || null, input.apiEndpoint?.trim() || null],
+       input.macAddress?.trim() || null, input.osVersion?.trim() || null, input.locationId || null, input.apiEndpoint?.trim() || null,
+       input.managementProtocol ?? null, input.managementEnabled ?? null, input.controllerEndpoint?.trim() || null],
     );
     const router = result.rows[0];
-    await this.audit.record(tenantId, 'ROUTER_CREATED', 'router', router.id, { name: router.name, apiConfigured: Boolean(router.apiEndpoint) }, context);
+    await this.audit.record(tenantId, 'ROUTER_CREATED', 'router', router.id, {
+      name: router.name, apiConfigured: Boolean(router.apiEndpoint), managementProtocol: router.managementProtocol,
+    }, context);
     return router;
   }
 
@@ -59,20 +67,25 @@ export class RoutersService {
       `UPDATE routers SET
         name=COALESCE($3,name), vendor=COALESCE($4,vendor), model=COALESCE($5,model), ip_address=COALESCE($6,ip_address),
         mac_address=COALESCE($7,mac_address), os_version=COALESCE($8,os_version),
-        location_id=${locationExpression}, api_enabled=COALESCE($10,api_enabled), api_endpoint=COALESCE($11,api_endpoint), updated_at=now()
+        location_id=${locationExpression}, api_enabled=COALESCE($10,api_enabled), api_endpoint=COALESCE($11,api_endpoint),
+        management_protocol=COALESCE($12,management_protocol), management_enabled=COALESCE($13,management_enabled),
+        controller_endpoint=COALESCE($14,controller_endpoint), updated_at=now()
        WHERE tenant_id=$1 AND id=$2
        RETURNING id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
                  os_version AS "osVersion", status, active_users AS "activeUsers", location_id AS "locationId",
                  last_seen_at AS "lastSeenAt", api_enabled AS "apiEnabled", api_endpoint AS "apiEndpoint",
+                 management_protocol AS "managementProtocol", management_enabled AS "managementEnabled",
+                 controller_endpoint AS "controllerEndpoint", capabilities,
                  sync_error AS "syncError", created_at AS "createdAt", updated_at AS "updatedAt"`,
       [tenantId, id, input.name?.trim() || null, input.vendor?.trim() || null, input.model?.trim() || null,
        input.ipAddress || null, input.macAddress?.trim() || null, input.osVersion?.trim() || null,
-       input.locationId ?? null, input.apiEnabled ?? null, input.apiEndpoint?.trim() || null],
+       input.locationId ?? null, input.apiEnabled ?? null, input.apiEndpoint?.trim() || null,
+       input.managementProtocol ?? null, input.managementEnabled ?? null, input.controllerEndpoint?.trim() || null],
     );
     const router = result.rows[0];
     await this.audit.record(tenantId, 'ROUTER_UPDATED', 'router', id, {
       changedFields: Object.keys(input), clearLocation: input.clearLocation === true,
-      apiConfigured: Boolean(router.apiEndpoint),
+      apiConfigured: Boolean(router.apiEndpoint), managementProtocol: router.managementProtocol,
     }, context);
     return router;
   }
@@ -94,8 +107,8 @@ export class RoutersService {
     const minutes = Math.min(Math.max(Math.trunc(staleMinutes), 1), 1440);
     const result = await this.db.query(
       `UPDATE routers SET status='OFFLINE', updated_at=now()
-       WHERE tenant_id=$1 AND status <> 'OFFLINE' AND (last_seen_at IS NULL OR last_seen_at < now() - ($2 * interval '1 minute')
-       ) RETURNING id, status, last_seen_at AS "lastSeenAt"`,
+       WHERE tenant_id=$1 AND status <> 'OFFLINE' AND (last_seen_at IS NULL OR last_seen_at < now() - ($2 * interval '1 minute'))
+       RETURNING id, status, last_seen_at AS "lastSeenAt"`,
       [tenantId, minutes],
     );
     if (result.rowCount) await this.audit.record(tenantId, 'ROUTERS_MARKED_OFFLINE', 'router', undefined, {
