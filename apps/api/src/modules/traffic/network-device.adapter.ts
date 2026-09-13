@@ -38,10 +38,8 @@ export class NetworkDeviceAdapterRegistry {
           bytesOut: record['bytes-out'] ?? '0',
         }));
       }
-      case 'UNIFI_NETWORK_API':
-        return this.readUniFi(connection);
-      case 'MERAKI_DASHBOARD_API':
-        return this.readMeraki(connection);
+      case 'UNIFI_NETWORK_API': return this.readUniFi(connection);
+      case 'MERAKI_DASHBOARD_API': return this.readMeraki(connection);
       case 'OPENWRT_UBUS':
       case 'CAMBIUM_CNMAESTRO':
       case 'OMADA_CONTROLLER_API':
@@ -52,13 +50,11 @@ export class NetworkDeviceAdapterRegistry {
       case 'TELTONIKA_RMS_API':
       case 'PEPLINK_INCONTROL_API':
       case 'PFSENSE_API':
-      case 'GENERIC_HTTP':
-        return this.readGenericHttp(connection);
+      case 'GENERIC_HTTP': return this.readGenericHttp(connection);
       case 'SNMP':
       case 'RADIUS_NAS':
         throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
-      default:
-        throw new ServiceUnavailableException(`Unsupported network management protocol: ${connection.protocol}`);
+      default: throw new ServiceUnavailableException(`Unsupported network management protocol: ${connection.protocol}`);
     }
   }
 
@@ -67,19 +63,14 @@ export class NetworkDeviceAdapterRegistry {
     if (!base) throw new ServiceUnavailableException(`UniFi API endpoint is not configured for ${connection.routerId}`);
     const apiKey = this.config.get<string>('JASLYN_UNIFI_API_KEY') ?? this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
     if (!apiKey) throw new ServiceUnavailableException('UniFi API key is not configured');
-
     const root = base.replace(/\/$/, '');
-    const sites = await this.fetchJson(root.endsWith('/v1') ? `${root}/sites` : `${root}/v1/sites`, {
-      'X-API-Key': apiKey,
-    });
-    const siteRows = this.extractRecords(sites, ['data', 'sites']);
+    const apiRoot = root.endsWith('/v1') ? root : `${root}/v1`;
+    const sites = await this.fetchJson(`${apiRoot}/sites`, { 'X-API-Key': apiKey });
     const clients: NormalizedWifiClient[] = [];
-    for (const site of siteRows) {
+    for (const site of this.extractRecords(sites, ['data', 'sites'])) {
       const siteId = this.stringValue(site, ['siteId', 'id']);
       if (!siteId) continue;
-      const payload = await this.fetchJson(`${root.endsWith('/v1') ? root : `${root}/v1`}/sites/${encodeURIComponent(siteId)}/clients`, {
-        'X-API-Key': apiKey,
-      });
+      const payload = await this.fetchJson(`${apiRoot}/sites/${encodeURIComponent(siteId)}/clients`, { 'X-API-Key': apiKey });
       for (const record of this.extractRecords(payload, ['data', 'clients'])) clients.push(this.normalizeRecord(record));
     }
     return clients;
@@ -91,20 +82,18 @@ export class NetworkDeviceAdapterRegistry {
     const endpoint = (connection.controllerEndpoint ?? connection.endpoint ?? 'https://api.meraki.com/api/v1').replace(/\/$/, '');
     const apiKey = this.config.get<string>('JASLYN_MERAKI_API_KEY') ?? this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
     if (!apiKey) throw new ServiceUnavailableException('Meraki API key is not configured');
-    const payload = await this.fetchJson(`${endpoint}/networks/${encodeURIComponent(networkId)}/clients?timespan=300`, {
-      'X-Cisco-Meraki-API-Key': apiKey,
-    });
+    const payload = await this.fetchJson(`${endpoint}/networks/${encodeURIComponent(networkId)}/clients?timespan=300`, { 'X-Cisco-Meraki-API-Key': apiKey });
     return this.extractRecords(payload, ['data', 'clients']).map((record) => this.normalizeRecord(record));
   }
 
   private async readGenericHttp(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     const endpoint = connection.controllerEndpoint ?? connection.endpoint;
     if (!endpoint) throw new ServiceUnavailableException(`Management endpoint is not configured for ${connection.routerId}`);
-    const url = new URL(endpoint);
-    if (url.protocol !== 'https:' && this.config.get<string>('JASLYN_NETWORK_ALLOW_HTTP', 'false') !== 'true') {
-      throw new ServiceUnavailableException('Network device API must use HTTPS in production');
-    }
+    const body = await this.fetchJson(endpoint, this.genericHeaders());
+    return this.extractRecords(body, ['clients', 'users', 'sessions', 'data', 'results']).map((record) => this.normalizeRecord(record));
+  }
 
+  private genericHeaders(): Record<string, string> {
     const token = this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
     const username = this.config.get<string>('JASLYN_NETWORK_API_USERNAME');
     const password = this.config.get<string>('JASLYN_NETWORK_API_PASSWORD');
@@ -112,9 +101,7 @@ export class NetworkDeviceAdapterRegistry {
     if (token) headers.Authorization = `Bearer ${token}`;
     else if (username && password) headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
     else throw new ServiceUnavailableException('Generic network API credentials are not configured');
-
-    const body = await this.fetchJson(url.toString(), headers);
-    return this.extractRecords(body, ['clients', 'users', 'sessions', 'data', 'results']).map((record) => this.normalizeRecord(record));
+    return headers;
   }
 
   private async fetchJson(url: string, headers: Record<string, string>): Promise<unknown> {
@@ -149,12 +136,13 @@ export class NetworkDeviceAdapterRegistry {
   }
 
   private normalizeRecord(record: Record<string, unknown>): NormalizedWifiClient {
+    const usage = this.isRecord(record.usage) ? record.usage : undefined;
     return {
       username: this.stringValue(record, ['username', 'user', 'name', 'description']),
-      address: this.stringValue(record, ['ipAddress', 'ip', 'address', 'ip6'] ),
+      address: this.stringValue(record, ['ipAddress', 'ip', 'address', 'ip6']),
       macAddress: this.stringValue(record, ['macAddress', 'mac', 'mac-address', 'macAddr']),
-      bytesIn: this.counter(record, ['bytesIn', 'bytes_in', 'rxBytes', 'downloadBytes', 'usageDown', 'downBytes']),
-      bytesOut: this.counter(record, ['bytesOut', 'bytes_out', 'txBytes', 'uploadBytes', 'usageUp', 'upBytes']),
+      bytesIn: this.counter(record, ['bytesIn', 'bytes_in', 'rxBytes', 'downloadBytes', 'usageDown', 'downBytes']) || this.counter(usage, ['recv', 'rx', 'download']),
+      bytesOut: this.counter(record, ['bytesOut', 'bytes_out', 'txBytes', 'uploadBytes', 'usageUp', 'upBytes']) || this.counter(usage, ['sent', 'tx', 'upload']),
     };
   }
 
@@ -162,17 +150,19 @@ export class NetworkDeviceAdapterRegistry {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
-  private stringValue(record: Record<string, unknown>, keys: string[]) {
+  private stringValue(record: Record<string, unknown> | undefined, keys: string[]) {
+    if (!record) return undefined;
     for (const key of keys) if (typeof record[key] === 'string' && record[key].trim()) return record[key] as string;
     return undefined;
   }
 
-  private counter(record: Record<string, unknown>, keys: string[]): string {
+  private counter(record: Record<string, unknown> | undefined, keys: string[]): string {
+    if (!record) return '';
     for (const key of keys) {
       const value = record[key];
       const text = typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : typeof value === 'string' ? value : '';
       if (/^\d+$/.test(text)) return text;
     }
-    return '0';
+    return '';
   }
 }
