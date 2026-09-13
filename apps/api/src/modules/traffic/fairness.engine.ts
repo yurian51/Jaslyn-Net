@@ -2,23 +2,12 @@ import { FairnessAllocation, FairnessDecision, TrafficFairnessMode } from './tra
 
 export interface FairnessInput {
   capacityMbps: number;
-  activeUsers: Array<{
-    customerId: string;
-    sessionId?: string;
-    requestedMbps: number;
-    priority?: number;
-    weight?: number;
-  }>;
+  activeUsers: Array<{ customerId: string; sessionId?: string; requestedMbps: number; priority?: number; weight?: number }>;
   activateThresholdPercent?: number;
   aggressiveThresholdPercent?: number;
   recoveryThresholdPercent?: number;
 }
 
-/**
- * Deterministic weighted max-min style allocator.
- * It deliberately has no network side effects: router/RADIUS enforcement belongs
- * to an adapter layer so the policy can be tested independently.
- */
 export class FairnessEngine {
   decide(input: FairnessInput): FairnessDecision {
     const capacity = Math.max(0, input.capacityMbps);
@@ -28,90 +17,36 @@ export class FairnessEngine {
     const activateAt = input.activateThresholdPercent ?? 80;
     const aggressiveAt = input.aggressiveThresholdPercent ?? 90;
     const recoveryAt = input.recoveryThresholdPercent ?? 60;
-
-    let mode: TrafficFairnessMode;
-    if (utilizationPercent >= aggressiveAt) mode = 'AGGRESSIVE';
-    else if (utilizationPercent >= activateAt) mode = 'FAIRNESS_ACTIVE';
-    else if (utilizationPercent <= recoveryAt) mode = 'NORMAL';
-    else mode = 'RECOVERING';
-
-    if (mode === 'NORMAL' || users.length === 0) {
-      return {
-        mode,
-        utilizationPercent,
-        capacityMbps: capacity,
-        allocations: users.map((u) => ({
-          customerId: u.customerId,
-          sessionId: u.sessionId,
-          requestedMbps: u.requestedMbps,
-          allocatedMbps: u.requestedMbps,
-          weight: Math.max(0.1, u.weight ?? 1),
-          priority: Math.max(1, u.priority ?? 1),
-        })),
-      };
-    }
-
-    const allocations = this.allocate(users, capacity, mode === 'AGGRESSIVE');
-    return { mode, utilizationPercent, capacityMbps: capacity, allocations };
+    const mode: TrafficFairnessMode = utilizationPercent >= aggressiveAt ? 'AGGRESSIVE' : utilizationPercent >= activateAt ? 'FAIRNESS_ACTIVE' : utilizationPercent <= recoveryAt ? 'NORMAL' : 'RECOVERING';
+    const normalized = users.map((u) => ({ ...u, priority: Math.max(1, u.priority ?? 1), weight: Math.max(0.1, u.weight ?? 1) }));
+    if (mode === 'NORMAL' || normalized.length === 0) return { mode, utilizationPercent, capacityMbps: capacity, allocations: normalized.map((u) => ({ customerId: u.customerId, sessionId: u.sessionId, requestedMbps: u.requestedMbps, allocatedMbps: u.requestedMbps, weight: u.weight, priority: u.priority })) };
+    return { mode, utilizationPercent, capacityMbps: capacity, allocations: this.allocate(normalized, capacity) };
   }
 
-  private allocate(
-    users: FairnessInput['activeUsers'],
-    capacity: number,
-    aggressive: boolean,
-  ): FairnessAllocation[] {
-    const normalized = users.map((u) => ({
-      ...u,
-      priority: Math.max(1, u.priority ?? 1),
-      weight: Math.max(0.1, u.weight ?? 1),
-    }));
-
-    const totalWeight = normalized.reduce((sum, u) => sum + u.weight * u.priority, 0);
-    if (totalWeight <= 0) return [];
-
-    // Weighted proportional allocation, capped by each user's demand.
-    // The iterative pass redistributes unused capacity instead of wasting it.
-    const remaining = new Map(normalized.map((u) => [u.customerId + ':' + (u.sessionId ?? ''), u.requestedMbps]));
+  private allocate(users: FairnessInput['activeUsers'], capacity: number): FairnessAllocation[] {
+    const remaining = new Map<string, number>();
     const allocated = new Map<string, number>();
+    for (const u of users) { const key = this.key(u); remaining.set(key, u.requestedMbps); allocated.set(key, 0); }
+    let pool = users.slice();
     let remainingCapacity = capacity;
-    let pool = normalized.slice();
-
-    for (let pass = 0; pass < normalized.length && pool.length > 0 && remainingCapacity > 0; pass += 1) {
-      const poolWeight = pool.reduce((sum, u) => sum + u.weight * u.priority, 0);
-      if (poolWeight <= 0) break;
+    for (let pass = 0; pass < users.length && pool.length > 0 && remainingCapacity > 0; pass += 1) {
+      const totalWeight = pool.reduce((sum, u) => sum + (u.weight ?? 1) * (u.priority ?? 1), 0);
+      if (totalWeight <= 0) break;
+      let usedThisPass = 0;
       const next: typeof pool = [];
-
-      for (const user of pool) {
-        const key = user.customerId + ':' + (user.sessionId ?? '');
-        const share = remainingCapacity * ((user.weight * user.priority) / poolWeight);
-        const demand = remaining.get(key) ?? 0;
-        const target = aggressive ? Math.min(demand, share) : Math.min(demand, share);
-        allocated.set(key, (allocated.get(key) ?? 0) + target);
-        remaining.set(key, Math.max(0, demand - target));
-        if (demand - target > 0.000001) next.push(user);
+      for (const u of pool) {
+        const key = this.key(u); const demand = remaining.get(key) ?? 0;
+        const share = remainingCapacity * (((u.weight ?? 1) * (u.priority ?? 1)) / totalWeight);
+        const grant = Math.min(demand, share);
+        allocated.set(key, (allocated.get(key) ?? 0) + grant); remaining.set(key, demand - grant); usedThisPass += grant;
+        if (demand - grant > 0.000001) next.push(u);
       }
-
-      const used = pool.reduce((sum, user) => {
-        const key = user.customerId + ':' + (user.sessionId ?? '');
-        const before = remaining.get(key) ?? 0;
-        return sum + Math.min(before, 0);
-      }, 0);
-      void used;
-      remainingCapacity = Math.max(0, capacity - Array.from(allocated.values()).reduce((a, b) => a + b, 0));
-      if (next.length === pool.length) break;
+      remainingCapacity = Math.max(0, remainingCapacity - usedThisPass);
+      if (next.length === pool.length || usedThisPass <= 0.000001) break;
       pool = next;
     }
-
-    return normalized.map((u) => {
-      const key = u.customerId + ':' + (u.sessionId ?? '');
-      return {
-        customerId: u.customerId,
-        sessionId: u.sessionId,
-        requestedMbps: u.requestedMbps,
-        allocatedMbps: Math.max(0, Math.min(u.requestedMbps, allocated.get(key) ?? 0)),
-        weight: u.weight,
-        priority: u.priority,
-      };
-    });
+    return users.map((u) => { const key = this.key(u); return { customerId: u.customerId, sessionId: u.sessionId, requestedMbps: u.requestedMbps, allocatedMbps: Math.max(0, Math.min(u.requestedMbps, allocated.get(key) ?? 0)), weight: Math.max(0.1, u.weight ?? 1), priority: Math.max(1, u.priority ?? 1) }; });
   }
+
+  private key(user: { customerId: string; sessionId?: string }): string { return `${user.customerId}:${user.sessionId ?? ''}`; }
 }
