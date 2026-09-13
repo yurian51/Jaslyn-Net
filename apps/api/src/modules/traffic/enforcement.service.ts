@@ -21,7 +21,7 @@ export interface EnforcementResult {
 
 export class TrafficEnforcementService {
   constructor(
-    private readonly fairnessService = new FairnessService(),
+    private readonly fairnessService: FairnessService,
     private readonly adapter: TrafficEnforcementAdapter,
   ) {}
 
