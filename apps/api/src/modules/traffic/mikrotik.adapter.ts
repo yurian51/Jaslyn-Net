@@ -13,9 +13,7 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
   constructor(private readonly config: ConfigService) {}
 
   async apply(commands: BandwidthEnforcementCommand[]): Promise<void> {
-    for (const command of commands) {
-      await this.applyOne(command);
-    }
+    for (const command of commands) await this.applyOne(command);
   }
 
   private async applyOne(command: BandwidthEnforcementCommand) {
@@ -26,18 +24,12 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
 
     const username = this.config.get<string>('JASLYN_ROUTER_API_USERNAME');
     const password = this.config.get<string>('JASLYN_ROUTER_API_PASSWORD');
-    if (!username || password === undefined) {
-      throw new ServiceUnavailableException('JASLYN router API credentials are not configured');
-    }
+    if (!username || password === undefined) throw new ServiceUnavailableException('JASLYN router API credentials are not configured');
 
     const base = this.normalizeEndpoint(command.apiEndpoint);
     const queueName = this.queueName(command);
     const auth = Buffer.from(`${username}:${password}`).toString('base64');
-    const headers = {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    };
+    const headers = { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' };
 
     const queryResponse = await this.request(`${base}/queue/simple/print`, {
       method: 'POST',
@@ -56,22 +48,16 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
 
     if (existing?.['.id']) {
       await this.request(`${base}/queue/simple/${encodeURIComponent(existing['.id'])}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(payload),
+        method: 'PATCH', headers, body: JSON.stringify(payload),
       });
       return;
     }
-
-    await this.request(`${base}/queue/simple`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    await this.request(`${base}/queue/simple`, { method: 'PUT', headers, body: JSON.stringify(payload) });
   }
 
   private async request(url: string, init: RequestInit): Promise<Response> {
-    const timeoutMs = Math.min(Math.max(this.config.get<number>('JASLYN_ROUTER_API_TIMEOUT_MS', 5000), 1000), 30000);
+    const configured = Number(this.config.get<string>('JASLYN_ROUTER_API_TIMEOUT_MS', '5000'));
+    const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -90,17 +76,18 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
   }
 
   private normalizeEndpoint(value: string): string {
-    const raw = value.trim().replace(/\/+$/, '');
-    const url = new URL(raw);
+    const url = new URL(value.trim());
+    if (url.username || url.password) throw new ServiceUnavailableException('Router API URL must not contain credentials');
     if (url.protocol !== 'https:' && this.config.get<string>('JASLYN_ROUTER_API_ALLOW_HTTP', 'false').toLowerCase() !== 'true') {
       throw new ServiceUnavailableException('Router API must use HTTPS in production');
     }
-    return `${url.origin}${url.pathname.replace(/\/+$/, '')}/rest`;
+    const pathname = url.pathname.replace(/\/+$/, '');
+    const restPath = pathname === '/rest' || pathname.endsWith('/rest') ? pathname : `${pathname}/rest`;
+    return `${url.origin}${restPath}`;
   }
 
   private queueName(command: BandwidthEnforcementCommand): string {
-    const identity = command.sessionId ?? command.customerId;
-    return `JASLYN-${identity}`.slice(0, 60);
+    return `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60);
   }
 
   private mbps(value: number): string {
