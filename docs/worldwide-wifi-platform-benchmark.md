@@ -29,8 +29,19 @@ Research baseline captured 13 September 2026. This document distinguishes market
 - MikroTik API integration and QoS.
 - PPPoE, IPoE/DHCP, Hotspot and static IP service models.
 - Integrations for MikroTik, Cambium, Ubiquiti, Cisco BNG, Juniper BNG, LibreQoS, Preseem and Bequant.
-- Monitoring, topology and traffic shaping.
-- Source: https://splynx.com/
+- IPAM, IPv4/IPv6, monitoring, backups, topology, ACS/TR-069, inventory, CRM, ticketing and customer portal capabilities.
+- Recurring and prepaid billing, vouchers, multiple payment channels and accounting integrations.
+- Recent 2026 releases add deeper WhatsApp communications and self-service signup workflows.
+- Sources: https://splynx.com/ and https://splynx.com/network-management/
+
+### Sonar
+- ISP OSS/BSS combining billing, CRM, field service, inventory and network operations.
+- Network module covers IPAM, RADIUS, DHCP, speed control and multi-vendor integrations.
+- Integrations advertised for MikroTik, Calix, Adtran/Mosaic, PacketLogic and LTE platforms such as Telrad and Baicells.
+- RADIUS reply attributes can control subscriber speeds and access policy.
+- Usage can be sourced through RADIUS, NetFlow, Preseem, API and PacketLogic/SaiSei paths.
+- Subscriber, service history, communication, MRR/churn, ticketing, dispatch and field operations are unified.
+- Source: https://sonar.software/
 
 ### Powercode Command
 - Recurring billing, prorations, taxes, payment plans, autopay and multi-entity/multi-jurisdiction billing.
@@ -87,10 +98,13 @@ Research baseline captured 13 September 2026. This document distinguishes market
 ### Implemented in the current branch
 - Vendor-neutral network management protocol model.
 - MikroTik REST telemetry and traffic enforcement.
-- UniFi, OpenWrt and Cambium protocol identities in the network model.
+- Native UniFi connected-client telemetry through the official Network API shape.
+- Native Cisco Meraki connected-client telemetry through the official Dashboard API shape.
+- UniFi and Meraki API-key authentication paths.
 - Worldwide capability catalog for MikroTik, UniFi, Omada, Cambium, Meraki, Aruba, Grandstream, Ruijie/Reyee, Ruckus, OpenWrt, Teltonika, Peplink, pfSense/OPNsense and FreeRADIUS/RADIUS NAS.
 - Authenticated `/api/v1/network-capabilities` catalog endpoint.
 - Migration mapping existing router vendor strings into vendor-specific management protocols.
+- Router records now receive capability metadata from the worldwide catalog.
 
 ### Not falsely marked as implemented
 - A catalog entry does not mean a direct vendor adapter is complete.
