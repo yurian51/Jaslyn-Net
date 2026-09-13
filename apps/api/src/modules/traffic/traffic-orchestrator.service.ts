@@ -130,13 +130,22 @@ export class TrafficOrchestratorService {
 
     try {
       const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio);
+      const keepQueueNames = result.commands.map((command) => `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
+      const reconciled = await this.enforcement.reconcileManaged(config.apiEndpoint, keepQueueNames);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
          VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
-        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify(result.commands)],
+        [
+          tenantId,
+          routerId,
+          result.mode,
+          result.commandCount,
+          result.applied,
+          JSON.stringify({ commands: result.commands, staleQueuesRemoved: reconciled }),
+        ],
       );
-      return { ...baseResult, ...result };
+      return { ...baseResult, ...result, staleQueuesRemoved: reconciled };
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 1000) : 'Unknown router enforcement error';
       await this.db.query(
