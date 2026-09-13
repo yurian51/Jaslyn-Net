@@ -43,4 +43,8 @@ export class TrafficEnforcementService {
       utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
     };
   }
+
+  async clearManaged(apiEndpoint: string) {
+    return this.adapter.clearManaged(apiEndpoint);
+  }
 }
