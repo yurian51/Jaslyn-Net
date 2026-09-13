@@ -21,11 +21,7 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
 
   async clearManaged(apiEndpoint: string): Promise<number> {
     const { headers, base } = this.connection(apiEndpoint);
-    const response = await this.request(`${base}/queue/simple/print`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': [`comment=${MANAGED_COMMENT}`] }),
-    });
-    const records = (await response.json()) as RouterQueueRecord[];
+    const records = await this.managedQueues(base, headers);
     let deleted = 0;
     for (const record of records) {
       if (!record['.id'] || record.comment !== MANAGED_COMMENT || !this.isManagedName(record.name)) continue;
@@ -33,6 +29,28 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
       deleted += 1;
     }
     return deleted;
+  }
+
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[]): Promise<number> {
+    const { headers, base } = this.connection(apiEndpoint);
+    const keep = new Set(keepQueueNames.filter((name) => this.isManagedName(name)));
+    const records = await this.managedQueues(base, headers);
+    let deleted = 0;
+    for (const record of records) {
+      if (!record['.id'] || record.comment !== MANAGED_COMMENT || !this.isManagedName(record.name)) continue;
+      if (keep.has(record.name ?? '')) continue;
+      await this.request(`${base}/queue/simple/${encodeURIComponent(record['.id'])}`, { method: 'DELETE', headers });
+      deleted += 1;
+    }
+    return deleted;
+  }
+
+  private async managedQueues(base: string, headers: Record<string, string>): Promise<RouterQueueRecord[]> {
+    const response = await this.request(`${base}/queue/simple/print`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': [`comment=${MANAGED_COMMENT}`] }),
+    });
+    return (await response.json()) as RouterQueueRecord[];
   }
 
   private async applyOne(command: BandwidthEnforcementCommand) {
