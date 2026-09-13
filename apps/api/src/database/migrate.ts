@@ -8,7 +8,10 @@ async function main() {
   const connectionString = process.env.DATABASE_URL || (process.env.DATABASE_HOST && process.env.DATABASE_NAME && process.env.DATABASE_USER ? `postgresql://${encodeURIComponent(process.env.DATABASE_USER)}:${encodeURIComponent(process.env.DATABASE_PASSWORD ?? '')}@${process.env.DATABASE_HOST}/${process.env.DATABASE_NAME}?sslmode=require` : undefined);
   if (!connectionString) throw new Error('DATABASE_URL is required');
 
-  const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
+  const sslMode = (process.env.DATABASE_SSL ?? 'require').toLowerCase();
+  if (!['disable', 'require', 'verify-full'].includes(sslMode)) throw new Error('DATABASE_SSL must be disable, require, or verify-full');
+  const ssl = sslMode === 'disable' ? undefined : { rejectUnauthorized: sslMode === 'verify-full' };
+  const client = new Client({ connectionString, ssl });
   await client.connect();
 
   try {
