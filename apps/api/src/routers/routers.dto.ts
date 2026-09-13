@@ -1,4 +1,4 @@
-import { IsBoolean, IsIP, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateRouterDto {
   @IsString()
@@ -75,7 +75,7 @@ export class UpdateRouterDto {
 
 export class RouterHeartbeatDto {
   @IsOptional()
-  @IsInStatus()
+  @IsIn(['ONLINE', 'DEGRADED', 'OFFLINE'])
   status?: 'ONLINE' | 'DEGRADED' | 'OFFLINE';
 
   @IsOptional()
@@ -83,8 +83,4 @@ export class RouterHeartbeatDto {
   @Min(0)
   @Max(2147483647)
   activeUsers?: number;
-}
-
-function IsInStatus() {
-  return require('class-validator').IsIn(['ONLINE', 'DEGRADED', 'OFFLINE']);
 }
