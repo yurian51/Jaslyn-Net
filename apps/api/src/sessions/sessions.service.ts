@@ -1,7 +1,7 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Pool } from 'pg';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { AuditService } from '../audit/audit.service';
+import { AuditContext, AuditService } from '../audit/audit.service';
 import { StartSessionDto, UpdateSessionUsageDto } from './sessions.dto';
 
 @Injectable()
@@ -39,26 +39,57 @@ export class SessionsService {
     return result.rows[0];
   }
 
-  async start(tenantId: string, input: StartSessionDto, auditContext = {}) {
-    if (input.customerId) {
-      const customer = await this.db.query('SELECT id FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true', [tenantId, input.customerId]);
-      if (!customer.rowCount) throw new NotFoundException('Customer not found');
-    }
-    if (input.routerId) {
-      const router = await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2', [tenantId, input.routerId]);
-      if (!router.rowCount) throw new NotFoundException('Router not found');
-    }
-    const result = await this.db.query(
-      `INSERT INTO sessions (tenant_id, customer_id, router_id, username, ip_address, mac_address)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       RETURNING id, customer_id AS "customerId", router_id AS "routerId", username,
-                 ip_address AS "ipAddress", mac_address::text AS "macAddress", started_at AS "startedAt",
-                 status, bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal"`,
-      [tenantId, input.customerId ?? null, input.routerId ?? null, input.username?.trim() || null, input.ipAddress ?? null, input.macAddress ?? null],
+  private async resetRouterActiveUsers(client: PoolClient, tenantId: string, routerIds: string[]) {
+    const uniqueRouterIds = [...new Set(routerIds.filter(Boolean))];
+    if (!uniqueRouterIds.length) return;
+    await client.query(
+      `UPDATE routers r
+       SET active_users = (
+         SELECT count(*)::int FROM sessions s
+         WHERE s.tenant_id=$1 AND s.router_id=r.id AND s.status='ACTIVE'
+       ), updated_at=now()
+       WHERE r.tenant_id=$1 AND r.id = ANY($2::uuid[])`,
+      [tenantId, uniqueRouterIds],
     );
-    const session = result.rows[0];
-    await this.audit.record(tenantId, 'SESSION_STARTED', 'session', session.id, { routerId: session.routerId, customerId: session.customerId }, auditContext);
-    return session;
+  }
+
+  async start(tenantId: string, input: StartSessionDto, auditContext: AuditContext = {}) {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      if (input.customerId) {
+        const customer = await client.query('SELECT id FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true FOR SHARE', [tenantId, input.customerId]);
+        if (!customer.rowCount) throw new NotFoundException('Customer not found');
+      }
+      if (input.routerId) {
+        const router = await client.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, input.routerId]);
+        if (!router.rowCount) throw new NotFoundException('Router not found');
+      }
+      try {
+        const result = await client.query(
+          `INSERT INTO sessions (tenant_id, customer_id, router_id, username, ip_address, mac_address)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           RETURNING id, customer_id AS "customerId", router_id AS "routerId", username,
+                     ip_address AS "ipAddress", mac_address::text AS "macAddress", started_at AS "startedAt",
+                     status, bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal"`,
+          [tenantId, input.customerId ?? null, input.routerId ?? null, input.username?.trim() || null, input.ipAddress ?? null, input.macAddress ?? null],
+        );
+        const session = result.rows[0];
+        await this.resetRouterActiveUsers(client, tenantId, input.routerId ? [input.routerId] : []);
+        await client.query('COMMIT');
+        await this.audit.record(tenantId, 'SESSION_STARTED', 'session', session.id, { routerId: session.routerId, customerId: session.customerId }, auditContext);
+        return session;
+      } catch (error: any) {
+        await client.query('ROLLBACK');
+        if (error?.code === '23505') throw new ConflictException('An active session already exists for this device on this router');
+        throw error;
+      }
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateUsage(tenantId: string, id: string, input: UpdateSessionUsageDto) {
@@ -72,26 +103,48 @@ export class SessionsService {
     return result.rows[0];
   }
 
-  async end(tenantId: string, id: string, auditContext = {}) {
-    const result = await this.db.query(
-      `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
-       WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE'
-       RETURNING id, ended_at AS "endedAt", bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status`,
-      [tenantId, id],
-    );
-    if (!result.rowCount) throw new NotFoundException('Active session not found');
-    await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut }, auditContext);
-    return result.rows[0];
+  async end(tenantId: string, id: string, auditContext: AuditContext = {}) {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
+         WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE'
+         RETURNING id, router_id AS "routerId", ended_at AS "endedAt", bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status`,
+        [tenantId, id],
+      );
+      if (!result.rowCount) throw new NotFoundException('Active session not found');
+      await this.resetRouterActiveUsers(client, tenantId, result.rows[0].routerId ? [result.rows[0].routerId] : []);
+      await client.query('COMMIT');
+      await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut }, auditContext);
+      return result.rows[0];
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async reconcileStale(tenantId: string, staleMinutes = 30) {
     const minutes = Math.min(Math.max(Math.trunc(staleMinutes), 5), 1440);
-    const result = await this.db.query(
-      `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
-       WHERE tenant_id=$1 AND status='ACTIVE' AND started_at < now() - ($2 * interval '1 minute')
-       RETURNING id, ended_at AS "endedAt"`,
-      [tenantId, minutes],
-    );
-    return { updated: result.rowCount ?? 0, data: result.rows };
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
+         WHERE tenant_id=$1 AND status='ACTIVE' AND started_at < now() - ($2 * interval '1 minute')
+         RETURNING id, router_id AS "routerId", ended_at AS "endedAt"`,
+        [tenantId, minutes],
+      );
+      await this.resetRouterActiveUsers(client, tenantId, result.rows.map((row) => row.routerId).filter(Boolean));
+      await client.query('COMMIT');
+      return { updated: result.rowCount ?? 0, data: result.rows };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
