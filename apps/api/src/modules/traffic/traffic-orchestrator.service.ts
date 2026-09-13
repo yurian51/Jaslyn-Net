@@ -24,21 +24,15 @@ export class TrafficOrchestratorService {
 
   async evaluateRouter(tenantId: string, routerId: string, apply = true) {
     const router = await this.db.query(
-      `SELECT r.id,
-              r.api_enabled AS "apiEnabled",
-              r.api_endpoint AS "apiEndpoint",
-              p.capacity_mbps AS "capacityMbps",
-              p.activate_threshold_percent AS "activateThresholdPercent",
-              p.aggressive_threshold_percent AS "aggressiveThresholdPercent",
-              p.recovery_threshold_percent AS "recoveryThresholdPercent",
-              p.enabled
+      `SELECT r.id, r.api_enabled AS "apiEnabled", r.api_endpoint AS "apiEndpoint",
+              p.capacity_mbps AS "capacityMbps", p.activate_threshold_percent AS "activateThresholdPercent",
+              p.aggressive_threshold_percent AS "aggressiveThresholdPercent", p.recovery_threshold_percent AS "recoveryThresholdPercent", p.enabled
        FROM routers r
        LEFT JOIN router_bandwidth_profiles p ON p.tenant_id=r.tenant_id AND p.router_id=r.id
        WHERE r.tenant_id=$1 AND r.id=$2`,
       [tenantId, routerId],
     );
     if (!router.rowCount) throw new NotFoundException('Router not found');
-
     const config = router.rows[0];
     if (config.capacityMbps === null) throw new ServiceUnavailableException('Router bandwidth profile is not configured');
 
@@ -49,14 +43,11 @@ export class TrafficOrchestratorService {
               GREATEST(0, newest.bytes_out - previous.bytes_out) AS "bytesOutDelta"
        FROM sessions s
        CROSS JOIN LATERAL (
-         SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at
-         FROM traffic_samples ts
-         WHERE ts.tenant_id=$1 AND ts.session_id=s.id
-         ORDER BY ts.sampled_at DESC LIMIT 1
+         SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at FROM traffic_samples ts
+         WHERE ts.tenant_id=$1 AND ts.session_id=s.id ORDER BY ts.sampled_at DESC LIMIT 1
        ) newest
        CROSS JOIN LATERAL (
-         SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at
-         FROM traffic_samples ts
+         SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at FROM traffic_samples ts
          WHERE ts.tenant_id=$1 AND ts.session_id=s.id AND ts.sampled_at < newest.sampled_at
          ORDER BY ts.sampled_at DESC LIMIT 1
        ) previous
@@ -70,12 +61,8 @@ export class TrafficOrchestratorService {
       const uploadMbps = interval > 0 ? (Number(row.bytesOutDelta) * 8) / interval / 1_000_000 : 0;
       const totalMbps = Number((downloadMbps + uploadMbps).toFixed(3));
       return {
-        customerId: row.customerId,
-        sessionId: row.sessionId,
-        ipAddress: row.ipAddress ?? undefined,
-        requestedMbps: totalMbps,
-        priority: 1,
-        weight: 1,
+        customerId: row.customerId, sessionId: row.sessionId, ipAddress: row.ipAddress ?? undefined,
+        requestedMbps: totalMbps, priority: 1, weight: 1,
         uploadRatio: totalMbps > 0 ? uploadMbps / totalMbps : 0.5,
       };
     }).filter((user) => Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
@@ -87,7 +74,6 @@ export class TrafficOrchestratorService {
       aggressiveThresholdPercent: Number(config.aggressiveThresholdPercent),
       recoveryThresholdPercent: Number(config.recoveryThresholdPercent),
     };
-
     const state = this.fairness.evaluate(policy, users);
     const baseResult = {
       routerId,
@@ -101,6 +87,18 @@ export class TrafficOrchestratorService {
     if (!apply) return { ...baseResult, applied: false, reason: 'DRY_RUN' };
     if (!config.apiEnabled) return { ...baseResult, applied: false, reason: 'ROUTER_API_DISABLED' };
     if (!config.apiEndpoint) return { ...baseResult, applied: false, reason: 'ROUTER_API_ENDPOINT_MISSING' };
+
+    if (state.mode === 'NORMAL') {
+      const cleared = await this.enforcement.clearManaged(config.apiEndpoint);
+      await this.db.query(
+        `INSERT INTO traffic_enforcement_events
+          (tenant_id, router_id, mode, command_count, applied, commands)
+         VALUES ($1,$2,'NORMAL',$3,$4,$5::jsonb)`,
+        [tenantId, routerId, cleared, cleared > 0, JSON.stringify({ action: 'CLEAR_MANAGED_QUEUES', cleared })],
+      );
+      return { ...baseResult, applied: cleared > 0, clearedQueues: cleared };
+    }
+
     if (!users.length) return { ...baseResult, applied: false, reason: 'NO_MEASURED_ACTIVE_USERS' };
 
     const uploadRatio = users.reduce((sum, user) => sum + user.uploadRatio, 0) / users.length;
