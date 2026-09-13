@@ -47,4 +47,8 @@ export class TrafficEnforcementService {
   async clearManaged(apiEndpoint: string) {
     return this.adapter.clearManaged(apiEndpoint);
   }
+
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[]) {
+    return this.adapter.reconcileManaged(apiEndpoint, keepQueueNames);
+  }
 }
