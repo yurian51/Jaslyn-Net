@@ -61,8 +61,8 @@ export class TrafficSamplesService {
     const newest = latest.rows[0];
     const previous = latest.rows[1];
     const measurement = calculateThroughput(
-      { bytesIn: this.counterToSafeNumber(previous.bytesIn, 'bytesIn'), bytesOut: this.counterToSafeNumber(previous.bytesOut, 'bytesOut'), sampledAt: new Date(previous.sampledAt) },
-      { bytesIn: this.counterToSafeNumber(newest.bytesIn, 'bytesIn'), bytesOut: this.counterToSafeNumber(newest.bytesOut, 'bytesOut'), sampledAt: new Date(newest.sampledAt) },
+      { bytesIn: previous.bytesIn, bytesOut: previous.bytesOut, sampledAt: new Date(previous.sampledAt) },
+      { bytesIn: newest.bytesIn, bytesOut: newest.bytesOut, sampledAt: new Date(newest.sampledAt) },
     );
     return { ...measurement, sampledAt: newest.sampledAt };
   }
@@ -71,13 +71,7 @@ export class TrafficSamplesService {
     const text = typeof value === 'number' ? (Number.isSafeInteger(value) ? String(value) : '') : value;
     if (!/^\d+$/.test(text)) throw new BadRequestException(`${field} must be a non-negative integer counter`);
     const counter = BigInt(text);
-    if (counter < 0n || counter > 9223372036854775807n) throw new BadRequestException(`${field} is outside PostgreSQL bigint range`);
+    if (counter > 9223372036854775807n) throw new BadRequestException(`${field} is outside PostgreSQL bigint range`);
     return text;
-  }
-
-  private counterToSafeNumber(value: string | number, field: string): number {
-    const numeric = Number(value);
-    if (!Number.isSafeInteger(numeric) || numeric < 0) throw new BadRequestException(`${field} delta is outside safe numeric range`);
-    return numeric;
   }
 }
