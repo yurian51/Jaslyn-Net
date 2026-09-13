@@ -9,6 +9,7 @@ describe('TrafficEnforcementService', () => {
       apply: async (commands) => {
         applied.push(commands);
       },
+      clearManaged: async () => 0,
     };
     const service = new TrafficEnforcementService(new FairnessService(), adapter);
 
@@ -25,6 +26,7 @@ describe('TrafficEnforcementService', () => {
         { customerId: 'customer-1', sessionId: 'session-1', requestedMbps: 80, priority: 1, weight: 1 },
         { customerId: 'customer-2', sessionId: 'session-2', requestedMbps: 80, priority: 1, weight: 1 },
       ],
+      {},
       0.5,
     );
 
@@ -42,6 +44,7 @@ describe('TrafficEnforcementService', () => {
       apply: async (commands) => {
         received = commands;
       },
+      clearManaged: async () => 0,
     };
     const service = new TrafficEnforcementService(new FairnessService(), adapter);
 
@@ -63,5 +66,17 @@ describe('TrafficEnforcementService', () => {
     expect(result.applied).toBe(false);
     expect(result.commandCount).toBe(0);
     expect(received).toEqual([]);
+  });
+
+  it('delegates managed queue cleanup to the router adapter', async () => {
+    const clearManaged = jest.fn().mockResolvedValue(3);
+    const adapter: TrafficEnforcementAdapter = {
+      apply: async () => undefined,
+      clearManaged,
+    };
+    const service = new TrafficEnforcementService(new FairnessService(), adapter);
+
+    await expect(service.clearManaged('https://router.example/rest')).resolves.toBe(3);
+    expect(clearManaged).toHaveBeenCalledWith('https://router.example/rest');
   });
 });
