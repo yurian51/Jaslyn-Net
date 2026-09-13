@@ -8,6 +8,7 @@ export interface NetworkDeviceConnection {
   protocol: NetworkManagementProtocol;
   endpoint?: string;
   controllerEndpoint?: string;
+  capabilities?: Record<string, unknown>;
 }
 
 export interface NormalizedWifiClient {
@@ -26,25 +27,74 @@ export class NetworkDeviceAdapterRegistry {
   ) {}
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
-    if (connection.protocol === 'MIKROTIK_REST') {
-      const records = await this.mikrotik.readHotspotActive(connection.endpoint ?? '');
-      return records.map((record: MikroTikHotspotActiveRecord) => ({
-        username: record.user,
-        address: record.address,
-        macAddress: record['mac-address'],
-        bytesIn: record['bytes-in'] ?? '0',
-        bytesOut: record['bytes-out'] ?? '0',
-      }));
+    switch (connection.protocol) {
+      case 'MIKROTIK_REST': {
+        const records = await this.mikrotik.readHotspotActive(connection.endpoint ?? '');
+        return records.map((record: MikroTikHotspotActiveRecord) => ({
+          username: record.user,
+          address: record.address,
+          macAddress: record['mac-address'],
+          bytesIn: record['bytes-in'] ?? '0',
+          bytesOut: record['bytes-out'] ?? '0',
+        }));
+      }
+      case 'UNIFI_NETWORK_API':
+        return this.readUniFi(connection);
+      case 'MERAKI_DASHBOARD_API':
+        return this.readMeraki(connection);
+      case 'OPENWRT_UBUS':
+      case 'CAMBIUM_CNMAESTRO':
+      case 'OMADA_CONTROLLER_API':
+      case 'ARUBA_CENTRAL_API':
+      case 'GRANDSTREAM_GWN_API':
+      case 'RUIJIE_REYEE_CLOUD_API':
+      case 'RUCKUS_SMARTZONE_API':
+      case 'TELTONIKA_RMS_API':
+      case 'PEPLINK_INCONTROL_API':
+      case 'PFSENSE_API':
+      case 'GENERIC_HTTP':
+        return this.readGenericHttp(connection);
+      case 'SNMP':
+      case 'RADIUS_NAS':
+        throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
+      default:
+        throw new ServiceUnavailableException(`Unsupported network management protocol: ${connection.protocol}`);
     }
+  }
 
-    if (['UNIFI_NETWORK_API', 'OPENWRT_UBUS', 'CAMBIUM_CNMAESTRO', 'GENERIC_HTTP'].includes(connection.protocol)) {
-      return this.readGenericHttp(connection);
-    }
+  private async readUniFi(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
+    const base = connection.controllerEndpoint ?? connection.endpoint;
+    if (!base) throw new ServiceUnavailableException(`UniFi API endpoint is not configured for ${connection.routerId}`);
+    const apiKey = this.config.get<string>('JASLYN_UNIFI_API_KEY') ?? this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
+    if (!apiKey) throw new ServiceUnavailableException('UniFi API key is not configured');
 
-    if (connection.protocol === 'SNMP' || connection.protocol === 'RADIUS_NAS') {
-      throw new ServiceUnavailableException(`${connection.protocol} telemetry is not enabled for this device yet; refusing unsafe commands`);
+    const root = base.replace(/\/$/, '');
+    const sites = await this.fetchJson(root.endsWith('/v1') ? `${root}/sites` : `${root}/v1/sites`, {
+      'X-API-Key': apiKey,
+    });
+    const siteRows = this.extractRecords(sites, ['data', 'sites']);
+    const clients: NormalizedWifiClient[] = [];
+    for (const site of siteRows) {
+      const siteId = this.stringValue(site, ['siteId', 'id']);
+      if (!siteId) continue;
+      const payload = await this.fetchJson(`${root.endsWith('/v1') ? root : `${root}/v1`}/sites/${encodeURIComponent(siteId)}/clients`, {
+        'X-API-Key': apiKey,
+      });
+      for (const record of this.extractRecords(payload, ['data', 'clients'])) clients.push(this.normalizeRecord(record));
     }
-    throw new ServiceUnavailableException(`Unsupported network management protocol: ${connection.protocol}`);
+    return clients;
+  }
+
+  private async readMeraki(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
+    const networkId = this.stringValue(connection.capabilities ?? {}, ['networkId', 'merakiNetworkId']);
+    if (!networkId) throw new ServiceUnavailableException(`Meraki networkId is not configured for ${connection.routerId}`);
+    const endpoint = (connection.controllerEndpoint ?? connection.endpoint ?? 'https://api.meraki.com/api/v1').replace(/\/$/, '');
+    const apiKey = this.config.get<string>('JASLYN_MERAKI_API_KEY') ?? this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
+    if (!apiKey) throw new ServiceUnavailableException('Meraki API key is not configured');
+    const payload = await this.fetchJson(`${endpoint}/networks/${encodeURIComponent(networkId)}/clients?timespan=300`, {
+      'X-Cisco-Meraki-API-Key': apiKey,
+    });
+    return this.extractRecords(payload, ['data', 'clients']).map((record) => this.normalizeRecord(record));
   }
 
   private async readGenericHttp(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
@@ -63,21 +113,23 @@ export class NetworkDeviceAdapterRegistry {
     else if (username && password) headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
     else throw new ServiceUnavailableException('Generic network API credentials are not configured');
 
+    const body = await this.fetchJson(url.toString(), headers);
+    return this.extractRecords(body, ['clients', 'users', 'sessions', 'data', 'results']).map((record) => this.normalizeRecord(record));
+  }
+
+  private async fetchJson(url: string, headers: Record<string, string>): Promise<unknown> {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && this.config.get<string>('JASLYN_NETWORK_ALLOW_HTTP', 'false') !== 'true') {
+      throw new ServiceUnavailableException('Network device API must use HTTPS in production');
+    }
     const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000'));
     const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, { headers, signal: controller.signal });
+      const response = await fetch(parsed, { headers, signal: controller.signal });
       if (!response.ok) throw new ServiceUnavailableException(`Network device API request failed (${response.status})`);
-      const body = await response.json() as unknown;
-      return this.extractRecords(body).map((record) => ({
-        username: this.stringValue(record, ['username', 'user', 'name']),
-        address: this.stringValue(record, ['ipAddress', 'ip', 'address']),
-        macAddress: this.stringValue(record, ['macAddress', 'mac', 'mac-address']),
-        bytesIn: this.counter(record, ['bytesIn', 'bytes_in', 'rxBytes', 'downloadBytes']),
-        bytesOut: this.counter(record, ['bytesOut', 'bytes_out', 'txBytes', 'uploadBytes']),
-      }));
+      return await response.json() as unknown;
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException('Network device API request failed or timed out');
@@ -86,14 +138,24 @@ export class NetworkDeviceAdapterRegistry {
     }
   }
 
-  private extractRecords(body: unknown): Record<string, unknown>[] {
+  private extractRecords(body: unknown, preferredKeys: string[] = []): Record<string, unknown>[] {
     if (Array.isArray(body)) return body.filter(this.isRecord);
     if (!this.isRecord(body)) throw new ServiceUnavailableException('Network device API returned invalid JSON');
-    for (const key of ['clients', 'users', 'sessions', 'data', 'results']) {
+    for (const key of [...preferredKeys, 'clients', 'users', 'sessions', 'data', 'results']) {
       const value = body[key];
       if (Array.isArray(value)) return value.filter(this.isRecord);
     }
     throw new ServiceUnavailableException('Network device API response has no supported client collection');
+  }
+
+  private normalizeRecord(record: Record<string, unknown>): NormalizedWifiClient {
+    return {
+      username: this.stringValue(record, ['username', 'user', 'name', 'description']),
+      address: this.stringValue(record, ['ipAddress', 'ip', 'address', 'ip6'] ),
+      macAddress: this.stringValue(record, ['macAddress', 'mac', 'mac-address', 'macAddr']),
+      bytesIn: this.counter(record, ['bytesIn', 'bytes_in', 'rxBytes', 'downloadBytes', 'usageDown', 'downBytes']),
+      bytesOut: this.counter(record, ['bytesOut', 'bytes_out', 'txBytes', 'uploadBytes', 'usageUp', 'upBytes']),
+    };
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {
