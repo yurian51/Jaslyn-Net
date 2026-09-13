@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, ServiceUnavailableException } fr
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
+import { calculateThroughput } from './traffic.measurement';
 import { TrafficEnforcementService } from './enforcement.service';
 import { FairnessPolicy, FairnessService } from './fairness.service';
 
@@ -50,9 +51,8 @@ export class TrafficOrchestratorService {
 
     const samples = await this.db.query(
       `SELECT s.id AS "sessionId", s.customer_id AS "customerId", s.ip_address::text AS "ipAddress",
-              EXTRACT(EPOCH FROM (newest.sampled_at - previous.sampled_at)) AS "intervalSeconds",
-              GREATEST(0, newest.bytes_in - previous.bytes_in) AS "bytesInDelta",
-              GREATEST(0, newest.bytes_out - previous.bytes_out) AS "bytesOutDelta"
+              newest.bytes_in::text AS "newestBytesIn", newest.bytes_out::text AS "newestBytesOut", newest.sampled_at AS "newestSampledAt",
+              previous.bytes_in::text AS "previousBytesIn", previous.bytes_out::text AS "previousBytesOut", previous.sampled_at AS "previousSampledAt"
        FROM sessions s
        CROSS JOIN LATERAL (
          SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at FROM traffic_samples ts
@@ -71,14 +71,27 @@ export class TrafficOrchestratorService {
     );
 
     const users: ActiveTrafficUser[] = samples.rows.map((row) => {
-      const interval = Number(row.intervalSeconds);
-      const downloadMbps = interval > 0 ? (Number(row.bytesInDelta) * 8) / interval / 1_000_000 : 0;
-      const uploadMbps = interval > 0 ? (Number(row.bytesOutDelta) * 8) / interval / 1_000_000 : 0;
-      const totalMbps = Number((downloadMbps + uploadMbps).toFixed(3));
+      const measurement = calculateThroughput(
+        {
+          bytesIn: row.previousBytesIn,
+          bytesOut: row.previousBytesOut,
+          sampledAt: new Date(row.previousSampledAt),
+        },
+        {
+          bytesIn: row.newestBytesIn,
+          bytesOut: row.newestBytesOut,
+          sampledAt: new Date(row.newestSampledAt),
+        },
+      );
+      const totalMbps = measurement.totalMbps;
       return {
-        customerId: row.customerId, sessionId: row.sessionId, ipAddress: row.ipAddress ?? undefined,
-        requestedMbps: totalMbps, priority: 1, weight: 1,
-        uploadRatio: totalMbps > 0 ? uploadMbps / totalMbps : 0.5,
+        customerId: row.customerId,
+        sessionId: row.sessionId,
+        ipAddress: row.ipAddress ?? undefined,
+        requestedMbps: totalMbps,
+        priority: 1,
+        weight: 1,
+        uploadRatio: totalMbps > 0 ? measurement.uploadMbps / totalMbps : 0.5,
       };
     }).filter((user) => Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
 
