@@ -10,6 +10,7 @@ describe('TrafficEnforcementService', () => {
         applied.push(commands);
       },
       clearManaged: async () => 0,
+      reconcileManaged: async () => 0,
     };
     const service = new TrafficEnforcementService(new FairnessService(), adapter);
 
@@ -45,6 +46,7 @@ describe('TrafficEnforcementService', () => {
         received = commands;
       },
       clearManaged: async () => 0,
+      reconcileManaged: async () => 0,
     };
     const service = new TrafficEnforcementService(new FairnessService(), adapter);
 
@@ -73,10 +75,24 @@ describe('TrafficEnforcementService', () => {
     const adapter: TrafficEnforcementAdapter = {
       apply: async () => undefined,
       clearManaged,
+      reconcileManaged: async () => 0,
     };
     const service = new TrafficEnforcementService(new FairnessService(), adapter);
 
     await expect(service.clearManaged('https://router.example/rest')).resolves.toBe(3);
     expect(clearManaged).toHaveBeenCalledWith('https://router.example/rest');
+  });
+
+  it('delegates stale queue reconciliation to the router adapter', async () => {
+    const reconcileManaged = jest.fn().mockResolvedValue(2);
+    const adapter: TrafficEnforcementAdapter = {
+      apply: async () => undefined,
+      clearManaged: async () => 0,
+      reconcileManaged,
+    };
+    const service = new TrafficEnforcementService(new FairnessService(), adapter);
+
+    await expect(service.reconcileManaged('https://router.example/rest', ['JASLYN-session-1'])).resolves.toBe(2);
+    expect(reconcileManaged).toHaveBeenCalledWith('https://router.example/rest', ['JASLYN-session-1']);
   });
 });
