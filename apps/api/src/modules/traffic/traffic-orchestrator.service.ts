@@ -2,9 +2,11 @@ import { Inject, Injectable, NotFoundException, ServiceUnavailableException } fr
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
+import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { calculateThroughput } from './traffic.measurement';
 import { TrafficEnforcementService } from './enforcement.service';
 import { FairnessPolicy, FairnessService } from './fairness.service';
+import { NetworkManagementProtocol } from '../../routers/routers.dto';
 
 interface ActiveTrafficUser {
   customerId: string;
@@ -23,11 +25,13 @@ export class TrafficOrchestratorService {
     private readonly fairness: FairnessService,
     private readonly enforcement: TrafficEnforcementService,
     private readonly config: ConfigService,
+    private readonly credentials: SecureNetworkCredentials,
   ) {}
 
   async evaluateRouter(tenantId: string, routerId: string, apply = true) {
     const router = await this.db.query(
       `SELECT r.id, r.api_enabled AS "apiEnabled", r.api_endpoint AS "apiEndpoint",
+              r.management_protocol AS "managementProtocol", r.management_credentials_encrypted AS "managementCredentialsEncrypted",
               p.capacity_mbps AS "capacityMbps", p.activate_threshold_percent AS "activateThresholdPercent",
               p.aggressive_threshold_percent AS "aggressiveThresholdPercent", p.recovery_threshold_percent AS "recoveryThresholdPercent", p.enabled
        FROM routers r
@@ -72,16 +76,8 @@ export class TrafficOrchestratorService {
 
     const users: ActiveTrafficUser[] = samples.rows.map((row) => {
       const measurement = calculateThroughput(
-        {
-          bytesIn: row.previousBytesIn,
-          bytesOut: row.previousBytesOut,
-          sampledAt: new Date(row.previousSampledAt),
-        },
-        {
-          bytesIn: row.newestBytesIn,
-          bytesOut: row.newestBytesOut,
-          sampledAt: new Date(row.newestSampledAt),
-        },
+        { bytesIn: row.previousBytesIn, bytesOut: row.previousBytesOut, sampledAt: new Date(row.previousSampledAt) },
+        { bytesIn: row.newestBytesIn, bytesOut: row.newestBytesOut, sampledAt: new Date(row.newestSampledAt) },
       );
       const totalMbps = measurement.totalMbps;
       return {
@@ -117,13 +113,16 @@ export class TrafficOrchestratorService {
     if (!apply) return { ...baseResult, applied: false, reason: 'DRY_RUN' };
     if (!config.apiEnabled) return { ...baseResult, applied: false, reason: 'ROUTER_API_DISABLED' };
     if (!config.apiEndpoint) return { ...baseResult, applied: false, reason: 'ROUTER_API_ENDPOINT_MISSING' };
+    if (activeSessionCount > 0 && samples.rowCount === 0) return { ...baseResult, applied: false, reason: 'NO_RECENT_TRAFFIC_MEASUREMENTS' };
 
-    if (activeSessionCount > 0 && samples.rowCount === 0) {
-      return { ...baseResult, applied: false, reason: 'NO_RECENT_TRAFFIC_MEASUREMENTS' };
+    const protocol = config.managementProtocol as NetworkManagementProtocol;
+    if (protocol !== 'MIKROTIK_REST') {
+      return { ...baseResult, applied: false, reason: 'ENFORCEMENT_ADAPTER_NOT_IMPLEMENTED', protocol };
     }
+    const routerCredentials = config.managementCredentialsEncrypted ? this.credentials.decrypt(config.managementCredentialsEncrypted) : undefined;
 
     if (state.mode === 'NORMAL') {
-      const cleared = await this.enforcement.clearManaged(config.apiEndpoint);
+      const cleared = await this.enforcement.clearManaged(config.apiEndpoint, routerCredentials);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
@@ -142,21 +141,14 @@ export class TrafficOrchestratorService {
     ]));
 
     try {
-      const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio);
+      const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio, routerCredentials);
       const keepQueueNames = result.commands.map((command) => `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
-      const reconciled = await this.enforcement.reconcileManaged(config.apiEndpoint, keepQueueNames);
+      const reconciled = await this.enforcement.reconcileManaged(config.apiEndpoint, keepQueueNames, routerCredentials);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
          VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
-        [
-          tenantId,
-          routerId,
-          result.mode,
-          result.commandCount,
-          result.applied,
-          JSON.stringify({ commands: result.commands, staleQueuesRemoved: reconciled }),
-        ],
+        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify({ commands: result.commands, staleQueuesRemoved: reconciled })],
       );
       return { ...baseResult, ...result, staleQueuesRemoved: reconciled };
     } catch (error) {
@@ -164,8 +156,8 @@ export class TrafficOrchestratorService {
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands, error)
-         VALUES ($1,$2,$3,$4,false,'[]'::jsonb,$5)`,
-        [tenantId, routerId, state.mode, state.allocations.length, message],
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+        [tenantId, routerId, state.mode, state.allocations.length, false, '[]', message],
       );
       throw error;
     }
