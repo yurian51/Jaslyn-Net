@@ -30,6 +30,25 @@ export class RoutersService {
     return protocol ? { protocol, capabilities: [] } : {};
   }
 
+  private resolveManagementProtocol(vendor?: string, requested?: NetworkManagementProtocol): NetworkManagementProtocol {
+    if (requested) return requested;
+    const normalized = vendor?.trim().toLowerCase() ?? '';
+    if (normalized.includes('mikrotik')) return 'MIKROTIK_REST';
+    if (normalized.includes('ubiquiti') || normalized.includes('unifi')) return 'UNIFI_NETWORK_API';
+    if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';
+    if (normalized.includes('cambium')) return 'CAMBIUM_CNMAESTRO';
+    if (normalized.includes('meraki')) return 'MERAKI_DASHBOARD_API';
+    if (normalized.includes('aruba')) return 'ARUBA_CENTRAL_API';
+    if (normalized.includes('grandstream')) return 'GRANDSTREAM_GWN_API';
+    if (normalized.includes('ruijie') || normalized.includes('reyee')) return 'RUIJIE_REYEE_CLOUD_API';
+    if (normalized.includes('ruckus')) return 'RUCKUS_SMARTZONE_API';
+    if (normalized.includes('openwrt')) return 'OPENWRT_UBUS';
+    if (normalized.includes('teltonika')) return 'TELTONIKA_RMS_API';
+    if (normalized.includes('peplink') || normalized.includes('pepwave')) return 'PEPLINK_INCONTROL_API';
+    if (normalized.includes('pfsense') || normalized.includes('opnsense')) return 'PFSENSE_API';
+    return 'GENERIC_HTTP';
+  }
+
   async list(tenantId: string) {
     const result = await this.db.query(`${this.selectRouter} WHERE tenant_id=$1 ORDER BY created_at DESC`, [tenantId]);
     return { data: result.rows };
@@ -46,7 +65,7 @@ export class RoutersService {
       const location = await this.db.query(`SELECT id FROM locations WHERE tenant_id=$1 AND id=$2`, [tenantId, input.locationId]);
       if (!location.rowCount) throw new NotFoundException('Location not found');
     }
-    const managementProtocol = input.managementProtocol ?? 'MIKROTIK_REST';
+    const managementProtocol = this.resolveManagementProtocol(input.vendor, input.managementProtocol);
     const capabilities = this.capabilityMetadata(input.vendor, managementProtocol);
     const encryptedCredentials = input.managementCredentials ? this.secureCredentials.encrypt(input.managementCredentials) : null;
     const result = await this.db.query(
@@ -81,7 +100,7 @@ export class RoutersService {
     }
     const locationExpression = input.clearLocation ? 'NULL' : 'COALESCE($9,location_id)';
     const nextVendor = input.vendor ?? existing.vendor;
-    const nextProtocol = input.managementProtocol ?? existing.managementProtocol;
+    const nextProtocol = this.resolveManagementProtocol(nextVendor, input.managementProtocol ?? existing.managementProtocol);
     const capabilities = this.capabilityMetadata(nextVendor, nextProtocol);
     const hasCatalogMetadata = Object.keys(capabilities).length > 0;
     const encryptedCredentials = input.managementCredentials ? this.secureCredentials.encrypt(input.managementCredentials) : null;
@@ -105,7 +124,7 @@ export class RoutersService {
                  sync_error AS "syncError", created_at AS "createdAt", updated_at AS "updatedAt"`,
       [tenantId, id, input.name?.trim() || null, input.vendor?.trim() || null, input.model?.trim() || null,
        input.ipAddress || null, input.macAddress?.trim() || null, input.osVersion?.trim() || null, input.locationId ?? null,
-       input.apiEnabled ?? null, input.apiEndpoint?.trim() || null, input.managementProtocol ?? null, input.managementEnabled ?? null,
+       input.apiEnabled ?? null, input.apiEndpoint?.trim() || null, nextProtocol, input.managementEnabled ?? null,
        input.controllerEndpoint?.trim() || null, hasCatalogMetadata, JSON.stringify(capabilities), encryptedCredentials],
     );
     const router = result.rows[0];
