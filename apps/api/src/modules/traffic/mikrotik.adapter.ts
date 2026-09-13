@@ -12,10 +12,10 @@ const MANAGED_COMMENT = 'JASLYN NET traffic fairness';
 export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
   constructor(private readonly config: ConfigService) {}
 
-  async apply(commands: BandwidthEnforcementCommand[]): Promise<void> { for (const command of commands) await this.applyOne(command); }
+  async apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void> { for (const command of commands) await this.applyOne(command, credentials); }
 
-  async clearManaged(apiEndpoint: string): Promise<number> {
-    const { headers, base } = this.connection(apiEndpoint);
+  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials): Promise<number> {
+    const { headers, base } = this.connection(apiEndpoint, credentials);
     const records = await this.managedQueues(base, headers);
     let deleted = 0;
     for (const record of records) {
@@ -26,8 +26,8 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
     return deleted;
   }
 
-  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[]): Promise<number> {
-    const { headers, base } = this.connection(apiEndpoint);
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials): Promise<number> {
+    const { headers, base } = this.connection(apiEndpoint, credentials);
     const keep = new Set(keepQueueNames.filter((name) => this.isManagedName(name)));
     const records = await this.managedQueues(base, headers);
     let deleted = 0;
@@ -56,10 +56,10 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
     return (await response.json()) as RouterQueueRecord[];
   }
 
-  private async applyOne(command: BandwidthEnforcementCommand) {
+  private async applyOne(command: BandwidthEnforcementCommand, credentials?: NetworkCredentials) {
     if (!command.apiEndpoint) throw new ServiceUnavailableException(`Router API endpoint is not configured for ${command.routerId}`);
     if (!command.targetAddress || !isIP(command.targetAddress)) throw new ServiceUnavailableException(`A valid client IP is required for session ${command.sessionId ?? command.customerId}`);
-    const { headers, base } = this.connection(command.apiEndpoint);
+    const { headers, base } = this.connection(command.apiEndpoint, credentials);
     const queueName = this.queueName(command);
     const queryResponse = await this.request(`${base}/queue/simple/print`, { method: 'POST', headers, body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment'], '.query': [`name=${queueName}`] }) });
     const records = (await queryResponse.json()) as RouterQueueRecord[];
