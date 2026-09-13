@@ -1,4 +1,4 @@
-# NEXORA CI Runner Diagnostic
+# JASLYN NET CI Runner Diagnostic
 
 ## Finding
 
@@ -13,8 +13,8 @@ A minimal workflow that only prints Node/npm versions and exits 0 reproduces the
 3. Check organization/account Actions policy if the repository is governed by one.
 4. Confirm `ubuntu-latest` hosted runners are available to the repository/account.
 5. Confirm no repository ruleset, branch protection rule, environment protection, or Actions policy is preventing job execution before the first step.
-6. Re-run the `CI Smoke PR` workflow after the above checks.
+6. Re-run the CI smoke workflow after the above checks.
 
 ## Acceptance criteria
 
-The smoke workflow is considered healthy only when GitHub reports at least one executed step and a successful conclusion. Only after that should the full NEXORA CI pipeline be used as evidence for application correctness.
+The smoke workflow is considered healthy only when GitHub reports at least one executed step and a successful conclusion. Only after that should the full JASLYN NET CI pipeline be used as evidence for application correctness.
