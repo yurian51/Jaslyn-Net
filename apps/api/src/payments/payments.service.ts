@@ -87,8 +87,7 @@ export class PaymentsService {
          VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED')
          ON CONFLICT (tenant_id, provider, provider_event_id) WHERE provider_event_id IS NOT NULL
          DO UPDATE SET payload=EXCLUDED.payload, event_type=EXCLUDED.event_type, signature_valid=true,
-                       processing_status=CASE WHEN payment_events.processing_status='PROCESSED' THEN 'PROCESSED' ELSE 'RECEIVED' END,
-                       updated_at=now()
+                       processing_status=CASE WHEN payment_events.processing_status='PROCESSED' THEN 'PROCESSED' ELSE 'RECEIVED' END
          RETURNING id, processing_status AS "processingStatus", payment_id AS "paymentId"`,
         [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}],
       );
@@ -127,14 +126,9 @@ export class PaymentsService {
       await client.query(`UPDATE payment_events SET payment_id=$1 WHERE tenant_id=$2 AND id=$3`, [payment.id, tenantId, eventId]);
 
       if (payment.status === 'SUCCESS') {
-        if (input.status !== 'SUCCESS') {
-          await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
-          await client.query('COMMIT');
-          return { accepted: true, duplicate: false, paymentId: payment.id, statePreserved: true };
-        }
         await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
         await client.query('COMMIT');
-        return { accepted: true, duplicate: false, paymentId: payment.id, alreadySuccessful: true };
+        return { accepted: true, duplicate: false, paymentId: payment.id, alreadySuccessful: true, statePreserved: input.status !== 'SUCCESS' };
       }
 
       const nextStatus = input.status === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
