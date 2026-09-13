@@ -1,5 +1,16 @@
 import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Max, MaxLength, Min } from 'class-validator';
 
+export const NETWORK_MANAGEMENT_PROTOCOLS = [
+  'MIKROTIK_REST',
+  'UNIFI_NETWORK_API',
+  'OPENWRT_UBUS',
+  'CAMBIUM_CNMAESTRO',
+  'GENERIC_HTTP',
+  'SNMP',
+  'RADIUS_NAS',
+] as const;
+export type NetworkManagementProtocol = typeof NETWORK_MANAGEMENT_PROTOCOLS[number];
+
 export class CreateRouterDto {
   @IsString()
   @MaxLength(120)
@@ -37,6 +48,19 @@ export class CreateRouterDto {
   @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
   @MaxLength(300)
   apiEndpoint?: string;
+
+  @IsOptional()
+  @IsIn(NETWORK_MANAGEMENT_PROTOCOLS)
+  managementProtocol?: NetworkManagementProtocol;
+
+  @IsOptional()
+  @IsBoolean()
+  managementEnabled?: boolean;
+
+  @IsOptional()
+  @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
+  @MaxLength(300)
+  controllerEndpoint?: string;
 }
 
 export class UpdateRouterDto {
@@ -85,6 +109,19 @@ export class UpdateRouterDto {
   @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
   @MaxLength(300)
   apiEndpoint?: string;
+
+  @IsOptional()
+  @IsIn(NETWORK_MANAGEMENT_PROTOCOLS)
+  managementProtocol?: NetworkManagementProtocol;
+
+  @IsOptional()
+  @IsBoolean()
+  managementEnabled?: boolean;
+
+  @IsOptional()
+  @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
+  @MaxLength(300)
+  controllerEndpoint?: string;
 }
 
 export class RouterHeartbeatDto {
