@@ -96,3 +96,6 @@ jobs:
 
       - name: Build Web
         run: pnpm --filter @jaslyn-net/web build
+
+      - name: Traffic core benchmark
+        run: pnpm --filter @jaslyn-net/api benchmark
