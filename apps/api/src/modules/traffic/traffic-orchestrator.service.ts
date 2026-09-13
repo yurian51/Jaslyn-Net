@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException, ServiceUnavailableException } fr
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { TrafficEnforcementService } from './enforcement.service';
-import { FairnessPolicy } from './fairness.service';
+import { FairnessPolicy, FairnessService } from './fairness.service';
 
 interface ActiveTrafficUser {
   customerId: string;
@@ -18,6 +18,7 @@ interface ActiveTrafficUser {
 export class TrafficOrchestratorService {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
+    private readonly fairness: FairnessService,
     private readonly enforcement: TrafficEnforcementService,
   ) {}
 
@@ -39,14 +40,10 @@ export class TrafficOrchestratorService {
     if (!router.rowCount) throw new NotFoundException('Router not found');
 
     const config = router.rows[0];
-    if (config.capacityMbps === null) {
-      throw new ServiceUnavailableException('Router bandwidth profile is not configured');
-    }
+    if (config.capacityMbps === null) throw new ServiceUnavailableException('Router bandwidth profile is not configured');
 
     const samples = await this.db.query(
-      `SELECT s.id AS "sessionId",
-              s.customer_id AS "customerId",
-              s.ip_address::text AS "ipAddress",
+      `SELECT s.id AS "sessionId", s.customer_id AS "customerId", s.ip_address::text AS "ipAddress",
               GREATEST(0, EXTRACT(EPOCH FROM (newest.sampled_at - previous.sampled_at))) AS "intervalSeconds",
               GREATEST(0, newest.bytes_in - previous.bytes_in) AS "bytesInDelta",
               GREATEST(0, newest.bytes_out - previous.bytes_out) AS "bytesOutDelta"
@@ -55,37 +52,33 @@ export class TrafficOrchestratorService {
          SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at
          FROM traffic_samples ts
          WHERE ts.tenant_id=$1 AND ts.session_id=s.id
-         ORDER BY ts.sampled_at DESC
-         LIMIT 1
+         ORDER BY ts.sampled_at DESC LIMIT 1
        ) newest
        CROSS JOIN LATERAL (
          SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at
          FROM traffic_samples ts
          WHERE ts.tenant_id=$1 AND ts.session_id=s.id AND ts.sampled_at < newest.sampled_at
-         ORDER BY ts.sampled_at DESC
-         LIMIT 1
+         ORDER BY ts.sampled_at DESC LIMIT 1
        ) previous
        WHERE s.tenant_id=$1 AND s.router_id=$2 AND s.status='ACTIVE' AND s.customer_id IS NOT NULL`,
       [tenantId, routerId],
     );
 
-    const users: ActiveTrafficUser[] = samples.rows
-      .map((row) => {
-        const interval = Number(row.intervalSeconds);
-        const downloadMbps = interval > 0 ? (Number(row.bytesInDelta) * 8) / interval / 1_000_000 : 0;
-        const uploadMbps = interval > 0 ? (Number(row.bytesOutDelta) * 8) / interval / 1_000_000 : 0;
-        const totalMbps = Number((downloadMbps + uploadMbps).toFixed(3));
-        return {
-          customerId: row.customerId,
-          sessionId: row.sessionId,
-          ipAddress: row.ipAddress ?? undefined,
-          requestedMbps: totalMbps,
-          priority: 1,
-          weight: 1,
-          uploadRatio: totalMbps > 0 ? uploadMbps / totalMbps : 0.5,
-        };
-      })
-      .filter((user) => Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
+    const users: ActiveTrafficUser[] = samples.rows.map((row) => {
+      const interval = Number(row.intervalSeconds);
+      const downloadMbps = interval > 0 ? (Number(row.bytesInDelta) * 8) / interval / 1_000_000 : 0;
+      const uploadMbps = interval > 0 ? (Number(row.bytesOutDelta) * 8) / interval / 1_000_000 : 0;
+      const totalMbps = Number((downloadMbps + uploadMbps).toFixed(3));
+      return {
+        customerId: row.customerId,
+        sessionId: row.sessionId,
+        ipAddress: row.ipAddress ?? undefined,
+        requestedMbps: totalMbps,
+        priority: 1,
+        weight: 1,
+        uploadRatio: totalMbps > 0 ? uploadMbps / totalMbps : 0.5,
+      };
+    }).filter((user) => Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
 
     const policy: FairnessPolicy = {
       enabled: config.enabled ?? true,
@@ -95,44 +88,45 @@ export class TrafficOrchestratorService {
       recoveryThresholdPercent: Number(config.recoveryThresholdPercent),
     };
 
-    const uploadRatio = users.length
-      ? users.reduce((sum, user) => sum + user.uploadRatio, 0) / users.length
-      : 0.5;
+    const state = this.fairness.evaluate(policy, users);
+    const baseResult = {
+      routerId,
+      mode: state.mode,
+      utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
+      capacityMbps: state.capacityMbps,
+      users: users.length,
+      allocations: state.allocations,
+    };
+
+    if (!apply) return { ...baseResult, applied: false, reason: 'DRY_RUN' };
+    if (!config.apiEnabled) return { ...baseResult, applied: false, reason: 'ROUTER_API_DISABLED' };
+    if (!config.apiEndpoint) return { ...baseResult, applied: false, reason: 'ROUTER_API_ENDPOINT_MISSING' };
+    if (!users.length) return { ...baseResult, applied: false, reason: 'NO_MEASURED_ACTIVE_USERS' };
+
+    const uploadRatio = users.reduce((sum, user) => sum + user.uploadRatio, 0) / users.length;
     const targets = Object.fromEntries(users.map((user) => [
       `${user.customerId}:${user.sessionId}`,
-      { targetAddress: user.ipAddress, apiEndpoint: config.apiEndpoint ?? undefined },
+      { targetAddress: user.ipAddress, apiEndpoint: config.apiEndpoint },
     ]));
 
-    if (!apply) {
-      const result = await this.enforcement['fairnessService'].evaluate(policy, users);
-      return {
-        routerId,
-        applied: false,
-        mode: result.mode,
-        utilizationPercent: Number(result.utilizationPercent.toFixed(3)),
-        capacityMbps: result.capacityMbps,
-        users: users.length,
-        allocations: result.allocations,
-      };
+    try {
+      const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio);
+      await this.db.query(
+        `INSERT INTO traffic_enforcement_events
+          (tenant_id, router_id, mode, command_count, applied, commands)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify(result.commands)],
+      );
+      return { ...baseResult, ...result };
+    } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 1000) : 'Unknown router enforcement error';
+      await this.db.query(
+        `INSERT INTO traffic_enforcement_events
+          (tenant_id, router_id, mode, command_count, applied, commands, error)
+         VALUES ($1,$2,$3,$4,false,'[]'::jsonb,$5)`,
+        [tenantId, routerId, state.mode, state.allocations.length, message],
+      );
+      throw error;
     }
-
-    if (!config.apiEnabled) {
-      return {
-        routerId,
-        applied: false,
-        reason: 'ROUTER_API_DISABLED',
-        users: users.length,
-        capacityMbps: policy.capacityMbps,
-      };
-    }
-
-    const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio);
-    await this.db.query(
-      `INSERT INTO traffic_enforcement_events
-        (tenant_id, router_id, mode, command_count, applied, commands)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
-      [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify(result.commands)],
-    );
-    return { routerId, ...result, users: users.length, capacityMbps: policy.capacityMbps };
   }
 }
