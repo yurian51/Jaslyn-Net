@@ -6,6 +6,7 @@ import { TrafficSamplesController } from './traffic-samples.controller';
 import { TrafficSamplesService } from './traffic-samples.service';
 import { TrafficOrchestratorService } from './traffic-orchestrator.service';
 import { TrafficOrchestratorController } from './traffic-orchestrator.controller';
+import { TrafficCollectorService } from './traffic-collector.service';
 
 @Module({
   controllers: [TrafficSamplesController, TrafficOrchestratorController],
@@ -20,6 +21,7 @@ import { TrafficOrchestratorController } from './traffic-orchestrator.controller
       inject: [FairnessService, MikroTikTrafficEnforcementAdapter],
     },
     TrafficOrchestratorService,
+    TrafficCollectorService,
   ],
   exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService],
 })
