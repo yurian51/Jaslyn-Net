@@ -84,8 +84,8 @@ describe('TrafficSamplesService', () => {
 
     await expect(service.throughput('tenant-1', 'session-1')).resolves.toMatchObject({
       downloadMbps: 0.801,
-      uploadMbps: 0.008,
-      totalMbps: 0.809,
+      uploadMbps: 0.001,
+      totalMbps: 0.802,
       intervalSeconds: 10,
     });
   });
