@@ -15,13 +15,16 @@ export class NotificationsService {
     eventType: string,
     payload: Record<string, unknown> = {},
     availableAt?: Date,
+    dedupeKey?: string,
   ) {
     const result = await this.db.query(
       `INSERT INTO notification_outbox
-        (tenant_id, channel, recipient, event_type, payload, available_at)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       RETURNING id, status, available_at AS "availableAt", created_at AS "createdAt"`,
-      [tenantId, channel, recipient.trim(), eventType.trim().toUpperCase(), payload, availableAt ?? new Date()],
+        (tenant_id, channel, recipient, event_type, payload, available_at, dedupe_key)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (tenant_id, dedupe_key) WHERE dedupe_key IS NOT NULL
+       DO UPDATE SET updated_at = notification_outbox.updated_at
+       RETURNING id, status, attempts, available_at AS "availableAt", created_at AS "createdAt", dedupe_key AS "dedupeKey"`,
+      [tenantId, channel, recipient.trim(), eventType.trim().toUpperCase(), payload, availableAt ?? new Date(), dedupeKey?.trim() || null],
     );
     return result.rows[0];
   }
@@ -34,7 +37,7 @@ export class NotificationsService {
       const result = await client.query(
         `SELECT id, tenant_id AS "tenantId", channel, recipient, event_type AS "eventType", payload, attempts
          FROM notification_outbox
-         WHERE status = 'PENDING' AND available_at <= now()
+         WHERE status = 'PENDING' AND available_at <= now() AND attempts < 8
          ORDER BY created_at
          FOR UPDATE SKIP LOCKED
          LIMIT $1`,
@@ -63,12 +66,15 @@ export class NotificationsService {
     const age = Math.min(Math.max(Math.trunc(maxAgeMinutes), 1), 1440);
     const result = await this.db.query(
       `UPDATE notification_outbox
-       SET status = 'PENDING', available_at = now(), locked_at = NULL,
-           last_error = 'Recovered stale processing lock', updated_at = now()
+       SET status = CASE WHEN attempts >= 8 THEN 'FAILED' ELSE 'PENDING' END,
+           available_at = CASE WHEN attempts >= 8 THEN available_at ELSE now() END,
+           locked_at = NULL,
+           last_error = CASE WHEN attempts >= 8 THEN 'Retry budget exhausted after stale lock recovery' ELSE 'Recovered stale processing lock' END,
+           updated_at = now()
        WHERE status = 'PROCESSING'
          AND locked_at < now() - ($1 * interval '1 minute')
          AND ($2::uuid IS NULL OR tenant_id = $2::uuid)
-       RETURNING id, tenant_id AS "tenantId"`,
+       RETURNING id, tenant_id AS "tenantId", status, attempts`,
       [age, tenantId ?? null],
     );
     return { recovered: result.rowCount ?? 0, data: result.rows };
@@ -120,7 +126,8 @@ export class NotificationsService {
     const result = await this.db.query(
       `SELECT id, channel, recipient, event_type AS "eventType", payload, status, attempts,
               available_at AS "availableAt", locked_at AS "lockedAt", sent_at AS "sentAt",
-              last_error AS "lastError", created_at AS "createdAt", updated_at AS "updatedAt"
+              last_error AS "lastError", created_at AS "createdAt", updated_at AS "updatedAt",
+              dedupe_key AS "dedupeKey"
        FROM notification_outbox
        WHERE tenant_id = $1
        ORDER BY created_at DESC
