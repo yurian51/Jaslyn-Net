@@ -52,7 +52,8 @@ jobs:
             apps/api/migrations/010_notification_queue_indexes.sql \
             apps/api/migrations/011_payment_event_tenant_isolation.sql \
             apps/api/migrations/012_notification_outbox_hardening.sql \
-            apps/api/migrations/013_session_integrity.sql; do
+            apps/api/migrations/013_session_integrity.sql \
+            apps/api/migrations/014_traffic_fairness.sql; do
             test -f "$file"
           done
           grep -q "CREATE TABLE IF NOT EXISTS organization_subscriptions" apps/api/migrations/002_saas_billing_access.sql
@@ -70,6 +71,9 @@ jobs:
           grep -q "notification_outbox_dead_letter_idx" apps/api/migrations/012_notification_outbox_hardening.sql
           grep -q "sessions_active_router_mac_uq" apps/api/migrations/013_session_integrity.sql
           grep -q "sessions_tenant_mac_idx" apps/api/migrations/013_session_integrity.sql
+          grep -q "CREATE TABLE IF NOT EXISTS router_bandwidth_profiles" apps/api/migrations/014_traffic_fairness.sql
+          grep -q "CREATE TABLE IF NOT EXISTS traffic_fairness_events" apps/api/migrations/014_traffic_fairness.sql
+          grep -q "traffic_fairness_events_router_time_idx" apps/api/migrations/014_traffic_fairness.sql
 
       - name: Typecheck API
         run: pnpm --filter @jaslyn-net/api typecheck
