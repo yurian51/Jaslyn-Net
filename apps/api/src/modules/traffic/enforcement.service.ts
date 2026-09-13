@@ -6,16 +6,19 @@ import {
 } from './enforcement.adapter';
 import { FairnessInput } from './fairness.engine';
 
+export interface EnforcementTarget {
+  targetAddress?: string;
+  apiEndpoint?: string;
+}
+
 export interface EnforcementResult {
   applied: boolean;
   commandCount: number;
   commands: BandwidthEnforcementCommand[];
+  mode: string;
+  utilizationPercent: number;
 }
 
-/**
- * Connects fairness policy decisions to a concrete router adapter.
- * The adapter owns all network side effects; this service remains deterministic.
- */
 export class TrafficEnforcementService {
   constructor(
     private readonly fairnessService = new FairnessService(),
@@ -26,15 +29,18 @@ export class TrafficEnforcementService {
     routerId: string,
     policy: FairnessPolicy,
     activeUsers: FairnessInput['activeUsers'],
+    targets: Record<string, EnforcementTarget> = {},
     uploadRatio = 0.5,
   ): Promise<EnforcementResult> {
     const state = this.fairnessService.evaluate(policy, activeUsers);
-    const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio);
+    const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets);
     await this.adapter.apply(commands);
     return {
       applied: commands.length > 0,
       commandCount: commands.length,
       commands,
+      mode: state.mode,
+      utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
     };
   }
 }
