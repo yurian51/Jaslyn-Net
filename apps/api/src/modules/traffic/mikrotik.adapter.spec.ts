@@ -111,6 +111,17 @@ describe('MikroTikTrafficEnforcementAdapter', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('https://192.168.1.1/rest/queue/simple/%2A2');
   });
 
+  it('reads hotspot active counters through the RouterOS REST API', async () => {
+    fetchMock.mockResolvedValueOnce(response([{
+      user: 'alice', address: '192.168.1.20', 'mac-address': 'AA:BB:CC:DD:EE:FF',
+      'bytes-in': '9007199254740992000', 'bytes-out': '1234567890123456789',
+    }]));
+
+    const adapter = new MikroTikTrafficEnforcementAdapter(config);
+    await expect(adapter.readHotspotActive('https://192.168.1.1')).resolves.toEqual([expect.objectContaining({ user: 'alice', 'bytes-in': '9007199254740992000' })]);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://192.168.1.1/rest/ip/hotspot/active/print');
+  });
+
   it('rejects insecure router endpoints unless explicitly enabled', async () => {
     const adapter = new MikroTikTrafficEnforcementAdapter(config);
     await expect(adapter.apply([{
