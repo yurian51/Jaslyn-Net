@@ -1,4 +1,5 @@
-import { IsBoolean, IsIP, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, IsUrl, Max, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsIP, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, IsUrl, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export const NETWORK_MANAGEMENT_PROTOCOLS = [
   'MIKROTIK_REST', 'UNIFI_NETWORK_API', 'OMADA_CONTROLLER_API', 'CAMBIUM_CNMAESTRO', 'MERAKI_DASHBOARD_API',
@@ -29,7 +30,7 @@ export class CreateRouterDto {
   @IsOptional() @IsIn(NETWORK_MANAGEMENT_PROTOCOLS) managementProtocol?: NetworkManagementProtocol;
   @IsOptional() @IsBoolean() managementEnabled?: boolean;
   @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) @MaxLength(300) controllerEndpoint?: string;
-  @IsOptional() @IsObject() managementCredentials?: NetworkCredentialsDto;
+  @IsOptional() @ValidateNested() @Type(() => NetworkCredentialsDto) managementCredentials?: NetworkCredentialsDto;
 }
 
 export class UpdateRouterDto {
@@ -46,7 +47,7 @@ export class UpdateRouterDto {
   @IsOptional() @IsIn(NETWORK_MANAGEMENT_PROTOCOLS) managementProtocol?: NetworkManagementProtocol;
   @IsOptional() @IsBoolean() managementEnabled?: boolean;
   @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) @MaxLength(300) controllerEndpoint?: string;
-  @IsOptional() @IsObject() managementCredentials?: NetworkCredentialsDto;
+  @IsOptional() @ValidateNested() @Type(() => NetworkCredentialsDto) managementCredentials?: NetworkCredentialsDto;
   @IsOptional() @IsBoolean() clearManagementCredentials?: boolean;
 }
 
