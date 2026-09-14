@@ -6,10 +6,14 @@ import {
 } from './enforcement.adapter';
 import { FairnessInput } from './fairness.engine';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
+import { NetworkManagementProtocol } from '../../routers/routers.dto';
 
 export interface EnforcementTarget {
   targetAddress?: string;
+  targetMacAddress?: string;
   apiEndpoint?: string;
+  protocol?: NetworkManagementProtocol;
+  merakiGroupPolicyId?: string;
 }
 
 export interface EnforcementResult {
@@ -23,7 +27,7 @@ export interface EnforcementResult {
 export class TrafficEnforcementService {
   constructor(
     private readonly fairnessService: FairnessService,
-    private readonly adapter: TrafficEnforcementAdapter,
+    private readonly adapters: Partial<Record<NetworkManagementProtocol, TrafficEnforcementAdapter>>,
   ) {}
 
   async evaluateAndApply(
@@ -33,10 +37,13 @@ export class TrafficEnforcementService {
     targets: Record<string, EnforcementTarget> = {},
     uploadRatio = 0.5,
     credentials?: NetworkCredentials,
+    protocol: NetworkManagementProtocol = 'MIKROTIK_REST',
   ): Promise<EnforcementResult> {
     const state = this.fairnessService.evaluate(policy, activeUsers);
     const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets);
-    await this.adapter.apply(commands, credentials);
+    const adapter = this.adapters[protocol];
+    if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
+    await adapter.apply(commands, credentials);
     return {
       applied: commands.length > 0,
       commandCount: commands.length,
@@ -46,11 +53,15 @@ export class TrafficEnforcementService {
     };
   }
 
-  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials) {
-    return this.adapter.clearManaged(apiEndpoint, credentials);
+  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST') {
+    const adapter = this.adapters[protocol];
+    if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
+    return adapter.clearManaged(apiEndpoint, credentials);
   }
 
-  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials) {
-    return this.adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials);
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST') {
+    const adapter = this.adapters[protocol];
+    if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
+    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials);
   }
 }
