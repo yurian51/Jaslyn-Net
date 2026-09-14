@@ -2,7 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { NetworkEnforcementService } from './network-enforcement.service';
 
 describe('NetworkEnforcementService', () => {
-  function createService(row: Record<string, unknown>, adapterResult = { ok: true, action: 'created' as const, remotePolicyId: '*9' }) {
+  function createService(row: Record<string, unknown> | null, adapterResult = { ok: true, action: 'created' as const, remotePolicyId: '*9' }) {
     const db = { query: jest.fn().mockResolvedValue({ rowCount: row ? 1 : 0, rows: row ? [row] : [] }) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) };
     const secureCredentials = { decrypt: jest.fn().mockReturnValue({ username: 'admin', password: 'secret' }) };
