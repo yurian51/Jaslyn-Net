@@ -5,6 +5,9 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 
+type DatabaseError = { code?: string; constraint?: string };
+type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -22,6 +25,8 @@ export class PaymentsService {
 
   async createIntent(tenantId: string, input: CreatePaymentIntentDto) {
     const client = await this.db.connect();
+    const provider = input.provider.trim().toLowerCase();
+    const key = input.idempotencyKey?.trim() || `intent:${input.purchaseId}:${provider}`;
     try {
       await client.query('BEGIN');
       const purchase = await client.query(
@@ -30,8 +35,6 @@ export class PaymentsService {
       );
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
-      const provider = input.provider.trim().toLowerCase();
-      const key = input.idempotencyKey?.trim() || `intent:${input.purchaseId}:${provider}`;
       const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
@@ -44,9 +47,29 @@ export class PaymentsService {
       );
       await client.query('COMMIT');
       return { ...result.rows[0], reused: false };
-    } catch (error: any) {
-      await client.query('ROLLBACK');
-      if (error?.code === '23505') throw new ConflictException('Payment intent already exists');
+    } catch (error: unknown) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      const dbError = error as DatabaseError;
+      if (dbError.code === '23505' && dbError.constraint === 'payments_one_pending_per_purchase_uq') {
+        const existing = await this.db.query(
+          `SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='PENDING' ORDER BY created_at ASC LIMIT 1`,
+          [tenantId, input.purchaseId],
+        );
+        if (existing.rowCount) {
+          if (existing.rows[0].provider !== provider) throw new ConflictException('A pending payment already exists for another provider');
+          return { ...existing.rows[0], reused: true };
+        }
+      }
+      if (dbError.code === '23505') {
+        const existing = await this.db.query(
+          `SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`,
+          [tenantId, key],
+        );
+        if (existing.rowCount) {
+          if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
+          return { ...existing.rows[0], reused: true };
+        }
+      }
       throw error;
     } finally { client.release(); }
   }
@@ -98,7 +121,7 @@ export class PaymentsService {
       }
       eventId = event.rows[0].id;
       await eventClient.query('COMMIT');
-    } catch (error: any) {
+    } catch (error: unknown) {
       await eventClient.query('ROLLBACK');
       throw error;
     } finally { eventClient.release(); }
@@ -106,15 +129,15 @@ export class PaymentsService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      let payment: any;
+      let payment: PaymentRecord | undefined;
       if (input.purchaseId) {
-        const result = await client.query(
+        const result = await client.query<PaymentRecord>(
           `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
           [tenantId, input.purchaseId],
         );
         payment = result.rows[0];
       } else if (input.providerReference) {
-        const result = await client.query(
+        const result = await client.query<PaymentRecord>(
           `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND provider=$2 AND provider_reference=$3 FOR UPDATE`,
           [tenantId, provider, input.providerReference.trim()],
         );
@@ -152,8 +175,8 @@ export class PaymentsService {
       await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
       await client.query('COMMIT');
       return { accepted: true, duplicate: false, paymentId: payment.id };
-    } catch (error: any) {
-      await client.query('ROLLBACK');
+    } catch (error: unknown) {
+      await client.query('ROLLBACK').catch(() => undefined);
       await this.db.query(`UPDATE payment_events SET processing_status='FAILED' WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]).catch(() => undefined);
       throw error;
     } finally { client.release(); }

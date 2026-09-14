@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose';
 
 export type AuthenticatedRequest = {
   headers: { authorization?: string };
+  requestId?: string;
   user?: {
     id: string;
     tenantId: string;
@@ -32,6 +33,7 @@ export class AuthGuard implements CanActivate {
       const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
         issuer: ISSUER,
         audience: AUDIENCE,
+        algorithms: ['HS256'],
       });
       if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
         throw new Error('Invalid claims');

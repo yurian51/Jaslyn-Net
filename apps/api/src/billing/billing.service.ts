@@ -3,6 +3,8 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreateWifiPurchaseDto, InitiatePaymentDto } from './billing.dto';
 
+type DatabaseError = { code?: string };
+
 @Injectable()
 export class BillingService {
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
@@ -55,7 +57,7 @@ export class BillingService {
       );
       await client.query('COMMIT');
       return result.rows[0];
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally {
@@ -104,8 +106,8 @@ export class BillingService {
         );
         await client.query('COMMIT');
         return payment.rows[0];
-      } catch (error: any) {
-        if (error?.code !== '23505') throw error;
+      } catch (error: unknown) {
+        if ((error as DatabaseError)?.code !== '23505') throw error;
         const concurrent = await client.query(
           `SELECT id, purchase_id, provider, provider_reference, status, amount,
                   currency, idempotency_key, created_at
@@ -130,7 +132,7 @@ export class BillingService {
         }
         throw error;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally {

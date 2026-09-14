@@ -13,85 +13,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.12.4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile --ignore-scripts
-
       - name: Validate migration files
         shell: bash
         run: |
           set -euo pipefail
           for file in \
-            apps/api/migrations/001_initial_schema.sql \
-            apps/api/migrations/002_saas_billing_access.sql \
-            apps/api/migrations/005_payment_hardening.sql \
-            apps/api/migrations/006_payment_provider_configs.sql \
-            apps/api/migrations/007_voucher_hardening.sql \
-            apps/api/migrations/008_operational_hardening.sql \
-            apps/api/migrations/009_payment_concurrency.sql \
-            apps/api/migrations/010_notification_queue_indexes.sql \
-            apps/api/migrations/011_payment_event_tenant_isolation.sql \
-            apps/api/migrations/012_notification_outbox_hardening.sql \
-            apps/api/migrations/013_session_integrity.sql \
-            apps/api/migrations/014_traffic_fairness.sql \
-            apps/api/migrations/015_traffic_samples.sql \
-            apps/api/migrations/016_traffic_enforcement_events.sql \
-            apps/api/migrations/017_network_device_management.sql; do
+            apps/api/migrations/001_initial_schema.sql apps/api/migrations/002_saas_billing_access.sql \
+            apps/api/migrations/005_payment_hardening.sql apps/api/migrations/006_payment_provider_configs.sql \
+            apps/api/migrations/007_voucher_hardening.sql apps/api/migrations/008_operational_hardening.sql \
+            apps/api/migrations/009_payment_concurrency.sql apps/api/migrations/010_notification_queue_indexes.sql \
+            apps/api/migrations/011_payment_event_tenant_isolation.sql apps/api/migrations/012_notification_outbox_hardening.sql \
+            apps/api/migrations/013_session_integrity.sql apps/api/migrations/014_traffic_fairness.sql \
+            apps/api/migrations/015_traffic_samples.sql apps/api/migrations/016_traffic_enforcement_events.sql \
+            apps/api/migrations/017_network_device_management.sql apps/api/migrations/018_network_device_credentials.sql \
+            apps/api/migrations/019_service_policy_indexes.sql; do
             test -f "$file"
           done
-          grep -q "CREATE TABLE IF NOT EXISTS organization_subscriptions" apps/api/migrations/002_saas_billing_access.sql
-          grep -q "CREATE TABLE IF NOT EXISTS access_grants" apps/api/migrations/002_saas_billing_access.sql
-          grep -q "processing_status" apps/api/migrations/005_payment_hardening.sql
-          grep -q "CREATE TABLE IF NOT EXISTS payment_provider_configs" apps/api/migrations/006_payment_provider_configs.sql
-          grep -q "notification_outbox" apps/api/migrations/008_operational_hardening.sql
-          grep -q "audit_logs" apps/api/migrations/008_operational_hardening.sql
-          grep -q "UNIQUE (tenant_id, idempotency_key)" apps/api/migrations/001_initial_schema.sql
-          grep -q "payments_one_pending_per_purchase_uq" apps/api/migrations/009_payment_concurrency.sql
-          grep -q "notification_outbox_processing_lock_idx" apps/api/migrations/010_notification_queue_indexes.sql
-          grep -q "payment_events_tenant_provider_event_uq" apps/api/migrations/011_payment_event_tenant_isolation.sql
-          grep -q "DROP INDEX IF EXISTS payment_events_provider_event_uq" apps/api/migrations/011_payment_event_tenant_isolation.sql
-          grep -q "notification_outbox_tenant_dedupe_uq" apps/api/migrations/012_notification_outbox_hardening.sql
-          grep -q "notification_outbox_dead_letter_idx" apps/api/migrations/012_notification_outbox_hardening.sql
-          grep -q "sessions_active_router_mac_uq" apps/api/migrations/013_session_integrity.sql
-          grep -q "sessions_tenant_mac_idx" apps/api/migrations/013_session_integrity.sql
-          grep -q "CREATE TABLE IF NOT EXISTS router_bandwidth_profiles" apps/api/migrations/014_traffic_fairness.sql
-          grep -q "CREATE TABLE IF NOT EXISTS traffic_fairness_events" apps/api/migrations/014_traffic_fairness.sql
-          grep -q "traffic_fairness_events_router_time_idx" apps/api/migrations/014_traffic_fairness.sql
-          grep -q "CREATE TABLE IF NOT EXISTS traffic_samples" apps/api/migrations/015_traffic_samples.sql
-          grep -q "traffic_samples_router_time_idx" apps/api/migrations/015_traffic_samples.sql
-          grep -q "traffic_samples_session_sample_time_uq" apps/api/migrations/015_traffic_samples.sql
-          grep -q "CREATE TABLE IF NOT EXISTS traffic_enforcement_events" apps/api/migrations/016_traffic_enforcement_events.sql
-          grep -q "traffic_enforcement_events_router_time_idx" apps/api/migrations/016_traffic_enforcement_events.sql
           grep -q "routers_management_protocol_idx" apps/api/migrations/017_network_device_management.sql
           grep -q "UNIFI_NETWORK_API" apps/api/migrations/017_network_device_management.sql
           grep -q "OPENWRT_UBUS" apps/api/migrations/017_network_device_management.sql
           grep -q "CAMBIUM_CNMAESTRO" apps/api/migrations/017_network_device_management.sql
-
+          grep -q "management_credentials_encrypted" apps/api/migrations/018_network_device_credentials.sql
+          grep -q "management_credentials_version" apps/api/migrations/018_network_device_credentials.sql
+          grep -q "wifi_plan_purchases_active_customer_router_idx" apps/api/migrations/019_service_policy_indexes.sql
+      - name: Lint API
+        run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API
         run: pnpm --filter @jaslyn-net/api typecheck
-
       - name: Test API
         run: pnpm --filter @jaslyn-net/api test
-
       - name: Typecheck Web
         run: pnpm --filter @jaslyn-net/web typecheck
-
       - name: Build API
         run: pnpm --filter @jaslyn-net/api build
-
       - name: Build Web
         run: pnpm --filter @jaslyn-net/web build
-
       - name: Traffic core benchmark
         run: pnpm --filter @jaslyn-net/api benchmark

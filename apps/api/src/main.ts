@@ -7,8 +7,13 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
+  const environment = config.get<string>('NODE_ENV', 'development').trim().toLowerCase();
   const configuredOrigin = config.get<string>('CORS_ORIGIN', '*').trim();
   const allowAnyOrigin = configuredOrigin === '*';
+
+  if (environment === 'production' && allowAnyOrigin) {
+    throw new Error('CORS_ORIGIN must be explicitly configured in production');
+  }
 
   app.enableShutdownHooks();
   app.setGlobalPrefix('api/v1');
