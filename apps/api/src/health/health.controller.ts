@@ -1,4 +1,4 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
@@ -13,13 +13,21 @@ export class HealthController {
 
   @Get('ready')
   async ready() {
-    const result = await this.db.query('select 1 as ok');
-    return {
-      status: result.rows[0]?.ok === 1 ? 'ready' : 'not_ready',
-      service: 'jaslyn-net-api',
-      product: 'JASLYN NET',
-      database: 'ok',
-      timestamp: new Date().toISOString(),
-    };
+    try {
+      const result = await this.db.query('select 1 as ok');
+      if (result.rows[0]?.ok !== 1) {
+        throw new ServiceUnavailableException('Database readiness check failed');
+      }
+      return {
+        status: 'ready',
+        service: 'jaslyn-net-api',
+        product: 'JASLYN NET',
+        database: 'ok',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      throw new ServiceUnavailableException('Database is not ready');
+    }
   }
 }
