@@ -39,7 +39,17 @@ describe('MerakiTrafficEnforcementAdapter', () => {
     expect(String(fetchMock.mock.calls[2][0])).toContain('/clients/client-stale/policy');
   });
 
-  it('clears only clients assigned to JASLYS-managed group policies', async () => {
+  it('follows Meraki pagination and fails closed if the safety page cap is reached', async () => {
+    const next = '<https://api.meraki.com/api/v1/networks/N_123/policies/byClient?perPage=1000&startingAfter=next>; rel="next"';
+    for (let page = 0; page < 100; page += 1) {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { link: next } }));
+    }
+    await expect(new MerakiTrafficEnforcementAdapter(config).reconcileManaged('https://api.meraki.com/api/v1/networks/N_123', [], { apiKey: 'test-key' }))
+      .rejects.toThrow('pagination exceeded 100 pages');
+    expect(fetchMock).toHaveBeenCalledTimes(101);
+  });
+
+  it('clears only clients assigned to JASLYN-managed group policies', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{ groupPolicyId: '101', name: 'JASLYN-NET-20000D-10000U' }, { groupPolicyId: '202', name: 'Customer-owned-policy' }]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([{ clientId: 'client-1', mac: 'AA:BB:CC:DD:EE:FF', assigned: [{ groupPolicyId: '101' }] }, { clientId: 'client-2', mac: '11:22:33:44:55:66', assigned: [{ groupPolicyId: '202' }] }]), { status: 200, headers: { link: '' } }))
       .mockResolvedValueOnce(new Response('{}', { status: 200 }));
