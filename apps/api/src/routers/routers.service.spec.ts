@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { SecureNetworkCredentials } from '../common/secure-network-credentials';
@@ -57,6 +57,21 @@ describe('RoutersService', () => {
       { staleMinutes: 5, routerIds: ['router-a'], count: 1 },
       { userId: 'admin-a' },
     );
+  });
+
+  it('rejects a non-finite stale interval instead of sending NaN to PostgreSQL', async () => {
+    await expect(service.markOfflineStale('tenant-a', Number.NaN)).rejects.toBeInstanceOf(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('clamps a valid stale interval to the supported range', async () => {
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const result = await service.markOfflineStale('tenant-a', 99999);
+
+    expect(result.updated).toBe(0);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('($2 * interval \'1 minute\')'), ['tenant-a', 1440]);
   });
 
   it('infers a native management protocol when a vendor is supplied without one', async () => {
