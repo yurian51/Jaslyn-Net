@@ -125,13 +125,15 @@ export class TrafficOrchestratorService {
 
     const capabilities = this.record(routerConfig.capabilities);
     const merakiNetworkId = this.stringValue(capabilities, ['networkId', 'merakiNetworkId']);
+    const merakiGroupPolicyId = this.stringValue(capabilities, ['merakiGroupPolicyId', 'groupPolicyId']);
     const enforcementEndpoint = protocol === 'MERAKI_DASHBOARD_API'
       ? this.merakiNetworkEndpoint(routerConfig.apiEndpoint, routerConfig.controllerEndpoint, merakiNetworkId)
       : routerConfig.apiEndpoint;
     const routerCredentials = routerConfig.managementCredentialsEncrypted ? this.credentials.decrypt(routerConfig.managementCredentialsEncrypted) : undefined;
+    const reconcileOptions = protocol === 'MERAKI_DASHBOARD_API' ? { merakiGroupPolicyId } : undefined;
 
     if (state.mode === 'NORMAL') {
-      const cleared = await this.enforcement.clearManaged(enforcementEndpoint, routerCredentials, protocol);
+      const cleared = await this.enforcement.clearManaged(enforcementEndpoint, routerCredentials, protocol, reconcileOptions);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
@@ -151,7 +153,7 @@ export class TrafficOrchestratorService {
         targetMacAddress: user.macAddress,
         apiEndpoint: enforcementEndpoint,
         protocol,
-        merakiGroupPolicyId: protocol === 'MERAKI_DASHBOARD_API' ? this.stringValue(capabilities, ['merakiGroupPolicyId', 'groupPolicyId']) : undefined,
+        merakiGroupPolicyId: protocol === 'MERAKI_DASHBOARD_API' ? merakiGroupPolicyId : undefined,
       },
     ]));
 
@@ -160,7 +162,7 @@ export class TrafficOrchestratorService {
       const keepManagedKeys = result.commands.map((command) => protocol === 'MERAKI_DASHBOARD_API'
         ? command.targetMacAddress ?? command.targetAddress ?? ''
         : `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
-      const reconciled = await this.enforcement.reconcileManaged(enforcementEndpoint, keepManagedKeys, routerCredentials, protocol);
+      const reconciled = await this.enforcement.reconcileManaged(enforcementEndpoint, keepManagedKeys, routerCredentials, protocol, reconcileOptions);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
