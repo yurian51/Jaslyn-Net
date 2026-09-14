@@ -1,6 +1,7 @@
 import { Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
+import { buildDatabaseConfig } from './database.config';
 
 export const PG_POOL = Symbol('PG_POOL');
 
@@ -12,24 +13,18 @@ export const PG_POOL = Symbol('PG_POOL');
       provide: PG_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const databaseUrl = config.get<string>('DATABASE_URL');
-        if (!databaseUrl) {
-          throw new Error('DATABASE_URL is required');
-        }
-
-        const sslMode = config.get<string>('DATABASE_SSL', 'require').toLowerCase();
-        const ssl = sslMode === 'disable'
-          ? undefined
-          : { rejectUnauthorized: sslMode === 'verify-full' };
-
-        return new Pool({
-          connectionString: databaseUrl,
-          ssl,
-          max: config.get<number>('DATABASE_POOL_MAX', 10),
-          idleTimeoutMillis: config.get<number>('DATABASE_IDLE_TIMEOUT_MS', 30_000),
-          connectionTimeoutMillis: config.get<number>('DATABASE_CONNECTION_TIMEOUT_MS', 5_000),
-          maxUses: config.get<number>('DATABASE_POOL_MAX_USES', 0) || undefined,
+        const env = config.get<Record<string, string | undefined>>('') ?? {};
+        const database = buildDatabaseConfig({
+          ...env,
+          DATABASE_URL: config.get<string>('DATABASE_URL'),
+          DATABASE_SSL: config.get<string>('DATABASE_SSL'),
+          DATABASE_POOL_MAX: config.get<string>('DATABASE_POOL_MAX'),
+          DATABASE_IDLE_TIMEOUT_MS: config.get<string>('DATABASE_IDLE_TIMEOUT_MS'),
+          DATABASE_CONNECTION_TIMEOUT_MS: config.get<string>('DATABASE_CONNECTION_TIMEOUT_MS'),
+          DATABASE_POOL_MAX_USES: config.get<string>('DATABASE_POOL_MAX_USES'),
         });
+
+        return new Pool(database);
       },
     },
   ],
