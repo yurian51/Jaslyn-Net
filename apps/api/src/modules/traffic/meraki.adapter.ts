@@ -15,12 +15,13 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   constructor(private readonly config: ConfigService) {}
 
   async apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void> {
+    if (!commands.length) return;
     const grouped = new Map<string, BandwidthEnforcementCommand>();
     for (const command of commands) {
       const key = `${command.maxDownloadMbps}:${command.maxUploadMbps}`;
       if (!grouped.has(key)) grouped.set(key, command);
     }
-    const context = this.connection(commands[0]?.apiEndpoint, credentials);
+    const context = this.connection(commands[0].apiEndpoint, credentials);
     const policies = await this.listGroupPolicies(context);
     const policyIds = new Map<string, string>();
     for (const command of grouped.values()) {
@@ -175,21 +176,30 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   private async request(url: string, init: RequestInit): Promise<Response> {
     const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000'));
     const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal, redirect: 'error' });
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new ServiceUnavailableException(`Meraki API request failed (${response.status}): ${body.slice(0, 500)}`);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { ...init, signal: controller.signal, redirect: 'error' });
+        if (response.status === 429 && attempt < 2) {
+          const retryAfter = Number(response.headers.get('retry-after') ?? '1');
+          const delayMs = Math.min(Math.max(Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000, 250), 10000);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+        if (!response.ok) {
+          const body = await response.text().catch(() => '');
+          throw new ServiceUnavailableException(`Meraki API request failed (${response.status}): ${body.slice(0, 500)}`);
+        }
+        return response;
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) throw error;
+        throw new ServiceUnavailableException('Meraki API request failed or timed out');
+      } finally {
+        clearTimeout(timer);
       }
-      return response;
-    } catch (error) {
-      if (error instanceof ServiceUnavailableException) throw error;
-      throw new ServiceUnavailableException('Meraki API request failed or timed out');
-    } finally {
-      clearTimeout(timer);
     }
+    throw new ServiceUnavailableException('Meraki API rate limit retry budget exhausted');
   }
 
   private kbps(value: number): number {
