@@ -15,7 +15,8 @@ JASLYN NET unifies WiFi/ISP billing, customers, locations, routers, HotSpot, vou
 - **Company:** YURIAN TECH LTD
 - **Category:** Connectivity & ISP Operating System
 - **Tagline:** Connect. Control. Grow.
-- **AI intelligence:** JASLYN AI
+
+JASLYN NET is a standalone connectivity and network operations product. **JASLYN and JASLYN NET are distinct products and JASLYN NET does not embed an AI assistant or AI operating layer.**
 
 ## Architecture
 
@@ -55,4 +56,4 @@ This repository is developed as a real production system, not a static demo. Fea
 
 ## Ecosystem
 
-JASLYN NET is one product in the wider JASLYN ecosystem, alongside JASLYN AI, JASLYN OS, JASLYN ERP, JASLYN EDU, JASLYN PAY and JASLYN CLOUD.
+JASLYN NET is one product in the wider JASLYN ecosystem. Other JASLYN products may exist independently, but their capabilities must not be represented as features of JASLYN NET unless they are explicitly implemented in this repository.
