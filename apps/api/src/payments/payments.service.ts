@@ -5,6 +5,9 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 
+type DatabaseError = { code?: string };
+type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -44,9 +47,9 @@ export class PaymentsService {
       );
       await client.query('COMMIT');
       return { ...result.rows[0], reused: false };
-    } catch (error: any) {
-      await client.query('ROLLBACK');
-      if (error?.code === '23505') throw new ConflictException('Payment intent already exists');
+    } catch (error: unknown) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((error as DatabaseError)?.code === '23505') throw new ConflictException('Payment intent already exists');
       throw error;
     } finally { client.release(); }
   }
@@ -98,7 +101,7 @@ export class PaymentsService {
       }
       eventId = event.rows[0].id;
       await eventClient.query('COMMIT');
-    } catch (error: any) {
+    } catch (error: unknown) {
       await eventClient.query('ROLLBACK');
       throw error;
     } finally { eventClient.release(); }
@@ -106,15 +109,15 @@ export class PaymentsService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      let payment: any;
+      let payment: PaymentRecord | undefined;
       if (input.purchaseId) {
-        const result = await client.query(
+        const result = await client.query<PaymentRecord>(
           `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
           [tenantId, input.purchaseId],
         );
         payment = result.rows[0];
       } else if (input.providerReference) {
-        const result = await client.query(
+        const result = await client.query<PaymentRecord>(
           `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND provider=$2 AND provider_reference=$3 FOR UPDATE`,
           [tenantId, provider, input.providerReference.trim()],
         );
@@ -152,8 +155,8 @@ export class PaymentsService {
       await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
       await client.query('COMMIT');
       return { accepted: true, duplicate: false, paymentId: payment.id };
-    } catch (error: any) {
-      await client.query('ROLLBACK');
+    } catch (error: unknown) {
+      await client.query('ROLLBACK').catch(() => undefined);
       await this.db.query(`UPDATE payment_events SET processing_status='FAILED' WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]).catch(() => undefined);
       throw error;
     } finally { client.release(); }
