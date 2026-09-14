@@ -13,7 +13,7 @@ describe('TrafficEnforcementService', () => {
       clearManaged: async () => 0,
       reconcileManaged: async () => 0,
     };
-    const service = new TrafficEnforcementService(new FairnessService(), adapter);
+    const service = new TrafficEnforcementService(new FairnessService(), { MIKROTIK_REST: adapter });
 
     const result = await service.evaluateAndApply(
       'router-1',
@@ -49,7 +49,7 @@ describe('TrafficEnforcementService', () => {
       clearManaged: async () => 0,
       reconcileManaged: async () => 0,
     };
-    const service = new TrafficEnforcementService(new FairnessService(), adapter);
+    const service = new TrafficEnforcementService(new FairnessService(), { MIKROTIK_REST: adapter });
 
     const result = await service.evaluateAndApply(
       'router-2',
