@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { isIP } from 'node:net';
 import { NetworkCredentials } from '../common/secure-network-credentials';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+type JsonRecord = Record<string, unknown>;
 
 export interface MikrotikPolicy {
   planId: string;
@@ -17,7 +19,8 @@ export class MikrotikRestAdapter {
   async health(baseUrl: string, credentials: NetworkCredentials, timeoutMs = DEFAULT_TIMEOUT_MS) {
     try {
       const resource = await this.request(baseUrl, credentials, 'system/resource', { timeoutMs });
-      return { ok: true as const, status: 'online', version: Array.isArray(resource) ? resource[0]?.version ?? null : null };
+      const first = Array.isArray(resource) && isRecord(resource[0]) ? resource[0] : null;
+      return { ok: true as const, status: 'online', version: typeof first?.version === 'string' ? first.version : null };
     } catch (error: unknown) {
       return { ok: false as const, status: 'offline', code: errorCode(error) };
     }
@@ -46,8 +49,9 @@ export class MikrotikRestAdapter {
     };
 
     const existing = await this.request(baseUrl, credentials, `queue/simple?name=${encodeURIComponent(queueName)}`, { timeoutMs });
-    if (Array.isArray(existing) && existing.length > 0 && typeof existing[0]?.['.id'] === 'string') {
-      const remoteId = existing[0]['.id'];
+    const first = Array.isArray(existing) && isRecord(existing[0]) ? existing[0] : null;
+    if (typeof first?.['.id'] === 'string') {
+      const remoteId = first['.id'];
       await this.request(baseUrl, credentials, `queue/simple/${encodeURIComponent(remoteId)}`, {
         method: 'PATCH',
         body: queue,
@@ -61,7 +65,8 @@ export class MikrotikRestAdapter {
       body: queue,
       timeoutMs,
     });
-    return { ok: true, action: 'created' as const, remotePolicyId: typeof created?.['.id'] === 'string' ? created['.id'] : null };
+    const createdRecord = isRecord(created) ? created : null;
+    return { ok: true, action: 'created' as const, remotePolicyId: typeof createdRecord?.['.id'] === 'string' ? createdRecord['.id'] : null };
   }
 
   private async request(
@@ -69,7 +74,7 @@ export class MikrotikRestAdapter {
     credentials: NetworkCredentials,
     path: string,
     options: { method?: string; body?: unknown; timeoutMs: number },
-  ): Promise<any> {
+  ): Promise<unknown> {
     const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
     const username = requireCredential(credentials.username, 'username');
     if (credentials.password == null) throw new TypeError('password is required');
@@ -121,18 +126,12 @@ function requireCredential(value: string | undefined, field: string) {
 
 function normalizeIp(value: string) {
   const normalized = String(value ?? '').trim();
-  if (!normalized || !isIp(normalized)) throw new TypeError('client.ipAddress must be a valid IPv4 or IPv6 address');
+  if (!normalized || isIP(normalized) === 0) throw new TypeError('client.ipAddress must be a valid IPv4 or IPv6 address');
   return normalized;
 }
 
-function isIp(value: string) {
-  const ipv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value);
-  if (ipv4) return value.split('.').every((part) => Number(part) >= 0 && Number(part) <= 255);
-  return /^[0-9a-f:]+$/i.test(value) && value.includes(':');
-}
-
 function targetForIp(ip: string) {
-  return `${ip}/${ip.includes(':') ? 128 : 32}`;
+  return `${ip}/${isIP(ip) === 6 ? 128 : 32}`;
 }
 
 function queueNameForIp(ip: string) {
@@ -151,6 +150,10 @@ function parseJson(text: string): unknown {
   } catch {
     throw Object.assign(new Error('RouterOS returned invalid JSON'), { code: 'INVALID_ROUTER_RESPONSE' });
   }
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function errorCode(error: unknown) {
