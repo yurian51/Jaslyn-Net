@@ -2,6 +2,10 @@ import { FairnessAllocation } from './traffic.types';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
 
+export interface EnforcementReconcileOptions {
+  merakiGroupPolicyId?: string;
+}
+
 export interface BandwidthEnforcementCommand {
   routerId: string;
   customerId: string;
@@ -18,8 +22,8 @@ export interface BandwidthEnforcementCommand {
 
 export interface TrafficEnforcementAdapter {
   apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void>;
-  clearManaged(apiEndpoint: string, credentials?: NetworkCredentials): Promise<number>;
-  reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials): Promise<number>;
+  clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
+  reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
 }
 
 export function toEnforcementCommands(
@@ -52,6 +56,6 @@ export function toEnforcementCommands(
 
 export class NoopTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
   async apply(_commands: BandwidthEnforcementCommand[], _credentials?: NetworkCredentials): Promise<void> {}
-  async clearManaged(_apiEndpoint: string, _credentials?: NetworkCredentials): Promise<number> { return 0; }
-  async reconcileManaged(_apiEndpoint: string, _keepQueueNames: string[], _credentials?: NetworkCredentials): Promise<number> { return 0; }
+  async clearManaged(_apiEndpoint: string, _credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> { return 0; }
+  async reconcileManaged(_apiEndpoint: string, _keepQueueNames: string[], _credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> { return 0; }
 }
