@@ -1,5 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { BandwidthEnforcementCommand, EnforcementReconcileOptions, TrafficEnforcementAdapter } from './enforcement.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 
@@ -54,8 +56,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     let cleared = 0;
     for (const client of clients) {
       const identities = [client.mac, client.ip].map((value) => this.normalizeIdentity(value)).filter(Boolean);
-      const identityMatches = identities.some((value) => keep.has(value));
-      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || identityMatches) continue;
+      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || identities.some((value) => keep.has(value))) continue;
       await this.setClientPolicy(context, client.clientId, { devicePolicy: 'Normal' });
       cleared += 1;
     }
@@ -74,12 +75,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
       cache.set(name, existing.groupPolicyId);
       return existing.groupPolicyId;
     }
-    const response = await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies`, {
-      method: 'POST', headers: this.headers(context.apiKey), body: JSON.stringify({
-        name,
-        bandwidth: { settings: 'custom', bandwidthLimits: { limitUp, limitDown } },
-      }),
-    });
+    const response = await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies`, { method: 'POST', headers: this.headers(context.apiKey), body: JSON.stringify({ name, bandwidth: { settings: 'custom', bandwidthLimits: { limitUp, limitDown } } }) });
     const body = await response.json() as unknown;
     const groupPolicyId = this.stringRecord(body, 'groupPolicyId');
     if (!groupPolicyId) throw new ServiceUnavailableException(`Meraki did not return a group policy ID for ${name}`);
@@ -88,12 +84,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   }
 
   private async updateGroupPolicy(context: MerakiContext, groupPolicyId: string, name: string, limitDown: number, limitUp: number): Promise<void> {
-    await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies/${encodeURIComponent(groupPolicyId)}`, {
-      method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify({
-        name,
-        bandwidth: { settings: 'custom', bandwidthLimits: { limitUp, limitDown } },
-      }),
-    });
+    await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies/${encodeURIComponent(groupPolicyId)}`, { method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify({ name, bandwidth: { settings: 'custom', bandwidthLimits: { limitUp, limitDown } } }) });
   }
 
   private connection(endpoint: string | undefined, credentials?: NetworkCredentials): MerakiContext {
@@ -135,19 +126,11 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   }
 
   private async setClientPolicy(context: MerakiContext, clientId: string, body: Record<string, string>): Promise<void> {
-    await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/clients/${encodeURIComponent(clientId)}/policy`, {
-      method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify(body),
-    });
+    await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/clients/${encodeURIComponent(clientId)}/policy`, { method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify(body) });
   }
 
-  private headers(apiKey: string): Record<string, string> {
-    return { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Cisco-Meraki-API-Key': apiKey };
-  }
-
-  private nextLink(link: string | null): string {
-    const match = link?.match(/<([^>]+)>;\s*rel="next"/i);
-    return match?.[1] ?? '';
-  }
+  private headers(apiKey: string): Record<string, string> { return { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Cisco-Meraki-API-Key': apiKey }; }
+  private nextLink(link: string | null): string { return link?.match(/<([^>]+)>;\s*rel="next"/i)?.[1] ?? ''; }
 
   private readNetworkId(endpoint?: string): string {
     if (!endpoint) throw new ServiceUnavailableException('Meraki network endpoint is not configured');
@@ -157,9 +140,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
       if (match?.[1]) return decodeURIComponent(match[1]);
       const networkId = url.searchParams.get('networkId');
       if (networkId) return networkId;
-    } catch {
-      throw new ServiceUnavailableException('Meraki API endpoint is not a valid URL');
-    }
+    } catch { throw new ServiceUnavailableException('Meraki API endpoint is not a valid URL'); }
     throw new ServiceUnavailableException('Meraki endpoint must identify a networkId');
   }
 
@@ -176,6 +157,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   }
 
   private async request(url: string, init: RequestInit): Promise<Response> {
+    await this.assertSafeEndpoint(url);
     const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000'));
     const timeoutMs = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -185,8 +167,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
         const response = await fetch(url, { ...init, signal: controller.signal, redirect: 'error' });
         if (response.status === 429 && attempt < 2) {
           const retryAfter = Number(response.headers.get('retry-after') ?? '1');
-          const delayMs = Math.min(Math.max(Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000, 250), 10000);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          await new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000, 250), 10000)));
           continue;
         }
         if (!response.ok) {
@@ -197,11 +178,28 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
       } catch (error) {
         if (error instanceof ServiceUnavailableException) throw error;
         throw new ServiceUnavailableException('Meraki API request failed or timed out');
-      } finally {
-        clearTimeout(timer);
-      }
+      } finally { clearTimeout(timer); }
     }
     throw new ServiceUnavailableException('Meraki API rate limit retry budget exhausted');
+  }
+
+  private async assertSafeEndpoint(value: string): Promise<void> {
+    let url: URL;
+    try { url = new URL(value); } catch { throw new ServiceUnavailableException('Meraki request URL is invalid'); }
+    if (url.protocol !== 'https:' && this.config.get<string>('JASLYN_NETWORK_ALLOW_HTTP', 'false') !== 'true') throw new ServiceUnavailableException('Meraki API must use HTTPS in production');
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname === 'metadata.google.internal' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) throw new ServiceUnavailableException('Meraki API endpoint resolves to a blocked hostname');
+    const addresses = isIP(hostname) ? [hostname] : (await lookup(hostname, { all: true })).map((entry) => entry.address);
+    if (!addresses.length || addresses.some((address) => this.isBlockedAddress(address))) throw new ServiceUnavailableException('Meraki API endpoint resolves to a blocked network address');
+  }
+
+  private isBlockedAddress(address: string): boolean {
+    if (isIP(address) === 4) {
+      const [a, b] = address.split('.').map(Number);
+      return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+    }
+    const normalized = address.toLowerCase();
+    return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb') || normalized.startsWith('ff');
   }
 
   private kbps(value: number): number {
