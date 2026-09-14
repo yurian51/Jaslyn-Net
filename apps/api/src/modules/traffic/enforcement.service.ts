@@ -1,6 +1,7 @@
 import { FairnessService, FairnessPolicy } from './fairness.service';
 import {
   BandwidthEnforcementCommand,
+  EnforcementReconcileOptions,
   TrafficEnforcementAdapter,
   toEnforcementCommands,
 } from './enforcement.adapter';
@@ -53,15 +54,26 @@ export class TrafficEnforcementService {
     };
   }
 
-  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST') {
+  async clearManaged(
+    apiEndpoint: string,
+    credentials?: NetworkCredentials,
+    protocol: NetworkManagementProtocol = 'MIKROTIK_REST',
+    options?: EnforcementReconcileOptions,
+  ) {
     const adapter = this.adapters[protocol];
     if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
-    return adapter.clearManaged(apiEndpoint, credentials);
+    return adapter.clearManaged(apiEndpoint, credentials, options);
   }
 
-  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST') {
+  async reconcileManaged(
+    apiEndpoint: string,
+    keepQueueNames: string[],
+    credentials?: NetworkCredentials,
+    protocol: NetworkManagementProtocol = 'MIKROTIK_REST',
+    options?: EnforcementReconcileOptions,
+  ) {
     const adapter = this.adapters[protocol];
     if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
-    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials);
+    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials, options);
   }
 }
