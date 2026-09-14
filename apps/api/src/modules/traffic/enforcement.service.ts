@@ -41,7 +41,14 @@ export class TrafficEnforcementService {
     protocol: NetworkManagementProtocol = 'MIKROTIK_REST',
   ): Promise<EnforcementResult> {
     const state = this.fairnessService.evaluate(policy, activeUsers);
-    const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets);
+    const serviceLimits = Object.fromEntries(activeUsers.map((user) => [
+      `${user.customerId}:${user.sessionId ?? ''}`,
+      {
+        maxDownloadMbps: Number.isFinite(user.maxDownloadMbps) ? user.maxDownloadMbps : Number.POSITIVE_INFINITY,
+        maxUploadMbps: Number.isFinite(user.maxUploadMbps) ? user.maxUploadMbps : Number.POSITIVE_INFINITY,
+      },
+    ]));
+    const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets, serviceLimits);
     const adapter = this.adapters[protocol];
     if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
     await adapter.apply(commands, credentials);
