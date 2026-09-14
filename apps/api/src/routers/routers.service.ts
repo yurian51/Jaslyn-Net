@@ -162,6 +162,7 @@ export class RoutersService {
   }
 
   async markOfflineStale(tenantId: string, staleMinutes = 5, context: AuditContext = {}) {
+    if (!Number.isFinite(staleMinutes)) throw new BadRequestException('staleMinutes must be a finite number');
     const minutes = Math.min(Math.max(Math.trunc(staleMinutes), 1), 1440);
     const result = await this.db.query(
       `UPDATE routers SET status='OFFLINE', updated_at=now()
