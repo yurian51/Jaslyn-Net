@@ -8,7 +8,7 @@ const GROUP_POLICY_DEVICE_POLICY = 'Group policy';
 
 type MerakiContext = { base: string; networkId: string; apiKey: string };
 type MerakiPolicy = { groupPolicyId?: string; name?: string };
-type MerakiClientPolicy = { clientId?: string; mac?: string; groupPolicyId?: string };
+type MerakiClientPolicy = { clientId?: string; mac?: string; ip?: string; groupPolicyId?: string };
 
 @Injectable()
 export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
@@ -45,7 +45,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     const context = this.connection(apiEndpoint, credentials);
     const managedIds = new Set((await this.listGroupPolicies(context)).filter((policy) => this.isManagedPolicy(policy.name) && policy.groupPolicyId).map((policy) => policy.groupPolicyId as string));
     if (!managedIds.size) return 0;
-    const keep = new Set(keepQueueNames.map((value) => this.normalizeMac(value)).filter(Boolean));
+    const keep = new Set(keepQueueNames.map((value) => this.normalizeIdentity(value)).filter(Boolean));
     return this.clearAssignedManagedClients(context, managedIds, keep);
   }
 
@@ -53,8 +53,9 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     const clients = await this.listPolicyClients(context);
     let cleared = 0;
     for (const client of clients) {
-      const mac = this.normalizeMac(client.mac);
-      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || (keep.size > 0 && !mac) || keep.has(mac)) continue;
+      const identities = [client.mac, client.ip].map((value) => this.normalizeIdentity(value)).filter(Boolean);
+      const identityMatches = identities.some((value) => keep.has(value));
+      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || identityMatches) continue;
       await this.setClientPolicy(context, client.clientId, { devicePolicy: 'Normal' });
       cleared += 1;
     }
@@ -120,11 +121,12 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
         if (!this.isRecord(value)) continue;
         const clientId = this.stringRecord(value, 'clientId');
         const mac = this.stringRecord(value, 'mac') ?? this.stringRecord(value, 'clientMac');
+        const ip = this.stringRecord(value, 'ip') ?? this.stringRecord(value, 'ip6');
         const assigned = Array.isArray(value.assigned) ? value.assigned : [];
         for (const policy of assigned) {
           if (!this.isRecord(policy)) continue;
           const groupPolicyId = this.stringRecord(policy, 'groupPolicyId');
-          if (groupPolicyId && (clientId || mac)) records.push({ clientId, mac, groupPolicyId });
+          if (groupPolicyId && (clientId || mac || ip)) records.push({ clientId, mac, ip, groupPolicyId });
         }
       }
       nextUrl = this.nextLink(response.headers.get('link'));
@@ -209,7 +211,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   }
 
   private isManagedPolicy(name?: string): boolean { return typeof name === 'string' && name.startsWith(MANAGED_POLICY_PREFIX); }
-  private normalizeMac(value?: string): string { return typeof value === 'string' ? value.replace(/[:-]/g, '').toLowerCase() : ''; }
+  private normalizeIdentity(value?: string): string { return typeof value === 'string' ? value.replace(/[:-]/g, '').trim().toLowerCase() : ''; }
   private isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
   private stringRecord(record: unknown, key: string): string | undefined { return this.isRecord(record) && typeof record[key] === 'string' && record[key].trim() ? record[key] as string : undefined; }
 }
