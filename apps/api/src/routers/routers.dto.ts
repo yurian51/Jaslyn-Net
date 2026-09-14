@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIP, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, IsUrl, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export const NETWORK_MANAGEMENT_PROTOCOLS = [
   'MIKROTIK_REST', 'UNIFI_NETWORK_API', 'OMADA_CONTROLLER_API', 'CAMBIUM_CNMAESTRO', 'MERAKI_DASHBOARD_API',
