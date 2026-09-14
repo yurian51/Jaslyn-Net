@@ -1,8 +1,8 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
-import { SecureNetworkCredentials } from '../common/secure-network-credentials';
+import { NetworkCredentials, SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { CreateRouterDto, NetworkManagementProtocol, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
 import { WORLDWIDE_NETWORK_CAPABILITIES } from '../modules/traffic/network-capabilities';
 
@@ -49,6 +49,15 @@ export class RoutersService {
     return 'GENERIC_HTTP';
   }
 
+  private encryptCredentials(credentials: CreateRouterDto['managementCredentials'] | UpdateRouterDto['managementCredentials']): string | null {
+    if (!credentials) return null;
+    const entries = Object.entries(credentials).filter(([, value]) => value !== undefined);
+    if (!entries.length || entries.some(([, value]) => typeof value !== 'string' || value.length === 0)) {
+      throw new BadRequestException('Management credentials must contain at least one non-empty credential value');
+    }
+    return this.secureCredentials.encrypt(credentials as NetworkCredentials);
+  }
+
   async list(tenantId: string) {
     const result = await this.db.query(`${this.selectRouter} WHERE tenant_id=$1 ORDER BY created_at DESC`, [tenantId]);
     return { data: result.rows };
@@ -67,7 +76,7 @@ export class RoutersService {
     }
     const managementProtocol = this.resolveManagementProtocol(input.vendor, input.managementProtocol);
     const capabilities = this.capabilityMetadata(input.vendor, managementProtocol);
-    const encryptedCredentials = input.managementCredentials ? this.secureCredentials.encrypt(input.managementCredentials) : null;
+    const encryptedCredentials = this.encryptCredentials(input.managementCredentials);
     const result = await this.db.query(
       `INSERT INTO routers (tenant_id,name,vendor,model,ip_address,mac_address,os_version,location_id,api_endpoint,
                             management_protocol,management_enabled,controller_endpoint,capabilities,management_credentials_encrypted)
@@ -98,12 +107,15 @@ export class RoutersService {
       const location = await this.db.query(`SELECT id FROM locations WHERE tenant_id=$1 AND id=$2`, [tenantId, input.locationId]);
       if (!location.rowCount) throw new NotFoundException('Location not found');
     }
+    if (input.clearManagementCredentials && input.managementCredentials) {
+      throw new BadRequestException('clearManagementCredentials cannot be combined with managementCredentials');
+    }
     const locationExpression = input.clearLocation ? 'NULL' : 'COALESCE($9,location_id)';
     const nextVendor = input.vendor ?? existing.vendor;
     const nextProtocol = input.managementProtocol ?? (input.vendor ? this.resolveManagementProtocol(nextVendor) : this.resolveManagementProtocol(nextVendor, existing.managementProtocol));
     const capabilities = this.capabilityMetadata(nextVendor, nextProtocol);
     const hasCatalogMetadata = Object.keys(capabilities).length > 0;
-    const encryptedCredentials = input.managementCredentials ? this.secureCredentials.encrypt(input.managementCredentials) : null;
+    const encryptedCredentials = this.encryptCredentials(input.managementCredentials);
     const credentialExpression = input.clearManagementCredentials ? 'NULL' : (input.managementCredentials ? '$17' : 'management_credentials_encrypted');
     const result = await this.db.query(
       `UPDATE routers SET
