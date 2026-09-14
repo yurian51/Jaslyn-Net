@@ -45,7 +45,7 @@ export class NetworkDeviceAdapterRegistry {
     if (!endpoint || !username || password === undefined) throw new ServiceUnavailableException(`OpenWrt ubus endpoint and credentials are required for ${connection.routerId}`);
     const base = endpoint.endsWith('/ubus') ? endpoint : `${endpoint}/ubus`;
     const session = await this.ubusCall(base, 'session', 'login', { username, password, timeout: 300 });
-    const sid = this.stringValue(session, ['ubus_rpc_session']);
+    const sid = this.isRecord(session) ? this.stringValue(session, ['ubus_rpc_session']) : undefined;
     if (!sid) throw new ServiceUnavailableException('OpenWrt ubus login did not return a session');
     const devices = await this.ubusCall(base, 'iwinfo', 'devices', {}, sid);
     const names = this.extractDeviceNames(devices);
