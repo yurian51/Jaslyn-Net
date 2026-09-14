@@ -7,6 +7,7 @@ import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 const MANAGED_POLICY_PREFIX = 'JASLYN-NET-';
 const GROUP_POLICY_DEVICE_POLICY = 'Group policy';
+const MAX_POLICY_PAGES = 100;
 
 type MerakiContext = { base: string; networkId: string; apiKey: string };
 type MerakiPolicy = { groupPolicyId?: string; name?: string };
@@ -104,7 +105,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   private async listPolicyClients(context: MerakiContext): Promise<MerakiClientPolicy[]> {
     const records: MerakiClientPolicy[] = [];
     let nextUrl = `${context.base}/networks/${encodeURIComponent(context.networkId)}/policies/byClient?perPage=1000`;
-    for (let page = 0; page < 10 && nextUrl; page += 1) {
+    for (let page = 0; page < MAX_POLICY_PAGES && nextUrl; page += 1) {
       const response = await this.request(nextUrl, { headers: this.headers(context.apiKey) });
       const body = await response.json() as unknown;
       if (!Array.isArray(body)) throw new ServiceUnavailableException('Meraki policy-by-client response is invalid');
@@ -122,6 +123,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
       }
       nextUrl = this.nextLink(response.headers.get('link'));
     }
+    if (nextUrl) throw new ServiceUnavailableException(`Meraki policy pagination exceeded ${MAX_POLICY_PAGES} pages`);
     return records;
   }
 
