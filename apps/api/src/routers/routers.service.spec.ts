@@ -73,4 +73,25 @@ describe('RoutersService', () => {
     expect(result.managementProtocol).toBe('UNIFI_NETWORK_API');
     expect(query).toHaveBeenCalledWith(expect.stringContaining('management_protocol'), expect.arrayContaining(['UNIFI_NETWORK_API']));
   });
+
+  it('re-infers the protocol when an existing router changes vendor', async () => {
+    query
+      .mockResolvedValueOnce({
+        rows: [{ id: 'router-a', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST' }],
+        rowCount: 1,
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 'router-a', vendor: 'Ubiquiti UniFi', managementProtocol: 'UNIFI_NETWORK_API' }],
+        rowCount: 1,
+      });
+
+    const result = await service.update('tenant-a', 'router-a', { vendor: 'Ubiquiti UniFi' });
+
+    expect(result.managementProtocol).toBe('UNIFI_NETWORK_API');
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('management_protocol=COALESCE($12,management_protocol)'),
+      expect.arrayContaining(['UNIFI_NETWORK_API']),
+    );
+  });
 });
