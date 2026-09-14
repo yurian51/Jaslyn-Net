@@ -4,6 +4,8 @@ import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { StartSessionDto, UpdateSessionUsageDto } from './sessions.dto';
 
+type DatabaseError = { code?: string };
+
 @Injectable()
 export class SessionsService {
   constructor(
@@ -79,12 +81,12 @@ export class SessionsService {
         await client.query('COMMIT');
         await this.audit.record(tenantId, 'SESSION_STARTED', 'session', session.id, { routerId: session.routerId, customerId: session.customerId }, auditContext);
         return session;
-      } catch (error: any) {
+      } catch (error: unknown) {
         await client.query('ROLLBACK');
-        if (error?.code === '23505') throw new ConflictException('An active session already exists for this device on this router');
+        if ((error as DatabaseError)?.code === '23505') throw new ConflictException('An active session already exists for this device on this router');
         throw error;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
       throw error;
     } finally {
@@ -118,7 +120,7 @@ export class SessionsService {
       await client.query('COMMIT');
       await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut }, auditContext);
       return result.rows[0];
-    } catch (error) {
+    } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
       throw error;
     } finally {
@@ -140,7 +142,7 @@ export class SessionsService {
       await this.resetRouterActiveUsers(client, tenantId, result.rows.map((row) => row.routerId).filter(Boolean));
       await client.query('COMMIT');
       return { updated: result.rowCount ?? 0, data: result.rows };
-    } catch (error) {
+    } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
       throw error;
     } finally {
