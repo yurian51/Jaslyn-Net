@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiFetch, ApiError } from '../../../lib/api';
-import { getAccessToken } from '../../../lib/auth';
+import { apiFetch, ApiError } from '../../lib/api';
+import { getAccessToken } from '../../lib/auth';
 
 type AuditEntry = { id: string; action: string; entityType?: string; entityId?: string; metadata?: Record<string, unknown>; createdAt?: string };
 type AuditResponse = { data: AuditEntry[]; count?: number };
