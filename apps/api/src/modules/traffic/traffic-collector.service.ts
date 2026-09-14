@@ -80,6 +80,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       routerId: router.id, protocol: router.managementProtocol, endpoint: router.apiEndpoint,
       controllerEndpoint: router.controllerEndpoint, capabilities: router.capabilities, credentials: decrypted,
     });
+    await this.updateRouterActiveUsers(router.tenantId, router.id, active.length);
     if (!active.length) { await this.markHealthy(router); return 0; }
     const sessions = await this.db.query<SessionRecord>(
       `SELECT id, customer_id AS "customerId", username, ip_address AS "ipAddress", mac_address AS "macAddress" FROM sessions
@@ -98,6 +99,13 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       recorded += 1;
     }
     await this.markHealthy(router); return recorded;
+  }
+
+  private async updateRouterActiveUsers(tenantId: string, routerId: string, activeUsers: number) {
+    await this.db.query(
+      `UPDATE routers SET active_users=$3, updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+      [tenantId, routerId, activeUsers],
+    );
   }
 
   private matchSession(client: NormalizedWifiClient, byMac: Map<string, SessionRecord>, byIp: Map<string, SessionRecord>, byUsername: Map<string, SessionRecord>) {
