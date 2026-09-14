@@ -88,7 +88,7 @@ export class OverviewService {
 
     const totalRouters = Number(router.total);
     const onlineRouters = Number(router.online);
-    const availability = totalRouters === 0 ? 100 : Number(((onlineRouters / totalRouters) * 100).toFixed(2));
+    const availability = totalRouters === 0 ? null : Number(((onlineRouters / totalRouters) * 100).toFixed(2));
 
     return {
       tenant: t,
