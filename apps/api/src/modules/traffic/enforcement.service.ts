@@ -8,6 +8,7 @@ import {
 import { FairnessInput } from './fairness.engine';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
+import { ServiceUnavailableException } from '@nestjs/common';
 
 export interface EnforcementTarget {
   targetAddress?: string;
@@ -55,7 +56,7 @@ export class TrafficEnforcementService {
     ]));
     const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets, serviceLimits);
     const adapter = this.adapters[protocol];
-    if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
+    if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
     await adapter.apply(commands, credentials);
     return {
       applied: commands.length > 0,
@@ -68,13 +69,13 @@ export class TrafficEnforcementService {
 
   async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST', options?: EnforcementReconcileOptions) {
     const adapter = this.adapters[protocol];
-    if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
+    if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
     return adapter.clearManaged(apiEndpoint, credentials, options);
   }
 
   async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST', options?: EnforcementReconcileOptions) {
     const adapter = this.adapters[protocol];
-    if (!adapter) throw new Error(`No traffic enforcement adapter is registered for ${protocol}`);
+    if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
     return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials, options);
   }
 }
