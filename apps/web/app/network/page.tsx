@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiFetch, ApiError } from '../../../lib/api';
-import { getAccessToken } from '../../../lib/auth';
+import { apiFetch, ApiError } from '../../lib/api';
+import { getAccessToken } from '../../lib/auth';
 
 type Router = {
   id: string;
