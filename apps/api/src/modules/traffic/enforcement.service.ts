@@ -18,10 +18,10 @@ export interface EnforcementTarget {
   merakiGroupPolicyId?: string;
 }
 
-export interface EnforcementUser extends FairnessInput['activeUsers'][number] {
+export type EnforcementUser = FairnessInput['activeUsers'][number] & {
   maxDownloadMbps?: number;
   maxUploadMbps?: number;
-}
+};
 
 export interface EnforcementResult {
   applied: boolean;
