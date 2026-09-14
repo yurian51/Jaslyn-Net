@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { getAccessToken } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 
@@ -36,10 +37,10 @@ type Overview = {
 const nav = [
   ['Overview', '⌂', '/dashboard'],
   ['Customers', '◉', '/customers'],
-  ['Plans & Products', '▣', '/packages'],
   ['Sessions', '◌', '/sessions'],
-  ['Purchases', '₮', '/purchases'],
   ['Network', '⌁', '/network'],
+  ['Purchases', '₮', '/purchases'],
+  ['Plans & Products', '▣', '/packages'],
   ['Security & Audit', '◈', '/audit'],
 ] as const;
 
@@ -84,6 +85,7 @@ function formatDuration(startedAt?: string) {
 }
 
 export default function DashboardPage() {
+  const pathname = usePathname();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -123,7 +125,7 @@ export default function DashboardPage() {
         <div className="workspace-switch"><span className="workspace-dot" /> Global Workspace <span>⌄</span></div>
         <nav className="nav" aria-label="Jaslyn Net operations">
           <p className="nav-section">OPERATIONS</p>
-          {nav.map(([item, icon, href]) => <a key={item} href={href} className={item === 'Overview' ? 'nav-item active' : 'nav-item'} aria-current={item === 'Overview' ? 'page' : undefined}><span className="nav-icon">{icon}</span><span>{item}</span></a>)}
+          {nav.map(([item, icon, href]) => { const active = pathname === href; return <a key={item} href={href} className={active ? 'nav-item active' : 'nav-item'} aria-current={active ? 'page' : undefined}><span className="nav-icon">{icon}</span><span>{item}</span></a>; })}
         </nav>
         <div className="sidebar-status"><span className="pulse" /><div><strong>{liveDataLabel}</strong><small>{overview ? 'Tenant overview loaded' : loadError ?? 'Live values require an authenticated session'}</small></div></div>
         <div className="profile"><div className="avatar">J</div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div><span className="profile-more">•••</span></div>
