@@ -12,6 +12,7 @@ interface ActiveTrafficUser {
   customerId: string;
   sessionId: string;
   ipAddress?: string;
+  macAddress?: string;
   requestedMbps: number;
   priority: number;
   weight: number;
@@ -31,6 +32,7 @@ export class TrafficOrchestratorService {
   async evaluateRouter(tenantId: string, routerId: string, apply = true) {
     const router = await this.db.query(
       `SELECT r.id, r.api_enabled AS "apiEnabled", r.api_endpoint AS "apiEndpoint",
+              r.controller_endpoint AS "controllerEndpoint", r.capabilities,
               r.management_protocol AS "managementProtocol", r.management_credentials_encrypted AS "managementCredentialsEncrypted",
               p.capacity_mbps AS "capacityMbps", p.activate_threshold_percent AS "activateThresholdPercent",
               p.aggressive_threshold_percent AS "aggressiveThresholdPercent", p.recovery_threshold_percent AS "recoveryThresholdPercent", p.enabled
@@ -40,8 +42,8 @@ export class TrafficOrchestratorService {
       [tenantId, routerId],
     );
     if (!router.rowCount) throw new NotFoundException('Router not found');
-    const config = router.rows[0];
-    if (config.capacityMbps === null) throw new ServiceUnavailableException('Router bandwidth profile is not configured');
+    const routerConfig = router.rows[0];
+    if (routerConfig.capacityMbps === null) throw new ServiceUnavailableException('Router bandwidth profile is not configured');
 
     const activeSessions = await this.db.query(
       `SELECT COUNT(*)::int AS count
@@ -54,7 +56,7 @@ export class TrafficOrchestratorService {
     const maxSampleAgeSeconds = Math.min(Math.max(Number.isFinite(configuredAge) ? configuredAge : 120, 15), 900);
 
     const samples = await this.db.query(
-      `SELECT s.id AS "sessionId", s.customer_id AS "customerId", s.ip_address::text AS "ipAddress",
+      `SELECT s.id AS "sessionId", s.customer_id AS "customerId", s.ip_address::text AS "ipAddress", s.mac_address AS "macAddress",
               newest.bytes_in::text AS "newestBytesIn", newest.bytes_out::text AS "newestBytesOut", newest.sampled_at AS "newestSampledAt",
               previous.bytes_in::text AS "previousBytesIn", previous.bytes_out::text AS "previousBytesOut", previous.sampled_at AS "previousSampledAt"
        FROM sessions s
@@ -84,6 +86,7 @@ export class TrafficOrchestratorService {
         customerId: row.customerId,
         sessionId: row.sessionId,
         ipAddress: row.ipAddress ?? undefined,
+        macAddress: row.macAddress ?? undefined,
         requestedMbps: totalMbps,
         priority: 1,
         weight: 1,
@@ -92,11 +95,11 @@ export class TrafficOrchestratorService {
     }).filter((user) => Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
 
     const policy: FairnessPolicy = {
-      enabled: config.enabled ?? true,
-      capacityMbps: Number(config.capacityMbps),
-      activateThresholdPercent: Number(config.activateThresholdPercent),
-      aggressiveThresholdPercent: Number(config.aggressiveThresholdPercent),
-      recoveryThresholdPercent: Number(config.recoveryThresholdPercent),
+      enabled: routerConfig.enabled ?? true,
+      capacityMbps: Number(routerConfig.capacityMbps),
+      activateThresholdPercent: Number(routerConfig.activateThresholdPercent),
+      aggressiveThresholdPercent: Number(routerConfig.aggressiveThresholdPercent),
+      recoveryThresholdPercent: Number(routerConfig.recoveryThresholdPercent),
     };
     const state = this.fairness.evaluate(policy, users);
     const baseResult = {
@@ -111,25 +114,31 @@ export class TrafficOrchestratorService {
     };
 
     if (!apply) return { ...baseResult, applied: false, reason: 'DRY_RUN' };
-    if (!config.apiEnabled) return { ...baseResult, applied: false, reason: 'ROUTER_API_DISABLED' };
-    if (!config.apiEndpoint) return { ...baseResult, applied: false, reason: 'ROUTER_API_ENDPOINT_MISSING' };
+    if (!routerConfig.apiEnabled) return { ...baseResult, applied: false, reason: 'ROUTER_API_DISABLED' };
+    if (!routerConfig.apiEndpoint) return { ...baseResult, applied: false, reason: 'ROUTER_API_ENDPOINT_MISSING' };
     if (activeSessionCount > 0 && samples.rowCount === 0) return { ...baseResult, applied: false, reason: 'NO_RECENT_TRAFFIC_MEASUREMENTS' };
 
-    const protocol = config.managementProtocol as NetworkManagementProtocol;
-    if (protocol !== 'MIKROTIK_REST') {
+    const protocol = routerConfig.managementProtocol as NetworkManagementProtocol;
+    if (!['MIKROTIK_REST', 'MERAKI_DASHBOARD_API'].includes(protocol)) {
       return { ...baseResult, applied: false, reason: 'ENFORCEMENT_ADAPTER_NOT_IMPLEMENTED', protocol };
     }
-    const routerCredentials = config.managementCredentialsEncrypted ? this.credentials.decrypt(config.managementCredentialsEncrypted) : undefined;
+
+    const capabilities = this.record(routerConfig.capabilities);
+    const merakiNetworkId = this.stringValue(capabilities, ['networkId', 'merakiNetworkId']);
+    const enforcementEndpoint = protocol === 'MERAKI_DASHBOARD_API'
+      ? this.merakiNetworkEndpoint(routerConfig.apiEndpoint, routerConfig.controllerEndpoint, merakiNetworkId)
+      : routerConfig.apiEndpoint;
+    const routerCredentials = routerConfig.managementCredentialsEncrypted ? this.credentials.decrypt(routerConfig.managementCredentialsEncrypted) : undefined;
 
     if (state.mode === 'NORMAL') {
-      const cleared = await this.enforcement.clearManaged(config.apiEndpoint, routerCredentials);
+      const cleared = await this.enforcement.clearManaged(enforcementEndpoint, routerCredentials, protocol);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
          VALUES ($1,$2,'NORMAL',$3,$4,$5::jsonb)`,
-        [tenantId, routerId, cleared, cleared > 0, JSON.stringify({ action: 'CLEAR_MANAGED_QUEUES', cleared })],
+        [tenantId, routerId, cleared, cleared > 0, JSON.stringify({ action: 'CLEAR_MANAGED_POLICIES', protocol, cleared })],
       );
-      return { ...baseResult, applied: cleared > 0, clearedQueues: cleared };
+      return { ...baseResult, applied: cleared > 0, clearedManaged: cleared };
     }
 
     if (!users.length) return { ...baseResult, applied: false, reason: 'NO_MEASURED_ACTIVE_USERS' };
@@ -137,20 +146,28 @@ export class TrafficOrchestratorService {
     const uploadRatio = users.reduce((sum, user) => sum + user.uploadRatio, 0) / users.length;
     const targets = Object.fromEntries(users.map((user) => [
       `${user.customerId}:${user.sessionId}`,
-      { targetAddress: user.ipAddress, apiEndpoint: config.apiEndpoint },
+      {
+        targetAddress: user.ipAddress,
+        targetMacAddress: user.macAddress,
+        apiEndpoint: enforcementEndpoint,
+        protocol,
+        merakiGroupPolicyId: protocol === 'MERAKI_DASHBOARD_API' ? this.stringValue(capabilities, ['merakiGroupPolicyId', 'groupPolicyId']) : undefined,
+      },
     ]));
 
     try {
-      const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio, routerCredentials);
-      const keepQueueNames = result.commands.map((command) => `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
-      const reconciled = await this.enforcement.reconcileManaged(config.apiEndpoint, keepQueueNames, routerCredentials);
+      const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio, routerCredentials, protocol);
+      const keepManagedKeys = result.commands.map((command) => protocol === 'MERAKI_DASHBOARD_API'
+        ? command.targetMacAddress ?? command.targetAddress ?? ''
+        : `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
+      const reconciled = await this.enforcement.reconcileManaged(enforcementEndpoint, keepManagedKeys, routerCredentials, protocol);
       await this.db.query(
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
          VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
-        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify({ commands: result.commands, staleQueuesRemoved: reconciled })],
+        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify({ protocol, commands: result.commands, staleManagedRemoved: reconciled })],
       );
-      return { ...baseResult, ...result, staleQueuesRemoved: reconciled };
+      return { ...baseResult, ...result, staleManagedRemoved: reconciled };
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 1000) : 'Unknown router enforcement error';
       await this.db.query(
@@ -161,5 +178,18 @@ export class TrafficOrchestratorService {
       );
       throw error;
     }
+  }
+
+  private merakiNetworkEndpoint(apiEndpoint?: string, controllerEndpoint?: string, networkId?: string): string {
+    const endpoint = controllerEndpoint ?? apiEndpoint;
+    if (!endpoint || !networkId) throw new ServiceUnavailableException('Meraki controller endpoint and networkId are required for enforcement');
+    const base = endpoint.replace(/\/+$/, '').replace(/\/api\/v1$/, '').replace(/\/api$/, '');
+    return `${base}/api/v1/networks/${encodeURIComponent(networkId)}`;
+  }
+
+  private record(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+  private stringValue(record: Record<string, unknown>, keys: string[]): string | undefined {
+    for (const key of keys) if (typeof record[key] === 'string' && record[key].trim()) return record[key] as string;
+    return undefined;
   }
 }
