@@ -44,6 +44,27 @@ describe('MerakiTrafficEnforcementAdapter', () => {
     expect(JSON.parse(String(assignInit.body))).toEqual({ devicePolicy: 'Group policy', groupPolicyId: '101' });
   });
 
+  it('preserves an actively managed client when reconciliation only has its IP address', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ groupPolicyId: '101', name: 'JASLYN-NET-20000D-10000U' }]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        { clientId: 'client-active', mac: 'AA:BB:CC:DD:EE:FF', ip: '192.168.10.20', assigned: [{ groupPolicyId: '101' }] },
+        { clientId: 'client-stale', mac: '11:22:33:44:55:66', ip: '192.168.10.21', assigned: [{ groupPolicyId: '101' }] },
+      ]), { status: 200, headers: { link: '' } }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const adapter = new MerakiTrafficEnforcementAdapter(config);
+    const cleared = await adapter.reconcileManaged(
+      'https://api.meraki.com/api/v1/networks/N_123',
+      ['192.168.10.20'],
+      { apiKey: 'test-key' },
+    );
+
+    expect(cleared).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/clients/client-stale/policy');
+  });
+
   it('clears only clients assigned to JASLYN-managed group policies', async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify([
