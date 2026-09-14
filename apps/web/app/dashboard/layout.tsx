@@ -1,28 +1,14 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getAccessToken } from '../../lib/auth';
+import { ReactNode } from 'react';
 
+/**
+ * Temporary development access.
+ *
+ * Authentication is parked while the dashboard is being inspected. The
+ * authenticated login flow remains in apps/web/app/login/page.tsx history and
+ * should be restored before production access is enabled.
+ */
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
-
-  useEffect(() => {
-    if (getAccessToken()) {
-      setAuthorized(true);
-      return;
-    }
-    router.replace('/login');
-  }, [router]);
-
-  if (!authorized) {
-    return (
-      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#07101f', color: '#9aaac0', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 12 }}>
-        Checking secure access…
-      </main>
-    );
-  }
-
   return children;
 }
