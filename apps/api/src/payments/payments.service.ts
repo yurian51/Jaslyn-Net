@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 
-type DatabaseError = { code?: string };
+type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
 
 @Injectable()
@@ -25,6 +25,8 @@ export class PaymentsService {
 
   async createIntent(tenantId: string, input: CreatePaymentIntentDto) {
     const client = await this.db.connect();
+    const provider = input.provider.trim().toLowerCase();
+    const key = input.idempotencyKey?.trim() || `intent:${input.purchaseId}:${provider}`;
     try {
       await client.query('BEGIN');
       const purchase = await client.query(
@@ -33,8 +35,6 @@ export class PaymentsService {
       );
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
-      const provider = input.provider.trim().toLowerCase();
-      const key = input.idempotencyKey?.trim() || `intent:${input.purchaseId}:${provider}`;
       const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
@@ -49,7 +49,27 @@ export class PaymentsService {
       return { ...result.rows[0], reused: false };
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
-      if ((error as DatabaseError)?.code === '23505') throw new ConflictException('Payment intent already exists');
+      const dbError = error as DatabaseError;
+      if (dbError.code === '23505' && dbError.constraint === 'payments_one_pending_per_purchase_uq') {
+        const existing = await this.db.query(
+          `SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='PENDING' ORDER BY created_at ASC LIMIT 1`,
+          [tenantId, input.purchaseId],
+        );
+        if (existing.rowCount) {
+          if (existing.rows[0].provider !== provider) throw new ConflictException('A pending payment already exists for another provider');
+          return { ...existing.rows[0], reused: true };
+        }
+      }
+      if (dbError.code === '23505') {
+        const existing = await this.db.query(
+          `SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`,
+          [tenantId, key],
+        );
+        if (existing.rowCount) {
+          if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
+          return { ...existing.rows[0], reused: true };
+        }
+      }
       throw error;
     } finally { client.release(); }
   }
