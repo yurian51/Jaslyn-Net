@@ -25,6 +25,10 @@ describe('TrafficCollectorService', () => {
 
     expect(result).toEqual({ routers: 1, samples: 1, errors: 0 });
     expect(devices.readClients).toHaveBeenCalledWith(expect.objectContaining({ routerId: 'router-1', protocol: 'MIKROTIK_REST' }));
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE routers SET active_users=$3'),
+      ['tenant-1', 'router-1', 1],
+    );
     expect(samples.record).toHaveBeenCalledWith('tenant-1', expect.objectContaining({
       routerId: 'router-1', customerId: 'customer-1', sessionId: 'session-1',
       bytesIn: '9007199254740992000', bytesOut: '1234567890123456789', sampledAt: expect.any(Date),
