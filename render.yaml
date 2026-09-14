@@ -11,16 +11,22 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      - key: NODE_ENV
+        value: "production"
       - key: CORS_ORIGIN
         fromService:
           name: jaslyn-net-production
           type: web
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
       - key: DATABASE_URL
         fromDatabase:
           name: jaslyn-net-db
           property: connectionString
+      - key: DATABASE_SSL
+        value: "require"
       - key: JWT_SECRET
+        generateValue: true
+      - key: JASLYN_NETWORK_CREDENTIAL_KEY
         generateValue: true
 
   - type: web
@@ -35,10 +41,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          name: jaslyn-net-api
-          type: web
-          property: host
+        value: "https://jaslyn-net-api.onrender.com/api/v1"
 
 databases:
   - name: jaslyn-net-db
