@@ -100,7 +100,7 @@ export class RoutersService {
     }
     const locationExpression = input.clearLocation ? 'NULL' : 'COALESCE($9,location_id)';
     const nextVendor = input.vendor ?? existing.vendor;
-    const nextProtocol = this.resolveManagementProtocol(nextVendor, input.managementProtocol ?? existing.managementProtocol);
+    const nextProtocol = input.managementProtocol ?? (input.vendor ? this.resolveManagementProtocol(nextVendor) : this.resolveManagementProtocol(nextVendor, existing.managementProtocol));
     const capabilities = this.capabilityMetadata(nextVendor, nextProtocol);
     const hasCatalogMetadata = Object.keys(capabilities).length > 0;
     const encryptedCredentials = input.managementCredentials ? this.secureCredentials.encrypt(input.managementCredentials) : null;
