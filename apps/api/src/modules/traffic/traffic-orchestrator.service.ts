@@ -7,6 +7,7 @@ import { calculateThroughput } from './traffic.measurement';
 import { TrafficEnforcementService } from './enforcement.service';
 import { FairnessPolicy, FairnessService } from './fairness.service';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
+import { resolveServicePolicy } from './service-policy';
 
 interface ActiveTrafficUser {
   customerId: string;
@@ -17,6 +18,10 @@ interface ActiveTrafficUser {
   priority: number;
   weight: number;
   uploadRatio: number;
+  serviceState: 'ACTIVE' | 'QUOTA_EXCEEDED' | 'EXPIRED' | 'NO_ACTIVE_SERVICE';
+  maxDownloadMbps: number;
+  maxUploadMbps: number;
+  remainingBytes: number | null;
 }
 
 @Injectable()
@@ -58,7 +63,10 @@ export class TrafficOrchestratorService {
     const samples = await this.db.query(
       `SELECT s.id AS "sessionId", s.customer_id AS "customerId", s.ip_address::text AS "ipAddress", s.mac_address AS "macAddress",
               newest.bytes_in::text AS "newestBytesIn", newest.bytes_out::text AS "newestBytesOut", newest.sampled_at AS "newestSampledAt",
-              previous.bytes_in::text AS "previousBytesIn", previous.bytes_out::text AS "previousBytesOut", previous.sampled_at AS "previousSampledAt"
+              previous.bytes_in::text AS "previousBytesIn", previous.bytes_out::text AS "previousBytesOut", previous.sampled_at AS "previousSampledAt",
+              service.starts_at AS "serviceStartsAt", service.ends_at AS "serviceEndsAt",
+              service.data_limit_bytes::text AS "dataLimitBytes", service.download_bps::text AS "downloadBps", service.upload_bps::text AS "uploadBps",
+              COALESCE(usage.used_bytes, 0)::text AS "serviceUsedBytes"
        FROM sessions s
        CROSS JOIN LATERAL (
          SELECT ts.bytes_in, ts.bytes_out, ts.sampled_at FROM traffic_samples ts
@@ -71,6 +79,25 @@ export class TrafficOrchestratorService {
          WHERE ts.tenant_id=$1 AND ts.session_id=s.id AND ts.sampled_at < newest.sampled_at
          ORDER BY ts.sampled_at DESC LIMIT 1
        ) previous
+       LEFT JOIN LATERAL (
+         SELECT w.starts_at, w.ends_at, p.data_limit_bytes, p.download_bps, p.upload_bps
+         FROM wifi_plan_purchases w
+         JOIN packages p ON p.tenant_id=w.tenant_id AND p.id=w.package_id
+         WHERE w.tenant_id=$1 AND w.customer_id=s.customer_id
+           AND w.status IN ('PAID','ACTIVE')
+           AND (w.router_id=$2 OR w.router_id IS NULL)
+           AND (w.starts_at IS NULL OR w.starts_at <= NOW())
+           AND (w.ends_at IS NULL OR w.ends_at > NOW())
+         ORDER BY (w.router_id=$2) DESC, w.ends_at DESC NULLS LAST, w.created_at DESC
+         LIMIT 1
+       ) service ON true
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(su.bytes_in + su.bytes_out), 0)::bigint AS used_bytes
+         FROM sessions su
+         WHERE su.tenant_id=$1 AND su.customer_id=s.customer_id
+           AND service.starts_at IS NOT NULL AND su.started_at >= service.starts_at
+           AND (service.ends_at IS NULL OR su.started_at < service.ends_at)
+       ) usage ON true
        WHERE s.tenant_id=$1 AND s.router_id=$2 AND s.status='ACTIVE' AND s.customer_id IS NOT NULL
          AND newest.sampled_at - previous.sampled_at <= ($3::int * INTERVAL '1 second')`,
       [tenantId, routerId, maxSampleAgeSeconds],
@@ -82,17 +109,30 @@ export class TrafficOrchestratorService {
         { bytesIn: row.newestBytesIn, bytesOut: row.newestBytesOut, sampledAt: new Date(row.newestSampledAt) },
       );
       const totalMbps = measurement.totalMbps;
+      const servicePolicy = resolveServicePolicy({
+        startsAt: row.serviceStartsAt ? new Date(row.serviceStartsAt) : null,
+        endsAt: row.serviceEndsAt ? new Date(row.serviceEndsAt) : null,
+        dataLimitBytes: row.dataLimitBytes == null ? null : Number(row.dataLimitBytes),
+        usedBytes: Number(row.serviceUsedBytes ?? 0),
+        downloadBps: row.downloadBps == null ? null : Number(row.downloadBps),
+        uploadBps: row.uploadBps == null ? null : Number(row.uploadBps),
+      });
+      const requestedMbps = Math.min(totalMbps, servicePolicy.maxDownloadMbps);
       return {
         customerId: row.customerId,
         sessionId: row.sessionId,
         ipAddress: row.ipAddress ?? undefined,
         macAddress: row.macAddress ?? undefined,
-        requestedMbps: totalMbps,
+        requestedMbps,
         priority: 1,
         weight: 1,
-        uploadRatio: totalMbps > 0 ? measurement.uploadMbps / totalMbps : 0.5,
+        uploadRatio: totalMbps > 0 ? Math.min(1, Math.max(0, measurement.uploadMbps / totalMbps)) : 0.5,
+        serviceState: servicePolicy.state,
+        maxDownloadMbps: servicePolicy.maxDownloadMbps,
+        maxUploadMbps: servicePolicy.maxUploadMbps,
+        remainingBytes: servicePolicy.remainingBytes,
       };
-    }).filter((user) => Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
+    }).filter((user) => user.serviceState === 'ACTIVE' && Number.isFinite(user.requestedMbps) && user.requestedMbps > 0);
 
     const policy: FairnessPolicy = {
       enabled: routerConfig.enabled ?? true,
@@ -111,6 +151,25 @@ export class TrafficOrchestratorService {
       activeSessions: activeSessionCount,
       sampleMaxAgeSeconds: maxSampleAgeSeconds,
       allocations: state.allocations,
+      servicePolicies: {
+        active: users.length,
+        quotaExceeded: samples.rows.filter((row) => resolveServicePolicy({
+          startsAt: row.serviceStartsAt ? new Date(row.serviceStartsAt) : null,
+          endsAt: row.serviceEndsAt ? new Date(row.serviceEndsAt) : null,
+          dataLimitBytes: row.dataLimitBytes == null ? null : Number(row.dataLimitBytes),
+          usedBytes: Number(row.serviceUsedBytes ?? 0),
+          downloadBps: row.downloadBps == null ? null : Number(row.downloadBps),
+          uploadBps: row.uploadBps == null ? null : Number(row.uploadBps),
+        }).state === 'QUOTA_EXCEEDED').length,
+        expiredOrMissing: samples.rows.length - users.length - samples.rows.filter((row) => resolveServicePolicy({
+          startsAt: row.serviceStartsAt ? new Date(row.serviceStartsAt) : null,
+          endsAt: row.serviceEndsAt ? new Date(row.serviceEndsAt) : null,
+          dataLimitBytes: row.dataLimitBytes == null ? null : Number(row.dataLimitBytes),
+          usedBytes: Number(row.serviceUsedBytes ?? 0),
+          downloadBps: row.downloadBps == null ? null : Number(row.downloadBps),
+          uploadBps: row.uploadBps == null ? null : Number(row.uploadBps),
+        }).state === 'QUOTA_EXCEEDED').length,
+      },
     };
 
     if (!apply) return { ...baseResult, applied: false, reason: 'DRY_RUN' };
@@ -143,7 +202,7 @@ export class TrafficOrchestratorService {
       return { ...baseResult, applied: cleared > 0, clearedManaged: cleared };
     }
 
-    if (!users.length) return { ...baseResult, applied: false, reason: 'NO_MEASURED_ACTIVE_USERS' };
+    if (!users.length) return { ...baseResult, applied: false, reason: 'NO_ACTIVE_SERVICES' };
 
     const uploadRatio = users.reduce((sum, user) => sum + user.uploadRatio, 0) / users.length;
     const targets = Object.fromEntries(users.map((user) => [
