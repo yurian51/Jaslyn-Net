@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './console-responsive.css';
 
 export const metadata: Metadata = {
   title: 'JASLYN NET | Network Operations Platform',
