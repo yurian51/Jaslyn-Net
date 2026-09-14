@@ -1,4 +1,5 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:4000/api/v1';
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '');
+export const API_URL = configuredApiUrl || (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
 
 export class ApiError extends Error {
   readonly status: number;
@@ -11,7 +12,12 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_URL}${path.startsWith('/') ? path : `/${path}`}`, {
+  if (!API_URL) {
+    throw new ApiError('API endpoint is not configured. Set NEXT_PUBLIC_API_URL.', 0);
+  }
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const response = await fetch(`${API_URL}${normalizedPath}`, {
     ...init,
     headers: {
       Accept: 'application/json',
