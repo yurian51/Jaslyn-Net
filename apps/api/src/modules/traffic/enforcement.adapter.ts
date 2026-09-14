@@ -1,12 +1,16 @@
 import { FairnessAllocation } from './traffic.types';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
+import { NetworkManagementProtocol } from '../../routers/routers.dto';
 
 export interface BandwidthEnforcementCommand {
   routerId: string;
   customerId: string;
   sessionId?: string;
   targetAddress?: string;
+  targetMacAddress?: string;
   apiEndpoint?: string;
+  protocol?: NetworkManagementProtocol;
+  merakiGroupPolicyId?: string;
   maxDownloadMbps: number;
   maxUploadMbps: number;
   priority: number;
@@ -22,7 +26,7 @@ export function toEnforcementCommands(
   routerId: string,
   allocations: FairnessAllocation[],
   uploadRatio = 0.5,
-  targets: Record<string, { targetAddress?: string; apiEndpoint?: string }> = {},
+  targets: Record<string, { targetAddress?: string; targetMacAddress?: string; apiEndpoint?: string; protocol?: NetworkManagementProtocol; merakiGroupPolicyId?: string }> = {},
 ): BandwidthEnforcementCommand[] {
   const ratio = Number.isFinite(uploadRatio) ? Math.max(0, Math.min(1, uploadRatio)) : 0.5;
   return allocations
@@ -35,7 +39,10 @@ export function toEnforcementCommands(
         customerId: a.customerId,
         sessionId: a.sessionId,
         targetAddress: target.targetAddress,
+        targetMacAddress: target.targetMacAddress,
         apiEndpoint: target.apiEndpoint,
+        protocol: target.protocol,
+        merakiGroupPolicyId: target.merakiGroupPolicyId,
         maxDownloadMbps: Number(a.allocatedMbps.toFixed(3)),
         maxUploadMbps: Number((a.allocatedMbps * ratio).toFixed(3)),
         priority: Math.max(1, Math.round(a.priority)),
