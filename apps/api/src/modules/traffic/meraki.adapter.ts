@@ -3,60 +3,113 @@ import { ConfigService } from '@nestjs/config';
 import { BandwidthEnforcementCommand, EnforcementReconcileOptions, TrafficEnforcementAdapter } from './enforcement.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 
-const MANAGED_DEVICE_POLICY = 'Group policy';
+const MANAGED_POLICY_PREFIX = 'JASLYN-NET-';
+const GROUP_POLICY_DEVICE_POLICY = 'Group policy';
+
+type MerakiContext = { base: string; networkId: string; apiKey: string };
+type MerakiPolicy = { groupPolicyId?: string; name?: string };
+type MerakiClientPolicy = { clientId?: string; mac?: string; groupPolicyId?: string };
 
 @Injectable()
 export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
   constructor(private readonly config: ConfigService) {}
 
   async apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void> {
-    for (const command of commands) await this.applyOne(command, credentials);
-  }
-
-  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number> {
-    const context = this.connection(apiEndpoint, credentials, options?.merakiGroupPolicyId);
-    const clients = await this.listPolicyClients(context);
-    let cleared = 0;
-    for (const client of clients) {
-      if (client.groupPolicyId !== context.groupPolicyId || !client.clientId) continue;
-      await this.setClientPolicy(context, client.clientId, { devicePolicy: 'Normal' });
-      cleared += 1;
+    const grouped = new Map<string, BandwidthEnforcementCommand>();
+    for (const command of commands) {
+      const key = `${command.maxDownloadMbps}:${command.maxUploadMbps}`;
+      if (!grouped.has(key)) grouped.set(key, command);
     }
-    return cleared;
+    const context = this.connection(commands[0]?.apiEndpoint, credentials);
+    const policies = await this.listGroupPolicies(context);
+    const policyIds = new Map<string, string>();
+    for (const command of grouped.values()) {
+      const policyId = await this.ensureBandwidthPolicy(context, policies, command.maxDownloadMbps, command.maxUploadMbps, policyIds);
+      for (const candidate of commands.filter((item) => item.maxDownloadMbps === command.maxDownloadMbps && item.maxUploadMbps === command.maxUploadMbps)) {
+        const clientId = candidate.targetMacAddress ?? candidate.targetAddress;
+        if (!clientId) throw new ServiceUnavailableException(`Meraki client MAC/IP is required for ${candidate.sessionId ?? candidate.customerId}`);
+        await this.setClientPolicy(context, clientId, { devicePolicy: GROUP_POLICY_DEVICE_POLICY, groupPolicyId: policyId });
+      }
+    }
   }
 
-  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number> {
-    const context = this.connection(apiEndpoint, credentials, options?.merakiGroupPolicyId);
+  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> {
+    const context = this.connection(apiEndpoint, credentials);
+    const managedIds = new Set((await this.listGroupPolicies(context)).filter((policy) => this.isManagedPolicy(policy.name) && policy.groupPolicyId).map((policy) => policy.groupPolicyId as string));
+    if (!managedIds.size) return 0;
+    return this.clearAssignedManagedClients(context, managedIds, new Set());
+  }
+
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> {
+    const context = this.connection(apiEndpoint, credentials);
+    const managedIds = new Set((await this.listGroupPolicies(context)).filter((policy) => this.isManagedPolicy(policy.name) && policy.groupPolicyId).map((policy) => policy.groupPolicyId as string));
+    if (!managedIds.size) return 0;
     const keep = new Set(keepQueueNames.map((value) => this.normalizeMac(value)).filter(Boolean));
+    return this.clearAssignedManagedClients(context, managedIds, keep);
+  }
+
+  private async clearAssignedManagedClients(context: MerakiContext, managedIds: Set<string>, keep: Set<string>): Promise<number> {
     const clients = await this.listPolicyClients(context);
     let cleared = 0;
     for (const client of clients) {
       const mac = this.normalizeMac(client.mac);
-      if (client.groupPolicyId !== context.groupPolicyId || !client.clientId || !mac || keep.has(mac)) continue;
+      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || (mac && keep.has(mac))) continue;
       await this.setClientPolicy(context, client.clientId, { devicePolicy: 'Normal' });
       cleared += 1;
     }
     return cleared;
   }
 
-  private async applyOne(command: BandwidthEnforcementCommand, credentials?: NetworkCredentials): Promise<void> {
-    const context = this.connection(command.apiEndpoint, credentials, command.merakiGroupPolicyId);
-    const clientId = command.targetMacAddress ?? command.targetAddress;
-    if (!clientId) throw new ServiceUnavailableException(`Meraki client MAC/IP is required for ${command.sessionId ?? command.customerId}`);
-    await this.setClientPolicy(context, clientId, { devicePolicy: MANAGED_DEVICE_POLICY, groupPolicyId: context.groupPolicyId });
+  private async ensureBandwidthPolicy(context: MerakiContext, policies: MerakiPolicy[], downloadMbps: number, uploadMbps: number, cache: Map<string, string>): Promise<string> {
+    const limitDown = this.kbps(downloadMbps);
+    const limitUp = this.kbps(uploadMbps);
+    const name = `${MANAGED_POLICY_PREFIX}${limitDown}D-${limitUp}U`;
+    const cached = cache.get(name);
+    if (cached) return cached;
+    const existing = policies.find((policy) => policy.name === name && policy.groupPolicyId);
+    if (existing?.groupPolicyId) {
+      await this.updateGroupPolicy(context, existing.groupPolicyId, name, limitDown, limitUp);
+      cache.set(name, existing.groupPolicyId);
+      return existing.groupPolicyId;
+    }
+    const response = await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies`, {
+      method: 'POST', headers: this.headers(context.apiKey), body: JSON.stringify({
+        name,
+        bandwidth: { settings: 'custom', bandwidthLimits: { limitUp, limitDown } },
+      }),
+    });
+    const body = await response.json() as unknown;
+    const groupPolicyId = this.stringRecord(body, 'groupPolicyId');
+    if (!groupPolicyId) throw new ServiceUnavailableException(`Meraki did not return a group policy ID for ${name}`);
+    cache.set(name, groupPolicyId);
+    return groupPolicyId;
   }
 
-  private connection(endpoint: string | undefined, credentials?: NetworkCredentials, groupPolicyId?: string) {
+  private async updateGroupPolicy(context: MerakiContext, groupPolicyId: string, name: string, limitDown: number, limitUp: number): Promise<void> {
+    await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies/${encodeURIComponent(groupPolicyId)}`, {
+      method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify({
+        name,
+        bandwidth: { settings: 'custom', bandwidthLimits: { limitUp, limitDown } },
+      }),
+    });
+  }
+
+  private connection(endpoint: string | undefined, credentials?: NetworkCredentials): MerakiContext {
     const networkId = this.readNetworkId(endpoint);
     const apiKey = credentials?.apiKey ?? credentials?.accessToken ?? this.config.get<string>('JASLYN_MERAKI_API_KEY');
     if (!apiKey) throw new ServiceUnavailableException('Meraki API credentials are not configured');
-    const configuredPolicy = groupPolicyId ?? this.config.get<string>('JASLYN_MERAKI_GROUP_POLICY_ID');
-    if (!configuredPolicy) throw new ServiceUnavailableException('Meraki managed group policy ID is not configured');
-    return { base: this.baseUrl(endpoint!), networkId, apiKey, groupPolicyId: configuredPolicy };
+    return { base: this.baseUrl(endpoint!), networkId, apiKey };
   }
 
-  private async listPolicyClients(context: { base: string; networkId: string; apiKey: string; groupPolicyId: string }) {
-    const records: Array<{ clientId?: string; mac?: string; groupPolicyId?: string }> = [];
+  private async listGroupPolicies(context: MerakiContext): Promise<MerakiPolicy[]> {
+    const response = await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/groupPolicies`, { headers: this.headers(context.apiKey) });
+    const body = await response.json() as unknown;
+    if (!Array.isArray(body)) throw new ServiceUnavailableException('Meraki group policy response is invalid');
+    return body.filter((value): value is MerakiPolicy => this.isRecord(value));
+  }
+
+  private async listPolicyClients(context: MerakiContext): Promise<MerakiClientPolicy[]> {
+    const records: MerakiClientPolicy[] = [];
     let nextUrl = `${context.base}/networks/${encodeURIComponent(context.networkId)}/policies/byClient?perPage=1000`;
     for (let page = 0; page < 10 && nextUrl; page += 1) {
       const response = await this.request(nextUrl, { headers: this.headers(context.apiKey) });
@@ -64,14 +117,13 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
       if (!Array.isArray(body)) throw new ServiceUnavailableException('Meraki policy-by-client response is invalid');
       for (const value of body) {
         if (!this.isRecord(value)) continue;
+        const clientId = this.stringRecord(value, 'clientId');
+        const mac = this.stringRecord(value, 'mac') ?? this.stringRecord(value, 'clientMac');
         const assigned = Array.isArray(value.assigned) ? value.assigned : [];
         for (const policy of assigned) {
           if (!this.isRecord(policy)) continue;
-          const clientId = this.string(value, 'clientId');
-          const mac = this.string(value, 'mac') ?? this.string(value, 'clientMac');
-          const policyId = this.string(policy, 'groupPolicyId');
-          if (!policyId || (!clientId && !mac)) continue;
-          records.push({ clientId, mac, groupPolicyId: policyId });
+          const groupPolicyId = this.stringRecord(policy, 'groupPolicyId');
+          if (groupPolicyId && (clientId || mac)) records.push({ clientId, mac, groupPolicyId });
         }
       }
       nextUrl = this.nextLink(response.headers.get('link'));
@@ -79,11 +131,10 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     return records;
   }
 
-  private async setClientPolicy(context: { base: string; networkId: string; apiKey: string }, clientId: string, body: Record<string, string>): Promise<void> {
-    await this.request(
-      `${context.base}/networks/${encodeURIComponent(context.networkId)}/clients/${encodeURIComponent(clientId)}/policy`,
-      { method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify(body) },
-    );
+  private async setClientPolicy(context: MerakiContext, clientId: string, body: Record<string, string>): Promise<void> {
+    await this.request(`${context.base}/networks/${encodeURIComponent(context.networkId)}/clients/${encodeURIComponent(clientId)}/policy`, {
+      method: 'PUT', headers: this.headers(context.apiKey), body: JSON.stringify(body),
+    });
   }
 
   private headers(apiKey: string): Record<string, string> {
@@ -141,10 +192,14 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     }
   }
 
-  private normalizeMac(value?: string): string {
-    return typeof value === 'string' ? value.replace(/[:-]/g, '').toLowerCase() : '';
+  private kbps(value: number): number {
+    const kbps = Math.round(Number(value) * 1000);
+    if (!Number.isFinite(kbps) || kbps < 1) throw new ServiceUnavailableException('Meraki bandwidth allocation must be at least 1 Kbps');
+    return kbps;
   }
 
+  private isManagedPolicy(name?: string): boolean { return typeof name === 'string' && name.startsWith(MANAGED_POLICY_PREFIX); }
+  private normalizeMac(value?: string): string { return typeof value === 'string' ? value.replace(/[:-]/g, '').toLowerCase() : ''; }
   private isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
-  private string(record: Record<string, unknown>, key: string): string | undefined { return typeof record[key] === 'string' && record[key].trim() ? record[key] as string : undefined; }
+  private stringRecord(record: unknown, key: string): string | undefined { return this.isRecord(record) && typeof record[key] === 'string' && record[key].trim() ? record[key] as string : undefined; }
 }
