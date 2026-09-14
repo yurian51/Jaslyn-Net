@@ -19,39 +19,50 @@ describe('MerakiTrafficEnforcementAdapter', () => {
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 
-  it('assigns the configured Meraki group policy to a client by MAC', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+  it('creates a deterministic bandwidth policy and assigns it to a client by MAC', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ groupPolicyId: '101' }), { status: 201 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
     const adapter = new MerakiTrafficEnforcementAdapter(config);
 
     await adapter.apply([{
       routerId: 'r1', customerId: 'c1', sessionId: 's1', targetMacAddress: 'AA:BB:CC:DD:EE:FF',
       apiEndpoint: 'https://api.meraki.com/api/v1/networks/N_123', protocol: 'MERAKI_DASHBOARD_API',
-      merakiGroupPolicyId: '101', maxDownloadMbps: 20, maxUploadMbps: 10, priority: 1,
+      maxDownloadMbps: 20, maxUploadMbps: 10, priority: 1,
     }]);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.meraki.com/api/v1/networks/N_123/clients/AA%3ABB%3ACC%3ADD%3AEE%3AFF/policy');
-    expect(init.method).toBe('PUT');
-    expect(JSON.parse(String(init.body))).toEqual({ devicePolicy: 'Group policy', groupPolicyId: '101' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [createUrl, createInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(createUrl).toBe('https://api.meraki.com/api/v1/networks/N_123/groupPolicies');
+    expect(JSON.parse(String(createInit.body))).toEqual({
+      name: 'JASLYN-NET-20000D-10000U',
+      bandwidth: { settings: 'custom', bandwidthLimits: { limitUp: 10000, limitDown: 20000 } },
+    });
+    const [assignUrl, assignInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(assignUrl).toBe('https://api.meraki.com/api/v1/networks/N_123/clients/AA%3ABB%3ACC%3ADD%3AEE%3AFF/policy');
+    expect(JSON.parse(String(assignInit.body))).toEqual({ devicePolicy: 'Group policy', groupPolicyId: '101' });
   });
 
-  it('clears only clients currently assigned to the configured managed group policy', async () => {
+  it('clears only clients assigned to JASLYN-managed group policies', async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify([
-        { clientId: 'client-1', assigned: [{ type: 'group', groupPolicyId: '101' }] },
-        { clientId: 'client-2', assigned: [{ type: 'group', groupPolicyId: '202' }] },
+        { groupPolicyId: '101', name: 'JASLYN-NET-20000D-10000U' },
+        { groupPolicyId: '202', name: 'Customer-owned-policy' },
+      ]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        { clientId: 'client-1', mac: 'AA:BB:CC:DD:EE:FF', assigned: [{ groupPolicyId: '101' }] },
+        { clientId: 'client-2', mac: '11:22:33:44:55:66', assigned: [{ groupPolicyId: '202' }] },
       ]), { status: 200, headers: { link: '' } }))
       .mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
     const adapter = new MerakiTrafficEnforcementAdapter(config);
-    await adapter.clearManaged('https://api.meraki.com/api/v1/networks/N_123?networkId=N_123', {
-      apiKey: 'test-key',
-    });
+    const cleared = await adapter.clearManaged('https://api.meraki.com/api/v1/networks/N_123', { apiKey: 'test-key' });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/clients/client-1/policy');
-    expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body))).toEqual({ devicePolicy: 'Normal' });
+    expect(cleared).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/clients/client-1/policy');
+    expect(JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body))).toEqual({ devicePolicy: 'Normal' });
   });
 
   it('refuses HTTP unless explicitly enabled', async () => {
@@ -59,7 +70,7 @@ describe('MerakiTrafficEnforcementAdapter', () => {
     await expect(adapter.apply([{
       routerId: 'r1', customerId: 'c1', targetMacAddress: 'AA:BB:CC:DD:EE:FF',
       apiEndpoint: 'http://api.meraki.test/api/v1/networks/N_123', protocol: 'MERAKI_DASHBOARD_API',
-      merakiGroupPolicyId: '101', maxDownloadMbps: 20, maxUploadMbps: 10, priority: 1,
+      maxDownloadMbps: 20, maxUploadMbps: 10, priority: 1,
     }])).rejects.toThrow('must use HTTPS');
   });
 });
