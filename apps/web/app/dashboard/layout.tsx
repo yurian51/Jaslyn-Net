@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAccessToken } from '../../lib/auth';
+import JaslynCopilot from './jaslyn-copilot';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -24,5 +25,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      <JaslynCopilot />
+    </>
+  );
 }
