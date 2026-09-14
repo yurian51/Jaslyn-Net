@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
 import { BandwidthEnforcementCommand, TrafficEnforcementAdapter } from './enforcement.adapter';
@@ -70,6 +71,26 @@ describe('TrafficEnforcementService', () => {
     expect(received).toEqual([]);
   });
 
+  it('fails closed when the requested protocol has no adapter', async () => {
+    const service = new TrafficEnforcementService(new FairnessService(), {});
+
+    await expect(service.evaluateAndApply(
+      'router-unsupported',
+      {
+        enabled: true,
+        capacityMbps: 100,
+        activateThresholdPercent: 80,
+        aggressiveThresholdPercent: 90,
+        recoveryThresholdPercent: 60,
+      },
+      [{ customerId: 'customer-1', requestedMbps: 10, priority: 1, weight: 1 }],
+      {},
+      0.5,
+      undefined,
+      'SNMP',
+    )).rejects.toThrow(ServiceUnavailableException);
+  });
+
   it('delegates managed queue cleanup to the router adapter', async () => {
     const clearManaged = jest.fn().mockResolvedValue(3);
     const adapter: TrafficEnforcementAdapter = {
@@ -77,10 +98,10 @@ describe('TrafficEnforcementService', () => {
       clearManaged,
       reconcileManaged: async () => 0,
     };
-    const service = new TrafficEnforcementService(new FairnessService(), adapter);
+    const service = new TrafficEnforcementService(new FairnessService(), { MIKROTIK_REST: adapter });
 
     await expect(service.clearManaged('https://router.example/rest')).resolves.toBe(3);
-    expect(clearManaged).toHaveBeenCalledWith('https://router.example/rest');
+    expect(clearManaged).toHaveBeenCalledWith('https://router.example/rest', undefined, undefined);
   });
 
   it('delegates stale queue reconciliation to the router adapter', async () => {
@@ -90,9 +111,9 @@ describe('TrafficEnforcementService', () => {
       clearManaged: async () => 0,
       reconcileManaged,
     };
-    const service = new TrafficEnforcementService(new FairnessService(), adapter);
+    const service = new TrafficEnforcementService(new FairnessService(), { MIKROTIK_REST: adapter });
 
     await expect(service.reconcileManaged('https://router.example/rest', ['JASLYN-session-1'])).resolves.toBe(2);
-    expect(reconcileManaged).toHaveBeenCalledWith('https://router.example/rest', ['JASLYN-session-1']);
+    expect(reconcileManaged).toHaveBeenCalledWith('https://router.example/rest', ['JASLYN-session-1'], undefined, undefined);
   });
 });
