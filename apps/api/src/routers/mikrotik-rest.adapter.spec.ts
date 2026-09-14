@@ -8,9 +8,7 @@ describe('MikrotikRestAdapter', () => {
   it('creates a simple queue for a new client policy', async () => {
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.endsWith('/rest/queue/simple?name=jaslyn-10.0.0.8')) {
-        return new Response('[]', { status: 200 });
-      }
+      if (url.endsWith('/rest/queue/simple?name=jaslyn-10.0.0.8')) return new Response('[]', { status: 200 });
       expect(url).toBe('https://router.example/rest/queue/simple');
       expect(init?.method).toBe('PUT');
       expect(init?.headers).toEqual(expect.objectContaining({ accept: 'application/json', 'content-type': 'application/json' }));
@@ -31,7 +29,7 @@ describe('MikrotikRestAdapter', () => {
     jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
       if (url.includes('/rest/queue/simple?name=')) return new Response('[{".id":"*7"}]', { status: 200 });
-      expect(url).toBe('https://router.example/rest/queue/simple/%2A7');
+      expect(url).toBe('https://router.example/rest/queue/simple/*7');
       expect(init?.method).toBe('PATCH');
       return new Response('', { status: 200 });
     });
