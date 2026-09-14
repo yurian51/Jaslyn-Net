@@ -1,47 +1,47 @@
 services:
   - type: web
-    name: nexora-api
+    name: jaslyn-net-api
     runtime: node
     plan: free
     region: oregon
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexora/api build
-    startCommand: pnpm --filter @nexora/api migrate && pnpm --filter @nexora/api start
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/api build
+    startCommand: pnpm --filter @jaslyn-net/api migrate && pnpm --filter @jaslyn-net/api start
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_VERSION
         value: "22"
       - key: CORS_ORIGIN
         fromService:
-          name: nexora-production
+          name: jaslyn-net-production
           type: web
           property: host
       - key: DATABASE_URL
         fromDatabase:
-          name: nexora-db
+          name: jaslyn-net-db
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
 
   - type: web
-    name: nexora-production
+    name: jaslyn-net-production
     runtime: node
     plan: free
     region: oregon
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexora/web build
-    startCommand: pnpm --filter @nexora/web start
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/web build
+    startCommand: pnpm --filter @jaslyn-net/web start
     envVars:
       - key: NODE_VERSION
         value: "22"
       - key: NEXT_PUBLIC_API_URL
         fromService:
-          name: nexora-api
+          name: jaslyn-net-api
           type: web
           property: host
 
 databases:
-  - name: nexora-db
+  - name: jaslyn-net-db
     plan: free
     region: oregon
     postgresMajorVersion: 18
