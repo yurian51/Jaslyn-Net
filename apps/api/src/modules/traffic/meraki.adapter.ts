@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BandwidthEnforcementCommand, TrafficEnforcementAdapter } from './enforcement.adapter';
+import { BandwidthEnforcementCommand, EnforcementReconcileOptions, TrafficEnforcementAdapter } from './enforcement.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 const MANAGED_DEVICE_POLICY = 'Group policy';
@@ -13,8 +13,8 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     for (const command of commands) await this.applyOne(command, credentials);
   }
 
-  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials): Promise<number> {
-    const context = this.connection(apiEndpoint, credentials);
+  async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number> {
+    const context = this.connection(apiEndpoint, credentials, options?.merakiGroupPolicyId);
     const clients = await this.listPolicyClients(context);
     let cleared = 0;
     for (const client of clients) {
@@ -25,8 +25,8 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     return cleared;
   }
 
-  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials): Promise<number> {
-    const context = this.connection(apiEndpoint, credentials);
+  async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number> {
+    const context = this.connection(apiEndpoint, credentials, options?.merakiGroupPolicyId);
     const keep = new Set(keepQueueNames.map((value) => this.normalizeMac(value)).filter(Boolean));
     const clients = await this.listPolicyClients(context);
     let cleared = 0;
@@ -66,11 +66,12 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
         if (!this.isRecord(value)) continue;
         const assigned = Array.isArray(value.assigned) ? value.assigned : [];
         for (const policy of assigned) {
-          if (!this.isRecord(policy) || policy.type !== 'group') continue;
+          if (!this.isRecord(policy)) continue;
           const clientId = this.string(value, 'clientId');
           const mac = this.string(value, 'mac') ?? this.string(value, 'clientMac');
           const policyId = this.string(policy, 'groupPolicyId');
-          if (clientId || mac) records.push({ clientId, mac, groupPolicyId: policyId });
+          if (!policyId || (!clientId && !mac)) continue;
+          records.push({ clientId, mac, groupPolicyId: policyId });
         }
       }
       nextUrl = this.nextLink(response.headers.get('link'));
