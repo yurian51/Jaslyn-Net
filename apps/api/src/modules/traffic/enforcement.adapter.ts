@@ -26,11 +26,17 @@ export interface TrafficEnforcementAdapter {
   reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
 }
 
+export interface EnforcementSpeedLimit {
+  maxDownloadMbps: number;
+  maxUploadMbps: number;
+}
+
 export function toEnforcementCommands(
   routerId: string,
   allocations: FairnessAllocation[],
   uploadRatio = 0.5,
   targets: Record<string, { targetAddress?: string; targetMacAddress?: string; apiEndpoint?: string; protocol?: NetworkManagementProtocol; merakiGroupPolicyId?: string }> = {},
+  serviceLimits: Record<string, EnforcementSpeedLimit> = {},
 ): BandwidthEnforcementCommand[] {
   const ratio = Number.isFinite(uploadRatio) ? Math.max(0, Math.min(1, uploadRatio)) : 0.5;
   return allocations
@@ -38,6 +44,13 @@ export function toEnforcementCommands(
     .map((a) => {
       const key = `${a.customerId}:${a.sessionId ?? ''}`;
       const target = targets[key] ?? {};
+      const limit = serviceLimits[key];
+      const download = Number(a.allocatedMbps);
+      const upload = download * ratio;
+      const maxDownload = limit?.maxDownloadMbps ?? Number.POSITIVE_INFINITY;
+      const maxUpload = limit?.maxUploadMbps ?? Number.POSITIVE_INFINITY;
+      const boundedDownload = Math.min(download, maxDownload);
+      const boundedUpload = Math.min(upload, maxUpload);
       return {
         routerId,
         customerId: a.customerId,
@@ -47,8 +60,8 @@ export function toEnforcementCommands(
         apiEndpoint: target.apiEndpoint,
         protocol: target.protocol,
         merakiGroupPolicyId: target.merakiGroupPolicyId,
-        maxDownloadMbps: Number(a.allocatedMbps.toFixed(3)),
-        maxUploadMbps: Number((a.allocatedMbps * ratio).toFixed(3)),
+        maxDownloadMbps: Number(boundedDownload.toFixed(3)),
+        maxUploadMbps: Number(boundedUpload.toFixed(3)),
         priority: Math.max(1, Math.round(a.priority)),
       };
     });
