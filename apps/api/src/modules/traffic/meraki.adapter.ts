@@ -54,7 +54,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     let cleared = 0;
     for (const client of clients) {
       const mac = this.normalizeMac(client.mac);
-      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || (mac && keep.has(mac))) continue;
+      if (!client.clientId || !client.groupPolicyId || !managedIds.has(client.groupPolicyId) || (keep.size > 0 && !mac) || keep.has(mac)) continue;
       await this.setClientPolicy(context, client.clientId, { devicePolicy: 'Normal' });
       cleared += 1;
     }
