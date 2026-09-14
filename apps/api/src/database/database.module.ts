@@ -12,20 +12,14 @@ export const PG_POOL = Symbol('PG_POOL');
     {
       provide: PG_POOL,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const env = config.get<Record<string, string | undefined>>('') ?? {};
-        const database = buildDatabaseConfig({
-          ...env,
-          DATABASE_URL: config.get<string>('DATABASE_URL'),
-          DATABASE_SSL: config.get<string>('DATABASE_SSL'),
-          DATABASE_POOL_MAX: config.get<string>('DATABASE_POOL_MAX'),
-          DATABASE_IDLE_TIMEOUT_MS: config.get<string>('DATABASE_IDLE_TIMEOUT_MS'),
-          DATABASE_CONNECTION_TIMEOUT_MS: config.get<string>('DATABASE_CONNECTION_TIMEOUT_MS'),
-          DATABASE_POOL_MAX_USES: config.get<string>('DATABASE_POOL_MAX_USES'),
-        });
-
-        return new Pool(database);
-      },
+      useFactory: (config: ConfigService) => new Pool(buildDatabaseConfig({
+        DATABASE_URL: config.get<string>('DATABASE_URL'),
+        DATABASE_SSL: config.get<string>('DATABASE_SSL'),
+        DATABASE_POOL_MAX: config.get<string>('DATABASE_POOL_MAX'),
+        DATABASE_IDLE_TIMEOUT_MS: config.get<string>('DATABASE_IDLE_TIMEOUT_MS'),
+        DATABASE_CONNECTION_TIMEOUT_MS: config.get<string>('DATABASE_CONNECTION_TIMEOUT_MS'),
+        DATABASE_POOL_MAX_USES: config.get<string>('DATABASE_POOL_MAX_USES'),
+      })),
     },
   ],
   exports: [PG_POOL],
