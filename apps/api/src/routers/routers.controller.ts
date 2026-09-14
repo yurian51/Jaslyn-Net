@@ -2,13 +2,18 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { EnforceRouterPolicyDto } from './enforce-router-policy.dto';
 import { CreateRouterDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
+import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
 
 @Controller('routers')
 @UseGuards(AuthGuard, RolesGuard)
 export class RoutersController {
-  constructor(private readonly routers: RoutersService) {}
+  constructor(
+    private readonly routers: RoutersService,
+    private readonly enforcement: NetworkEnforcementService,
+  ) {}
 
   @Get()
   list(@Req() req: AuthenticatedRequest) {
@@ -36,6 +41,12 @@ export class RoutersController {
   @Roles('OWNER', 'ADMIN', 'AGENT')
   heartbeat(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: RouterHeartbeatDto) {
     return this.routers.heartbeat(req.user!.tenantId, id, dto, { userId: req.user!.id });
+  }
+
+  @Post(':id/enforce-policy')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  enforcePolicy(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: EnforceRouterPolicyDto) {
+    return this.enforcement.enforce(req.user!.tenantId, id, dto, { userId: req.user!.id });
   }
 
   @Post('maintenance/mark-stale-offline')
