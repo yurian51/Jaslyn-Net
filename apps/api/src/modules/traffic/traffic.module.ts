@@ -11,9 +11,10 @@ import { TrafficOrchestratorService } from './traffic-orchestrator.service';
 import { TrafficOrchestratorController } from './traffic-orchestrator.controller';
 import { TrafficCollectorService } from './traffic-collector.service';
 import { NetworkCommandService } from './network-command.service';
+import { NetworkCommandController } from './network-command.controller';
 
 @Module({
-  controllers: [TrafficSamplesController, TrafficOrchestratorController],
+  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController],
   providers: [
     SecureNetworkCredentials,
     FairnessService,
