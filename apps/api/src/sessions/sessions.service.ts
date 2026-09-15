@@ -5,6 +5,7 @@ import { AuditContext, AuditService } from '../audit/audit.service';
 import { StartSessionDto, UpdateSessionUsageDto } from './sessions.dto';
 
 type DatabaseError = { code?: string };
+type SessionStatus = 'ACTIVE' | 'STALE' | 'ENDED';
 
 @Injectable()
 export class SessionsService {
@@ -13,7 +14,7 @@ export class SessionsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(tenantId: string, status?: 'ACTIVE' | 'ENDED', limit = 100) {
+  async list(tenantId: string, status?: SessionStatus, limit = 100) {
     const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 500);
     const result = await this.db.query(
       `SELECT id, customer_id AS "customerId", router_id AS "routerId", username,
@@ -111,14 +112,14 @@ export class SessionsService {
       await client.query('BEGIN');
       const result = await client.query(
         `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
-         WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE'
+         WHERE tenant_id=$1 AND id=$2 AND status IN ('ACTIVE','STALE')
          RETURNING id, router_id AS "routerId", ended_at AS "endedAt", bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status`,
         [tenantId, id],
       );
-      if (!result.rowCount) throw new NotFoundException('Active session not found');
+      if (!result.rowCount) throw new NotFoundException('Active or stale session not found');
       await this.resetRouterActiveUsers(client, tenantId, result.rows[0].routerId ? [result.rows[0].routerId] : []);
       await client.query('COMMIT');
-      await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut }, auditContext);
+      await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState: result.rows[0].status }, auditContext);
       return result.rows[0];
     } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
@@ -134,9 +135,24 @@ export class SessionsService {
     try {
       await client.query('BEGIN');
       const result = await client.query(
-        `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
-         WHERE tenant_id=$1 AND status='ACTIVE' AND started_at < now() - ($2 * interval '1 minute')
-         RETURNING id, router_id AS "routerId", ended_at AS "endedAt"`,
+        `UPDATE sessions s
+         SET status='STALE', ended_at=NULL
+         WHERE s.tenant_id=$1
+           AND s.status='ACTIVE'
+           AND (
+             (s.router_id IS NOT NULL AND EXISTS (
+               SELECT 1 FROM routers r
+               WHERE r.tenant_id=s.tenant_id AND r.id=s.router_id
+                 AND r.status='OFFLINE'
+                 AND (r.last_seen_at IS NULL OR r.last_seen_at < now() - ($2 * interval '1 minute'))
+             ))
+             OR NOT EXISTS (
+               SELECT 1 FROM traffic_samples ts
+               WHERE ts.tenant_id=s.tenant_id AND ts.session_id=s.id
+                 AND ts.sampled_at >= now() - ($2 * interval '1 minute')
+             )
+           )
+         RETURNING s.id, s.router_id AS "routerId", s.started_at AS "startedAt"`,
         [tenantId, minutes],
       );
       await this.resetRouterActiveUsers(client, tenantId, result.rows.map((row) => row.routerId).filter(Boolean));
