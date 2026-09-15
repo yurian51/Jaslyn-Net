@@ -1,0 +1,24 @@
+name: CI Smoke PR
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "NEXORA CI ONLINE"
+          echo "Runner: ${RUNNER_NAME:-unknown}"
+          echo "OS: ${RUNNER_OS:-unknown}"
+          node --version
+          npm --version
+          exit 0

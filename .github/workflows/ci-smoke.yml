@@ -1,0 +1,19 @@
+name: CI Smoke
+
+on:
+  push:
+    branches: ['fix/ci-smoke']
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner diagnostics
+        run: |
+          echo "NEXORA CI ONLINE"
+          echo "Runner: $RUNNER_NAME"
+          echo "OS: $RUNNER_OS"
+          node --version
+          npm --version
+          exit 0
