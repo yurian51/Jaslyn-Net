@@ -43,4 +43,10 @@ export class SessionsController {
   reconcileStale(@Req() req: AuthenticatedRequest, @Query('minutes') minutes?: string) {
     return this.sessions.reconcileStale(req.user!.tenantId, Number(minutes ?? 30));
   }
+
+  @Post('maintenance/reconcile-access')
+  @Roles('OWNER', 'ADMIN')
+  reconcileAccess(@Req() req: AuthenticatedRequest) {
+    return this.sessions.reconcileAccessState(req.user!.tenantId, { userId: req.user!.id, requestId: req.requestId });
+  }
 }
