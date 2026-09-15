@@ -167,7 +167,7 @@ export class TrafficOrchestratorService {
           endsAt: row.serviceEndsAt ? new Date(row.serviceEndsAt) : null,
           dataLimitBytes: row.dataLimitBytes == null ? null : Number(row.dataLimitBytes),
           usedBytes: Number(row.serviceUsedBytes ?? 0),
-          downloadBps: row.downloadBps == null ? null : Number(row.uploadBps),
+          downloadBps: row.downloadBps == null ? null : Number(row.downloadBps),
           uploadBps: row.uploadBps == null ? null : Number(row.uploadBps),
         }).state === 'QUOTA_EXCEEDED').length,
       },
