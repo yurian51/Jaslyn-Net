@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
@@ -166,7 +167,7 @@ export class TrafficOrchestratorService {
           endsAt: row.serviceEndsAt ? new Date(row.serviceEndsAt) : null,
           dataLimitBytes: row.dataLimitBytes == null ? null : Number(row.dataLimitBytes),
           usedBytes: Number(row.serviceUsedBytes ?? 0),
-          downloadBps: row.downloadBps == null ? null : Number(row.downloadBps),
+          downloadBps: row.downloadBps == null ? null : Number(row.uploadBps),
           uploadBps: row.uploadBps == null ? null : Number(row.uploadBps),
         }).state === 'QUOTA_EXCEEDED').length,
       },
@@ -217,7 +218,8 @@ export class TrafficOrchestratorService {
     ]));
 
     try {
-      const result = await this.enforcement.evaluateAndApply(routerId, policy, users, targets, uploadRatio, routerCredentials, protocol);
+      const correlationId = `traffic:${tenantId}:${routerId}:${randomUUID()}`;
+      const result = await this.enforcement.evaluateAndApply(tenantId, routerId, policy, users, targets, uploadRatio, routerCredentials, protocol, correlationId);
       const keepManagedKeys = result.commands.map((command) => protocol === 'MERAKI_DASHBOARD_API'
         ? command.targetMacAddress ?? command.targetAddress ?? ''
         : `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
@@ -226,7 +228,7 @@ export class TrafficOrchestratorService {
         `INSERT INTO traffic_enforcement_events
           (tenant_id, router_id, mode, command_count, applied, commands)
          VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
-        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify({ protocol, commands: result.commands, staleManagedRemoved: reconciled })],
+        [tenantId, routerId, result.mode, result.commandCount, result.applied, JSON.stringify({ protocol, commandIds: result.commandIds, commands: result.commands, staleManagedRemoved: reconciled })],
       );
       return { ...baseResult, ...result, staleManagedRemoved: reconciled };
     } catch (error) {
