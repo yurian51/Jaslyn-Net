@@ -16,10 +16,11 @@ type Session = {
   bytesIn?: string | number;
   bytesOut?: string | number;
   bytesTotal?: string | number;
-  status: 'ACTIVE' | 'ENDED' | string;
+  status: 'ACTIVE' | 'STALE' | 'ENDED' | string;
 };
 
 type SessionResponse = { data: Session[]; count: number };
+type SessionFilter = 'ACTIVE' | 'STALE' | 'ENDED' | '';
 
 function formatBytes(value: string | number | undefined) {
   const bytes = Number(value ?? 0);
@@ -38,7 +39,7 @@ function formatDate(value?: string) {
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [count, setCount] = useState(0);
-  const [status, setStatus] = useState<'ACTIVE' | 'ENDED' | ''>('ACTIVE');
+  const [status, setStatus] = useState<SessionFilter>('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,12 +92,12 @@ export default function SessionsPage() {
         <section className="kpi-grid">
           <article className="kpi"><div className="kpi-label"><span>Records</span></div><strong>{count}</strong><div className="kpi-foot"><span>API</span><small>tenant scoped</small></div></article>
           <article className="kpi"><div className="kpi-label"><span>Visible active</span></div><strong>{sessions.filter((item) => item.status === 'ACTIVE').length}</strong><div className="kpi-foot"><span>LIVE</span><small>current filter</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Traffic in</span></div><strong>{formatBytes(sessions.reduce((sum, item) => sum + Number(item.bytesIn ?? 0), 0))}</strong><div className="kpi-foot"><span>COUNTERS</span><small>visible records</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Traffic out</span></div><strong>{formatBytes(sessions.reduce((sum, item) => sum + Number(item.bytesOut ?? 0), 0))}</strong><div className="kpi-foot"><span>COUNTERS</span><small>visible records</small></div></article>
+          <article className="kpi"><div className="kpi-label"><span>Stale evidence</span></div><strong>{sessions.filter((item) => item.status === 'STALE').length}</strong><div className="kpi-foot"><span>VERIFY</span><small>network evidence missing</small></div></article>
+          <article className="kpi"><div className="kpi-label"><span>Traffic</span></div><strong>{formatBytes(sessions.reduce((sum, item) => sum + Number(item.bytesTotal ?? 0), 0))}</strong><div className="kpi-foot"><span>COUNTERS</span><small>visible records</small></div></article>
         </section>
         <section className="panel sessions-panel">
-          <div className="panel-head"><div><div className="panel-kicker">SESSION INVENTORY</div><h2>Network sessions</h2><p>Tenant-isolated session records from the API.</p></div><div className="periods" role="group" aria-label="Session status filter">
-            {(['ACTIVE', 'ENDED', ''] as const).map((value) => <button key={value || 'all'} className={status === value ? 'selected' : ''} aria-pressed={status === value} onClick={() => setStatus(value)}>{value || 'ALL'}</button>)}
+          <div className="panel-head"><div><div className="panel-kicker">SESSION INVENTORY</div><h2>Network sessions</h2><p>Tenant-isolated session records from the API, with stale state preserved until live evidence returns.</p></div><div className="periods" role="group" aria-label="Session status filter">
+            {(['ACTIVE', 'STALE', 'ENDED', ''] as const).map((value) => <button key={value || 'all'} className={status === value ? 'selected' : ''} aria-pressed={status === value} onClick={() => setStatus(value)}>{value || 'ALL'}</button>)}
           </div></div>
           <div className="table-wrap"><table><thead><tr><th>USERNAME</th><th>IP ADDRESS</th><th>MAC ADDRESS</th><th>STARTED</th><th>TRAFFIC</th><th>STATUS</th></tr></thead><tbody>
             {sessions.map((item) => <tr key={item.id}><td>{item.username ?? item.customerId ?? '—'}</td><td>{item.ipAddress ?? '—'}</td><td>{item.macAddress ?? '—'}</td><td>{formatDate(item.startedAt)}</td><td>{formatBytes(item.bytesTotal)}</td><td><span className={`status ${item.status.toLowerCase()}`}><i/>{item.status}</span></td></tr>)}
