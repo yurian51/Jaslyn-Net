@@ -96,17 +96,27 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       const session = this.matchSession(client, byMac, byIp, byUsername);
       if (!session || !this.validCounter(client.bytesIn) || !this.validCounter(client.bytesOut)) continue;
       await this.samples.record(router.tenantId, { routerId: router.id, customerId: session.customerId, sessionId: session.id, bytesIn: client.bytesIn, bytesOut: client.bytesOut, sampledAt });
-      await this.restoreSessionIfStale(router.tenantId, session.id);
+      await this.restoreSessionIfEntitled(router.tenantId, session.id, session.customerId, router.id);
       recorded += 1;
     }
     await this.markHealthy(router); return recorded;
   }
 
-  private async restoreSessionIfStale(tenantId: string, sessionId: string) {
+  private async restoreSessionIfEntitled(tenantId: string, sessionId: string, customerId: string, routerId: string) {
     await this.db.query(
-      `UPDATE sessions SET status='ACTIVE', ended_at=NULL
-       WHERE tenant_id=$1 AND id=$2 AND status='STALE'`,
-      [tenantId, sessionId],
+      `UPDATE sessions s
+       SET status='ACTIVE', ended_at=NULL
+       WHERE s.tenant_id=$1 AND s.id=$2 AND s.status='STALE'
+         AND EXISTS (
+           SELECT 1
+           FROM wifi_plan_purchases p
+           WHERE p.tenant_id=$1 AND p.customer_id=$3
+             AND p.status IN ('PAID','ACTIVE')
+             AND (p.router_id=$4 OR p.router_id IS NULL)
+             AND (p.starts_at IS NULL OR p.starts_at <= now())
+             AND (p.ends_at IS NULL OR p.ends_at > now())
+         )`,
+      [tenantId, sessionId, customerId, routerId],
     );
   }
 
