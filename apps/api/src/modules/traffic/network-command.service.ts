@@ -21,15 +21,27 @@ export class NetworkCommandService {
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
 
   async queue(tenantId: string, input: NetworkCommandInput) {
+    const id = randomUUID();
     const result = await this.db.query(
       `INSERT INTO network_commands
          (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,'QUEUED',0,$9)
+       ON CONFLICT (tenant_id, command_type, correlation_id) WHERE correlation_id IS NOT NULL
+       DO NOTHING
        RETURNING id`,
-      [randomUUID(), tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system',
+      [id, tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system',
         JSON.stringify(input.target ?? {}), JSON.stringify(input.request ?? {}), input.provider ?? null, input.correlationId ?? null],
     );
-    return { id: result.rows[0].id };
+    if (result.rowCount) return { id: result.rows[0].id, reused: false };
+    if (input.correlationId) {
+      const existing = await this.db.query(
+        `SELECT id FROM network_commands
+         WHERE tenant_id=$1 AND command_type=$2 AND correlation_id=$3`,
+        [tenantId, input.commandType, input.correlationId],
+      );
+      if (existing.rowCount) return { id: existing.rows[0].id, reused: true };
+    }
+    throw new Error('Network command could not be queued');
   }
 
   async queueBandwidthCommands(tenantId: string, commands: BandwidthEnforcementCommand[], actor = 'system', correlationId?: string) {
