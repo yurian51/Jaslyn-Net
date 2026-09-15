@@ -6,9 +6,31 @@ import { BandwidthEnforcementCommand } from './enforcement.adapter';
 
 export type NetworkCommandStatus = 'QUEUED' | 'SENT' | 'ACCEPTED' | 'EXECUTED' | 'VERIFIED' | 'FAILED' | 'RETRYING' | 'ABANDONED';
 
+export interface NetworkCommandInput {
+  routerId?: string;
+  commandType: string;
+  actor?: string;
+  target?: unknown;
+  request?: unknown;
+  provider?: string;
+  correlationId?: string;
+}
+
 @Injectable()
 export class NetworkCommandService {
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+
+  async queue(tenantId: string, input: NetworkCommandInput) {
+    const result = await this.db.query(
+      `INSERT INTO network_commands
+         (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,'QUEUED',0,$9)
+       RETURNING id`,
+      [randomUUID(), tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system',
+        JSON.stringify(input.target ?? {}), JSON.stringify(input.request ?? {}), input.provider ?? null, input.correlationId ?? null],
+    );
+    return { id: result.rows[0].id };
+  }
 
   async queueBandwidthCommands(tenantId: string, commands: BandwidthEnforcementCommand[], actor = 'system', correlationId?: string) {
     if (!commands.length) return [];
