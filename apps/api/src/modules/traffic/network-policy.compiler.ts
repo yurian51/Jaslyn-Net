@@ -68,11 +68,9 @@ export interface RadiusPolicyAttributes {
   'Session-Timeout': number;
   'Acct-Interim-Interval': number;
   'Mikrotik-Rate-Limit'?: string;
-  'Mikrotik-Recv-Limit'?: number;
-  'Mikrotik-Xmit-Limit'?: number;
 }
 
-/** Translate the normalized policy into RADIUS/MikroTik attributes only. */
+/** Translate only policy fields with unambiguous RADIUS/MikroTik semantics. */
 export function toRadiusPolicyAttributes(policy: CompiledNetworkPolicy): RadiusPolicyAttributes {
   const attributes: RadiusPolicyAttributes = {
     'Session-Timeout': policy.session.sessionTimeoutSeconds,
@@ -85,10 +83,6 @@ export function toRadiusPolicyAttributes(policy: CompiledNetworkPolicy): RadiusP
     const downKbps = Math.max(1, Math.round((down ?? up ?? 0) / 1000));
     const upKbps = Math.max(1, Math.round((up ?? down ?? 0) / 1000));
     attributes['Mikrotik-Rate-Limit'] = `${upKbps}k/${downKbps}k`;
-  }
-  if (policy.quota.dataLimitBytes !== null) {
-    attributes['Mikrotik-Recv-Limit'] = policy.quota.dataLimitBytes;
-    attributes['Mikrotik-Xmit-Limit'] = policy.quota.dataLimitBytes;
   }
   return attributes;
 }
