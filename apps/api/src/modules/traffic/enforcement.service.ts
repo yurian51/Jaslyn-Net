@@ -1,10 +1,5 @@
 import { FairnessService, FairnessPolicy } from './fairness.service';
-import {
-  BandwidthEnforcementCommand,
-  EnforcementReconcileOptions,
-  TrafficEnforcementAdapter,
-  toEnforcementCommands,
-} from './enforcement.adapter';
+import { BandwidthEnforcementCommand, EnforcementReconcileOptions, TrafficEnforcementAdapter, toEnforcementCommands } from './enforcement.adapter';
 import { FairnessInput } from './fairness.engine';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
@@ -19,10 +14,7 @@ export interface EnforcementTarget {
   merakiGroupPolicyId?: string;
 }
 
-export type EnforcementUser = FairnessInput['activeUsers'][number] & {
-  maxDownloadMbps?: number;
-  maxUploadMbps?: number;
-};
+export type EnforcementUser = FairnessInput['activeUsers'][number] & { maxDownloadMbps?: number; maxUploadMbps?: number };
 
 export interface EnforcementResult {
   applied: boolean;
@@ -71,13 +63,19 @@ export class TrafficEnforcementService {
 
     try {
       await adapter.apply(commands, credentials);
-      if (commandIds.length && tenantId) {
-        await this.networkCommands!.markExecuted(tenantId, commandIds, { protocol, commandCount: commands.length });
-      }
     } catch (error) {
       if (commandIds.length && tenantId) await this.networkCommands!.markFailed(tenantId, commandIds, error);
       throw error;
     }
+
+    if (commandIds.length && tenantId) {
+      try {
+        await this.networkCommands!.markExecuted(tenantId, commandIds, { protocol, commandCount: commands.length });
+      } catch (error) {
+        throw new ServiceUnavailableException('Network command executed but command state could not be persisted');
+      }
+    }
+
     return {
       applied: commands.length > 0,
       commandCount: commands.length,
