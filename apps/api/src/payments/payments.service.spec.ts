@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
