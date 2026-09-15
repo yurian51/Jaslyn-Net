@@ -110,16 +110,21 @@ export class SessionsService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
+      const current = await client.query<{ status: SessionStatus }>(
+        `SELECT status FROM sessions WHERE tenant_id=$1 AND id=$2 AND status IN ('ACTIVE','STALE') FOR UPDATE`,
+        [tenantId, id],
+      );
+      if (!current.rowCount) throw new NotFoundException('Active or stale session not found');
+      const previousState = current.rows[0].status;
       const result = await client.query(
         `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
-         WHERE tenant_id=$1 AND id=$2 AND status IN ('ACTIVE','STALE')
+         WHERE tenant_id=$1 AND id=$2
          RETURNING id, router_id AS "routerId", ended_at AS "endedAt", bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status`,
         [tenantId, id],
       );
-      if (!result.rowCount) throw new NotFoundException('Active or stale session not found');
       await this.resetRouterActiveUsers(client, tenantId, result.rows[0].routerId ? [result.rows[0].routerId] : []);
       await client.query('COMMIT');
-      await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState: result.rows[0].status }, auditContext);
+      await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState }, auditContext);
       return result.rows[0];
     } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
