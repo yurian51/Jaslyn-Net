@@ -1,11 +1,15 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { PaymentsService } from '../payments/payments.service';
 import { ConfirmPurchasePaymentDto, CreatePurchaseDto } from './purchases.dto';
 
 @Injectable()
 export class PurchasesService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly db: Pool,
+    private readonly payments: PaymentsService,
+  ) {}
 
   async list(tenantId: string, customerId?: string) {
     const result = await this.db.query(
@@ -83,6 +87,8 @@ export class PurchasesService {
       }
       if (current.status !== 'PENDING_PAYMENT') throw new BadRequestException(`Purchase cannot be paid from ${current.status}`);
 
+      await this.payments.assertMethodCanSettle(tenantId, input.provider, current.currency);
+
       const key = input.idempotencyKey?.trim() || `purchase:${purchaseId}:${input.providerReference.trim()}`;
       const existing = await client.query(`SELECT id, status FROM payments WHERE tenant_id = $1 AND idempotency_key = $2`, [tenantId, key]);
       if (existing.rowCount) {
@@ -92,7 +98,7 @@ export class PurchasesService {
 
       const payment = await client.query(
         `INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, provider_reference, amount, currency, status, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-        [tenantId, current.customer_id, current.id, input.provider.trim(), input.providerReference.trim(), current.price, current.currency, input.status === 'FAILED' ? 'FAILED' : 'SUCCESS', key],
+        [tenantId, current.customer_id, current.id, input.provider.trim().toLowerCase(), input.providerReference.trim(), current.price, current.currency, input.status === 'FAILED' ? 'FAILED' : 'SUCCESS', key],
       );
       if (input.status === 'FAILED') {
         await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
