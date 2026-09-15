@@ -87,7 +87,7 @@ export class PurchasesService {
       }
       if (current.status !== 'PENDING_PAYMENT') throw new BadRequestException(`Purchase cannot be paid from ${current.status}`);
 
-      await this.payments.assertMethodCanSettle(tenantId, input.provider, current.currency);
+      await this.payments.assertMethodCanSettle(tenantId, input.provider, current.currency, client);
 
       const key = input.idempotencyKey?.trim() || `purchase:${purchaseId}:${input.providerReference.trim()}`;
       const existing = await client.query(`SELECT id, status FROM payments WHERE tenant_id = $1 AND idempotency_key = $2`, [tenantId, key]);
