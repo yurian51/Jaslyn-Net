@@ -1,24 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
+import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '../../lib/api';
+import { storeAccessToken } from '../../lib/auth';
+
+interface LoginResponse { accessToken: string; user: Record<string, unknown>; tenant: Record<string, unknown>; }
 
 export default function LoginPage() {
   const router = useRouter();
-
-  useEffect(() => {
-    // Authentication is intentionally not a gate while the deployment environment
-    // is being assembled. Keep the login route harmlessly compatible with existing
-    // links, but send operators straight to the real dashboard for inspection.
-    router.replace('/dashboard');
-  }, [router]);
-
-  return (
-    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#07101f', color: '#eef4ff', fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <section style={{ textAlign: 'center', padding: 32 }}>
-        <strong style={{ letterSpacing: '.16em' }}>JASLYN NET</strong>
-        <p style={{ color: '#8496ad', marginTop: 12 }}>Opening the operations dashboard…</p>
-      </section>
-    </main>
-  );
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [pending, setPending] = useState(false); const [error, setError] = useState('');
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setPending(true); setError('');
+    try {
+      const payload = await apiFetch<LoginResponse>('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password }) });
+      if (!isLoginResponse(payload)) throw new Error('The server returned an invalid authentication response.');
+      storeAccessToken(payload.accessToken); window.localStorage.setItem('jaslyn.user', JSON.stringify(payload.user)); window.localStorage.setItem('jaslyn.tenant', JSON.stringify(payload.tenant)); router.replace('/dashboard');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to sign in. Please try again.'); } finally { setPending(false); }
+  }
+  return <main className="login-page"><section className="login-card" aria-labelledby="login-title"><div className="brand"><span>J</span><div><strong>JASLYN NET</strong><small>Network operations platform</small></div></div><div className="eyebrow">SECURE ACCESS</div><h1 id="login-title">Welcome back.</h1><p className="intro">Sign in to manage customers, billing, sessions and network operations.</p><form onSubmit={submit} noValidate><label>Email address<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@company.com" /></label><label>Password<input required type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Your password" /></label>{error && <div className="error" role="alert">{error}</div>}<button disabled={pending || !email.trim() || !password} type="submit">{pending ? 'Signing in…' : 'Sign in'} <span>→</span></button></form><p className="security-note">Authentication is verified server-side. Tokens are stored only after a successful API response.</p></section><style jsx>{`.login-page{min-height:100vh;display:grid;place-items:center;padding:24px;background:#07101f;color:#eef4ff;font-family:Arial,Helvetica,sans-serif}.login-card{width:min(430px,100%);padding:42px;border:1px solid rgba(255,255,255,.1);border-radius:18px;background:rgba(11,23,40,.94);box-shadow:0 30px 90px rgba(0,0,0,.4)}.brand{display:flex;align-items:center;gap:12px;margin-bottom:56px}.brand>span{width:36px;height:36px;display:grid;place-items:center;border:1px solid #46a8ff;border-radius:9px;color:#71bcff;font-weight:800}.brand strong{display:block;font-size:12px;letter-spacing:.16em}.brand small{display:block;color:#657a92;font-size:8px;margin-top:4px}.eyebrow{font-size:9px;letter-spacing:.2em;color:#5caeff;font-weight:800}.login-card h1{font-size:42px;letter-spacing:-.05em;margin:12px 0 8px}.intro{color:#8496ad;font-size:12px;line-height:1.7;margin:0 0 30px}form{display:grid;gap:18px}label{display:grid;gap:8px;color:#b7c7da;font-size:10px;font-weight:700}input{width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#091525;color:#fff;padding:13px 14px;outline:none;font:inherit;font-weight:400}input:focus{border-color:#4daaff;box-shadow:0 0 0 3px rgba(77,170,255,.12)}button{border:0;border-radius:8px;background:#f4f8ff;color:#07101f;padding:14px 16px;font-weight:800;font-size:10px;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}button span{margin-left:8px}.error{border:1px solid rgba(255,90,90,.3);background:rgba(255,70,70,.08);color:#ffb0b0;border-radius:8px;padding:11px;font-size:10px;line-height:1.5}.security-note{color:#536980;font-size:8px;line-height:1.6;margin:22px 0 0;text-align:center}@media(max-width:520px){.login-card{padding:30px}.brand{margin-bottom:42px}}`}</style></main>;
 }
+function isLoginResponse(value: unknown): value is LoginResponse { if (typeof value !== 'object' || value === null) return false; const record = value as Record<string, unknown>; return typeof record.accessToken === 'string' && typeof record.user === 'object' && record.user !== null && typeof record.tenant === 'object' && record.tenant !== null; }
