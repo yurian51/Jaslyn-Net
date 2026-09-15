@@ -70,6 +70,28 @@ describe('TrafficCollectorService', () => {
     expect(devices.readClients).toHaveBeenCalledWith(expect.objectContaining({ protocol: 'UNIFI_NETWORK_API', controllerEndpoint: 'https://controller.example/api/clients' }));
   });
 
+  it('requires active entitlement before restoring a stale session', async () => {
+    const db = poolWithSequence([
+      { rowCount: 1, rows: [{ locked: true }] },
+      { rowCount: 1, rows: [{ id: 'router-4', tenantId: 'tenant-4', apiEndpoint: 'https://router.example/rest', managementProtocol: 'MIKROTIK_REST' }] },
+      { rowCount: 1 },
+    ]);
+    db.query
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'session-4', customerId: 'customer-4', username: 'alice', ipAddress: '10.0.0.4', macAddress: null }] })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rowCount: 1 });
+    const devices = { readClients: jest.fn().mockResolvedValue([{ username: 'alice', address: '10.0.0.4', bytesIn: '1000', bytesOut: '2000' }]) } as any;
+    const samples = { record: jest.fn().mockResolvedValue({ id: 'sample-4' }) } as any;
+    const service = new TrafficCollectorService(db, config, {} as any, devices, samples);
+
+    const result = await service.collectAll();
+
+    expect(result).toEqual({ routers: 1, samples: 1, errors: 0 });
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('wifi_plan_purchases'), ['tenant-4', 'session-4', 'customer-4', 'router-4']);
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining("status='STALE'"), expect.any(Array));
+  });
+
   it('skips unmatched clients without creating cross-customer samples', async () => {
     const db = poolWithSequence([
       { rowCount: 1, rows: [{ locked: true }] },
