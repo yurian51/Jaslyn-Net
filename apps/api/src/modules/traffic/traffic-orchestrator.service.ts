@@ -219,7 +219,17 @@ export class TrafficOrchestratorService {
 
     try {
       const correlationId = `traffic:${tenantId}:${routerId}:${randomUUID()}`;
-      const result = await this.enforcement.evaluateAndApply(tenantId, routerId, policy, users, targets, uploadRatio, routerCredentials, protocol, correlationId);
+      const result = await this.enforcement.evaluateAndApply(
+        routerId,
+        policy,
+        users,
+        targets,
+        uploadRatio,
+        routerCredentials,
+        protocol,
+        tenantId,
+        correlationId,
+      );
       const keepManagedKeys = result.commands.map((command) => protocol === 'MERAKI_DASHBOARD_API'
         ? command.targetMacAddress ?? command.targetAddress ?? ''
         : `JASLYN-${command.sessionId ?? command.customerId}`.slice(0, 60));
