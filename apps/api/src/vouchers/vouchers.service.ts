@@ -62,8 +62,9 @@ export class VouchersService {
             );
             created.push(row.rows[0].code);
             inserted = true;
-          } catch (error: any) {
-            if (error?.code !== '23505') throw error;
+          } catch (error: unknown) {
+            const postgresError = error as { code?: unknown };
+            if (postgresError.code !== '23505') throw error;
           }
         }
         if (!inserted) throw new ConflictException('Could not generate a unique voucher code');
@@ -137,7 +138,7 @@ export class VouchersService {
                  (SELECT ends_at FROM wifi_plan_purchases WHERE id=$2))
          ON CONFLICT (purchase_id) DO UPDATE SET
            status='ACTIVE',starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,updated_at=now()`,
-        [tenantId,purchase.rows[0].id,input.customerId,input.routerId ?? null],
+        [tenantId, purchase.rows[0].id, input.customerId, input.routerId ?? null],
       );
       await client.query(
         `UPDATE vouchers SET status='USED',used_at=now() WHERE tenant_id=$1 AND id=$2`,
