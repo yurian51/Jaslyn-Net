@@ -37,11 +37,10 @@ export class TrafficEnforcementService {
   constructor(
     private readonly fairnessService: FairnessService,
     private readonly adapters: Partial<Record<NetworkManagementProtocol, TrafficEnforcementAdapter>>,
-    private readonly networkCommands: NetworkCommandService,
+    private readonly networkCommands?: NetworkCommandService,
   ) {}
 
   async evaluateAndApply(
-    tenantId: string,
     routerId: string,
     policy: FairnessPolicy,
     activeUsers: EnforcementUser[],
@@ -49,6 +48,7 @@ export class TrafficEnforcementService {
     uploadRatio = 0.5,
     credentials?: NetworkCredentials,
     protocol: NetworkManagementProtocol = 'MIKROTIK_REST',
+    tenantId?: string,
     correlationId?: string,
   ): Promise<EnforcementResult> {
     const state = this.fairnessService.evaluate(policy, activeUsers);
@@ -62,13 +62,20 @@ export class TrafficEnforcementService {
     const commands = toEnforcementCommands(routerId, state.allocations, uploadRatio, targets, serviceLimits);
     const adapter = this.adapters[protocol];
     if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
-    const queued = await this.networkCommands.queueBandwidthCommands(tenantId, commands, 'traffic-orchestrator', correlationId);
-    const commandIds = queued.map((entry) => entry.id);
+
+    let commandIds: string[] = [];
+    if (this.networkCommands && tenantId && commands.length) {
+      const queued = await this.networkCommands.queueBandwidthCommands(tenantId, commands, 'traffic-orchestrator', correlationId);
+      commandIds = queued.map((entry) => entry.id);
+    }
+
     try {
       await adapter.apply(commands, credentials);
-      await this.networkCommands.markExecuted(tenantId, commandIds, { protocol, commandCount: commands.length });
+      if (commandIds.length && tenantId) {
+        await this.networkCommands!.markExecuted(tenantId, commandIds, { protocol, commandCount: commands.length });
+      }
     } catch (error) {
-      await this.networkCommands.markFailed(tenantId, commandIds, error);
+      if (commandIds.length && tenantId) await this.networkCommands!.markFailed(tenantId, commandIds, error);
       throw error;
     }
     return {
