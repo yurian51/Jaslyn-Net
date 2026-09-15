@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +14,7 @@ describe('PaymentsService', () => {
       query: jest.fn(async (sql: string) => {
         if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
         if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
+        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
         if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa' }] };
         return { rowCount: 0, rows: [] };
       }),
@@ -25,11 +27,42 @@ describe('PaymentsService', () => {
     expect(client.release).toHaveBeenCalled();
   });
 
+  it('rejects an unknown provider at the settlement boundary', async () => {
+    const db = { query: jest.fn() } as unknown as Pool;
+    await expect(serviceWith(db).assertMethodCanSettle('tenant-1', 'made_up_provider', 'TZS')).rejects.toThrow('Unsupported payment method');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unconfigured non-manual provider', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rowCount: 0, rows: [] }) } as unknown as Pool;
+    await expect(serviceWith(db).assertMethodCanSettle('tenant-1', 'mpesa', 'TZS')).rejects.toThrow('not configured');
+    expect(db.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows manual settlement without pretending an external provider is configured', async () => {
+    const db = { query: jest.fn() } as unknown as Pool;
+    const method = await serviceWith(db).assertMethodCanSettle('tenant-1', 'MANUAL', 'TZS');
+    expect(method.code).toBe('manual');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a provider for an unsupported currency', async () => {
+    const db = { query: jest.fn() } as unknown as Pool;
+    await expect(serviceWith(db).assertMethodCanSettle('tenant-1', 'mpesa', 'USD')).rejects.toThrow('does not support currency USD');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a configured provider when tenant metadata excludes the purchase currency', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ metadata: { currencies: ['USD'] } }] }) } as unknown as Pool;
+    await expect(serviceWith(db).assertMethodCanSettle('tenant-1', 'mpesa', 'TZS')).rejects.toThrow('not configured for currency TZS');
+  });
+
   it('recovers the pending payment when concurrent creation loses the purchase uniqueness race', async () => {
     const client = {
       query: jest.fn(async (sql: string) => {
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
         if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
+        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
         if (sql.includes('FROM payments WHERE') && sql.includes('idempotency_key')) return { rowCount: 0, rows: [] };
         if (sql.includes('INSERT INTO payments')) {
           const error = new Error('duplicate pending payment') as Error & { code: string; constraint: string };
