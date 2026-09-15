@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
-import { PAYMENT_METHOD_CATALOG } from './payment-method.catalog';
+import { PAYMENT_METHOD_CATALOG, getPaymentMethod } from './payment-method.catalog';
 
 type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
@@ -46,6 +46,38 @@ export class PaymentsService {
     };
   }
 
+  /**
+   * Single source of truth for whether a payment method may settle a purchase.
+   * UI catalogs are descriptive; this check is authoritative at the state boundary.
+   */
+  async assertMethodCanSettle(tenantId: string, providerInput: string, currency: string) {
+    const provider = providerInput.trim().toLowerCase();
+    const normalizedCurrency = currency.trim().toUpperCase();
+    const method = getPaymentMethod(provider);
+    if (!method) throw new ConflictException(`Unsupported payment method: ${provider}`);
+    if (!method.currencies.includes('*') && !method.currencies.includes(normalizedCurrency)) {
+      throw new ConflictException(`Payment method ${provider} does not support currency ${normalizedCurrency}`);
+    }
+    if (provider === 'manual') return method;
+
+    const configured = await this.db.query<{ metadata: Record<string, unknown> }>(
+      `SELECT metadata FROM payment_provider_configs WHERE tenant_id=$1 AND provider=$2 AND is_active=true LIMIT 1`,
+      [tenantId, provider],
+    );
+    if (!configured.rowCount) {
+      throw new ConflictException(`Payment method ${provider} is not configured for this organization`);
+    }
+
+    const metadata = configured.rows[0]?.metadata ?? {};
+    const configuredCurrencies = Array.isArray(metadata.currencies)
+      ? metadata.currencies.map(value => String(value).toUpperCase())
+      : null;
+    if (configuredCurrencies?.length && !configuredCurrencies.includes('*') && !configuredCurrencies.includes(normalizedCurrency)) {
+      throw new ConflictException(`Payment method ${provider} is not configured for currency ${normalizedCurrency}`);
+    }
+    return method;
+  }
+
   async createIntent(tenantId: string, input: CreatePaymentIntentDto) {
     const client = await this.db.connect();
     const provider = input.provider.trim().toLowerCase();
@@ -58,15 +90,7 @@ export class PaymentsService {
       );
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
-      const method = PAYMENT_METHOD_CATALOG.find(item => item.code === provider);
-      if (!method) throw new ConflictException(`Unsupported payment method: ${provider}`);
-      if (provider !== 'manual') {
-        const configured = await client.query(
-          `SELECT 1 FROM payment_provider_configs WHERE tenant_id=$1 AND provider=$2 AND is_active=true LIMIT 1`,
-          [tenantId, provider],
-        );
-        if (!configured.rowCount) throw new ConflictException(`Payment method ${provider} is not configured for this organization`);
-      }
+      await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency);
       const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
