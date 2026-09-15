@@ -51,9 +51,10 @@ describe('SessionsService', () => {
     expect(audit.record).toHaveBeenCalledWith('tenant-a', 'SESSION_STARTED', 'session', 'session-a', expect.any(Object), {});
   });
 
-  it('ends an active session transactionally and refreshes the router count', async () => {
+  it('ends an active or stale session transactionally and refreshes the router count', async () => {
     clientQuery
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ status: 'STALE' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ id: 'session-a', routerId: 'router-a', endedAt: '2026-09-13T00:00:00Z', bytesIn: '10', bytesOut: '20', bytesTotal: '30', status: 'ENDED' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
@@ -62,6 +63,20 @@ describe('SessionsService', () => {
 
     expect(result.status).toBe('ENDED');
     expect(clientQuery).toHaveBeenCalledWith('COMMIT');
-    expect(audit.record).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith('tenant-a', 'SESSION_ENDED', 'session', 'session-a', expect.objectContaining({ previousState: 'STALE' }), {});
+  });
+
+  it('marks active sessions stale only when network evidence is missing', async () => {
+    clientQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 'session-stale', routerId: 'router-a', startedAt: '2026-09-13T00:00:00Z' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const result = await service.reconcileStale('tenant-a', 30);
+
+    expect(result.updated).toBe(1);
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("status='STALE'"), ['tenant-a', 30]);
+    expect(clientQuery).toHaveBeenCalledWith('COMMIT');
   });
 });
