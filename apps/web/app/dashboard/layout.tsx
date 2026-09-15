@@ -6,10 +6,14 @@ import { getAccessToken } from '../../lib/auth';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(process.env.NODE_ENV !== 'production');
+  // During environment assembly, the web app intentionally has no configured API.
+  // In that state the dashboard remains inspectable without inventing authentication.
+  // Once NEXT_PUBLIC_API_URL exists, production authentication becomes mandatory again.
+  const inspectionMode = !process.env.NEXT_PUBLIC_API_URL?.trim();
+  const [authorized, setAuthorized] = useState(inspectionMode || process.env.NODE_ENV !== 'production');
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
+    if (inspectionMode || process.env.NODE_ENV !== 'production') {
       setAuthorized(true);
       return;
     }
@@ -20,7 +24,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
 
     router.replace('/login');
-  }, [router]);
+  }, [inspectionMode, router]);
 
   if (!authorized) {
     return (
