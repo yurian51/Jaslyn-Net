@@ -11,7 +11,9 @@ export interface MikrotikPolicy {
 }
 
 export interface MikrotikClient {
-  ipAddress: string;
+  ipAddress?: string;
+  username?: string;
+  macAddress?: string;
 }
 
 @Injectable()
@@ -33,6 +35,7 @@ export class MikrotikRestAdapter {
     policy: MikrotikPolicy,
     timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {
+    if (!client.ipAddress) throw new TypeError('client.ipAddress is required for bandwidth enforcement');
     const ip = normalizeIp(client.ipAddress);
     const upload = rate(policy.bandwidth.uploadKbps, 'uploadKbps');
     const download = rate(policy.bandwidth.downloadKbps, 'downloadKbps');
@@ -67,6 +70,38 @@ export class MikrotikRestAdapter {
     });
     const createdRecord = isRecord(created) ? created : null;
     return { ok: true, action: 'created' as const, remotePolicyId: typeof createdRecord?.['.id'] === 'string' ? createdRecord['.id'] : null };
+  }
+
+  async disconnectClient(
+    baseUrl: string,
+    credentials: NetworkCredentials,
+    client: MikrotikClient,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  ) {
+    const identity = normalizeClient(client);
+    const removed: Array<{ service: 'hotspot' | 'ppp'; id: string }> = [];
+
+    const hotspot = await this.request(baseUrl, credentials, 'ip/hotspot/active', { timeoutMs });
+    if (Array.isArray(hotspot)) {
+      for (const row of hotspot.filter(isRecord).filter((entry) => matchesClient(entry, identity))) {
+        if (typeof row['.id'] === 'string') {
+          await this.request(baseUrl, credentials, `ip/hotspot/active/${encodeURIComponent(row['.id'])}`, { method: 'DELETE', timeoutMs });
+          removed.push({ service: 'hotspot', id: row['.id'] });
+        }
+      }
+    }
+
+    const ppp = await this.request(baseUrl, credentials, 'ppp/active', { timeoutMs });
+    if (Array.isArray(ppp)) {
+      for (const row of ppp.filter(isRecord).filter((entry) => matchesClient(entry, identity))) {
+        if (typeof row['.id'] === 'string') {
+          await this.request(baseUrl, credentials, `ppp/active/${encodeURIComponent(row['.id'])}`, { method: 'DELETE', timeoutMs });
+          removed.push({ service: 'ppp', id: row['.id'] });
+        }
+      }
+    }
+
+    return { ok: true as const, disconnected: removed.length > 0, removed };
   }
 
   private async request(
@@ -128,6 +163,26 @@ function normalizeIp(value: string) {
   const normalized = String(value ?? '').trim();
   if (!normalized || isIP(normalized) === 0) throw new TypeError('client.ipAddress must be a valid IPv4 or IPv6 address');
   return normalized;
+}
+
+function normalizeClient(client: MikrotikClient) {
+  return {
+    ipAddress: client.ipAddress?.trim() || undefined,
+    username: client.username?.trim() || undefined,
+    macAddress: client.macAddress?.trim().toLowerCase() || undefined,
+  };
+}
+
+function matchesClient(row: JsonRecord, client: ReturnType<typeof normalizeClient>) {
+  const address = typeof row.address === 'string' ? row.address : undefined;
+  const name = typeof row.name === 'string' ? row.name : undefined;
+  const user = typeof row.user === 'string' ? row.user : undefined;
+  const mac = typeof row['mac-address'] === 'string' ? row['mac-address'].toLowerCase() : undefined;
+  return Boolean(
+    (client.ipAddress && address === client.ipAddress) ||
+    (client.username && (name === client.username || user === client.username)) ||
+    (client.macAddress && mac === client.macAddress),
+  );
 }
 
 function targetForIp(ip: string) {
