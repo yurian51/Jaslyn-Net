@@ -1,13 +1,20 @@
-import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
-type RequestWithId = Request & { requestId?: string };
+type RequestWithId = {
+  headers?: Record<string, string | string[] | undefined>;
+  requestId?: string;
+};
+
+type ResponseLike = {
+  setHeader(name: string, value: string): void;
+};
+
+type NextFunction = () => void;
 
 export class RequestIdMiddleware {
-  use(req: RequestWithId, res: Response, next: NextFunction) {
-    const incoming = typeof req.headers['x-request-id'] === 'string'
-      ? req.headers['x-request-id'].trim()
-      : '';
+  use(req: RequestWithId, res: ResponseLike, next: NextFunction) {
+    const header = req.headers?.['x-request-id'];
+    const incoming = typeof header === 'string' ? header.trim() : '';
     const requestId = incoming && incoming.length <= 128 ? incoming : randomUUID();
 
     req.requestId = requestId;
