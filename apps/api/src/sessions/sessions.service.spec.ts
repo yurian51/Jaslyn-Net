@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 
 describe('SessionsService', () => {
@@ -34,10 +34,11 @@ describe('SessionsService', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining("status='ACTIVE'"), ['tenant-a', 'session-b', 100, null]);
   });
 
-  it('starts a session transactionally and refreshes router active users', async () => {
+  it('starts a session only when the customer has an active entitlement', async () => {
     clientQuery
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [{ id: 'customer-a' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'grant-a' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ id: 'router-a' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ id: 'session-a', customerId: 'customer-a', routerId: 'router-a' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
@@ -46,9 +47,34 @@ describe('SessionsService', () => {
     const result = await service.start('tenant-a', { customerId: 'customer-a', routerId: 'router-a', username: 'alice' });
 
     expect(result.id).toBe('session-a');
-    expect(clientQuery).toHaveBeenCalledWith('BEGIN');
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("status='ACTIVE'"), ['tenant-a', 'customer-a', 'router-a']);
     expect(clientQuery).toHaveBeenCalledWith('COMMIT');
     expect(audit.record).toHaveBeenCalledWith('tenant-a', 'SESSION_STARTED', 'session', 'session-a', expect.any(Object), {});
+  });
+
+  it('rejects customer session creation when entitlement is missing', async () => {
+    clientQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 'customer-a' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    await expect(service.start('tenant-a', { customerId: 'customer-a', routerId: 'router-a', username: 'alice' }))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(clientQuery).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO sessions'), expect.any(Array));
+    expect(clientQuery).toHaveBeenCalledWith('ROLLBACK');
+  });
+
+  it('starts a non-customer session without requiring a customer entitlement', async () => {
+    clientQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'router-a' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'session-a', customerId: null, routerId: 'router-a' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const result = await service.start('tenant-a', { routerId: 'router-a', username: 'guest' });
+
+    expect(result.id).toBe('session-a');
+    expect(clientQuery).toHaveBeenCalledWith('COMMIT');
   });
 
   it('ends an active or stale session transactionally and refreshes the router count', async () => {
