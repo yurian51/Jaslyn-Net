@@ -1,6 +1,7 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Injectable,
   Logger,
   NestInterceptor,
@@ -12,6 +13,7 @@ type RequestLike = {
   originalUrl?: string;
   url?: string;
   requestId?: string;
+  route?: { path?: string };
 };
 
 type ResponseLike = {
@@ -30,21 +32,27 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: () => this.log(request, response, startedAt),
-        error: () => this.log(request, response, startedAt),
+        error: (error: unknown) => this.log(request, response, startedAt, error),
       }),
     );
   }
 
-  private log(request: RequestLike, response: ResponseLike, startedAt: bigint) {
+  private log(request: RequestLike, response: ResponseLike, startedAt: bigint, error?: unknown) {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-    const method = request.method ?? 'UNKNOWN';
-    const path = request.originalUrl ?? request.url ?? '/';
-    const status = response.statusCode ?? 0;
+    const rawPath = request.route?.path ?? request.originalUrl ?? request.url ?? '/';
+    const path = rawPath.split('?')[0] || '/';
+    const status = error instanceof HttpException
+      ? error.getStatus()
+      : response.statusCode && response.statusCode >= 400
+        ? response.statusCode
+        : error
+          ? 500
+          : response.statusCode ?? 200;
     const requestId = request.requestId ?? '-';
 
     this.logger.log(JSON.stringify({
       requestId,
-      method,
+      method: request.method ?? 'UNKNOWN',
       path,
       status,
       durationMs: Number(durationMs.toFixed(2)),
