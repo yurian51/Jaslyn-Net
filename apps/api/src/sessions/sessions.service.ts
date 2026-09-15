@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
@@ -63,6 +63,25 @@ export class SessionsService {
       if (input.customerId) {
         const customer = await client.query('SELECT id FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true FOR SHARE', [tenantId, input.customerId]);
         if (!customer.rowCount) throw new NotFoundException('Customer not found');
+
+        const entitlement = await client.query(
+          `SELECT id
+           FROM access_grants
+           WHERE tenant_id=$1
+             AND customer_id=$2
+             AND status='ACTIVE'
+             AND starts_at IS NOT NULL
+             AND starts_at <= now()
+             AND (ends_at IS NULL OR ends_at > now())
+             AND ($3::uuid IS NULL OR router_id IS NULL OR router_id=$3)
+           ORDER BY ends_at NULLS LAST, created_at DESC
+           LIMIT 1
+           FOR SHARE`,
+          [tenantId, input.customerId, input.routerId ?? null],
+        );
+        if (!entitlement.rowCount) {
+          throw new ForbiddenException('Active access entitlement required before starting a customer session');
+        }
       }
       if (input.routerId) {
         const router = await client.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, input.routerId]);
