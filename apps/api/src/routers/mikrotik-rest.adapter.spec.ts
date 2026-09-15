@@ -47,6 +47,39 @@ describe('MikrotikRestAdapter', () => {
     )).rejects.toMatchObject({ code: 'BANDWIDTH_POLICY_EMPTY' });
   });
 
+  it('disconnects matching hotspot and PPP sessions and returns remote evidence', async () => {
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/rest/ip/hotspot/active')) return new Response('[{".id":"*hs1","user":"alice","address":"10.0.0.8"}]', { status: 200 });
+      if (url.endsWith('/rest/ip/hotspot/active/*hs1')) {
+        expect(init?.method).toBe('DELETE');
+        return new Response('', { status: 200 });
+      }
+      if (url.endsWith('/rest/ppp/active')) return new Response('[{".id":"*ppp1","name":"other","address":"10.0.0.9"}]', { status: 200 });
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    const result = await new MikrotikRestAdapter().disconnectClient(
+      'https://router.example', credentials, { ipAddress: '10.0.0.8', username: 'alice' },
+    );
+
+    expect(result).toEqual({ ok: true, disconnected: true, removed: [{ service: 'hotspot', id: '*hs1' }] });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('returns verified absence when no matching remote session exists', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/rest/ip/hotspot/active')) return new Response('[]', { status: 200 });
+      if (url.endsWith('/rest/ppp/active')) return new Response('[]', { status: 200 });
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    await expect(new MikrotikRestAdapter().disconnectClient(
+      'https://router.example', credentials, { ipAddress: '10.0.0.8' },
+    )).resolves.toEqual({ ok: true, disconnected: false, removed: [] });
+  });
+
   it('reports timeout as a stable error code', async () => {
     jest.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
