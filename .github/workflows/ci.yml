@@ -52,7 +52,7 @@ jobs:
           grep -q "payment_events_immutable_fields_trg" apps/api/migrations/020_payment_event_immutability.sql
           grep -q "sessions_status_check" apps/api/migrations/021_session_state_truth.sql
           grep -q "network_commands_active_idx" apps/api/migrations/022_network_command_fabric.sql
-          grep -q "network_command_tenant_type_correlation_uq" apps/api/migrations/023_network_command_idempotency.sql
+          grep -q "network_commands_correlation_command_uq" apps/api/migrations/023_network_command_idempotency.sql
       - name: Lint API
         run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API
