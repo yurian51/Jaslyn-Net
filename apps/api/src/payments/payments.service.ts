@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
+import { PAYMENT_METHOD_CATALOG } from './payment-method.catalog';
 
 type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
@@ -23,6 +24,28 @@ export class PaymentsService {
     return { data: result.rows };
   }
 
+  async listMethods(tenantId: string) {
+    const configured = await this.db.query<{ provider: string; isActive: boolean; metadata: Record<string, unknown> }>(
+      `SELECT provider, is_active AS "isActive", metadata
+       FROM payment_provider_configs
+       WHERE tenant_id=$1`,
+      [tenantId],
+    );
+    const configuredByProvider = new Map(configured.rows.map(row => [row.provider.trim().toLowerCase(), row]));
+
+    return {
+      data: PAYMENT_METHOD_CATALOG.map(method => {
+        const config = configuredByProvider.get(method.code);
+        return {
+          ...method,
+          configured: method.code === 'manual' || Boolean(config?.isActive),
+          enabled: method.code === 'manual' || Boolean(config?.isActive),
+          metadata: config?.metadata ?? {},
+        };
+      }),
+    };
+  }
+
   async createIntent(tenantId: string, input: CreatePaymentIntentDto) {
     const client = await this.db.connect();
     const provider = input.provider.trim().toLowerCase();
@@ -35,6 +58,15 @@ export class PaymentsService {
       );
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
+      const method = PAYMENT_METHOD_CATALOG.find(item => item.code === provider);
+      if (!method) throw new ConflictException(`Unsupported payment method: ${provider}`);
+      if (provider !== 'manual') {
+        const configured = await client.query(
+          `SELECT 1 FROM payment_provider_configs WHERE tenant_id=$1 AND provider=$2 AND is_active=true LIMIT 1`,
+          [tenantId, provider],
+        );
+        if (!configured.rowCount) throw new ConflictException(`Payment method ${provider} is not configured for this organization`);
+      }
       const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
