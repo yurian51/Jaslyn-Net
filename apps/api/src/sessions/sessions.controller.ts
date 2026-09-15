@@ -11,7 +11,7 @@ export class SessionsController {
   constructor(private readonly sessions: SessionsService) {}
 
   @Get()
-  list(@Req() req: AuthenticatedRequest, @Query('status') status?: 'ACTIVE' | 'ENDED', @Query('limit') limit?: string) {
+  list(@Req() req: AuthenticatedRequest, @Query('status') status?: 'ACTIVE' | 'STALE' | 'ENDED', @Query('limit') limit?: string) {
     return this.sessions.list(req.user!.tenantId, status, Number(limit ?? 100));
   }
 
