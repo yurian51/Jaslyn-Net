@@ -1,6 +1,7 @@
 import { PaymentsService } from './payments.service';
 import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
+import { createHmac } from 'node:crypto';
 
 describe('PaymentsService', () => {
   function serviceWith(db: Pool) {
@@ -56,5 +57,44 @@ describe('PaymentsService', () => {
     expect(result).toMatchObject({ id: 'pay-concurrent', reused: true });
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining("status='PENDING'"), ['tenant-1', 'purchase-1']);
     expect(client.release).toHaveBeenCalled();
+  });
+
+  it('rejects reuse of a provider event identifier for a different event type', async () => {
+    const secret = 'test-webhook-secret';
+    const rawBody = Buffer.from('{"event":"payment.failed"}');
+    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const eventClient = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN') return { rowCount: 0, rows: [] };
+        if (sql.includes('INSERT INTO payment_events')) return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM payment_events')) return { rowCount: 1, rows: [{ id: 'event-1', eventType: 'payment.success', processingStatus: 'RECEIVED', paymentId: null }] };
+        if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn().mockResolvedValue(eventClient),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config);
+
+    await expect(service.webhook(
+      'tenant-1',
+      {
+        provider: 'mpesa',
+        providerEventId: 'evt-1',
+        eventType: 'payment.failed',
+        status: 'FAILED',
+        payload: { amount: 1000 },
+      },
+      rawBody,
+      signature,
+    )).rejects.toThrow('Payment event identifier is already bound to a different event type');
+
+    expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(eventClient.release).toHaveBeenCalled();
+    expect(db.connect).toHaveBeenCalledTimes(1);
   });
 });
