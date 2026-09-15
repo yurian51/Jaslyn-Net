@@ -15,6 +15,12 @@ export class PaymentsController {
     return this.payments.list(req.user!.tenantId);
   }
 
+  @Get('methods')
+  @UseGuards(AuthGuard)
+  methods(@Req() req: AuthenticatedRequest) {
+    return this.payments.listMethods(req.user!.tenantId);
+  }
+
   @Post('intents')
   @UseGuards(AuthGuard)
   createIntent(@Req() req: AuthenticatedRequest, @Body() dto: CreatePaymentIntentDto) {
