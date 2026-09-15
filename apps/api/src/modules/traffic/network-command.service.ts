@@ -51,14 +51,19 @@ export class NetworkCommandService {
     try {
       await client.query('BEGIN');
       for (const command of commands) {
+        const commandCorrelationId = correlationId
+          ? `${correlationId}:${command.sessionId ?? command.customerId}`
+          : undefined;
         const result = await client.query(
           `INSERT INTO network_commands
              (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
            VALUES ($1,$2,$3,'BANDWIDTH_ENFORCEMENT',$4,$5::jsonb,$6::jsonb,$7,'QUEUED',0,$8)
+           ON CONFLICT (tenant_id, command_type, correlation_id) WHERE correlation_id IS NOT NULL
+           DO UPDATE SET updated_at=now()
            RETURNING id`,
           [randomUUID(), tenantId, command.routerId, actor,
             JSON.stringify({ customerId: command.customerId, sessionId: command.sessionId, address: command.targetAddress, mac: command.targetMacAddress }),
-            JSON.stringify(command), command.protocol ?? null, correlationId ?? null],
+            JSON.stringify(command), command.protocol ?? null, commandCorrelationId ?? null],
         );
         created.push({ id: result.rows[0].id, command });
       }
