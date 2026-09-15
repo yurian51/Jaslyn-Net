@@ -10,6 +10,7 @@ import { TrafficSamplesService } from './traffic-samples.service';
 import { TrafficOrchestratorService } from './traffic-orchestrator.service';
 import { TrafficOrchestratorController } from './traffic-orchestrator.controller';
 import { TrafficCollectorService } from './traffic-collector.service';
+import { NetworkCommandService } from './network-command.service';
 
 @Module({
   controllers: [TrafficSamplesController, TrafficOrchestratorController],
@@ -17,6 +18,7 @@ import { TrafficCollectorService } from './traffic-collector.service';
     SecureNetworkCredentials,
     FairnessService,
     TrafficSamplesService,
+    NetworkCommandService,
     MikroTikTrafficEnforcementAdapter,
     MerakiTrafficEnforcementAdapter,
     NetworkDeviceAdapterRegistry,
@@ -26,15 +28,16 @@ import { TrafficCollectorService } from './traffic-collector.service';
         fairnessService: FairnessService,
         mikrotik: MikroTikTrafficEnforcementAdapter,
         meraki: MerakiTrafficEnforcementAdapter,
+        networkCommands: NetworkCommandService,
       ) => new TrafficEnforcementService(fairnessService, {
         MIKROTIK_REST: mikrotik,
         MERAKI_DASHBOARD_API: meraki,
-      }),
-      inject: [FairnessService, MikroTikTrafficEnforcementAdapter, MerakiTrafficEnforcementAdapter],
+      }, networkCommands),
+      inject: [FairnessService, MikroTikTrafficEnforcementAdapter, MerakiTrafficEnforcementAdapter, NetworkCommandService],
     },
     TrafficOrchestratorService,
     TrafficCollectorService,
   ],
-  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry],
+  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService],
 })
 export class TrafficModule {}
