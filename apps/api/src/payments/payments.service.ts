@@ -1,13 +1,14 @@
 import { ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 import { PAYMENT_METHOD_CATALOG, getPaymentMethod } from './payment-method.catalog';
 
 type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
+type Queryable = Pick<Pool, 'query'> | Pick<PoolClient, 'query'>;
 
 @Injectable()
 export class PaymentsService {
@@ -46,11 +47,8 @@ export class PaymentsService {
     };
   }
 
-  /**
-   * Single source of truth for whether a payment method may settle a purchase.
-   * UI catalogs are descriptive; this check is authoritative at the state boundary.
-   */
-  async assertMethodCanSettle(tenantId: string, providerInput: string, currency: string) {
+  /** Single authoritative settlement boundary. Catalog data alone can never activate access. */
+  async assertMethodCanSettle(tenantId: string, providerInput: string, currency: string, db: Queryable = this.db) {
     const provider = providerInput.trim().toLowerCase();
     const normalizedCurrency = currency.trim().toUpperCase();
     const method = getPaymentMethod(provider);
@@ -60,7 +58,7 @@ export class PaymentsService {
     }
     if (provider === 'manual') return method;
 
-    const configured = await this.db.query<{ metadata: Record<string, unknown> }>(
+    const configured = await db.query<{ metadata: Record<string, unknown> }>(
       `SELECT metadata FROM payment_provider_configs WHERE tenant_id=$1 AND provider=$2 AND is_active=true LIMIT 1`,
       [tenantId, provider],
     );
@@ -90,7 +88,7 @@ export class PaymentsService {
       );
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
-      await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency);
+      await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency, client);
       const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
