@@ -7,7 +7,7 @@ services:
     branch: main
     buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/api build
     startCommand: pnpm --filter @jaslyn-net/api migrate && pnpm --filter @jaslyn-net/api start
-    healthCheckPath: /api/v1/health/ready
+    healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_VERSION
         value: "22"
