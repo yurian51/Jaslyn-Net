@@ -84,7 +84,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
     if (!active.length) { await this.markHealthy(router); return 0; }
     const sessions = await this.db.query<SessionRecord>(
       `SELECT id, customer_id AS "customerId", username, ip_address AS "ipAddress", mac_address AS "macAddress" FROM sessions
-       WHERE tenant_id=$1 AND router_id=$2 AND status='ACTIVE' AND customer_id IS NOT NULL`, [router.tenantId, router.id]);
+       WHERE tenant_id=$1 AND router_id=$2 AND status IN ('ACTIVE','STALE') AND customer_id IS NOT NULL`, [router.tenantId, router.id]);
     const byIp = new Map<string, SessionRecord>(); const byUsername = new Map<string, SessionRecord>(); const byMac = new Map<string, SessionRecord>();
     for (const session of sessions.rows) {
       if (session.ipAddress) byIp.set(session.ipAddress, session);
@@ -96,9 +96,18 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
       const session = this.matchSession(client, byMac, byIp, byUsername);
       if (!session || !this.validCounter(client.bytesIn) || !this.validCounter(client.bytesOut)) continue;
       await this.samples.record(router.tenantId, { routerId: router.id, customerId: session.customerId, sessionId: session.id, bytesIn: client.bytesIn, bytesOut: client.bytesOut, sampledAt });
+      await this.restoreSessionIfStale(router.tenantId, session.id);
       recorded += 1;
     }
     await this.markHealthy(router); return recorded;
+  }
+
+  private async restoreSessionIfStale(tenantId: string, sessionId: string) {
+    await this.db.query(
+      `UPDATE sessions SET status='ACTIVE', ended_at=NULL
+       WHERE tenant_id=$1 AND id=$2 AND status='STALE'`,
+      [tenantId, sessionId],
+    );
   }
 
   private async updateRouterActiveUsers(tenantId: string, routerId: string, activeUsers: number) {
