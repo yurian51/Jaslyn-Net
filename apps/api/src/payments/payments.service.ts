@@ -119,13 +119,16 @@ export class PaymentsService {
         await eventClient.query('COMMIT');
       } else {
         const existing = await eventClient.query(
-          `SELECT id, processing_status AS "processingStatus", payment_id AS "paymentId"
+          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId"
            FROM payment_events
            WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
            FOR UPDATE`,
           [tenantId, provider, providerEventId],
         );
         if (!existing.rowCount) throw new ConflictException('Payment event could not be resolved after conflict');
+        if (existing.rows[0].eventType !== input.eventType.trim()) {
+          throw new ConflictException('Payment event identifier is already bound to a different event type');
+        }
         eventId = existing.rows[0].id;
         if (existing.rows[0].processingStatus === 'PROCESSED') {
           await eventClient.query('COMMIT');
