@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { PaymentsService } from '../payments/payments.service';
+import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
 import { ConfirmPurchasePaymentDto, CreatePurchaseDto } from './purchases.dto';
 
 @Injectable()
@@ -13,10 +14,11 @@ export class PurchasesService {
 
   async list(tenantId: string, customerId?: string) {
     const result = await this.db.query(
-      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.starts_at AS "startsAt", p.ends_at AS "endsAt", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
        FROM wifi_plan_purchases p
        JOIN customers c ON c.tenant_id = p.tenant_id AND c.id = p.customer_id
        JOIN packages k ON k.tenant_id = p.tenant_id AND k.id = p.package_id
+       LEFT JOIN access_grants ag ON ag.tenant_id = p.tenant_id AND ag.purchase_id = p.id
        WHERE p.tenant_id = $1 AND ($2::uuid IS NULL OR p.customer_id = $2)
        ORDER BY p.created_at DESC
        LIMIT 200`,
@@ -27,10 +29,11 @@ export class PurchasesService {
 
   async get(tenantId: string, id: string) {
     const result = await this.db.query(
-      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.starts_at AS "startsAt", p.ends_at AS "endsAt", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
        FROM wifi_plan_purchases p
        JOIN customers c ON c.tenant_id = p.tenant_id AND c.id = p.customer_id
        JOIN packages k ON k.tenant_id = p.tenant_id AND k.id = p.package_id
+       LEFT JOIN access_grants ag ON ag.tenant_id = p.tenant_id AND ag.purchase_id = p.id
        WHERE p.tenant_id = $1 AND p.id = $2`,
       [tenantId, id],
     );
@@ -43,7 +46,7 @@ export class PurchasesService {
     try {
       await client.query('BEGIN');
       const packageResult = await client.query(
-        `SELECT id, price, currency, duration_seconds FROM packages WHERE tenant_id = $1 AND id = $2 AND is_active = true FOR UPDATE`,
+        `SELECT id, name, price, currency, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id = $1 AND id = $2 AND is_active = true FOR UPDATE`,
         [tenantId, input.packageId],
       );
       if (!packageResult.rowCount) throw new NotFoundException('Active WiFi plan not found');
@@ -103,10 +106,19 @@ export class PurchasesService {
       if (input.status === 'FAILED') {
         await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
       } else {
-        const packageResult = await client.query(`SELECT duration_seconds FROM packages WHERE tenant_id=$1 AND id=$2`, [tenantId, current.package_id]);
+        const packageResult = await client.query(`SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`, [tenantId, current.package_id]);
         if (!packageResult.rowCount) throw new NotFoundException('Package not found');
-        await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, packageResult.rows[0].duration_seconds]);
-        await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, updated_at=now()`, [tenantId, purchaseId]);
+        const plan = packageResult.rows[0];
+        const networkPolicy = compileNetworkPolicy({
+          packageId: plan.id,
+          name: plan.name,
+          durationSeconds: plan.duration_seconds,
+          dataLimitBytes: plan.data_limit_bytes,
+          downloadBps: plan.download_bps,
+          uploadBps: plan.upload_bps,
+        });
+        await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
+        await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
       }
       await client.query('COMMIT');
       return { purchase: await this.get(tenantId, purchaseId), paymentId: payment.rows[0].id };
