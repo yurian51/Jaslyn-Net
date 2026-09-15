@@ -105,24 +105,36 @@ export class PaymentsService {
     let eventId: string;
     try {
       await eventClient.query('BEGIN');
-      const event = await eventClient.query(
+      const inserted = await eventClient.query(
         `INSERT INTO payment_events (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status)
          VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED')
          ON CONFLICT (tenant_id, provider, provider_event_id) WHERE provider_event_id IS NOT NULL
-         DO UPDATE SET payload=EXCLUDED.payload, event_type=EXCLUDED.event_type, signature_valid=true,
-                       processing_status=CASE WHEN payment_events.processing_status='PROCESSED' THEN 'PROCESSED' ELSE 'RECEIVED' END
+         DO NOTHING
          RETURNING id, processing_status AS "processingStatus", payment_id AS "paymentId"`,
         [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}],
       );
-      if (!event.rowCount) throw new ConflictException('Payment event could not be recorded');
-      if (event.rows[0].processingStatus === 'PROCESSED') {
+
+      if (inserted.rowCount) {
+        eventId = inserted.rows[0].id;
         await eventClient.query('COMMIT');
-        return { accepted: true, duplicate: true, paymentId: event.rows[0].paymentId };
+      } else {
+        const existing = await eventClient.query(
+          `SELECT id, processing_status AS "processingStatus", payment_id AS "paymentId"
+           FROM payment_events
+           WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
+           FOR UPDATE`,
+          [tenantId, provider, providerEventId],
+        );
+        if (!existing.rowCount) throw new ConflictException('Payment event could not be resolved after conflict');
+        eventId = existing.rows[0].id;
+        if (existing.rows[0].processingStatus === 'PROCESSED') {
+          await eventClient.query('COMMIT');
+          return { accepted: true, duplicate: true, paymentId: existing.rows[0].paymentId };
+        }
+        await eventClient.query('COMMIT');
       }
-      eventId = event.rows[0].id;
-      await eventClient.query('COMMIT');
     } catch (error: unknown) {
-      await eventClient.query('ROLLBACK');
+      await eventClient.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally { eventClient.release(); }
 
