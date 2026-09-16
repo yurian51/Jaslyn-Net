@@ -16,6 +16,13 @@ export interface NetworkCommandInput {
   correlationId?: string;
 }
 
+export interface QueuedBandwidthCommand {
+  id: string;
+  command: BandwidthEnforcementCommand;
+  status: NetworkCommandStatus;
+  reused: boolean;
+}
+
 @Injectable()
 export class NetworkCommandService {
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
@@ -44,28 +51,55 @@ export class NetworkCommandService {
     throw new Error('Network command could not be queued');
   }
 
-  async queueBandwidthCommands(tenantId: string, commands: BandwidthEnforcementCommand[], actor = 'system', correlationId?: string) {
+  async queueBandwidthCommands(tenantId: string, commands: BandwidthEnforcementCommand[], actor = 'system', correlationId?: string): Promise<QueuedBandwidthCommand[]> {
     if (!commands.length) return [];
     const client = await this.db.connect();
-    const created: Array<{ id: string; command: BandwidthEnforcementCommand }> = [];
+    const created: QueuedBandwidthCommand[] = [];
     try {
       await client.query('BEGIN');
       for (const command of commands) {
         const commandCorrelationId = correlationId
           ? `${correlationId}:${command.sessionId ?? command.customerId}`
           : undefined;
+
+        if (commandCorrelationId) {
+          const existing = await client.query(
+            `SELECT id, status FROM network_commands
+             WHERE tenant_id=$1 AND command_type='BANDWIDTH_ENFORCEMENT' AND correlation_id=$2
+             FOR UPDATE`,
+            [tenantId, commandCorrelationId],
+          );
+          if (existing.rowCount) {
+            const existingStatus = existing.rows[0].status as NetworkCommandStatus;
+            if (existingStatus === 'VERIFIED' || existingStatus === 'ABANDONED') {
+              created.push({ id: existing.rows[0].id, command, status: existingStatus, reused: true });
+              continue;
+            }
+            await client.query(
+              `UPDATE network_commands
+               SET router_id=$3, actor=$4, target=$5::jsonb, request=$6::jsonb, provider=$7,
+                   status='QUEUED', error=NULL, response=NULL, verification=NULL,
+                   sent_at=NULL, completed_at=NULL, verified_at=NULL, updated_at=now()
+               WHERE tenant_id=$1 AND id=$2`,
+              [tenantId, existing.rows[0].id, command.routerId, actor,
+                JSON.stringify({ customerId: command.customerId, sessionId: command.sessionId, address: command.targetAddress, mac: command.targetMacAddress }),
+                JSON.stringify(command), command.protocol ?? null],
+            );
+            created.push({ id: existing.rows[0].id, command, status: 'QUEUED', reused: true });
+            continue;
+          }
+        }
+
         const result = await client.query(
           `INSERT INTO network_commands
              (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
            VALUES ($1,$2,$3,'BANDWIDTH_ENFORCEMENT',$4,$5::jsonb,$6::jsonb,$7,'QUEUED',0,$8)
-           ON CONFLICT (tenant_id, command_type, correlation_id) WHERE correlation_id IS NOT NULL
-           DO UPDATE SET updated_at=now()
-           RETURNING id`,
+           RETURNING id, status`,
           [randomUUID(), tenantId, command.routerId, actor,
             JSON.stringify({ customerId: command.customerId, sessionId: command.sessionId, address: command.targetAddress, mac: command.targetMacAddress }),
             JSON.stringify(command), command.protocol ?? null, commandCorrelationId ?? null],
         );
-        created.push({ id: result.rows[0].id, command });
+        created.push({ id: result.rows[0].id, command, status: result.rows[0].status as NetworkCommandStatus, reused: false });
       }
       await client.query('COMMIT');
       return created;
