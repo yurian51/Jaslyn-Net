@@ -8,6 +8,8 @@ const DEFAULT_INTERVAL_MS = 60_000;
 const MIN_INTERVAL_MS = 30_000;
 const MAX_INTERVAL_MS = 15 * 60_000;
 const DEFAULT_STALE_MINUTES = 30;
+const RECONCILIATION_LOCK_KEY = 8217;
+const RECONCILIATION_LOCK_NAMESPACE = 2026;
 
 @Injectable()
 export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
@@ -41,12 +43,12 @@ export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async tryAcquireLock(client: PoolClient) {
-    const result = await client.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock(hashtextextended('jaslyn-net:reconciliation', 0)) AS locked`);
+    const result = await client.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock($1, $2) AS locked`, [RECONCILIATION_LOCK_KEY, RECONCILIATION_LOCK_NAMESPACE]);
     return Boolean(result.rows[0]?.locked);
   }
 
   private async releaseLock(client: PoolClient) {
-    await client.query(`SELECT pg_advisory_unlock(hashtextextended('jaslyn-net:reconciliation', 0))`).catch(() => undefined);
+    await client.query(`SELECT pg_advisory_unlock($1, $2)`, [RECONCILIATION_LOCK_KEY, RECONCILIATION_LOCK_NAMESPACE]).catch(() => undefined);
   }
 
   private async run() {
