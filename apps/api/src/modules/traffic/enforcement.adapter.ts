@@ -20,8 +20,15 @@ export interface BandwidthEnforcementCommand {
   priority: number;
 }
 
+export interface EnforcementVerification {
+  verified: boolean;
+  details: Record<string, unknown>;
+}
+
 export interface TrafficEnforcementAdapter {
   apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void>;
+  /** Read the network back after an apply and prove the requested state exists. */
+  verify?(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<EnforcementVerification[]>;
   clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
   reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
 }
@@ -69,6 +76,9 @@ export function toEnforcementCommands(
 
 export class NoopTrafficEnforcementAdapter implements TrafficEnforcementAdapter {
   async apply(_commands: BandwidthEnforcementCommand[], _credentials?: NetworkCredentials): Promise<void> {}
+  async verify(commands: BandwidthEnforcementCommand[]): Promise<EnforcementVerification[]> {
+    return commands.map(() => ({ verified: false, details: { reason: 'NOOP_ADAPTER' } }));
+  }
   async clearManaged(_apiEndpoint: string, _credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> { return 0; }
   async reconcileManaged(_apiEndpoint: string, _keepQueueNames: string[], _credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> { return 0; }
 }
