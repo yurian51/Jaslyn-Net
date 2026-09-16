@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { BandwidthEnforcementCommand, EnforcementReconcileOptions, TrafficEnforcementAdapter } from './enforcement.adapter';
+import { BandwidthEnforcementCommand, EnforcementReconcileOptions, EnforcementVerification, TrafficEnforcementAdapter } from './enforcement.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 const MANAGED_POLICY_PREFIX = 'JASLYN-NET-';
@@ -10,7 +10,7 @@ const GROUP_POLICY_DEVICE_POLICY = 'Group policy';
 const MAX_POLICY_PAGES = 100;
 
 type MerakiContext = { base: string; networkId: string; apiKey: string };
-type MerakiPolicy = { groupPolicyId?: string; name?: string };
+type MerakiPolicy = { groupPolicyId?: string; name?: string; bandwidth?: { settings?: string; bandwidthLimits?: { limitUp?: number; limitDown?: number } } };
 type MerakiClientPolicy = { clientId?: string; mac?: string; ip?: string; groupPolicyId?: string };
 
 @Injectable()
@@ -35,6 +35,32 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
         await this.setClientPolicy(context, clientId, { devicePolicy: GROUP_POLICY_DEVICE_POLICY, groupPolicyId: policyId });
       }
     }
+  }
+
+  async verify(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<EnforcementVerification[]> {
+    if (!commands.length) return [];
+    const context = this.connection(commands[0].apiEndpoint, credentials);
+    const [policies, clients] = await Promise.all([this.listGroupPolicies(context), this.listPolicyClients(context)]);
+    return commands.map((command) => {
+      const policyName = this.policyName(command.maxDownloadMbps, command.maxUploadMbps);
+      const policy = policies.find((candidate) => candidate.name === policyName && candidate.groupPolicyId);
+      const identity = this.normalizeIdentity(command.targetMacAddress ?? command.targetAddress);
+      const client = clients.find((candidate) => {
+        const candidateIdentity = this.normalizeIdentity(candidate.mac ?? candidate.ip);
+        return Boolean(identity && candidateIdentity === identity);
+      });
+      const verified = Boolean(policy?.groupPolicyId && client?.groupPolicyId === policy.groupPolicyId);
+      return {
+        verified,
+        details: {
+          policyName,
+          expectedGroupPolicyId: policy?.groupPolicyId,
+          clientIdentity: identity,
+          observedGroupPolicyId: client?.groupPolicyId,
+          verified,
+        },
+      };
+    });
   }
 
   async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, _options?: EnforcementReconcileOptions): Promise<number> {
@@ -67,7 +93,7 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
   private async ensureBandwidthPolicy(context: MerakiContext, policies: MerakiPolicy[], downloadMbps: number, uploadMbps: number, cache: Map<string, string>): Promise<string> {
     const limitDown = this.kbps(downloadMbps);
     const limitUp = this.kbps(uploadMbps);
-    const name = `${MANAGED_POLICY_PREFIX}${limitDown}D-${limitUp}U`;
+    const name = this.policyName(downloadMbps, uploadMbps);
     const cached = cache.get(name);
     if (cached) return cached;
     const existing = policies.find((policy) => policy.name === name && policy.groupPolicyId);
@@ -208,6 +234,10 @@ export class MerakiTrafficEnforcementAdapter implements TrafficEnforcementAdapte
     const kbps = Math.round(Number(value) * 1000);
     if (!Number.isFinite(kbps) || kbps < 1) throw new ServiceUnavailableException('Meraki bandwidth allocation must be at least 1 Kbps');
     return kbps;
+  }
+
+  private policyName(downloadMbps: number, uploadMbps: number): string {
+    return `${MANAGED_POLICY_PREFIX}${this.kbps(downloadMbps)}D-${this.kbps(uploadMbps)}U`;
   }
 
   private isManagedPolicy(name?: string): boolean { return typeof name === 'string' && name.startsWith(MANAGED_POLICY_PREFIX); }
