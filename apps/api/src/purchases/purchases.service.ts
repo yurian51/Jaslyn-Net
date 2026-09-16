@@ -76,6 +76,9 @@ export class PurchasesService {
 
   async confirmPayment(tenantId: string, purchaseId: string, input: ConfirmPurchasePaymentDto) {
     const client = await this.db.connect();
+    const provider = input.provider.trim().toLowerCase();
+    const providerReference = input.providerReference.trim();
+    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
     try {
       await client.query('BEGIN');
       const purchase = await client.query(
@@ -90,23 +93,42 @@ export class PurchasesService {
       }
       if (current.status !== 'PENDING_PAYMENT') throw new BadRequestException(`Purchase cannot be paid from ${current.status}`);
 
-      await this.payments.assertMethodCanSettle(tenantId, input.provider, current.currency, client);
+      await this.payments.assertMethodCanSettle(tenantId, provider, current.currency, client);
 
-      const key = input.idempotencyKey?.trim() || `purchase:${purchaseId}:${input.providerReference.trim()}`;
-      const existing = await client.query(`SELECT id, status FROM payments WHERE tenant_id = $1 AND idempotency_key = $2`, [tenantId, key]);
-      if (existing.rowCount) {
-        await client.query('COMMIT');
-        return this.get(tenantId, purchaseId);
-      }
-
-      const payment = await client.query(
-        `INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, provider_reference, amount, currency, status, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-        [tenantId, current.customer_id, current.id, input.provider.trim().toLowerCase(), input.providerReference.trim(), current.price, current.currency, input.status === 'FAILED' ? 'FAILED' : 'SUCCESS', key],
+      const key = input.idempotencyKey?.trim() || `purchase:${purchaseId}:${providerReference}`;
+      const existingByKey = await client.query(
+        `SELECT id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, provider_reference AS "providerReference", amount, currency, status
+         FROM payments WHERE tenant_id = $1 AND idempotency_key = $2 FOR UPDATE`,
+        [tenantId, key],
       );
-      if (input.status === 'FAILED') {
-        await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
-      } else {
-        const packageResult = await client.query(`SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`, [tenantId, current.package_id]);
+      if (existingByKey.rowCount) {
+        const existing = existingByKey.rows[0];
+        if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
+        if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
+        if (existing.status === 'SUCCESS') {
+          await client.query('COMMIT');
+          return this.get(tenantId, purchaseId);
+        }
+        if (existing.status !== 'PENDING') throw new ConflictException(`Payment cannot be confirmed from ${existing.status}`);
+
+        if (requestedStatus === 'FAILED') {
+          await client.query(
+            `UPDATE payments SET provider_reference=$2, status='FAILED', updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+            [tenantId, providerReference, existing.id],
+          );
+          await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
+          await client.query('COMMIT');
+          return { purchase: await this.get(tenantId, purchaseId), paymentId: existing.id };
+        }
+
+        await client.query(
+          `UPDATE payments SET provider_reference=$2, status='SUCCESS', updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+          [tenantId, providerReference, existing.id],
+        );
+        const packageResult = await client.query(
+          `SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`,
+          [tenantId, current.package_id],
+        );
         if (!packageResult.rowCount) throw new NotFoundException('Package not found');
         const plan = packageResult.rows[0];
         const networkPolicy = compileNetworkPolicy({
@@ -119,11 +141,58 @@ export class PurchasesService {
         });
         await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
         await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
+        await client.query('COMMIT');
+        return { purchase: await this.get(tenantId, purchaseId), paymentId: existing.id };
       }
+
+      const pending = await client.query(
+        `SELECT id, provider, status FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='PENDING' ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        [tenantId, purchaseId],
+      );
+      if (pending.rowCount && pending.rows[0].provider !== provider) {
+        throw new ConflictException(`A pending payment already exists for provider ${pending.rows[0].provider}`);
+      }
+
+      let paymentId: string;
+      if (pending.rowCount) {
+        paymentId = pending.rows[0].id;
+        if (requestedStatus === 'FAILED') {
+          await client.query(`UPDATE payments SET provider_reference=$2, status='FAILED', idempotency_key=$3, updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId]);
+          await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
+          await client.query('COMMIT');
+          return { purchase: await this.get(tenantId, purchaseId), paymentId };
+        }
+        await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId]);
+      } else {
+        const payment = await client.query(
+          `INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, provider_reference, amount, currency, status, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+          [tenantId, current.customer_id, current.id, provider, providerReference, current.price, current.currency, requestedStatus, key],
+        );
+        paymentId = payment.rows[0].id;
+        if (requestedStatus === 'FAILED') {
+          await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
+          await client.query('COMMIT');
+          return { purchase: await this.get(tenantId, purchaseId), paymentId };
+        }
+      }
+
+      const packageResult = await client.query(`SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`, [tenantId, current.package_id]);
+      if (!packageResult.rowCount) throw new NotFoundException('Package not found');
+      const plan = packageResult.rows[0];
+      const networkPolicy = compileNetworkPolicy({
+        packageId: plan.id,
+        name: plan.name,
+        durationSeconds: plan.duration_seconds,
+        dataLimitBytes: plan.data_limit_bytes,
+        downloadBps: plan.download_bps,
+        uploadBps: plan.upload_bps,
+      });
+      await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
+      await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
       await client.query('COMMIT');
-      return { purchase: await this.get(tenantId, purchaseId), paymentId: payment.rows[0].id };
+      return { purchase: await this.get(tenantId, purchaseId), paymentId };
     } catch (error: any) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => undefined);
       if (error?.code === '23505') throw new ConflictException('Payment reference or idempotency key already exists');
       throw error;
     } finally {
