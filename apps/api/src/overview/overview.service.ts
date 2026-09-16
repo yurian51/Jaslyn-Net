@@ -88,11 +88,24 @@ export class OverviewService {
       ),
       this.db.query(
         `SELECT
-           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND last_accounting_at IS NULL)::int AS active_without_accounting,
-           COUNT(*) FILTER (WHERE status = 'STALE')::int AS stale,
-           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND last_accounting_at < now() - interval '10 minutes')::int AS accounting_lagging
-         FROM sessions
-         WHERE tenant_id = $1`,
+           COUNT(*) FILTER (
+             WHERE s.status = 'ACTIVE'
+               AND NOT EXISTS (
+                 SELECT 1 FROM traffic_samples ts
+                 WHERE ts.tenant_id = s.tenant_id AND ts.session_id = s.id
+               )
+           )::int AS active_without_accounting,
+           COUNT(*) FILTER (WHERE s.status = 'STALE')::int AS stale,
+           COUNT(*) FILTER (
+             WHERE s.status = 'ACTIVE'
+               AND NOT EXISTS (
+                 SELECT 1 FROM traffic_samples ts
+                 WHERE ts.tenant_id = s.tenant_id AND ts.session_id = s.id
+                   AND ts.sampled_at >= now() - interval '10 minutes'
+               )
+           )::int AS accounting_lagging
+         FROM sessions s
+         WHERE s.tenant_id = $1`,
         [tenantId],
       ),
       this.db.query(
