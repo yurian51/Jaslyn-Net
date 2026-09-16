@@ -35,6 +35,15 @@ describe('network policy compiler', () => {
     });
   });
 
+  it('never emits a RADIUS interim interval below the protocol minimum', () => {
+    const policy = compileNetworkPolicy({
+      packageId: 'pkg-short',
+      durationSeconds: 30,
+    });
+    expect(policy.session.interimUpdateSeconds).toBe(60);
+    expect(toRadiusPolicyAttributes(policy)['Acct-Interim-Interval']).toBe(60);
+  });
+
   it('rejects invalid commercial validity instead of emitting an unsafe policy', () => {
     expect(() => compileNetworkPolicy({ packageId: 'pkg-1', durationSeconds: 0 })).toThrow();
     expect(() => compileNetworkPolicy({ packageId: '', durationSeconds: 3600 })).toThrow();
