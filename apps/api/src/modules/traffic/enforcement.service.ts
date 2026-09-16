@@ -4,7 +4,7 @@ import { FairnessInput } from './fairness.engine';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { NetworkCommandService } from './network-command.service';
+import { NetworkCommandService, NetworkCommandStatus } from './network-command.service';
 
 export interface EnforcementTarget {
   targetAddress?: string;
@@ -24,6 +24,8 @@ export interface EnforcementResult {
   mode: string;
   utilizationPercent: number;
 }
+
+const executableCommandStates = new Set<NetworkCommandStatus>(['QUEUED', 'SENT', 'ACCEPTED', 'RETRYING']);
 
 export class TrafficEnforcementService {
   constructor(
@@ -55,14 +57,28 @@ export class TrafficEnforcementService {
     const adapter = this.adapters[protocol];
     if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
 
+    let executableCommands = commands;
     let commandIds: string[] = [];
     if (this.networkCommands && tenantId && commands.length) {
       const queued = await this.networkCommands.queueBandwidthCommands(tenantId, commands, 'traffic-orchestrator', correlationId);
-      commandIds = queued.map((entry) => entry.id);
+      const executable = queued.filter((entry) => executableCommandStates.has(entry.status));
+      executableCommands = executable.map((entry) => entry.command);
+      commandIds = executable.map((entry) => entry.id);
+    }
+
+    if (!executableCommands.length) {
+      return {
+        applied: false,
+        commandCount: 0,
+        commands: [],
+        commandIds: [],
+        mode: state.mode,
+        utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
+      };
     }
 
     try {
-      await adapter.apply(commands, credentials);
+      await adapter.apply(executableCommands, credentials);
     } catch (error) {
       if (commandIds.length && tenantId) await this.networkCommands!.markFailed(tenantId, commandIds, error);
       throw error;
@@ -70,16 +86,16 @@ export class TrafficEnforcementService {
 
     if (commandIds.length && tenantId) {
       try {
-        await this.networkCommands!.markExecuted(tenantId, commandIds, { protocol, commandCount: commands.length });
+        await this.networkCommands!.markExecuted(tenantId, commandIds, { protocol, commandCount: executableCommands.length });
       } catch (error) {
         throw new ServiceUnavailableException('Network command executed but command state could not be persisted');
       }
     }
 
     return {
-      applied: commands.length > 0,
-      commandCount: commands.length,
-      commands,
+      applied: executableCommands.length > 0,
+      commandCount: executableCommands.length,
+      commands: executableCommands,
       commandIds,
       mode: state.mode,
       utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
