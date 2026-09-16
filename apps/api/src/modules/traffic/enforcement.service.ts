@@ -99,14 +99,20 @@ export class TrafficEnforcementService {
     let verifiedCommandIds: string[] = [];
     let verificationFailures = 0;
     if (commandIds.length && tenantId && adapter.verify) {
-      const verification = await adapter.verify(executableCommands, credentials);
-      const verifiedIndexes = verification.map((result, index) => result.verified ? index : -1).filter((index) => index >= 0);
-      verifiedCommandIds = verifiedIndexes.map((index) => commandIds[index]).filter(Boolean);
-      verificationFailures = verification.filter((result) => !result.verified).length + Math.max(0, executableCommands.length - verification.length);
-      for (const index of verifiedIndexes) {
-        const commandId = commandIds[index];
-        if (!commandId) continue;
-        await this.networkCommands.markVerified(tenantId, commandId, verification[index].details);
+      try {
+        const verification = await adapter.verify(executableCommands, credentials);
+        const verifiedIndexes = verification.map((result, index) => result.verified ? index : -1).filter((index) => index >= 0);
+        verifiedCommandIds = verifiedIndexes.map((index) => commandIds[index]).filter(Boolean);
+        verificationFailures = verification.filter((result) => !result.verified).length + Math.max(0, executableCommands.length - verification.length);
+        for (const index of verifiedIndexes) {
+          const commandId = commandIds[index];
+          if (!commandId) continue;
+          await this.networkCommands.markVerified(tenantId, commandId, verification[index].details);
+        }
+      } catch {
+        // The network operation already succeeded. Keep the durable command EXECUTED
+        // rather than falsely marking it FAILED; reconciliation can verify it later.
+        verificationFailures = executableCommands.length;
       }
     }
 
