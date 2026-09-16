@@ -13,7 +13,7 @@ SET network_policy = jsonb_build_object(
   'bandwidth', jsonb_build_object('downloadBps', k.download_bps, 'uploadBps', k.upload_bps),
   'session', jsonb_build_object(
     'sessionTimeoutSeconds', k.duration_seconds,
-    'interimUpdateSeconds', LEAST(300, GREATEST(30, FLOOR(k.duration_seconds / 20.0)::int))
+    'interimUpdateSeconds', LEAST(300, GREATEST(60, FLOOR(k.duration_seconds / 20.0)::int))
   ),
   'capabilities', jsonb_build_object(
     'quotaEnforcement', k.data_limit_bytes IS NOT NULL,
