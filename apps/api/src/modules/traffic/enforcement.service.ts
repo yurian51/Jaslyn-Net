@@ -131,6 +131,6 @@ export class TrafficEnforcementService {
   async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST', options?: EnforcementReconcileOptions) {
     const adapter = this.adapters[protocol];
     if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
-    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials, protocol, options);
+    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials, options);
   }
 }
