@@ -7,7 +7,7 @@ export class OverviewService {
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
 
   async getOverview(tenantId: string) {
-    const [tenant, customers, sessions, routers, payments, locations, liveSessions, revenueSeries] = await Promise.all([
+    const [tenant, customers, sessions, routers, payments, locations, liveSessions, revenueSeries, commandHealth, sessionHealth, accessHealth] = await Promise.all([
       this.db.query(`SELECT id, name, currency, timezone, status FROM tenants WHERE id = $1`, [tenantId]),
       this.db.query(
         `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_active)::int AS active
@@ -76,6 +76,34 @@ export class OverviewService {
          ORDER BY day`,
         [tenantId],
       ),
+      this.db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status IN ('QUEUED','SENT','ACCEPTED','RETRYING'))::int AS pending,
+           COUNT(*) FILTER (WHERE status = 'FAILED')::int AS failed,
+           COUNT(*) FILTER (WHERE status = 'VERIFIED')::int AS verified,
+           COUNT(*) FILTER (WHERE status = 'ABANDONED')::int AS abandoned
+         FROM network_commands
+         WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+      this.db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND last_accounting_at IS NULL)::int AS active_without_accounting,
+           COUNT(*) FILTER (WHERE status = 'STALE')::int AS stale,
+           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND last_accounting_at < now() - interval '10 minutes')::int AS accounting_lagging
+         FROM sessions
+         WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+      this.db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now()))::int AS active_valid,
+           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND ends_at <= now())::int AS expired_but_active,
+           COUNT(*) FILTER (WHERE status = 'ACTIVE' AND ends_at > now() AND ends_at <= now() + interval '24 hours')::int AS expiring_24h
+         FROM access_grants
+         WHERE tenant_id = $1`,
+        [tenantId],
+      ),
     ]);
 
     if (!tenant.rowCount) throw new Error('Tenant not found');
@@ -85,6 +113,9 @@ export class OverviewService {
     const session = sessions.rows[0];
     const router = routers.rows[0];
     const payment = payments.rows[0];
+    const commands = commandHealth.rows[0];
+    const sessionTruth = sessionHealth.rows[0];
+    const access = accessHealth.rows[0];
 
     const totalRouters = Number(router.total);
     const onlineRouters = Number(router.online);
@@ -104,6 +135,24 @@ export class OverviewService {
         online: onlineRouters,
         degraded: Number(router.degraded),
         offline: Number(router.offline),
+      },
+      operations: {
+        networkCommands: {
+          pending: Number(commands.pending),
+          failed: Number(commands.failed),
+          verified: Number(commands.verified),
+          abandoned: Number(commands.abandoned),
+        },
+        sessions: {
+          stale: Number(sessionTruth.stale),
+          activeWithoutAccounting: Number(sessionTruth.active_without_accounting),
+          accountingLagging: Number(sessionTruth.accounting_lagging),
+        },
+        access: {
+          activeValid: Number(access.active_valid),
+          expiredButActive: Number(access.expired_but_active),
+          expiring24h: Number(access.expiring_24h),
+        },
       },
       locations: locations.rows.map((row) => ({
         id: row.id,
