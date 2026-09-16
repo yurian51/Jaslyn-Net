@@ -21,6 +21,8 @@ export interface EnforcementResult {
   commandCount: number;
   commands: BandwidthEnforcementCommand[];
   commandIds: string[];
+  verifiedCommandIds: string[];
+  verificationFailures: number;
   mode: string;
   utilizationPercent: number;
 }
@@ -72,6 +74,8 @@ export class TrafficEnforcementService {
         commandCount: 0,
         commands: [],
         commandIds: [],
+        verifiedCommandIds: [],
+        verificationFailures: 0,
         mode: state.mode,
         utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
       };
@@ -92,11 +96,27 @@ export class TrafficEnforcementService {
       }
     }
 
+    let verifiedCommandIds: string[] = [];
+    let verificationFailures = 0;
+    if (commandIds.length && tenantId && adapter.verify) {
+      const verification = await adapter.verify(executableCommands, credentials);
+      const verifiedIndexes = verification.map((result, index) => result.verified ? index : -1).filter((index) => index >= 0);
+      verifiedCommandIds = verifiedIndexes.map((index) => commandIds[index]).filter(Boolean);
+      verificationFailures = verification.filter((result) => !result.verified).length + Math.max(0, executableCommands.length - verification.length);
+      for (const index of verifiedIndexes) {
+        const commandId = commandIds[index];
+        if (!commandId) continue;
+        await this.networkCommands.markVerified(tenantId, commandId, verification[index].details);
+      }
+    }
+
     return {
       applied: executableCommands.length > 0,
       commandCount: executableCommands.length,
       commands: executableCommands,
       commandIds,
+      verifiedCommandIds,
+      verificationFailures,
       mode: state.mode,
       utilizationPercent: Number(state.utilizationPercent.toFixed(3)),
     };
@@ -111,6 +131,6 @@ export class TrafficEnforcementService {
   async reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, protocol: NetworkManagementProtocol = 'MIKROTIK_REST', options?: EnforcementReconcileOptions) {
     const adapter = this.adapters[protocol];
     if (!adapter) throw new ServiceUnavailableException(`No traffic enforcement adapter is registered for ${protocol}`);
-    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials, options);
+    return adapter.reconcileManaged(apiEndpoint, keepQueueNames, credentials, protocol, options);
   }
 }
