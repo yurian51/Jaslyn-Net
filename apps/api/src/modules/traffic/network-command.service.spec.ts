@@ -76,8 +76,8 @@ describe('NetworkCommandService', () => {
 
   it('marks adapter failures as FAILED instead of hiding the error', async () => {
     const query = jest.fn().mockResolvedValue({ rowCount: 1 });
-    const db = { query } = query;
-    const service = new NetworkCommandService(db as any);
+    const db = { query } as any;
+    const service = new NetworkCommandService(db);
 
     await service.markFailed('tenant-1', ['command-1'], new Error('router timeout'));
 
