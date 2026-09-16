@@ -1,10 +1,10 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isIP } from 'node:net';
-import { BandwidthEnforcementCommand, TrafficEnforcementAdapter } from './enforcement.adapter';
+import { BandwidthEnforcementCommand, EnforcementVerification, TrafficEnforcementAdapter } from './enforcement.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 
-interface RouterQueueRecord { ['.id']?: string; name?: string; comment?: string; }
+interface RouterQueueRecord { ['.id']?: string; name?: string; comment?: string; target?: string; ['max-limit']?: string; priority?: string; }
 export interface MikroTikHotspotActiveRecord { user?: string; address?: string; ['mac-address']?: string; ['bytes-in']?: string; ['bytes-out']?: string; }
 const MANAGED_COMMENT = 'JASLYN NET traffic fairness';
 
@@ -13,6 +13,34 @@ export class MikroTikTrafficEnforcementAdapter implements TrafficEnforcementAdap
   constructor(private readonly config: ConfigService) {}
 
   async apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void> { for (const command of commands) await this.applyOne(command, credentials); }
+
+  async verify(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<EnforcementVerification[]> {
+    return Promise.all(commands.map(async (command) => {
+      try {
+        if (!command.apiEndpoint || !command.targetAddress) return { verified: false, details: { reason: 'MISSING_ENDPOINT_OR_TARGET' } };
+        const { headers, base } = this.connection(command.apiEndpoint, credentials);
+        const queueName = this.queueName(command);
+        const response = await this.request(`${base}/queue/simple/print`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ '.proplist': ['.id', 'name', 'comment', 'target', 'max-limit', 'priority'], '.query': [`name=${queueName}`] }),
+        });
+        const records = (await response.json()) as RouterQueueRecord[];
+        const record = records.find((candidate) => candidate.name === queueName && candidate.comment === MANAGED_COMMENT);
+        if (!record) return { verified: false, details: { reason: 'QUEUE_NOT_FOUND', queueName } };
+        const target = `${command.targetAddress}/${isIP(command.targetAddress) === 4 ? 32 : 128}`;
+        const maxLimit = `${this.mbps(command.maxUploadMbps)}/${this.mbps(command.maxDownloadMbps)}`;
+        const priority = String(Math.min(8, Math.max(1, command.priority)));
+        const matches = record.target === target && record['max-limit'] === maxLimit && record.priority === priority;
+        return {
+          verified: matches,
+          details: { queueName, observed: { target: record.target, maxLimit: record['max-limit'], priority: record.priority }, expected: { target, maxLimit, priority } },
+        };
+      } catch (error) {
+        return { verified: false, details: { reason: 'VERIFICATION_REQUEST_FAILED', error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) } };
+      }
+    }));
+  }
 
   async clearManaged(apiEndpoint: string, credentials?: NetworkCredentials): Promise<number> {
     const { headers, base } = this.connection(apiEndpoint, credentials);
