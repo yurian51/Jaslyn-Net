@@ -16,18 +16,48 @@ describe('NetworkCommandService', () => {
   it('queues a durable command with target and request snapshots', async () => {
     const clientQuery = jest.fn()
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rows: [{ id: 'command-1' }] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 'command-1', status: 'QUEUED' }] })
       .mockResolvedValueOnce(undefined);
     const client = { query: clientQuery, release: jest.fn() } as any;
     const db = { connect: jest.fn().mockResolvedValue(client) } as any;
     const service = new NetworkCommandService(db);
 
     await expect(service.queueBandwidthCommands('tenant-1', [command], 'operator', 'corr-1'))
-      .resolves.toEqual([{ id: 'command-1', command }]);
+      .resolves.toEqual([{ id: 'command-1', command, status: 'QUEUED', reused: false }]);
 
     expect(clientQuery).toHaveBeenCalledWith('BEGIN');
     expect(clientQuery).toHaveBeenCalledWith('COMMIT');
     expect(client.release).toHaveBeenCalled();
+  });
+
+  it('reuses verified commands without reopening their lifecycle', async () => {
+    const clientQuery = jest.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ rows: [{ id: 'command-1', status: 'VERIFIED' }], rowCount: 1 })
+      .mockResolvedValueOnce(undefined);
+    const client = { query: clientQuery, release: jest.fn() } as any;
+    const db = { connect: jest.fn().mockResolvedValue(client) } as any;
+    const service = new NetworkCommandService(db);
+
+    await expect(service.queueBandwidthCommands('tenant-1', [command], 'operator', 'corr-1'))
+      .resolves.toEqual([{ id: 'command-1', command, status: 'VERIFIED', reused: true }]);
+    expect(clientQuery).not.toHaveBeenCalledWith(expect.stringContaining("status='QUEUED'"), expect.anything());
+  });
+
+  it('requeues failed commands as an explicit retry attempt', async () => {
+    const clientQuery = jest.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ rows: [{ id: 'command-1', status: 'FAILED' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce(undefined);
+    const client = { query: clientQuery, release: jest.fn() } as any;
+    const db = { connect: jest.fn().mockResolvedValue(client) } as any;
+    const service = new NetworkCommandService(db);
+
+    await expect(service.queueBandwidthCommands('tenant-1', [command], 'operator', 'corr-1'))
+      .resolves.toEqual([{ id: 'command-1', command, status: 'QUEUED', reused: true }]);
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("status='QUEUED'"), expect.any(Array));
   });
 
   it('marks executed commands and increments attempts', async () => {
@@ -46,8 +76,8 @@ describe('NetworkCommandService', () => {
 
   it('marks adapter failures as FAILED instead of hiding the error', async () => {
     const query = jest.fn().mockResolvedValue({ rowCount: 1 });
-    const db = { query } as any;
-    const service = new NetworkCommandService(db);
+    const db = { query } = query;
+    const service = new NetworkCommandService(db as any);
 
     await service.markFailed('tenant-1', ['command-1'], new Error('router timeout'));
 
