@@ -33,6 +33,9 @@ function finiteInteger(value: unknown, fallback: number | null = null) {
 /**
  * Converts a commercial WiFi plan into a stable network policy snapshot.
  * No router/vendor commands are emitted here. Adapters consume this contract.
+ *
+ * RADIUS RFC 2869 requires Acct-Interim-Interval to be at least 60 seconds,
+ * so the compiler never emits a non-compliant interval.
  */
 export function compileNetworkPolicy(source: NetworkPolicySource): CompiledNetworkPolicy {
   const durationSeconds = finiteInteger(source.durationSeconds, null);
@@ -52,7 +55,7 @@ export function compileNetworkPolicy(source: NetworkPolicySource): CompiledNetwo
     bandwidth: { downloadBps, uploadBps },
     session: {
       sessionTimeoutSeconds: durationSeconds,
-      interimUpdateSeconds: Math.min(300, Math.max(30, Math.trunc(durationSeconds / 20) || 30)),
+      interimUpdateSeconds: Math.min(300, Math.max(60, Math.trunc(durationSeconds / 20) || 60)),
     },
     capabilities: {
       quotaEnforcement: dataLimitBytes !== null,
