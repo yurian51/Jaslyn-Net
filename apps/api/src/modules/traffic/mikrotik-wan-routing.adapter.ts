@@ -17,7 +17,7 @@ type JsonRecord = Record<string, unknown>;
  * not equivalent to an arbitrary percentage split.
  */
 export class MikrotikWanRoutingAdapter implements WanRoutingAdapter {
-  readonly protocol = NetworkManagementProtocol.MIKROTIK_REST;
+  readonly protocol: NetworkManagementProtocol = 'MIKROTIK_REST';
 
   constructor(
     private readonly baseUrl: string,
@@ -60,7 +60,9 @@ export class MikrotikWanRoutingAdapter implements WanRoutingAdapter {
     const managedRoutes = await this.findManagedRoutes(decision.policyId);
     const existingByWan = new Map<string, JsonRecord>();
     for (const route of managedRoutes) {
-      const wanId = route.comment && typeof route.comment === 'string' ? route.comment.slice(ROUTE_COMMENT_PREFIX.length).split(':')[1] : undefined;
+      const comment = typeof route.comment === 'string' ? route.comment : '';
+      if (!comment.startsWith(ROUTE_COMMENT_PREFIX + decision.policyId + ':')) continue;
+      const wanId = comment.slice((ROUTE_COMMENT_PREFIX + decision.policyId + ':').length);
       if (wanId) existingByWan.set(wanId, route);
     }
 
@@ -83,21 +85,11 @@ export class MikrotikWanRoutingAdapter implements WanRoutingAdapter {
 
     for (const [wanId, route] of existingByWan.entries()) {
       if (!ordered.some((target) => target.wanConnectionId === wanId) && typeof route['.id'] === 'string') {
-        await this.request(`ip/route/${encodeURIComponent(route['.id'])}`, {
-          method: 'PATCH',
-          body: { disabled: true },
-        });
+        await this.request(`ip/route/${encodeURIComponent(route['.id'])}`, { method: 'PATCH', body: { disabled: true } });
       }
     }
 
-    const verification = await this.verifyLoadBalanceDecision(_routerId, decision, ordered);
-    return {
-      applied: true,
-      verified: verification.verified,
-      protocol: this.protocol,
-      remoteState: verification.remoteState,
-      reason: verification.reason,
-    };
+    return this.verifyLoadBalanceDecision(_routerId, decision, ordered);
   }
 
   async verifyLoadBalanceDecision(
@@ -139,8 +131,11 @@ export class MikrotikWanRoutingAdapter implements WanRoutingAdapter {
   }
 
   private async findManagedRoutes(policyId: string): Promise<JsonRecord[]> {
-    const result = await this.request(`ip/route?comment=${encodeURIComponent(ROUTE_COMMENT_PREFIX + policyId)}`, { method: 'GET' });
-    return Array.isArray(result) ? result.filter(isRecord) : [];
+    const result = await this.request('ip/route', { method: 'GET' });
+    const prefix = `${ROUTE_COMMENT_PREFIX}${policyId}:`;
+    return Array.isArray(result)
+      ? result.filter(isRecord).filter((route) => typeof route.comment === 'string' && route.comment.startsWith(prefix))
+      : [];
   }
 
   private async request(path: string, options: { method: string; body?: unknown }): Promise<unknown> {
