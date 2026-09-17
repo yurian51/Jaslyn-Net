@@ -48,7 +48,9 @@ export class TrafficEnforcementService {
         verifiedCommandIds = verifiedIndexes.map((index) => commandIds[index]).filter(Boolean);
         verificationFailures = verification.filter((result) => !result.verified).length + Math.max(0, executableCommands.length - verification.length);
         for (const index of verifiedIndexes) {
-          const commandId = commandIds[index]; if (commandId) await this.networkCommands.markVerified(tenantId, commandId, verification[index].details);
+          const commandId = commandIds[index];
+          const verificationResult = verification[index];
+          if (commandId && verificationResult?.verified) await this.networkCommands.markVerified(tenantId, commandId, verificationResult.details);
         }
       } catch { verificationFailures = executableCommands.length; }
     }
