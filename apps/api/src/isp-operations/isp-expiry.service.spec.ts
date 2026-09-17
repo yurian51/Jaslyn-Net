@@ -11,15 +11,14 @@ describe('IspExpiryService', () => {
     const release = jest.fn();
     const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
     const reconcileAccessState = jest.fn().mockResolvedValue({ expiredGrants: 1, sessions: [] });
-    const sessions = { reconcileAccessState } as any;
-    const service = new IspExpiryService(db, sessions);
+    const service = new IspExpiryService(db, { reconcileAccessState } as any);
 
     await expect(service.reconcile()).resolves.toEqual({ expiredBindings: 1, suspendedCustomers: 1 });
     expect(query).toHaveBeenCalledWith('BEGIN');
     expect(query).toHaveBeenCalledWith('COMMIT');
     expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO access_state_events'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO customer_service_state_events'))).toBe(true);
-    expect(reconcileAccessState).toHaveBeenCalledWith('tenant-1', expect.objectContaining({ userId: 'system' }));
+    expect(reconcileAccessState).toHaveBeenCalledWith('tenant-1', { requestId: 'system-expiry:tenant-1' });
     expect(release).toHaveBeenCalledTimes(1);
   });
 
@@ -37,6 +36,23 @@ describe('IspExpiryService', () => {
 
     await expect(service.reconcile()).resolves.toEqual({ expiredBindings: 1, suspendedCustomers: 0 });
     expect(reconcileAccessState).toHaveBeenCalledWith('tenant-1', expect.any(Object));
+  });
+
+  it('does not fail the database reconciliation when network enforcement fails', async () => {
+    const query = jest.fn()
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'binding-1', tenantId: 'tenant-1' }] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+    const release = jest.fn();
+    const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
+    const reconcileAccessState = jest.fn().mockRejectedValue(new Error('router unavailable'));
+    const service = new IspExpiryService(db, { reconcileAccessState } as any);
+
+    await expect(service.reconcile()).resolves.toEqual({ expiredBindings: 1, suspendedCustomers: 0 });
+    expect(query).toHaveBeenCalledWith('COMMIT');
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it('rolls back and releases the connection when reconciliation fails', async () => {
