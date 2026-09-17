@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
-import { apiFetch } from '../../lib/api';
 
 type Overview = {
   tenant?: { currency?: string; timezone?: string; name?: string; status?: string };
@@ -15,32 +14,119 @@ type Overview = {
   locations?: Array<{ name?: string; routers?: number; activeUsers?: number; onlineRouters?: number }>;
 };
 
-const nav = [['Overview','⌂','/dashboard'],['Customers','◉','/customers'],['Sessions','◌','/sessions'],['Network','⌁','/network'],['Purchases','₮','/purchases'],['Plans & Products','▣','/packages'],['Security & Audit','◈','/audit']] as const;
-const actions = [{label:'Add customer',href:'/customers',icon:'+'},{label:'Create package',href:'/packages',icon:'□'},{label:'Open network',href:'/network',icon:'⌁'},{label:'View sessions',href:'/sessions',icon:'◌'}] as const;
-const n = (v:number) => new Intl.NumberFormat('en-US').format(v);
-const money = (c:string,v:number) => `${c} ${n(v)}`;
-const bytes = (v:number) => { if (!Number.isFinite(v)||v<=0) return '0 B'; const u=['B','KB','MB','GB','TB']; let s=v,i=0; while(s>=1024&&i<u.length-1){s/=1024;i++;} return `${s>=10||i===0?Math.round(s):s.toFixed(1)} ${u[i]}`; };
-const duration = (d?:string) => { if(!d)return '—'; const t=new Date(d).getTime(); if(!Number.isFinite(t))return '—'; const m=Math.max(0,Math.floor((Date.now()-t)/60000)); return m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`; };
+const n = (value: number) => new Intl.NumberFormat('en-US').format(value);
+const money = (currency: string, value: number) => `${currency} ${n(value)}`;
+const bytes = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = value;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) { size /= 1024; index += 1; }
+  return `${size >= 10 || index === 0 ? Math.round(size) : size.toFixed(1)} ${units[index]}`;
+};
+const duration = (value?: string) => {
+  if (!value) return '—';
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return '—';
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+};
 
-export default function DashboardPage(){
-  const pathname=usePathname(); const [data,setData]=useState<Overview|null>(null); const [error,setError]=useState<string|null>(null);
-  useEffect(()=>{const token=getAccessToken(); if(!token)return; apiFetch<Overview>('/overview',{headers:{Authorization:`Bearer ${token}`}}).then(setData).catch((e:unknown)=>setError(e instanceof Error?e.message:'Unable to load dashboard data.'));},[]);
-  const currency=data?.tenant?.currency??'TZS'; const revenue=data?.revenueSeries??[]; const max=Math.max(...revenue,0); const net={totalRouters:0,online:0,degraded:0,offline:0,...data?.network};
-  const ops={networkCommands:{pending:0,failed:0,verified:0,abandoned:0,...data?.operations?.networkCommands},sessions:{stale:0,activeWithoutAccounting:0,accountingLagging:0,...data?.operations?.sessions},access:{activeValid:0,expiredButActive:0,expiring24h:0,...data?.operations?.access}};
-  const issue=ops.networkCommands.failed+ops.sessions.stale+ops.sessions.activeWithoutAccounting+ops.sessions.accountingLagging+ops.access.expiredButActive;
-  const totalTraffic=(data?.sessions??[]).reduce((s,x)=>s+(x.bytesIn??0)+(x.bytesOut??0),0);
-  const revenueTotal=useMemo(()=>revenue.reduce((s,v)=>s+v,0),[revenue]);
-  return <main className="hybrid-dashboard">
-    <style>{`*{box-sizing:border-box}.hybrid-dashboard{min-height:100vh;background:#f4f7fb;color:#142033;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex}.hybrid-dashboard a{text-decoration:none;color:inherit}.hd-side{width:252px;background:#0a1220;color:#aab7ca;padding:22px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}.hd-brand{display:flex;gap:11px;align-items:center;color:#fff;margin-bottom:28px}.hd-mark{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#39b7ff,#6455ef);font-weight:900;font-size:20px;box-shadow:0 8px 24px #3159b355}.hd-brand strong{display:block;font-size:14px;letter-spacing:.12em}.hd-brand small{font-size:10px;color:#687891}.hd-label{font-size:9px;letter-spacing:.18em;color:#52627a;margin:16px 10px 8px}.hd-nav{display:grid;gap:4px}.hd-nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;font-size:12px}.hd-nav a:hover{background:#131f31;color:#fff}.hd-nav a.active{background:linear-gradient(90deg,#182a45,#132033);color:#fff;box-shadow:inset 3px 0 #45b9ff}.hd-icon{width:21px;text-align:center;color:#71839c;font-size:15px}.active .hd-icon{color:#57c5ff}.hd-bottom{margin-top:auto;border:1px solid #1b2a3e;border-radius:14px;padding:13px;background:#0d1828}.hd-live{display:flex;gap:8px;align-items:center;color:#d8e3f0;font-size:11px;font-weight:700}.dot{width:7px;height:7px;border-radius:50%;background:#28d17c;box-shadow:0 0 0 4px #28d17c22}.hd-bottom small{display:block;margin-top:6px;color:#61728b;font-size:9px;line-height:1.4}.hd-profile{display:flex;align-items:center;gap:9px;margin-top:14px;padding:5px}.hd-avatar{width:32px;height:32px;border-radius:10px;background:linear-gradient(145deg,#1e3150,#253b61);display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px}.hd-profile strong{display:block;font-size:10px;color:#dce5f0}.hd-profile small{color:#64758d;font-size:9px}.hd-main{flex:1;min-width:0}.hd-top{height:76px;background:#fff;border-bottom:1px solid #e5eaf1;display:flex;align-items:center;justify-content:space-between;padding:0 30px;position:sticky;top:0;z-index:10}.hd-crumb{font-size:9px;letter-spacing:.18em;color:#7b8ba0;font-weight:800}.hd-top h1{margin:5px 0 0;font-size:21px;letter-spacing:-.03em}.hd-tools{display:flex;align-items:center;gap:10px}.hd-status{font-size:9px;font-weight:800;letter-spacing:.08em;padding:7px 10px;border-radius:20px;background:#effaf4;color:#168653}.hd-search{border:1px solid #e3e8ef;border-radius:9px;padding:9px 12px;width:180px;color:#7c8ba0;font-size:11px;background:#fafbfd}.hd-body{padding:26px 30px 40px;max-width:1600px}.hd-hero{display:flex;justify-content:space-between;gap:20px;margin-bottom:22px}.hd-hero p{margin:5px 0 0;color:#7b899b;font-size:11px}.hd-actions{display:flex;gap:7px;flex-wrap:wrap}.hd-btn{border:1px solid #dde4ed;background:#fff;border-radius:9px;padding:9px 11px;font-size:10px;font-weight:800;box-shadow:0 3px 12px #18283a08}.hd-btn.primary{background:#13233a;color:#fff;border-color:#13233a}.hd-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.hd-card{background:#fff;border:1px solid #e4eaf1;border-radius:14px;box-shadow:0 7px 24px #20334d08}.hd-kpi{padding:17px;position:relative;overflow:hidden}.hd-kpi:after{content:"";position:absolute;right:-22px;bottom:-28px;width:88px;height:88px;border:16px solid #edf4ff;border-radius:50%}.hd-kpi-top{display:flex;justify-content:space-between;color:#75859a;font-size:10px;font-weight:700}.hd-kpi-tag{font-size:8px;letter-spacing:.12em;color:#8e9caf}.hd-kpi strong{display:block;font-size:25px;color:#17263b;margin:13px 0 6px;letter-spacing:-.04em}.hd-kpi small{font-size:9px;color:#7b8b9f}.hd-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.8fr);gap:14px;margin-bottom:14px}.hd-panel{padding:18px}.hd-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}.hd-head h2{font-size:14px;margin:3px 0 3px}.hd-head p{font-size:9px;color:#8795a7;margin:0}.hd-kicker{font-size:8px;letter-spacing:.16em;color:#7f90a5;font-weight:900}.hd-badge{font-size:8px;padding:6px 8px;border-radius:8px;background:#f1f6ff;color:#4774bc;font-weight:900}.hd-revenue{font-size:25px;font-weight:900;letter-spacing:-.04em}.hd-revenue small{display:block;font-size:9px;color:#8795a7;font-weight:500;margin-top:4px}.bars{height:170px;display:flex;align-items:flex-end;gap:5px;margin-top:17px;padding:0 4px;border-bottom:1px solid #e9edf3;background:repeating-linear-gradient(to bottom,transparent 0,transparent 41px,#edf1f5 42px)}.bar{flex:1;min-width:3px;max-width:22px;margin:0 auto;background:linear-gradient(to top,#356ee8,#65c8ff);border-radius:5px 5px 0 0;opacity:.9}.empty{height:170px;display:grid;place-items:center;text-align:center;color:#8b99aa;font-size:10px}.empty strong{display:block;color:#52647b;font-size:11px}.hd-health{display:grid;place-items:center}.ring{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;margin:4px auto 14px}.ring-inner{width:112px;height:112px;border-radius:50%;background:#fff;display:grid;place-items:center;text-align:center}.ring strong{display:block;font-size:25px;letter-spacing:-.04em}.ring span{font-size:8px;color:#8795a7}.health-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:100%}.health-row div{text-align:center;padding:8px;border-radius:9px;background:#f7f9fc}.health-row b{display:block;font-size:13px}.health-row span{font-size:8px;color:#7e8ca0}.hd-wide{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:14px;margin-bottom:14px}.table{width:100%;border-collapse:collapse}.table th{font-size:8px;color:#8997a9;text-align:left;padding:8px;border-bottom:1px solid #edf0f4;letter-spacing:.08em}.table td{font-size:9px;padding:10px 8px;border-bottom:1px solid #f0f3f6}.user{font-weight:800;color:#25354a}.muted{color:#8290a1}.pill{display:inline-flex;padding:4px 7px;border-radius:20px;background:#eef9f3;color:#178553;font-size:8px;font-weight:800}.truth{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.truth div{padding:12px;border-radius:10px;background:#f7f9fc}.truth b{display:block;font-size:18px}.truth span{font-size:8px;color:#7c8b9d;line-height:1.3}.alert{border:1px solid #f1e2d8;background:#fffaf7;border-radius:10px;padding:11px;margin-top:10px;font-size:9px;color:#895f43}.alert b{display:block;color:#69442f;margin-bottom:3px}.modules{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.module{padding:13px;border:1px solid #e7ecf2;border-radius:11px;background:#fbfcfe}.module span{font-size:15px}.module b{display:block;font-size:10px;margin-top:7px}.module small{font-size:8px;color:#8795a6}.traffic{display:flex;justify-content:space-between;align-items:center;padding:13px 0 0;margin-top:14px;border-top:1px solid #edf0f4}.traffic strong{font-size:18px}.traffic span{font-size:8px;color:#8997a9}.footnote{text-align:right;color:#98a4b2;font-size:8px;margin-top:16px}@media(max-width:1050px){.hd-side{width:210px}.hd-kpis{grid-template-columns:repeat(2,1fr)}.hd-grid,.hd-wide{grid-template-columns:1fr}.modules{grid-template-columns:repeat(2,1fr)}}@media(max-width:720px){.hybrid-dashboard{display:block}.hd-side{display:none}.hd-top{padding:0 15px}.hd-search{display:none}.hd-body{padding:18px 14px}.hd-hero{display:block}.hd-actions{margin-top:14px}.hd-kpis{grid-template-columns:1fr 1fr}.hd-kpi strong{font-size:20px}.hd-top h1{font-size:17px}.table{min-width:620px}.table-wrap{overflow:auto}.modules{grid-template-columns:1fr 1fr}}`}</style>
-    <aside className="hd-side"><div className="hd-brand"><div className="hd-mark">J</div><div><strong>JASLYN NET</strong><small>Network operating platform</small></div></div><div className="hd-label">CONTROL PLANE</div><nav className="hd-nav">{nav.map(([label,icon,href])=><a key={href} className={pathname===href?'active':''} href={href}><span className="hd-icon">{icon}</span>{label}</a>)}</nav><div className="hd-bottom"><div className="hd-live"><span className="dot"/> Network fabric ready</div><small>Dashboard is operating without a visible login gate. Live tenant values remain API-backed.</small></div><div className="hd-profile"><div className="hd-avatar">J</div><div><strong>JASLYN NET</strong><small>Global workspace</small></div></div></aside>
-    <section className="hd-main"><header className="hd-top"><div><div className="hd-crumb">JASLYN NET / HYBRID CONTROL CENTER</div><h1>Network Operations Dashboard</h1></div><div className="hd-tools"><span className="hd-status"><span className="dot" style={{display:'inline-block',marginRight:6}}/>{data?'LIVE DATA':'CONSOLE READY'}</span><div className="hd-search">⌕ Search customers, sessions, routers...</div></div></header>
-      <div className="hd-body"><div className="hd-hero"><div><p>Unified view across customers, access, billing and network infrastructure.</p></div><div className="hd-actions">{actions.map((a,i)=><a className={`hd-btn ${i===0?'primary':''}`} href={a.href} key={a.href}>{a.icon} {a.label}</a>)}</div></div>
-        {error&&<div className="alert"><b>API connection issue</b>{error}</div>}
-        <section className="hd-kpis"><article className="hd-card hd-kpi"><div className="hd-kpi-top"><span>Monthly revenue</span><span className="hd-kpi-tag">BILLING</span></div><strong>{data?money(currency,data.kpis?.monthlyRevenue??0):'—'}</strong><small>Successful payment value</small></article><article className="hd-card hd-kpi"><div className="hd-kpi-top"><span>Active customers</span><span className="hd-kpi-tag">CUSTOMERS</span></div><strong>{data?n(data.kpis?.activeCustomers??0):'—'}</strong><small>Subscriber accounts</small></article><article className="hd-card hd-kpi"><div className="hd-kpi-top"><span>Online sessions</span><span className="hd-kpi-tag">ACCESS</span></div><strong>{data?n(data.kpis?.onlineSessions??0):'—'}</strong><small>Current network connections</small></article><article className="hd-card hd-kpi"><div className="hd-kpi-top"><span>Network availability</span><span className="hd-kpi-tag">FABRIC</span></div><strong>{data&&data.kpis?.networkAvailability!=null?`${data.kpis.networkAvailability}%`:'—'}</strong><small>{net.online}/{net.totalRouters} routers online</small></article></section>
-        <section className="hd-grid"><article className="hd-card hd-panel"><div className="hd-head"><div><div className="hd-kicker">COMMERCIAL TELEMETRY</div><h2>Revenue performance</h2><p>Daily series supplied by the tenant API</p></div><span className="hd-badge">{revenue.length?`${revenue.length} PERIODS`:'NO SERIES'}</span></div><div className="hd-revenue">{data?money(currency,data.kpis?.monthlyRevenue??0):'—'}<small>{data?`${money(currency,revenueTotal)} represented by returned periods`:'Waiting for authenticated tenant telemetry'}</small></div>{revenue.length?<div className="bars">{revenue.map((v,i)=><span key={i} className="bar" style={{height:`${Math.max(5,max?Math.round(v/max*100):0)}%`}} title={money(currency,v)}/>)}</div>:<div className="empty"><div><strong>Revenue telemetry not available</strong><span>No invented numbers are rendered.</span></div></div>}</article>
-          <article className="hd-card hd-panel hd-health"><div className="hd-head" style={{width:'100%'}}><div><div className="hd-kicker">NETWORK FABRIC</div><h2>Router health</h2><p>{net.totalRouters} registered devices</p></div><span className="hd-badge">{net.degraded+net.offline?`${net.degraded+net.offline} ATTENTION`:'STABLE'}</span></div><div className="ring" style={{background:data&&data.kpis?.networkAvailability!=null?`conic-gradient(#4c7ff0 ${Math.max(0,Math.min(100,data.kpis.networkAvailability))}%,#e8edf4 0)`: '#e8edf4'}}><div className="ring-inner"><div><strong>{data&&data.kpis?.networkAvailability!=null?`${data.kpis.networkAvailability}%`:'N/A'}</strong><span>availability</span></div></div></div><div className="health-row"><div><b>{net.online}</b><span>ONLINE</span></div><div><b>{net.degraded}</b><span>DEGRADED</span></div><div><b>{net.offline}</b><span>OFFLINE</span></div></div></article></section>
-        <section className="hd-wide"><article className="hd-card hd-panel"><div className="hd-head"><div><div className="hd-kicker">REAL-TIME ACCESS</div><h2>Active sessions</h2><p>Latest sessions returned by the operational overview.</p></div><a className="hd-badge" href="/sessions">OPEN SESSIONS →</a></div><div className="table-wrap"><table className="table"><thead><tr><th>CUSTOMER</th><th>LOCATION</th><th>ROUTER</th><th>IP</th><th>TRAFFIC</th><th>DURATION</th><th>STATE</th></tr></thead><tbody>{data?.sessions?.length?data.sessions.slice(0,7).map((s,i)=><tr key={i}><td className="user">{s.customer??'Unknown'}</td><td className="muted">{s.location??'—'}</td><td>{s.router??'—'}</td><td className="muted">{s.ip_address??'—'}</td><td>{bytes((s.bytesIn??0)+(s.bytesOut??0))}</td><td>{duration(s.started_at)}</td><td><span className="pill">{s.status??'ACTIVE'}</span></td></tr>):<tr><td colSpan={7}><div className="empty" style={{height:90}}>No live session records returned by the API.</div></td></tr>}</tbody></table></div></article>
-          <article className="hd-card hd-panel"><div className="hd-head"><div><div className="hd-kicker">SYSTEM INTEGRITY</div><h2>Operational truth</h2><p>Cross-domain consistency signals</p></div><span className="hd-badge">{data?issue:'—'} ISSUES</span></div><div className="truth"><div><b>{ops.networkCommands.pending}</b><span>Network commands pending</span></div><div><b>{ops.networkCommands.failed}</b><span>Commands failed</span></div><div><b>{ops.sessions.stale}</b><span>Stale sessions</span></div><div><b>{ops.sessions.accountingLagging}</b><span>Accounting lagging</span></div><div><b>{ops.access.expiredButActive}</b><span>Expired access still active</span></div><div><b>{ops.access.expiring24h}</b><span>Access expiring in 24h</span></div></div>{issue>0&&<div className="alert"><b>Attention required</b>{issue} operational consistency signal{issue===1?'':'s'} returned by the API.</div>}</article></section>
-        <section className="hd-card hd-panel"><div className="hd-head"><div><div className="hd-kicker">OPERATING MODULES</div><h2>Hybrid control surfaces</h2><p>One dashboard, multiple operational domains.</p></div></div><div className="modules">{nav.slice(1).map(([label,icon,href])=><a className="module" href={href} key={href}><span>{icon}</span><b>{label}</b><small>Open control surface →</small></a>)}</div><div className="traffic"><div><strong>{bytes(totalTraffic)}</strong><span> observed traffic in returned sessions</span></div><a className="hd-btn" href="/network">Inspect network fabric →</a></div></section><div className="footnote">Jaslyn Net • API-backed operational state • No fabricated tenant metrics</div>
-      </div></section></main>;
+export default function DashboardPage() {
+  const [data, setData] = useState<Overview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) { setError('Authentication required.'); setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } }));
+    } catch (cause: unknown) {
+      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load dashboard telemetry.');
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const currency = data?.tenant?.currency ?? 'TZS';
+  const revenue = data?.revenueSeries ?? [];
+  const revenueTotal = useMemo(() => revenue.reduce((sum, value) => sum + value, 0), [revenue]);
+  const maxRevenue = Math.max(...revenue, 0);
+  const network = { totalRouters: 0, online: 0, degraded: 0, offline: 0, ...data?.network };
+  const operations = {
+    networkCommands: { pending: 0, failed: 0, verified: 0, abandoned: 0, ...data?.operations?.networkCommands },
+    sessions: { stale: 0, activeWithoutAccounting: 0, accountingLagging: 0, ...data?.operations?.sessions },
+    access: { activeValid: 0, expiredButActive: 0, expiring24h: 0, ...data?.operations?.access },
+  };
+  const integrityIssues = operations.networkCommands.failed + operations.sessions.stale + operations.sessions.activeWithoutAccounting + operations.sessions.accountingLagging + operations.access.expiredButActive;
+  const traffic = (data?.sessions ?? []).reduce((sum, session) => sum + (session.bytesIn ?? 0) + (session.bytesOut ?? 0), 0);
+  const availability = data?.kpis?.networkAvailability;
+
+  return (
+    <main className="overview-page">
+      <header className="overview-header">
+        <div>
+          <div className="eyebrow">JASLYN NET / CONTROL CENTER</div>
+          <h1>Network operations overview</h1>
+          <p className="context">Technical state, customer state and business state in one operator view.</p>
+        </div>
+        <div className="top-actions">
+          <span className={`data-state ${error ? 'danger' : ''}`}><i /> {error ? 'API UNAVAILABLE' : loading ? 'REFRESHING' : 'LIVE API DATA'}</span>
+          <button className="selector" type="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh telemetry'}</button>
+        </div>
+      </header>
+
+      {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
+
+      <section className="kpi-grid overview-kpis" aria-label="Network and business KPIs">
+        <article className="kpi"><div className="kpi-label"><span>Monthly revenue</span><b>BILLING</b></div><strong>{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}</strong><div className="kpi-foot"><span>API</span><small>successful payment value</small></div></article>
+        <article className="kpi"><div className="kpi-label"><span>Active customers</span><b>CUSTOMERS</b></div><strong>{data ? n(data.kpis?.activeCustomers ?? 0) : '—'}</strong><div className="kpi-foot"><span>LIVE</span><small>tenant subscriber accounts</small></div></article>
+        <article className="kpi"><div className="kpi-label"><span>Online sessions</span><b>ACCESS</b></div><strong>{data ? n(data.kpis?.onlineSessions ?? 0) : '—'}</strong><div className="kpi-foot"><span>LIVE</span><small>current network connections</small></div></article>
+        <article className="kpi"><div className="kpi-label"><span>Network availability</span><b>FABRIC</b></div><strong>{availability == null ? '—' : `${availability}%`}</strong><div className="kpi-foot"><span>{network.offline ? 'ATTENTION' : 'STATUS'}</span><small>{network.online}/{network.totalRouters} routers online</small></div></article>
+      </section>
+
+      <section className="overview-grid overview-primary">
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">COMMERCIAL TELEMETRY</div><h2>Revenue performance</h2><p>Returned payment series for this tenant.</p></div><span className="panel-badge">{revenue.length ? `${revenue.length} PERIODS` : 'NO SERIES'}</span></div>
+          <div className="overview-total">{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}<small>{data ? `${money(currency, revenueTotal)} across returned periods` : 'Waiting for authenticated telemetry'}</small></div>
+          {revenue.length ? <div className="overview-bars" aria-label="Revenue series">{revenue.map((value, index) => <span key={`${index}-${value}`} style={{ height: `${Math.max(4, maxRevenue ? Math.round((value / maxRevenue) * 100) : 0)}%` }} title={money(currency, value)} />)}</div> : <div className="overview-empty"><strong>No revenue series returned.</strong><span>No invented figures are shown.</span></div>}
+        </article>
+
+        <article className="panel overview-panel network-summary">
+          <div className="panel-head"><div><div className="panel-kicker">NETWORK FABRIC</div><h2>Router health</h2><p>{n(network.totalRouters)} registered devices</p></div><span className="panel-badge">{network.degraded + network.offline ? `${network.degraded + network.offline} ATTENTION` : 'STABLE'}</span></div>
+          <div className="health-meter"><div className="health-meter-value">{availability == null ? 'N/A' : `${availability}%`}<small>availability</small></div></div>
+          <div className="health-stats"><div><b>{network.online}</b><span>ONLINE</span></div><div><b>{network.degraded}</b><span>DEGRADED</span></div><div><b>{network.offline}</b><span>OFFLINE</span></div></div>
+        </article>
+      </section>
+
+      <section className="overview-grid overview-secondary">
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">REAL-TIME ACCESS</div><h2>Active sessions</h2><p>Latest sessions returned by the operational overview.</p></div><a className="panel-badge" href="/sessions">OPEN SESSIONS →</a></div>
+          <div className="table-wrap"><table><thead><tr><th>CUSTOMER</th><th>LOCATION</th><th>ROUTER</th><th>IP</th><th>TRAFFIC</th><th>DURATION</th><th>STATE</th></tr></thead><tbody>{data?.sessions?.length ? data.sessions.slice(0, 8).map((session, index) => <tr key={`${session.customer ?? 'session'}-${index}`}><td><strong>{session.customer ?? 'Unknown'}</strong></td><td>{session.location ?? '—'}</td><td>{session.router ?? '—'}</td><td>{session.ip_address ?? '—'}</td><td>{bytes((session.bytesIn ?? 0) + (session.bytesOut ?? 0))}</td><td>{duration(session.started_at)}</td><td><span className="status active"><i />{session.status ?? 'ACTIVE'}</span></td></tr>) : <tr><td colSpan={7}><div className="empty-state">{loading ? 'Loading live session telemetry…' : 'No live session records returned by the API.'}</div></td></tr>}</tbody></table></div>
+        </article>
+
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">SYSTEM INTEGRITY</div><h2>Operational truth</h2><p>Cross-domain consistency signals.</p></div><span className={`panel-badge ${integrityIssues ? 'badge-danger' : ''}`}>{data ? integrityIssues : '—'} ISSUES</span></div>
+          <div className="truth-grid"><div><b>{operations.networkCommands.pending}</b><span>Commands pending</span></div><div><b>{operations.networkCommands.failed}</b><span>Commands failed</span></div><div><b>{operations.sessions.stale}</b><span>Stale sessions</span></div><div><b>{operations.sessions.accountingLagging}</b><span>Accounting lagging</span></div><div><b>{operations.access.expiredButActive}</b><span>Expired access active</span></div><div><b>{operations.access.expiring24h}</b><span>Expiring in 24h</span></div></div>
+          {integrityIssues > 0 && <div className="notice"><strong>Operator attention required.</strong> {integrityIssues} consistency signal{integrityIssues === 1 ? '' : 's'} returned by the API.</div>}
+        </article>
+      </section>
+
+      <section className="panel overview-panel">
+        <div className="panel-head"><div><div className="panel-kicker">OPERATOR SHORTCUTS</div><h2>Control surfaces</h2><p>Jump directly into the operational domains that can change network or customer state.</p></div></div>
+        <div className="shortcut-grid">
+          <a href="/customers"><b>Customers</b><span>Subscriber accounts and customer operations →</span></a>
+          <a href="/sessions"><b>Sessions</b><span>Inspect active, stale and ended connections →</span></a>
+          <a href="/network"><b>Network</b><span>Routers, gateways and management state →</span></a>
+          <a href="/packages"><b>Plans &amp; Products</b><span>Access packages and catalogue operations →</span></a>
+          <a href="/purchases"><b>Purchases</b><span>Payment and purchase operations →</span></a>
+          <a href="/audit"><b>Security &amp; Audit</b><span>Tenant-scoped operational event trail →</span></a>
+        </div>
+        <div className="overview-footer-metrics"><span><b>{bytes(traffic)}</b> observed traffic in returned sessions</span><span>Timezone: {data?.tenant?.timezone ?? 'tenant configured'}</span></div>
+      </section>
+    </main>
+  );
 }
