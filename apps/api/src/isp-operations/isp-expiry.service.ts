@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { SessionsService } from '../sessions/sessions.service';
 
 const RECONCILIATION_INTERVAL_MS = 60_000;
 
@@ -9,13 +10,26 @@ type ExpiryResult = {
   suspendedCustomers: number;
 };
 
+type ExpiredBinding = {
+  id: string;
+  tenantId: string;
+};
+
+type SuspendedCustomer = {
+  tenantId: string;
+  customerId: string;
+};
+
 @Injectable()
 export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IspExpiryService.name);
   private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly db: Pool,
+    private readonly sessions: SessionsService,
+  ) {}
 
   onModuleInit() {
     void this.reconcile().catch((error: unknown) => {
@@ -48,20 +62,20 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
       client = await this.db.connect();
       await client.query('BEGIN');
 
-      const expiredBindings = await client.query<{ id: string }>(
+      const expiredBindings = await client.query<ExpiredBinding>(
         `WITH expired AS (
            UPDATE customer_access_bindings
               SET state='EXPIRED', updated_at=now()
             WHERE state='ACTIVE'
               AND expires_at IS NOT NULL
               AND expires_at <= now()
-            RETURNING tenant_id, id
+            RETURNING tenant_id AS "tenantId", id
          )
          INSERT INTO access_state_events
            (tenant_id, access_binding_id, previous_state, new_state, reason, source)
-         SELECT tenant_id, id, 'ACTIVE', 'EXPIRED', 'Access binding expired', 'SYSTEM_EXPIRY'
+         SELECT "tenantId", id, 'ACTIVE', 'EXPIRED', 'Access binding expired', 'SYSTEM_EXPIRY'
            FROM expired
-         RETURNING access_binding_id AS id`,
+         RETURNING tenant_id AS "tenantId", access_binding_id AS id`,
       );
 
       await client.query(
@@ -79,7 +93,7 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
             AND s.state='ACTIVE'`,
       );
 
-      const suspendedCustomers = await client.query<{ tenant_id: string; customer_id: string }>(
+      const suspendedCustomers = await client.query<SuspendedCustomer>(
         `WITH suspended AS (
            UPDATE customer_service_state s
               SET state='SUSPENDED',
@@ -97,16 +111,33 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
                    AND b.customer_id=s.customer_id
                    AND b.state='ACTIVE'
               )
-            RETURNING s.tenant_id, s.customer_id
+            RETURNING s.tenant_id AS "tenantId", s.customer_id AS "customerId"
          )
          INSERT INTO customer_service_state_events
            (tenant_id, customer_id, previous_state, new_state, reason, source, effective_at)
-         SELECT tenant_id, customer_id, 'ACTIVE', 'SUSPENDED', 'Service expired', 'SYSTEM_EXPIRY', now()
+         SELECT "tenantId", "customerId", 'ACTIVE', 'SUSPENDED', 'Service expired', 'SYSTEM_EXPIRY', now()
            FROM suspended
-         RETURNING tenant_id, customer_id`,
+         RETURNING tenant_id AS "tenantId", customer_id AS "customerId"`,
       );
 
       await client.query('COMMIT');
+
+      const affectedTenantIds = new Set<string>([
+        ...expiredBindings.rows.map((row) => row.tenantId),
+        ...suspendedCustomers.rows.map((row) => row.tenantId),
+      ]);
+
+      for (const tenantId of affectedTenantIds) {
+        try {
+          await this.sessions.reconcileAccessState(tenantId, { userId: 'system', requestId: `system-expiry:${tenantId}` });
+        } catch (error: unknown) {
+          this.logger.error(
+            error instanceof Error ? error.stack ?? error.message : String(error),
+            `Network access reconciliation failed for tenant ${tenantId}`,
+          );
+        }
+      }
+
       return {
         expiredBindings: expiredBindings.rowCount ?? 0,
         suspendedCustomers: suspendedCustomers.rowCount ?? 0,
