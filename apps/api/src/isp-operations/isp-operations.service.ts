@@ -69,7 +69,7 @@ export class IspOperationsService {
       }
       const now = new Date();
       const activatedAt = input.state === AccessState.ACTIVE && !row.activated_at ? now : row.activated_at;
-      const suspendedAt = input.state === AccessState.SUSPENDED ? now : row.suspended_at;
+      const suspendedAt = input.state === AccessState.SUSPENDED ? now : null;
       const updated = await client.query<AccessRow>(`UPDATE customer_access_bindings SET state=$3,activated_at=$4,suspended_at=$5,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING *`, [tenantId, id, input.state, activatedAt, suspendedAt]);
       await client.query(`INSERT INTO access_state_events (tenant_id,access_binding_id,previous_state,new_state,reason,source,payment_id) VALUES ($1,$2,$3,$4,$5,'API',$6)`, [tenantId, id, row.state, input.state, input.reason.trim(), input.paymentId ?? null]);
       await client.query('COMMIT');
