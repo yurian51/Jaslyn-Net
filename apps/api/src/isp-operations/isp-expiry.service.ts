@@ -129,7 +129,7 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
 
       for (const tenantId of affectedTenantIds) {
         try {
-          await this.sessions.reconcileAccessState(tenantId, { userId: 'system', requestId: `system-expiry:${tenantId}` });
+          await this.sessions.reconcileAccessState(tenantId, { requestId: `system-expiry:${tenantId}` });
         } catch (error: unknown) {
           this.logger.error(
             error instanceof Error ? error.stack ?? error.message : String(error),
