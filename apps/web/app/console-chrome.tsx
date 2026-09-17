@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 
-type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'loadBalancing' | 'purchases' | 'packages' | 'incidents' | 'audit';
+type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'loadBalancing' | 'isp' | 'purchases' | 'packages' | 'incidents' | 'audit';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Overview', 'overview', '/dashboard'],
@@ -13,6 +13,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Sessions', 'sessions', '/sessions'],
   ['Network', 'network', '/network'],
   ['WAN & Load Balancing', 'loadBalancing', '/load-balancing'],
+  ['ISP Operations', 'isp', '/isp'],
   ['Purchases', 'purchases', '/purchases'],
   ['Plans & Products', 'packages', '/packages'],
   ['Incident Center', 'incidents', '/incidents'],
@@ -29,6 +30,7 @@ function NavIcon({ name }: { name: IconName }) {
     sessions: <><path d="M7 7h10" /><path d="M7 12h10" /><path d="M7 17h6" /><circle cx="4" cy="7" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="17" r="1" fill="currentColor" stroke="none" /></>,
     network: <><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8M12 16v4" /><path d="M8 9h8M8 12h5" /></>,
     loadBalancing: <><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M8 7.5 16 16.5M18 8v4M18 12l-3-3M18 12l3-3M6 16v-4M6 12l-3 3M6 12l3 3" /></>,
+    isp: <><path d="M4 18h16" /><path d="M7 18V9l5-4 5 4v9" /><path d="M10 18v-5h4v5" /><path d="M9 9h.01M15 9h.01" /></>,
     purchases: <><path d="M5 7h14l-1 13H6L5 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /><path d="M9 11h.01M15 11h.01" /></>,
     packages: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.8 12 12l7.5-4.2M12 12v9" /></>,
     incidents: <><path d="M12 3 21 20H3L12 3Z" /><path d="M12 9v5" /><path d="M12 17h.01" /></>,
