@@ -1,17 +1,6 @@
 .console-chrome-frame { min-height: 100vh; background: var(--jn-bg, #f4f6f9); }
 .console-chrome-content { min-height: 100vh; }
-.console-chrome-sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: 90;
-  width: 248px;
-  padding: 18px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  color: #91a0b4;
-  background: #0b1424;
-  border-right: 1px solid #1b2a3e;
-}
+.console-chrome-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 90; width: 248px; padding: 18px 12px 12px; display: flex; flex-direction: column; color: #91a0b4; background: #0b1424; border-right: 1px solid #1b2a3e; }
 .console-chrome-brand { display: flex; align-items: center; gap: 10px; padding: 3px 9px 18px; }
 .console-chrome-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: #eef3ff; color: #3158b8; font-size: 14px; font-weight: 800; }
 .console-chrome-brand strong, .console-chrome-brand small, .console-chrome-user b, .console-chrome-user small, .console-chrome-health b, .console-chrome-health small { display: block; }
@@ -32,10 +21,12 @@
 .console-chrome-health i { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #39b77a; box-shadow: 0 0 0 4px rgba(57,183,122,.1); }
 .console-chrome-health b { color: #dce5ef; font-size: 9px; }
 .console-chrome-health small { margin-top: 3px; color: #687a92; font-size: 8px; }
-.console-chrome-user { margin-top: 9px; padding: 9px; display: flex; align-items: center; gap: 8px; background: #0e1929; border: 1px solid #1c2a3d; border-radius: 9px; }
-.console-chrome-user > strong { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 8px; background: #eef3ff; color: #3c5fc0; font-size: 10px; }
+.console-chrome-user { width: 100%; margin-top: 9px; padding: 9px; display: flex; align-items: center; gap: 8px; color: inherit; text-align: left; background: #0e1929; border: 1px solid #1c2a3d; border-radius: 9px; }
+.console-chrome-user:hover { background: #122138; border-color: #29415f; }
+.console-chrome-user > strong { width: 29px; height: 29px; display: grid; place-items: center; flex: 0 0 29px; border-radius: 8px; background: #eef3ff; color: #3c5fc0; font-size: 10px; }
 .console-chrome-user b { color: #edf2f8; font-size: 9px; }
 .console-chrome-user small { margin-top: 2px; color: #68778c; font-size: 8px; }
+.console-chrome-user em { margin-left: auto; color: #657994; font-size: 13px; font-style: normal; }
 .console-chrome-content { margin-left: 248px; }
 .console-chrome-mobile { display: none; }
 
