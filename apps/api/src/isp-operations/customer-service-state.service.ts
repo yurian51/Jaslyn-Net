@@ -28,6 +28,7 @@ export class CustomerServiceStateService {
     if (expiresAt && expiresAt <= effectiveAt) throw new BadRequestException('expiresAt must be later than effectiveAt');
 
     const client = await this.db.connect();
+    let committed = false;
     try {
       await client.query('BEGIN');
       const customer = await client.query('SELECT 1 FROM customers WHERE tenant_id=$1 AND id=$2', [tenantId, customerId]);
@@ -47,10 +48,24 @@ export class CustomerServiceStateService {
         await client.query(`INSERT INTO customer_service_state_events (tenant_id,customer_id,previous_state,new_state,reason,source,effective_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [tenantId, customerId, previous, input.state, reason, source, effectiveAt]);
       }
       await client.query('COMMIT');
-      const reconciliation = await this.sessions.reconcileAccessState(tenantId, { requestId: `service-state:${customerId}` });
-      return { ...result.rows[0], reconciliation };
+      committed = true;
+
+      try {
+        const reconciliation = await this.sessions.reconcileAccessState(tenantId, { requestId: `service-state:${customerId}` });
+        return { ...result.rows[0], reconciliation };
+      } catch (error: unknown) {
+        return {
+          ...result.rows[0],
+          reconciliation: {
+            expiredGrants: 0,
+            sessions: [],
+            state: 'FAILED',
+            error: error instanceof Error ? error.message : 'Network reconciliation failed after service state commit',
+          },
+        };
+      }
     } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      if (!committed) await client.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally { client.release(); }
   }
