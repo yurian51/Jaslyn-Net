@@ -1,12 +1,13 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { AuditContext, AuditService } from '../audit/audit.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { ChangeCustomerServiceStateDto } from './isp-operations.dto';
 
 @Injectable()
 export class CustomerServiceStateService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly sessions: SessionsService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly sessions: SessionsService, private readonly audit: AuditService) {}
 
   async get(tenantId: string, customerId: string) {
     const customer = await this.db.query('SELECT 1 FROM customers WHERE tenant_id=$1 AND id=$2', [tenantId, customerId]);
@@ -21,7 +22,7 @@ export class CustomerServiceStateService {
     return result.rows[0];
   }
 
-  async set(tenantId: string, customerId: string, input: ChangeCustomerServiceStateDto) {
+  async set(tenantId: string, customerId: string, input: ChangeCustomerServiceStateDto, auditContext: AuditContext = {}) {
     const effectiveAt = input.effectiveAt ? new Date(input.effectiveAt) : new Date();
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
     if (Number.isNaN(effectiveAt.getTime()) || (expiresAt && Number.isNaN(expiresAt.getTime()))) throw new BadRequestException('Invalid service state timestamp');
@@ -50,20 +51,35 @@ export class CustomerServiceStateService {
       await client.query('COMMIT');
       committed = true;
 
+      let reconciliation: Record<string, unknown>;
       try {
-        const reconciliation = await this.sessions.reconcileAccessState(tenantId, { requestId: `service-state:${customerId}` });
-        return { ...result.rows[0], reconciliation };
+        reconciliation = await this.sessions.reconcileAccessState(tenantId, { requestId: `service-state:${customerId}` });
       } catch (error: unknown) {
-        return {
-          ...result.rows[0],
-          reconciliation: {
-            expiredGrants: 0,
-            sessions: [],
-            state: 'FAILED',
-            error: error instanceof Error ? error.message : 'Network reconciliation failed after service state commit',
-          },
+        reconciliation = {
+          expiredGrants: 0,
+          sessions: [],
+          state: 'FAILED',
+          error: error instanceof Error ? error.message : 'Network reconciliation failed after service state commit',
         };
       }
+
+      let auditResult: Record<string, unknown> = { state: 'COMPLETED' };
+      try {
+        await this.audit.record(tenantId, 'CUSTOMER_SERVICE_STATE_CHANGED', 'customer_service_state', result.rows[0].id, {
+          customerId,
+          previousState: previous,
+          newState: input.state,
+          reason,
+          source,
+          effectiveAt,
+          expiresAt,
+          reconciliationState: reconciliation.state ?? 'COMPLETED',
+        }, auditContext);
+      } catch (error: unknown) {
+        auditResult = { state: 'FAILED', error: error instanceof Error ? error.message : 'Audit recording failed after service state commit' };
+      }
+
+      return { ...result.rows[0], reconciliation, audit: auditResult };
     } catch (error) {
       if (!committed) await client.query('ROLLBACK').catch(() => undefined);
       throw error;
