@@ -21,9 +21,7 @@ function createRequestId() {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!API_URL) {
-    throw new ApiError('API endpoint is not configured. Set NEXT_PUBLIC_API_URL.', 0);
-  }
+  if (!API_URL) throw new ApiError('API endpoint is not configured. Set NEXT_PUBLIC_API_URL.', 0);
 
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const requestId = createRequestId();
@@ -34,25 +32,22 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     response = await fetch(`${API_URL}${normalizedPath}`, {
       ...init,
       signal,
-      headers: {
-        Accept: 'application/json',
-        'x-request-id': requestId,
-        ...init.headers,
-      },
+      headers: { Accept: 'application/json', 'x-request-id': requestId, ...init.headers },
     });
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new ApiError('The API request timed out. Please retry the operation.', 408, requestId);
-    }
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('The API request was cancelled.', 499, requestId);
-    }
+    if (error instanceof DOMException && error.name === 'TimeoutError') throw new ApiError('The API request timed out. Please retry the operation.', 408, requestId);
+    if (error instanceof Error && error.name === 'AbortError') throw new ApiError('The API request was cancelled.', 499, requestId);
     throw new ApiError(error instanceof Error ? error.message : 'Unable to reach the API.', 0, requestId);
   }
 
   const responseRequestId = response.headers.get('x-request-id') ?? requestId;
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+      window.localStorage.removeItem('jaslyn.accessToken');
+      window.localStorage.removeItem('nexora.accessToken');
+      window.location.replace('/login');
+    }
     throw new ApiError(extractApiError(payload) ?? `Request failed with status ${response.status}`, response.status, responseRequestId);
   }
   return payload as T;

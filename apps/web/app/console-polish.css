@@ -1,0 +1,113 @@
+.overview-chart {
+  margin-top: 18px;
+  padding-top: 4px;
+}
+.overview-chart svg {
+  width: 100%;
+  height: 190px;
+  display: block;
+  overflow: visible;
+}
+.overview-chart line {
+  stroke: #e9edf2;
+  stroke-width: 1;
+}
+.overview-chart polygon {
+  fill: rgba(54, 105, 210, .08);
+}
+.overview-chart polyline {
+  fill: none;
+  stroke: #3d6fd8;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.overview-chart circle {
+  fill: #fff;
+  stroke: #3d6fd8;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.overview-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: #9aa5b4;
+  font-size: 9px;
+}
+.operations-strip {
+  max-width: 1580px;
+  min-height: 58px;
+  margin: 0 auto 14px;
+  padding: 9px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #e2e7ee;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.02);
+}
+.operations-strip.has-attention { border-color: #eadfcf; }
+.operations-strip-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+}
+.operations-strip-label strong { color: #263247; font-size: 11px; }
+.operations-strip-label small { color: #909baa; font-size: 9px; }
+.operations-strip-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #35a975;
+  box-shadow: 0 0 0 4px rgba(53,169,117,.08);
+}
+.operations-strip.has-attention .operations-strip-dot {
+  background: #bd7a22;
+  box-shadow: 0 0 0 4px rgba(189,122,34,.09);
+}
+.operations-strip-items {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.operations-strip-items span {
+  padding: 6px 9px;
+  color: #748196;
+  background: #f7f9fb;
+  border: 1px solid #edf1f5;
+  border-radius: 6px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.operations-strip-items b { color: #263247; font-size: 11px; margin-right: 3px; }
+
+/* Better focus treatment for keyboard operators. */
+.console-chrome-nav a:focus-visible,
+.console-chrome-mobile a:focus-visible,
+.console-chrome-mobile button:focus-visible,
+.console-chrome-user:focus-visible,
+.overview-page a:focus-visible,
+.overview-page button:focus-visible {
+  outline: 2px solid #6b8fe8;
+  outline-offset: 2px;
+}
+
+@media (max-width: 820px) {
+  .operations-strip {
+    display: block;
+    padding: 11px 12px;
+  }
+  .operations-strip-label { min-width: 0; }
+  .operations-strip-label small { margin-left: auto; }
+  .operations-strip-items { justify-content: flex-start; margin-top: 9px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+  .operations-strip-items span { flex: 0 0 auto; }
+  .overview-chart svg { height: 155px; }
+}
