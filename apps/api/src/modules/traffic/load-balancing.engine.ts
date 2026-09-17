@@ -3,16 +3,9 @@ import { LOAD_BALANCE_STRATEGIES, LoadBalanceDecision, LoadBalanceStrategy, WanM
 
 @Injectable()
 export class LoadBalancingEngine {
-  decide(
-    policyId: string,
-    strategy: string,
-    members: WanMemberState[],
-    capacityAware = true,
-  ): LoadBalanceDecision {
+  decide(policyId: string, strategy: string, members: WanMemberState[], capacityAware = true): LoadBalanceDecision {
     if (!policyId) throw new BadRequestException('policyId is required');
-    if (!LOAD_BALANCE_STRATEGIES.includes(strategy as LoadBalanceStrategy)) {
-      throw new BadRequestException(`Unsupported load-balancing strategy: ${strategy}`);
-    }
+    if (!LOAD_BALANCE_STRATEGIES.includes(strategy as LoadBalanceStrategy)) throw new BadRequestException(`Unsupported load-balancing strategy: ${strategy}`);
 
     const normalized = members.map((member) => ({
       ...member,
@@ -20,31 +13,25 @@ export class LoadBalancingEngine {
       configuredWeight: Math.max(1, Math.trunc(member.configuredWeight)),
       priority: Math.max(0, Math.trunc(member.priority)),
     }));
-
-    const available = normalized.filter(
-      (member) => member.enabled && !member.drainRequested && ['HEALTHY', 'DEGRADED', 'RECOVERING'].includes(member.healthState),
-    );
-
+    const administrativelyEligible = normalized.filter((member) => member.enabled && !member.drainRequested);
+    const available = administrativelyEligible.filter((member) => ['HEALTHY', 'DEGRADED', 'RECOVERING'].includes(member.healthState));
     const primarySecondary = strategy === 'PRIMARY_SECONDARY';
     const minPriority = available.length ? Math.min(...available.map((member) => member.priority)) : undefined;
-    const selected = primarySecondary && minPriority !== undefined
-      ? available.filter((member) => member.priority === minPriority)
-      : available;
+    const selected = primarySecondary && minPriority !== undefined ? available.filter((member) => member.priority === minPriority) : available;
+    const referenceCapacity = capacityAware && selected.length ? Math.max(...selected.map((member) => Math.max(0.001, member.capacityMbps))) : 1;
 
     const effective = selected.map((member) => {
-      const utilization = member.observedUtilizationPercent;
+      const utilization = member.observedUtilizationPercent == null ? null : Math.max(0, Math.min(100, Number(member.observedUtilizationPercent)));
       const healthFactor = member.healthState === 'HEALTHY' ? 1 : member.healthState === 'RECOVERING' ? 0.35 : 0.65;
-      const capacityFactor = capacityAware ? Math.max(0.1, member.capacityMbps) : 1;
-      const utilizationFactor = utilization == null ? 1 : Math.max(0.1, 1 - Math.min(0.95, utilization / 100));
-      let weight = member.configuredWeight * healthFactor * capacityFactor * utilizationFactor;
-      if (strategy === 'LEAST_UTILIZED' && utilization != null) weight = Math.max(0.1, 100 - Math.min(99.9, utilization));
+      const capacityFactor = capacityAware ? Math.max(0.1, member.capacityMbps / referenceCapacity) : 1;
+      const headroomFactor = utilization == null ? 1 : Math.max(0.1, 1 - utilization / 100);
+      let weight = member.configuredWeight * healthFactor * capacityFactor * headroomFactor;
+      if (strategy === 'LEAST_UTILIZED') weight = Math.max(0.1, headroomFactor * 100);
       if (strategy === 'CONNECTION_BASED') weight = Math.max(0.1, member.activeSessions === 0 ? 1 : 1 / member.activeSessions);
-      if (primarySecondary) weight = member.priority === minPriority ? weight : 0;
       return { member, effectiveWeight: Number(weight.toFixed(6)) };
     }).filter((item) => item.effectiveWeight > 0);
 
-    const failoverActive = normalized.length > 0 && effective.length > 0 && effective.length < normalized.filter((member) => member.enabled && !member.drainRequested).length;
-
+    const failoverActive = administrativelyEligible.length > 0 && effective.length < administrativelyEligible.length;
     return {
       policyId,
       strategy: strategy as LoadBalanceStrategy,
