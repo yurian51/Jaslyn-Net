@@ -16,7 +16,7 @@ export class IspOperationsController {
   @Put('access-bindings/:id/state') @Roles('OWNER','ADMIN','AGENT') changeAccessState(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:ChangeAccessStateDto){return this.isp.changeAccessState(req.user!.tenantId,id,dto);}
   @Get('access-bindings/:id/events') getAccessEvents(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.isp.accessEvents(req.user!.tenantId,id);}
   @Get('customers/:customerId/service-state') getCustomerServiceState(@Req() req:AuthenticatedRequest,@Param('customerId') customerId:string){return this.serviceState.get(req.user!.tenantId,customerId);}
-  @Put('customers/:customerId/service-state') @Roles('OWNER','ADMIN','AGENT') setCustomerServiceState(@Req() req:AuthenticatedRequest,@Param('customerId') customerId:string,@Body() dto:ChangeCustomerServiceStateDto){return this.serviceState.set(req.user!.tenantId,customerId,dto);}
+  @Put('customers/:customerId/service-state') @Roles('OWNER','ADMIN','AGENT') setCustomerServiceState(@Req() req:AuthenticatedRequest,@Param('customerId') customerId:string,@Body() dto:ChangeCustomerServiceStateDto){return this.serviceState.set(req.user!.tenantId,customerId,dto,{userId:req.user!.id});}
   @Get('customers/:customerId/service-state/history') serviceStateHistory(@Req() req:AuthenticatedRequest,@Param('customerId') customerId:string){return this.serviceState.history(req.user!.tenantId,customerId);}
   @Get('jobs') listJobs(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listJobs(req.user!.tenantId,query);}
   @Post('jobs') @Roles('OWNER','ADMIN','AGENT') createJob(@Req() req:AuthenticatedRequest,@Body() dto:CreateNetworkJobDto){return this.isp.createJob(req.user!.tenantId,dto,req.user!.id);}
