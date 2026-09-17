@@ -25,10 +25,33 @@ describe('IspOperationsService', () => {
     const result = await service.changeAccessState('tenant-a', 'a1', { state: 'ACTIVE', reason: 'Payment verified' });
 
     expect(result.state).toBe('ACTIVE');
+    expect(result.reconciliation.state).toBe('COMPLETED');
     expect(reconcileAccessState).toHaveBeenCalledWith('tenant-a', { requestId: 'access-binding:a1' });
     expect(txQuery).toHaveBeenCalledWith('BEGIN');
     expect(txQuery).toHaveBeenCalledWith('COMMIT');
     expect(txQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO access_state_events'))).toBe(true);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the committed access transition when network reconciliation fails', async () => {
+    const txQuery = jest.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'a1', state: 'ACTIVE', activated_at: new Date(), suspended_at: null }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'a1', state: 'SUSPENDED', activated_at: new Date(), suspended_at: new Date() }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    const release = jest.fn();
+    const connect = jest.fn().mockResolvedValue({ query: txQuery, release });
+    const reconcileAccessState = jest.fn().mockRejectedValue(new Error('router timeout'));
+    const service = new IspOperationsService({ connect } as any, { reconcileAccessState } as any);
+
+    const result = await service.changeAccessState('tenant-a', 'a1', { state: 'SUSPENDED', reason: 'Account suspended' });
+
+    expect(result).toMatchObject({ state: 'SUSPENDED' });
+    expect(result.reconciliation).toMatchObject({ state: 'FAILED', error: 'router timeout' });
+    expect(txQuery).toHaveBeenCalledWith('COMMIT');
+    expect(txQuery).not.toHaveBeenCalledWith('ROLLBACK');
+    expect(reconcileAccessState).toHaveBeenCalledTimes(1);
     expect(release).toHaveBeenCalledTimes(1);
   });
 
