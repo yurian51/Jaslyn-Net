@@ -1,0 +1,1 @@
+ISP operations persistence is backed by migrations 030_isp_field_operations.sql and 031_isp_data_integrity.sql. The schema links customers to fiber service, network sites, field jobs, job event history, and the current customer service state while preserving tenant-scoped foreign keys.
