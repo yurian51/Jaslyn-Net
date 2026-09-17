@@ -107,6 +107,9 @@ export class MikrotikRestAdapter {
     timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {
     const identity = normalizeClient(client);
+    if (!identity.ipAddress && !identity.username && !identity.macAddress) {
+      throw Object.assign(new TypeError('At least one client identity is required for disconnect enforcement'), { code: 'CLIENT_IDENTITY_REQUIRED' });
+    }
     const removed: Array<{ service: 'hotspot' | 'ppp'; id: string }> = [];
 
     const hotspot = await this.request(baseUrl, credentials, 'ip/hotspot/active', { timeoutMs });
