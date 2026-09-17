@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { AuditContext, AuditService } from '../audit/audit.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { AccessState, ChangeAccessStateDto, CreateNetworkJobDto, CreateNetworkSiteDto, JobStatus, ListQueryDto, UpdateNetworkJobDto, CreateAccessBindingDto } from './isp-operations.dto';
 
@@ -9,7 +10,7 @@ type AccessRow = { id: string; customer_id: string; router_id: string | null; pa
 @Injectable()
 export class IspOperationsService {
   readonly moduleName = 'isp-operations';
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly sessions: SessionsService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly sessions: SessionsService, private readonly audit: AuditService) {}
 
   async listAccessBindings(tenantId: string, query: ListQueryDto) {
     const offset = (query.page - 1) * query.limit;
@@ -34,8 +35,9 @@ export class IspOperationsService {
     }
   }
 
-  async changeAccessState(tenantId: string, id: string, input: ChangeAccessStateDto) {
+  async changeAccessState(tenantId: string, id: string, input: ChangeAccessStateDto, auditContext: AuditContext = {}) {
     const client = await this.db.connect();
+    let committed = false;
     try {
       await client.query('BEGIN');
       const current = await client.query<AccessRow>('SELECT * FROM customer_access_bindings WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, id]);
@@ -43,6 +45,7 @@ export class IspOperationsService {
       const row = current.rows[0];
       if (row.state === input.state) {
         await client.query('COMMIT');
+        committed = true;
         return this.mapAccess(row);
       }
       const now = new Date();
@@ -51,6 +54,7 @@ export class IspOperationsService {
       const updated = await client.query<AccessRow>(`UPDATE customer_access_bindings SET state=$3,activated_at=$4,suspended_at=$5,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING *`, [tenantId, id, input.state, activatedAt, suspendedAt]);
       await client.query(`INSERT INTO access_state_events (tenant_id,access_binding_id,previous_state,new_state,reason,source,payment_id) VALUES ($1,$2,$3,$4,$5,'API',$6)`, [tenantId, id, row.state, input.state, input.reason.trim(), input.paymentId ?? null]);
       await client.query('COMMIT');
+      committed = true;
 
       let reconciliation: Record<string, unknown> = { expiredGrants: 0, sessions: [], state: 'NOT_ATTEMPTED' };
       try {
@@ -58,9 +62,24 @@ export class IspOperationsService {
       } catch (error: unknown) {
         reconciliation = { ...reconciliation, state: 'FAILED', error: error instanceof Error ? error.message : 'Access reconciliation failed' };
       }
-      return { ...this.mapAccess(updated.rows[0]), reconciliation };
+
+      let auditResult: Record<string, unknown> = { state: 'COMPLETED' };
+      try {
+        await this.audit.record(tenantId, 'ACCESS_STATE_CHANGED', 'customer_access_binding', id, {
+          customerId: row.customer_id,
+          routerId: row.router_id,
+          previousState: row.state,
+          newState: input.state,
+          reason: input.reason.trim(),
+          paymentId: input.paymentId ?? null,
+          reconciliationState: reconciliation.state ?? 'COMPLETED',
+        }, auditContext);
+      } catch (error: unknown) {
+        auditResult = { state: 'FAILED', error: error instanceof Error ? error.message : 'Audit recording failed after access state commit' };
+      }
+      return { ...this.mapAccess(updated.rows[0]), reconciliation, audit: auditResult };
     } catch (error: unknown) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      if (!committed) await client.query('ROLLBACK').catch(() => undefined);
       if (this.pgCode(error) === '23503') throw new NotFoundException('Payment was not found for this tenant');
       throw error;
     } finally { client.release(); }
