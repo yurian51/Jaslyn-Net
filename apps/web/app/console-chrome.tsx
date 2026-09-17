@@ -14,7 +14,6 @@ const nav = [
   ['Security & Audit', '◈', '/audit'],
 ] as const;
 
-const chromeRoutes = new Set(['/customers', '/packages', '/purchases']);
 const publicRoutes = new Set(['/login', '/register']);
 
 function AuthGate({ children }: { children: ReactNode }) {
@@ -62,5 +61,5 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
 export default function ConsoleChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  return <AuthGate>{publicRoutes.has(pathname) ? children : chromeRoutes.has(pathname) ? <OperationsChrome>{children}</OperationsChrome> : children}</AuthGate>;
+  return <AuthGate>{publicRoutes.has(pathname) ? children : <OperationsChrome>{children}</OperationsChrome>}</AuthGate>;
 }
