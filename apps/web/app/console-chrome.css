@@ -28,6 +28,16 @@
 .console-chrome-user small { margin-top: 2px; color: #68778c; font-size: 8px; }
 .console-chrome-user em { margin-left: auto; color: #657994; font-size: 13px; font-style: normal; }
 .console-chrome-content { margin-left: 248px; }
+
+/* Older operational pages still contain their own shell. Keep their real data/UI,
+   but let the single global chrome own navigation and responsive layout. */
+.console-chrome-content > .app-shell > .sidebar { display: none; }
+.console-chrome-content > .app-shell > .content { width: 100%; margin-left: 0; }
+.console-chrome-content > .hybrid-dashboard { display: block; }
+.console-chrome-content > .hybrid-dashboard > .hd-side { display: none; }
+.console-chrome-content > .hybrid-dashboard > .hd-main { width: 100%; }
+.console-chrome-content > .hybrid-dashboard .hd-top { position: relative; }
+
 .console-chrome-mobile { display: none; }
 
 @media (max-width: 820px) {
