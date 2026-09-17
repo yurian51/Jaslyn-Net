@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './console-responsive.css';
 import './console-chrome.css';
+import './overview.css';
 import './auth.css';
 import ConsoleChrome from './console-chrome';
 
