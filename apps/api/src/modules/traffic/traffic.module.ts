@@ -12,9 +12,12 @@ import { TrafficOrchestratorController } from './traffic-orchestrator.controller
 import { TrafficCollectorService } from './traffic-collector.service';
 import { NetworkCommandService } from './network-command.service';
 import { NetworkCommandController } from './network-command.controller';
+import { LoadBalancingController } from './load-balancing.controller';
+import { LoadBalancingEngine } from './load-balancing.engine';
+import { LoadBalancingService } from './load-balancing.service';
 
 @Module({
-  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController],
+  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController, LoadBalancingController],
   providers: [
     SecureNetworkCredentials,
     FairnessService,
@@ -23,6 +26,8 @@ import { NetworkCommandController } from './network-command.controller';
     MikroTikTrafficEnforcementAdapter,
     MerakiTrafficEnforcementAdapter,
     NetworkDeviceAdapterRegistry,
+    LoadBalancingEngine,
+    LoadBalancingService,
     {
       provide: TrafficEnforcementService,
       useFactory: (
@@ -39,6 +44,15 @@ import { NetworkCommandController } from './network-command.controller';
     TrafficOrchestratorService,
     TrafficCollectorService,
   ],
-  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService],
+  exports: [
+    FairnessService,
+    TrafficEnforcementService,
+    TrafficSamplesService,
+    TrafficOrchestratorService,
+    NetworkDeviceAdapterRegistry,
+    NetworkCommandService,
+    LoadBalancingEngine,
+    LoadBalancingService,
+  ],
 })
 export class TrafficModule {}
