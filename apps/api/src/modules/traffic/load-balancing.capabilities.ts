@@ -15,11 +15,12 @@ export interface WanRoutingAdapterCapabilities {
 }
 
 /**
- * Capability declarations are deliberately conservative. An integration may only
- * apply routing changes when its adapter explicitly implements the operation.
+ * Capability declarations are deliberately conservative. A capability means
+ * Jaslyn Net has a verified adapter path for that operation, not merely that
+ * the vendor product can theoretically support it.
  */
 export const WAN_ROUTING_CAPABILITIES: Readonly<Record<NetworkManagementProtocol, readonly WanRoutingCapability[]>> = {
-  MIKROTIK_REST: ['wan_telemetry', 'gateway_health', 'policy_routing', 'weighted_load_balancing', 'failover', 'route_read', 'route_write'],
+  MIKROTIK_REST: ['wan_telemetry', 'gateway_health', 'failover', 'route_read', 'route_write'],
   UNIFI_NETWORK_API: ['wan_telemetry', 'gateway_health', 'failover', 'route_read'],
   OMADA_CONTROLLER_API: ['wan_telemetry', 'gateway_health', 'failover', 'route_read'],
   CAMBIUM_CNMAESTRO: ['wan_telemetry', 'gateway_health', 'route_read'],
