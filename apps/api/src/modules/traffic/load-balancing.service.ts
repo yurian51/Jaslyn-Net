@@ -2,11 +2,13 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { AuditContext, AuditService } from '../../audit/audit.service';
+import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { LoadBalancingEngine } from './load-balancing.engine';
 import { CreateLoadBalancePolicyDto, CreateWanConnectionDto, LoadBalanceActionDto, UpdateWanConnectionDto, WanHealthCheckDto } from './load-balancing.dto';
 import { WanMemberState } from './load-balancing.types';
 import { hasWanRoutingCapability } from './load-balancing.capabilities';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
+import { MikrotikWanRoutingAdapter } from './mikrotik-wan-routing.adapter';
 
 @Injectable()
 export class LoadBalancingService {
@@ -14,6 +16,7 @@ export class LoadBalancingService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly engine: LoadBalancingEngine,
     private readonly audit: AuditService,
+    private readonly secureCredentials: SecureNetworkCredentials,
   ) {}
 
   async listWans(tenantId: string, routerId?: string) {
@@ -191,15 +194,46 @@ export class LoadBalancingService {
       expectedSharePercent: totalEffectiveWeight > 0 ? Number(((member.effectiveWeight / totalEffectiveWeight) * 100).toFixed(3)) : 0,
       observedUtilizationPercent: member.utilizationPercent,
     }));
+
+    let networkApply: { applied: boolean; verified: boolean; reason?: string; protocol?: NetworkManagementProtocol } = { applied: false, verified: false, reason: 'No device routing adapter was invoked.' };
+    if (status.policy.managementProtocol === 'MIKROTIK_REST' && status.policy.managementEnabled === true && status.policy.routingCapabilities.routeWrite) {
+      const router = await this.db.query(
+        `SELECT api_endpoint AS "apiEndpoint", management_credentials_encrypted AS "credentialsEncrypted"
+         FROM routers WHERE tenant_id=$1 AND id=$2`,
+        [tenantId, status.policy.routerId],
+      );
+      const row = router.rows[0];
+      if (row?.apiEndpoint && row?.credentialsEncrypted) {
+        try {
+          const credentials = this.secureCredentials.decrypt(row.credentialsEncrypted as string);
+          const adapter = new MikrotikWanRoutingAdapter(row.apiEndpoint as string, credentials);
+          const targets = status.policy.members.map((member) => ({
+            wanConnectionId: member.id as string,
+            interfaceName: member.interfaceName as string | null,
+            gateway: member.gateway as string | null,
+            weight: Number(member.configuredWeight),
+            priority: Number(member.priority),
+          }));
+          networkApply = await adapter.applyLoadBalanceDecision(status.policy.routerId, status.decision, targets);
+        } catch (error: unknown) {
+          const code = errorCode(error);
+          await this.audit.record(tenantId, 'TRAFFIC_REBALANCED_FAILED', 'load_balance_policy', policyId, { reason: action?.reason ?? 'operator_or_automation', errorCode: code, protocol: status.policy.managementProtocol }, context);
+          throw new BadRequestException(`WAN route application failed (${code})`);
+        }
+      } else {
+        networkApply = { applied: false, verified: false, protocol: 'MIKROTIK_REST', reason: 'MikroTik routing is enabled but the router API endpoint or encrypted management credentials are not configured.' };
+      }
+    }
+
     const correlationId = `rebalance:${policyId}:${Math.floor(Date.now() / 30000)}`;
     await this.db.query(
       `INSERT INTO load_balance_events (tenant_id,router_id,policy_id,event_type,correlation_id,evidence)
        VALUES ($1,$2,$3,'TRAFFIC_REBALANCED',$4,$5::jsonb)
        ON CONFLICT (tenant_id,event_type,correlation_id) WHERE correlation_id IS NOT NULL DO NOTHING`,
-      [tenantId, status.policy.routerId, policyId, correlationId, JSON.stringify({ distribution, reason: action?.reason ?? 'operator_or_automation', appliedToRouter: false })],
+      [tenantId, status.policy.routerId, policyId, correlationId, JSON.stringify({ distribution, reason: action?.reason ?? 'operator_or_automation', networkApply })],
     );
-    await this.audit.record(tenantId, 'TRAFFIC_REBALANCED_DECISION', 'load_balance_policy', policyId, { distribution, reason: action?.reason ?? 'operator_or_automation', appliedToRouter: false }, context);
-    return { ...status, distribution, appliedToRouter: false, action: 'DECISION_ONLY_UNTIL_DEVICE_ADAPTER_SUPPORTS_WAN_ROUTING' };
+    await this.audit.record(tenantId, networkApply.applied && networkApply.verified ? 'TRAFFIC_REBALANCED_APPLIED' : 'TRAFFIC_REBALANCED_DECISION', 'load_balance_policy', policyId, { distribution, reason: action?.reason ?? 'operator_or_automation', networkApply }, context);
+    return { ...status, distribution, appliedToRouter: networkApply.applied && networkApply.verified, networkApply };
   }
 
   async addHealthCheck(tenantId: string, wanId: string, dto: WanHealthCheckDto, context: AuditContext = {}) {
@@ -248,4 +282,8 @@ export class LoadBalancingService {
     const result = await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2', [tenantId, routerId]);
     if (!result.rowCount) throw new NotFoundException('Router not found');
   }
+}
+
+function errorCode(error: unknown) {
+  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'NETWORK_ERROR';
 }
