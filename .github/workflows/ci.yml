@@ -38,10 +38,18 @@ jobs:
           for file in apps/api/migrations/*.sql; do test -f "$file"; done
           test -f apps/api/migrations/028_connectivity_incidents.sql
           test -f apps/api/migrations/029_wan_load_balancing.sql
+          test -f apps/api/migrations/030_isp_field_operations.sql
+          test -f apps/api/migrations/032_jmwifi_customer_access.sql
+          test -f apps/api/migrations/033_customer_service_state_history.sql
+          test -f apps/api/migrations/034_fiber_line_state_history.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
           grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_events" apps/api/migrations/029_wan_load_balancing.sql
+          grep -q "fiber_lines" apps/api/migrations/030_isp_field_operations.sql
+          grep -q "customer_access_bindings" apps/api/migrations/032_jmwifi_customer_access.sql
+          grep -q "customer_service_state_events" apps/api/migrations/033_customer_service_state_history.sql
+          grep -q "fiber_line_events" apps/api/migrations/034_fiber_line_state_history.sql
       - name: Lint API
         run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API
