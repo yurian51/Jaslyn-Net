@@ -1,0 +1,193 @@
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Pool } from 'pg';
+import { PG_POOL } from '../../database/database.module';
+import { AuditContext, AuditService } from '../../audit/audit.service';
+import { LoadBalancingEngine } from './load-balancing.engine';
+import { CreateLoadBalancePolicyDto, CreateWanConnectionDto, LoadBalanceActionDto, UpdateWanConnectionDto, WanHealthCheckDto } from './load-balancing.dto';
+import { WanMemberState } from './load-balancing.types';
+
+@Injectable()
+export class LoadBalancingService {
+  constructor(
+    @Inject(PG_POOL) private readonly db: Pool,
+    private readonly engine: LoadBalancingEngine,
+    private readonly audit: AuditService,
+  ) {}
+
+  async listWans(tenantId: string, routerId?: string) {
+    const result = await this.db.query(
+      `SELECT id, router_id AS "routerId", name, provider, interface_name AS "interfaceName",
+              host(gateway) AS gateway, address::text AS address, capacity_mbps AS "capacityMbps",
+              configured_weight AS "configuredWeight", priority, failover_priority AS "failoverPriority",
+              enabled, drain_requested AS "drainRequested", health_state AS "healthState",
+              latency_ms AS "latencyMs", jitter_ms AS "jitterMs", packet_loss_percent AS "packetLossPercent",
+              observed_utilization_percent AS "observedUtilizationPercent", observed_upload_bps::text AS "observedUploadBps",
+              observed_download_bps::text AS "observedDownloadBps", active_sessions AS "activeSessions",
+              last_health_check_at AS "lastHealthCheckAt", last_state_change_at AS "lastStateChangeAt"
+       FROM wan_connections
+       WHERE tenant_id=$1 AND ($2::uuid IS NULL OR router_id=$2)
+       ORDER BY priority ASC, name ASC`,
+      [tenantId, routerId ?? null],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
+  async createWan(tenantId: string, dto: CreateWanConnectionDto, context: AuditContext = {}) {
+    await this.assertRouter(tenantId, dto.routerId);
+    const result = await this.db.query(
+      `INSERT INTO wan_connections
+       (tenant_id,router_id,name,provider,interface_name,gateway,address,capacity_mbps,configured_weight,priority,failover_priority,enabled,health_state,last_state_change_at)
+       VALUES ($1,$2,$3,$4,$5,$6::inet,$7::cidr,$8,$9,$10,$11,$12,'UNKNOWN',now())
+       RETURNING id`,
+      [tenantId, dto.routerId, dto.name.trim(), dto.provider?.trim() || null, dto.interfaceName?.trim() || null,
+       dto.gateway ?? null, dto.address ?? null, dto.capacityMbps, dto.configuredWeight ?? 1, dto.priority ?? 100,
+       dto.failoverPriority ?? 100, dto.enabled ?? true],
+    );
+    const id = result.rows[0].id as string;
+    await this.audit.record(tenantId, 'WAN_CONNECTION_CREATED', 'wan_connection', id, { routerId: dto.routerId, name: dto.name, capacityMbps: dto.capacityMbps }, context);
+    return this.getWan(tenantId, id);
+  }
+
+  async updateWan(tenantId: string, id: string, dto: UpdateWanConnectionDto, context: AuditContext = {}) {
+    await this.assertWan(tenantId, id);
+    const result = await this.db.query(
+      `UPDATE wan_connections SET
+       name=COALESCE($3,name), provider=COALESCE($4,provider), interface_name=COALESCE($5,interface_name),
+       gateway=COALESCE($6::inet,gateway), address=COALESCE($7::cidr,address), capacity_mbps=COALESCE($8,capacity_mbps),
+       configured_weight=COALESCE($9,configured_weight), priority=COALESCE($10,priority), failover_priority=COALESCE($11,failover_priority),
+       enabled=COALESCE($12,enabled), drain_requested=COALESCE($13,drain_requested),
+       health_state=CASE WHEN COALESCE($12,enabled)=false THEN 'DISABLED' WHEN COALESCE($13,drain_requested)=true THEN 'DRAINING' ELSE health_state END,
+       last_state_change_at=CASE WHEN COALESCE($12,enabled) IS DISTINCT FROM enabled OR COALESCE($13,drain_requested) IS DISTINCT FROM drain_requested THEN now() ELSE last_state_change_at END,
+       updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 RETURNING id`,
+      [tenantId, id, dto.name?.trim() || null, dto.provider?.trim() || null, dto.interfaceName?.trim() || null,
+       dto.gateway ?? null, dto.address ?? null, dto.capacityMbps ?? null, dto.configuredWeight ?? null, dto.priority ?? null,
+       dto.failoverPriority ?? null, dto.enabled ?? null, dto.drainRequested ?? null],
+    );
+    if (!result.rowCount) throw new NotFoundException('WAN connection not found');
+    await this.audit.record(tenantId, 'WAN_CONNECTION_UPDATED', 'wan_connection', id, { changes: dto }, context);
+    return this.getWan(tenantId, id);
+  }
+
+  async createPolicy(tenantId: string, dto: CreateLoadBalancePolicyDto, context: AuditContext = {}) {
+    await this.assertRouter(tenantId, dto.routerId);
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO load_balance_policies
+         (tenant_id,router_id,name,strategy,enabled,capacity_aware,rebalance_threshold_percent,degrade_threshold_percent,unavailable_after_failures,recover_after_successes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+        [tenantId, dto.routerId, dto.name.trim(), dto.strategy, dto.enabled ?? true, dto.capacityAware ?? true,
+         dto.rebalanceThresholdPercent ?? 15, dto.degradeThresholdPercent ?? 80, dto.unavailableAfterFailures ?? 3, dto.recoverAfterSuccesses ?? 3],
+      );
+      const id = result.rows[0].id as string;
+      for (const member of dto.members ?? []) {
+        await client.query(
+          `INSERT INTO load_balance_members (tenant_id,policy_id,wan_connection_id,configured_weight,priority,enabled)
+           SELECT $1,$2,w.id,$3,$4,$5 FROM wan_connections w WHERE w.tenant_id=$1 AND w.id=$6 AND w.router_id=$7`,
+          [tenantId, id, member.configuredWeight ?? 1, member.priority ?? 100, member.enabled ?? true, member.wanConnectionId, dto.routerId],
+        );
+      }
+      await client.query('COMMIT');
+      await this.audit.record(tenantId, 'LOAD_BALANCE_POLICY_CREATED', 'load_balance_policy', id, { routerId: dto.routerId, strategy: dto.strategy, memberCount: dto.members?.length ?? 0 }, context);
+      return this.getPolicy(tenantId, id);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async listPolicies(tenantId: string, routerId?: string) {
+    const result = await this.db.query(
+      `SELECT p.id,p.router_id AS "routerId",p.name,p.strategy,p.enabled,p.capacity_aware AS "capacityAware",
+              p.rebalance_threshold_percent AS "rebalanceThresholdPercent",p.degrade_threshold_percent AS "degradeThresholdPercent",
+              p.unavailable_after_failures AS "unavailableAfterFailures",p.recover_after_successes AS "recoverAfterSuccesses",
+              COUNT(m.id)::int AS "memberCount"
+       FROM load_balance_policies p LEFT JOIN load_balance_members m ON m.tenant_id=p.tenant_id AND m.policy_id=p.id
+       WHERE p.tenant_id=$1 AND ($2::uuid IS NULL OR p.router_id=$2)
+       GROUP BY p.id ORDER BY p.updated_at DESC`,
+      [tenantId, routerId ?? null],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
+  async getPolicy(tenantId: string, id: string) {
+    const policy = await this.db.query(
+      `SELECT id,router_id AS "routerId",name,strategy,enabled,capacity_aware AS "capacityAware",
+              rebalance_threshold_percent AS "rebalanceThresholdPercent",degrade_threshold_percent AS "degradeThresholdPercent",
+              unavailable_after_failures AS "unavailableAfterFailures",recover_after_successes AS "recoverAfterSuccesses"
+       FROM load_balance_policies WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
+    if (!policy.rowCount) throw new NotFoundException('Load-balance policy not found');
+    const members = await this.db.query(
+      `SELECT w.id,w.name,w.provider,w.interface_name AS "interfaceName",host(w.gateway) AS gateway,
+              w.capacity_mbps AS "capacityMbps",m.configured_weight AS "configuredWeight",m.priority,m.enabled,
+              w.drain_requested AS "drainRequested",w.health_state AS "healthState",w.latency_ms AS "latencyMs",
+              w.jitter_ms AS "jitterMs",w.packet_loss_percent AS "packetLossPercent",w.observed_utilization_percent AS "observedUtilizationPercent",
+              w.observed_upload_bps::text AS "observedUploadBps",w.observed_download_bps::text AS "observedDownloadBps",w.active_sessions AS "activeSessions",
+              w.last_health_check_at AS "lastHealthCheckAt",w.last_state_change_at AS "lastStateChangeAt"
+       FROM load_balance_members m JOIN wan_connections w ON w.tenant_id=m.tenant_id AND w.id=m.wan_connection_id
+       WHERE m.tenant_id=$1 AND m.policy_id=$2 ORDER BY m.priority ASC,w.name ASC`, [tenantId, id]);
+    return { ...policy.rows[0], members: members.rows };
+  }
+
+  async status(tenantId: string, policyId: string) {
+    const policy = await this.getPolicy(tenantId, policyId);
+    const decision = this.engine.decide(policyId, policy.strategy, policy.members as WanMemberState[], policy.capacityAware);
+    return { policy, decision, generatedAt: new Date().toISOString() };
+  }
+
+  async rebalance(tenantId: string, policyId: string, context: AuditContext = {}, action?: LoadBalanceActionDto) {
+    const status = await this.status(tenantId, policyId);
+    const totalEffectiveWeight = status.decision.eligibleMembers.reduce((sum, member) => sum + member.effectiveWeight, 0);
+    const distribution = status.decision.eligibleMembers.map((member) => ({
+      wanConnectionId: member.wanConnectionId,
+      configuredWeight: member.configuredWeight,
+      effectiveWeight: member.effectiveWeight,
+      expectedSharePercent: totalEffectiveWeight > 0 ? Number(((member.effectiveWeight / totalEffectiveWeight) * 100).toFixed(3)) : 0,
+      observedUtilizationPercent: member.utilizationPercent,
+    }));
+    const correlationId = `rebalance:${policyId}:${Math.floor(Date.now() / 30000)}`;
+    await this.db.query(
+      `INSERT INTO load_balance_events (tenant_id,router_id,policy_id,event_type,correlation_id,evidence)
+       VALUES ($1,$2,$3,'TRAFFIC_REBALANCED',$4,$5::jsonb)
+       ON CONFLICT (tenant_id,event_type,correlation_id) WHERE correlation_id IS NOT NULL DO NOTHING`,
+      [tenantId, status.policy.routerId, policyId, correlationId, JSON.stringify({ distribution, reason: action?.reason ?? 'operator_or_automation' })],
+    );
+    await this.audit.record(tenantId, 'TRAFFIC_REBALANCED', 'load_balance_policy', policyId, { distribution, reason: action?.reason ?? 'operator_or_automation' }, context);
+    return { ...status, distribution };
+  }
+
+  async addHealthCheck(tenantId: string, wanId: string, dto: WanHealthCheckDto, context: AuditContext = {}) {
+    await this.assertWan(tenantId, wanId);
+    if (!['HTTP','HTTPS','TCP','DNS'].includes(dto.method) && !dto.target) throw new BadRequestException('Health-check target is required');
+    const result = await this.db.query(
+      `INSERT INTO wan_health_checks (tenant_id,wan_connection_id,method,target,interval_seconds,timeout_ms,failure_threshold,recovery_threshold,enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [tenantId, wanId, dto.method, dto.target.trim(), dto.intervalSeconds ?? 10, dto.timeoutMs ?? 3000, dto.failureThreshold ?? 3, dto.recoveryThreshold ?? 3, dto.enabled ?? true]);
+    await this.audit.record(tenantId, 'WAN_HEALTH_CHECK_CREATED', 'wan_connection', wanId, { healthCheckId: result.rows[0].id, method: dto.method, target: dto.target }, context);
+    return result.rows[0];
+  }
+
+  private async getWan(tenantId: string, id: string) {
+    const result = await this.db.query(
+      `SELECT id,router_id AS "routerId",name,provider,interface_name AS "interfaceName",host(gateway) AS gateway,address::text AS address,
+              capacity_mbps AS "capacityMbps",configured_weight AS "configuredWeight",priority,failover_priority AS "failoverPriority",
+              enabled,drain_requested AS "drainRequested",health_state AS "healthState",latency_ms AS "latencyMs",jitter_ms AS "jitterMs",
+              packet_loss_percent AS "packetLossPercent",observed_utilization_percent AS "observedUtilizationPercent",observed_upload_bps::text AS "observedUploadBps",
+              observed_download_bps::text AS "observedDownloadBps",active_sessions AS "activeSessions",last_health_check_at AS "lastHealthCheckAt",
+              last_state_change_at AS "lastStateChangeAt" FROM wan_connections WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
+    if (!result.rowCount) throw new NotFoundException('WAN connection not found');
+    return result.rows[0];
+  }
+
+  private async assertWan(tenantId: string, id: string) {
+    const result = await this.db.query('SELECT id FROM wan_connections WHERE tenant_id=$1 AND id=$2', [tenantId, id]);
+    if (!result.rowCount) throw new NotFoundException('WAN connection not found');
+  }
+
+  private async assertRouter(tenantId: string, routerId: string) {
+    const result = await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2', [tenantId, routerId]);
+    if (!result.rowCount) throw new NotFoundException('Router not found');
+  }
+}
