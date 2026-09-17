@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
 const RECONCILIATION_INTERVAL_MS = 60_000;
