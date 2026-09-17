@@ -66,7 +66,7 @@ export default function LoginPage() {
             <div className="auth-card-head"><span>SECURE ACCESS</span><h2>Sign in</h2><p>Use your Jaslyn Net operator account.</p></div>
             {error && <div className="auth-error" role="alert">{error}</div>}
             <label>Email address<input type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="operator@company.com" /></label>
-            <label>Password><div className="auth-password"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" /><button type="button" onClick={() => setShowPassword(value => !value)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
+            <label>Password<div className="auth-password"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" /><button type="button" onClick={() => setShowPassword(value => !value)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
             <button className="auth-submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
             <p className="auth-security"><span>●</span> Authenticated sessions are protected by the Jaslyn Net API.</p>
           </form>
