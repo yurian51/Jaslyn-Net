@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './console-responsive.css';
+import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
   title: 'JASLYN NET | Network Operations Platform',
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="en"><body><ConsoleChrome>{children}</ConsoleChrome></body></html>;
 }
