@@ -37,7 +37,11 @@ jobs:
           set -euo pipefail
           for file in apps/api/migrations/*.sql; do test -f "$file"; done
           test -f apps/api/migrations/028_connectivity_incidents.sql
+          test -f apps/api/migrations/029_wan_load_balancing.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
+          grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
+          grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
+          grep -q "load_balance_events" apps/api/migrations/029_wan_load_balancing.sql
       - name: Lint API
         run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API
