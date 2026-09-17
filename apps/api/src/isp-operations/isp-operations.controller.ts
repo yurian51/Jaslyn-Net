@@ -13,7 +13,7 @@ export class IspOperationsController {
   constructor(private readonly isp:IspOperationsService,private readonly fibers:FiberLinesService,private readonly serviceState:CustomerServiceStateService){}
   @Get('access-bindings') listAccessBindings(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listAccessBindings(req.user!.tenantId,query);}
   @Post('access-bindings') @Roles('OWNER','ADMIN','AGENT') createAccessBinding(@Req() req:AuthenticatedRequest,@Body() dto:CreateAccessBindingDto){return this.isp.createAccessBinding(req.user!.tenantId,dto);}
-  @Put('access-bindings/:id/state') @Roles('OWNER','ADMIN','AGENT') changeAccessState(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:ChangeAccessStateDto){return this.isp.changeAccessState(req.user!.tenantId,id,dto);}
+  @Put('access-bindings/:id/state') @Roles('OWNER','ADMIN','AGENT') changeAccessState(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:ChangeAccessStateDto){return this.isp.changeAccessState(req.user!.tenantId,id,dto,{userId:req.user!.id});}
   @Get('access-bindings/:id/events') getAccessEvents(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.isp.accessEvents(req.user!.tenantId,id);}
   @Get('customers/:customerId/service-state') getCustomerServiceState(@Req() req:AuthenticatedRequest,@Param('customerId') customerId:string){return this.serviceState.get(req.user!.tenantId,customerId);}
   @Put('customers/:customerId/service-state') @Roles('OWNER','ADMIN','AGENT') setCustomerServiceState(@Req() req:AuthenticatedRequest,@Param('customerId') customerId:string,@Body() dto:ChangeCustomerServiceStateDto){return this.serviceState.set(req.user!.tenantId,customerId,dto,{userId:req.user!.id});}
