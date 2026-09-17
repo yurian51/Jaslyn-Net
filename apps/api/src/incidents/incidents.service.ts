@@ -60,19 +60,27 @@ export class IncidentsService {
     if (!routerResult.rowCount) throw new NotFoundException('Router not found');
     const router = routerResult.rows[0];
 
-    const impactResult = await this.db.query(
-      `SELECT
-         COUNT(DISTINCT s.id)::int AS sessions,
-         COUNT(DISTINCT s.customer_id)::int AS customers,
-         COUNT(DISTINCT p.id)::int AS purchases,
-         COALESCE(SUM(p.price) FILTER (WHERE ag.status='ACTIVE' AND (ag.ends_at IS NULL OR ag.ends_at > now())),0)::numeric AS revenue
-       FROM sessions s
-       LEFT JOIN access_grants ag ON ag.tenant_id=s.tenant_id AND ag.router_id=$2 AND ag.customer_id=s.customer_id AND ag.status='ACTIVE'
-       LEFT JOIN wifi_plan_purchases p ON p.tenant_id=ag.tenant_id AND p.id=ag.purchase_id
-       WHERE s.tenant_id=$1 AND s.router_id=$2 AND s.status='ACTIVE'`,
-      [tenantId, routerId],
-    );
+    const [impactResult, revenueResult] = await Promise.all([
+      this.db.query(
+        `SELECT COUNT(DISTINCT s.id)::int AS sessions,
+                COUNT(DISTINCT s.customer_id)::int AS customers,
+                COUNT(DISTINCT ag.purchase_id)::int AS purchases
+         FROM sessions s
+         LEFT JOIN access_grants ag ON ag.tenant_id=s.tenant_id AND ag.router_id=$2 AND ag.customer_id=s.customer_id AND ag.status='ACTIVE'
+         WHERE s.tenant_id=$1 AND s.router_id=$2 AND s.status='ACTIVE'`,
+        [tenantId, routerId],
+      ),
+      this.db.query(
+        `SELECT COALESCE(SUM(p.price),0)::numeric AS revenue
+         FROM access_grants ag
+         JOIN wifi_plan_purchases p ON p.tenant_id=ag.tenant_id AND p.id=ag.purchase_id
+         WHERE ag.tenant_id=$1 AND ag.router_id=$2 AND ag.status='ACTIVE'
+           AND (ag.ends_at IS NULL OR ag.ends_at > now())`,
+        [tenantId, routerId],
+      ),
+    ]);
     const impact = impactResult.rows[0];
+    const revenue = Number(revenueResult.rows[0]?.revenue || 0);
     const fingerprint = `router-offline:${routerId}`;
 
     const client = await this.db.connect();
@@ -121,16 +129,16 @@ export class IncidentsService {
           [tenantId, incidentId, session.id, JSON.stringify({ routerId }), session.customer_id],
         );
       }
-      if (Number(impact.revenue) > 0) {
+      if (revenue > 0) {
         await client.query(
           `INSERT INTO incident_impacts (tenant_id,incident_id,resource_type,impact_type,state,estimated_revenue,evidence)
            VALUES ($1,$2,'REVENUE','REVENUE','AFFECTED',$3,$4::jsonb)`,
-          [tenantId, incidentId, impact.revenue, JSON.stringify({ basis: 'active access grants on affected router' })],
+          [tenantId, incidentId, revenue, JSON.stringify({ basis: 'active access grants on affected router' })],
         );
       }
       await client.query('COMMIT');
       await this.audit.record(tenantId, 'INCIDENT_SYNCED_ROUTER_OFFLINE', 'incident', incidentId, {
-        routerId, routerName: router.name, affectedCustomers: Number(impact.customers || 0), affectedSessions: Number(impact.sessions || 0), estimatedRevenue: Number(impact.revenue || 0),
+        routerId, routerName: router.name, affectedCustomers: Number(impact.customers || 0), affectedSessions: Number(impact.sessions || 0), estimatedRevenue: revenue,
       }, context);
       return this.get(tenantId, incidentId);
     } catch (error) {
