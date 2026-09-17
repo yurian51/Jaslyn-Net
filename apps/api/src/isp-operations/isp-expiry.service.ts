@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
@@ -11,14 +11,27 @@ type ExpiryResult = {
 
 @Injectable()
 export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(IspExpiryService.name);
   private timer?: NodeJS.Timeout;
   private running = false;
 
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
 
   onModuleInit() {
+    void this.reconcile().catch((error: unknown) => {
+      this.logger.error(
+        error instanceof Error ? error.stack ?? error.message : String(error),
+        'Initial expiry reconciliation failed',
+      );
+    });
+
     this.timer = setInterval(() => {
-      void this.reconcile().catch(() => undefined);
+      void this.reconcile().catch((error: unknown) => {
+        this.logger.error(
+          error instanceof Error ? error.stack ?? error.message : String(error),
+          'Scheduled expiry reconciliation failed',
+        );
+      });
     }, RECONCILIATION_INTERVAL_MS);
     this.timer.unref();
   }
@@ -30,61 +43,79 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
   async reconcile(): Promise<ExpiryResult> {
     if (this.running) return { expiredBindings: 0, suspendedCustomers: 0 };
     this.running = true;
-    const client = await this.db.connect();
+    let client: Awaited<ReturnType<Pool['connect']>> | undefined;
     try {
+      client = await this.db.connect();
       await client.query('BEGIN');
 
-      const expiredBindings = await client.query<{ id: string; previous_state: string }>(
-        `UPDATE customer_access_bindings
-            SET state='EXPIRED', updated_at=now()
-          WHERE state='ACTIVE'
-            AND expires_at IS NOT NULL
-            AND expires_at <= now()
-          RETURNING id, state AS previous_state`,
+      const expiredBindings = await client.query<{ id: string }>(
+        `WITH expired AS (
+           UPDATE customer_access_bindings
+              SET state='EXPIRED', updated_at=now()
+            WHERE state='ACTIVE'
+              AND expires_at IS NOT NULL
+              AND expires_at <= now()
+            RETURNING tenant_id, id
+         )
+         INSERT INTO access_state_events
+           (tenant_id, access_binding_id, previous_state, new_state, reason, source)
+         SELECT tenant_id, id, 'ACTIVE', 'EXPIRED', 'Access binding expired', 'SYSTEM_EXPIRY'
+           FROM expired
+         RETURNING access_binding_id AS id`,
       );
 
-      for (const binding of expiredBindings.rows) {
-        await client.query(
-          `INSERT INTO access_state_events
-             (tenant_id, access_binding_id, previous_state, new_state, reason, source)
-           SELECT tenant_id, id, 'ACTIVE', 'EXPIRED', 'Access binding expired', 'SYSTEM_EXPIRY'
-             FROM customer_access_bindings
-            WHERE id=$1`,
-          [binding.id],
-        );
-      }
-
-      const suspendedCustomers = await client.query<{ tenant_id: string; customer_id: string; state: string }>(
+      await client.query(
         `UPDATE customer_service_state s
-            SET state='SUSPENDED',
-                reason='Service expired',
-                source='SYSTEM_EXPIRY',
-                effective_at=now()
-          WHERE s.state='ACTIVE'
-            AND s.expires_at IS NOT NULL
-            AND s.expires_at <= now()
-          RETURNING s.tenant_id, s.customer_id, 'ACTIVE' AS state`,
+            SET expires_at = active.max_expires_at,
+                updated_at = now()
+           FROM (
+             SELECT tenant_id, customer_id, MAX(expires_at) AS max_expires_at
+               FROM customer_access_bindings
+              WHERE state='ACTIVE'
+              GROUP BY tenant_id, customer_id
+           ) active
+          WHERE s.tenant_id=active.tenant_id
+            AND s.customer_id=active.customer_id
+            AND s.state='ACTIVE'`,
       );
 
-      for (const customer of suspendedCustomers.rows) {
-        await client.query(
-          `INSERT INTO customer_service_state_events
-             (tenant_id, customer_id, previous_state, new_state, reason, source, effective_at)
-           VALUES ($1,$2,'ACTIVE','SUSPENDED','Service expired','SYSTEM_EXPIRY',now())`,
-          [customer.tenant_id, customer.customer_id],
-        );
-      }
+      const suspendedCustomers = await client.query<{ tenant_id: string; customer_id: string }>(
+        `WITH suspended AS (
+           UPDATE customer_service_state s
+              SET state='SUSPENDED',
+                  reason='Service expired',
+                  source='SYSTEM_EXPIRY',
+                  effective_at=now(),
+                  updated_at=now()
+            WHERE s.state='ACTIVE'
+              AND s.expires_at IS NOT NULL
+              AND s.expires_at <= now()
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM customer_access_bindings b
+                 WHERE b.tenant_id=s.tenant_id
+                   AND b.customer_id=s.customer_id
+                   AND b.state='ACTIVE'
+              )
+            RETURNING s.tenant_id, s.customer_id
+         )
+         INSERT INTO customer_service_state_events
+           (tenant_id, customer_id, previous_state, new_state, reason, source, effective_at)
+         SELECT tenant_id, customer_id, 'ACTIVE', 'SUSPENDED', 'Service expired', 'SYSTEM_EXPIRY', now()
+           FROM suspended
+         RETURNING tenant_id, customer_id`,
+      );
 
       await client.query('COMMIT');
       return {
         expiredBindings: expiredBindings.rowCount ?? 0,
         suspendedCustomers: suspendedCustomers.rowCount ?? 0,
       };
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
+    } catch (error: unknown) {
+      if (client) await client.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally {
-      client.release();
+      client?.release();
       this.running = false;
     }
   }
