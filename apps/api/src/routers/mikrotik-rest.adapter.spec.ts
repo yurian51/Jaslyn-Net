@@ -62,6 +62,34 @@ describe('MikrotikRestAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
+  it('matches PPP sessions by username when IP is unavailable', async () => {
+    let pppActive = true;
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/rest/ip/hotspot/active')) return new Response('[]', { status: 200 });
+      if (url.endsWith('/rest/ppp/active')) {
+        if (init?.method === 'DELETE') { pppActive = false; return new Response('', { status: 200 }); }
+        return new Response(pppActive ? '[{".id":"*ppp1","name":"alice","address":"10.0.0.9"}]' : '[]', { status: 200 });
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+    await expect(new MikrotikRestAdapter().disconnectClient('https://router.example', credentials, { username: ' alice ' })).resolves.toMatchObject({ disconnected: true, removed: [{ service: 'ppp', id: '*ppp1' }] });
+  });
+
+  it('matches MAC addresses across common separator formats', async () => {
+    let hotspotActive = true;
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/rest/ip/hotspot/active')) {
+        if (init?.method === 'DELETE') { hotspotActive = false; return new Response('', { status: 200 }); }
+        return new Response(hotspotActive ? '[{".id":"*hs2","user":"bob","mac-address":"AA-BB-CC-DD-EE-FF"}]' : '[]', { status: 200 });
+      }
+      if (url.endsWith('/rest/ppp/active')) return new Response('[]', { status: 200 });
+      throw new Error(`unexpected URL ${url}`);
+    });
+    await expect(new MikrotikRestAdapter().disconnectClient('https://router.example', credentials, { macAddress: 'aa:bb:cc:dd:ee:ff' })).resolves.toMatchObject({ disconnected: true, removed: [{ service: 'hotspot', id: '*hs2' }] });
+  });
+
   it('fails when a session remains after disconnect', async () => {
     jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
