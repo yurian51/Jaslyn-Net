@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
 
@@ -14,7 +14,6 @@ type LoginResponse = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,8 +35,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       storeAccessToken(result.accessToken);
-      const next = searchParams.get('next');
-      router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard');
+      router.replace('/dashboard');
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) setError('The email or password is incorrect.');
       else setError(cause instanceof Error ? cause.message : 'Unable to sign in. Please try again.');
@@ -68,7 +66,7 @@ export default function LoginPage() {
             <div className="auth-card-head"><span>SECURE ACCESS</span><h2>Sign in</h2><p>Use your Jaslyn Net operator account.</p></div>
             {error && <div className="auth-error" role="alert">{error}</div>}
             <label>Email address<input type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="operator@company.com" /></label>
-            <label>Password<div className="auth-password"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" /><button type="button" onClick={() => setShowPassword(value => !value)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
+            <label>Password><div className="auth-password"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" /><button type="button" onClick={() => setShowPassword(value => !value)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
             <button className="auth-submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
             <p className="auth-security"><span>●</span> Authenticated sessions are protected by the Jaslyn Net API.</p>
           </form>
