@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './console-responsive.css';
+import './console-chrome.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
