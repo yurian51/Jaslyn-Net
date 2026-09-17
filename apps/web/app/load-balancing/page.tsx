@@ -5,155 +5,40 @@ import { ApiError, apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
 type Wan = {
-  id: string;
-  routerId: string;
-  name: string;
-  provider?: string | null;
-  interfaceName?: string | null;
-  gateway?: string | null;
-  capacityMbps: number;
-  configuredWeight: number;
-  priority: number;
-  failoverPriority: number;
-  enabled: boolean;
-  drainRequested: boolean;
-  healthState: string;
-  latencyMs: number | null;
-  jitterMs: number | null;
-  packetLossPercent: number | null;
-  observedUtilizationPercent: number | null;
-  observedUploadBps: string;
-  observedDownloadBps: string;
-  activeSessions: number;
-  lastHealthCheckAt: string | null;
+  id: string; routerId: string; name: string; provider?: string | null; interfaceName?: string | null; gateway?: string | null;
+  capacityMbps: number; configuredWeight: number; priority: number; failoverPriority: number; enabled: boolean; drainRequested: boolean;
+  healthState: string; latencyMs: number | null; jitterMs: number | null; packetLossPercent: number | null; observedUtilizationPercent: number | null;
+  observedUploadBps: string; observedDownloadBps: string; activeSessions: number; lastHealthCheckAt: string | null;
+  routingCapabilities: { telemetry: boolean; gatewayHealth: boolean; policyRouting: boolean; weightedLoadBalancing: boolean; failover: boolean; routeRead: boolean; routeWrite: boolean };
 };
 
-type Policy = {
-  id: string;
-  routerId: string;
-  name: string;
-  strategy: string;
-  enabled: boolean;
-  capacityAware: boolean;
-  memberCount: number;
-};
-
-type PolicyStatus = Policy & { members: Wan[]; decision: { eligibleMembers: Array<{ wanConnectionId: string; configuredWeight: number; effectiveWeight: number; priority: number; healthState: string; capacityMbps: number; utilizationPercent: number | null }>; failoverActive: boolean }; generatedAt: string; appliedToRouter: boolean };
-
+type Policy = { id: string; routerId: string; name: string; strategy: string; enabled: boolean; capacityAware: boolean; memberCount: number; routingCapabilities: Wan['routingCapabilities'] };
+type PolicyStatus = Policy & { members: Wan[]; decision: { eligibleMembers: Array<{ wanConnectionId: string; configuredWeight: number; effectiveWeight: number; priority: number; healthState: string; capacityMbps: number; utilizationPercent: number | null }>; failoverActive: boolean }; generatedAt: string; appliedToRouter: boolean; applyAvailable: boolean };
 type Collection<T> = { data: T[]; count: number };
 
-function fmt(value: number | null | undefined, suffix = '') {
-  return value == null || !Number.isFinite(Number(value)) ? '—' : `${Number(value).toFixed(1)}${suffix}`;
-}
-
-function formatBytesPerSecond(value: string | undefined) {
-  const bytes = Number(value ?? 0);
-  if (!Number.isFinite(bytes)) return '—';
-  const mbps = bytes * 8 / 1_000_000;
-  return `${mbps >= 100 ? mbps.toFixed(0) : mbps.toFixed(1)} Mbps`;
-}
-
-function badgeClass(state: string) {
-  return `badge ${state.toLowerCase()}`;
-}
+function fmt(value: number | null | undefined, suffix = '') { return value == null || !Number.isFinite(Number(value)) ? '—' : `${Number(value).toFixed(1)}${suffix}`; }
+function formatBytesPerSecond(value: string | undefined) { const bytes = Number(value ?? 0); if (!Number.isFinite(bytes)) return '—'; const mbps = bytes * 8 / 1_000_000; return `${mbps >= 100 ? mbps.toFixed(0) : mbps.toFixed(1)} Mbps`; }
+function badgeClass(state: string) { return `badge ${state.toLowerCase()}`; }
 
 export default function LoadBalancingPage() {
-  const [wans, setWans] = useState<Wan[]>([]);
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [selectedPolicy, setSelectedPolicy] = useState<string>('');
-  const [status, setStatus] = useState<PolicyStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [wans, setWans] = useState<Wan[]>([]); const [policies, setPolicies] = useState<Policy[]>([]); const [selectedPolicy, setSelectedPolicy] = useState<string>('');
+  const [status, setStatus] = useState<PolicyStatus | null>(null); const [loading, setLoading] = useState(true); const [statusLoading, setStatusLoading] = useState(false); const [working, setWorking] = useState(false); const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token) { setError('Authentication required.'); setLoading(false); return; }
-    setLoading(true); setError(null);
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const [wanResponse, policyResponse] = await Promise.all([
-        apiFetch<Collection<Wan>>('/load-balancing/wan', { headers }),
-        apiFetch<Collection<Policy>>('/load-balancing/policies', { headers }),
-      ]);
-      setWans(wanResponse.data ?? []);
-      setPolicies(policyResponse.data ?? []);
-      setSelectedPolicy((current) => current && (policyResponse.data ?? []).some((p) => p.id === current) ? current : policyResponse.data?.[0]?.id ?? '');
-    } catch (cause: unknown) {
-      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load WAN operations.');
-    } finally { setLoading(false); }
-  }, []);
+  const load = useCallback(async () => { const token = getAccessToken(); if (!token) { setError('Authentication required.'); setLoading(false); return; } setLoading(true); setError(null); try { const headers = { Authorization: `Bearer ${token}` }; const [wanResponse, policyResponse] = await Promise.all([apiFetch<Collection<Wan>>('/load-balancing/wan', { headers }), apiFetch<Collection<Policy>>('/load-balancing/policies', { headers })]); setWans(wanResponse.data ?? []); setPolicies(policyResponse.data ?? []); setSelectedPolicy((current) => current && (policyResponse.data ?? []).some((p) => p.id === current) ? current : policyResponse.data?.[0]?.id ?? ''); } catch (cause: unknown) { setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load WAN operations.'); } finally { setLoading(false); } }, []);
+  const loadStatus = useCallback(async (policyId: string) => { if (!policyId) { setStatus(null); return; } const token = getAccessToken(); if (!token) return; setStatusLoading(true); try { setStatus(await apiFetch<PolicyStatus>(`/load-balancing/policies/${policyId}/status`, { headers: { Authorization: `Bearer ${token}` } })); } catch (cause: unknown) { setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load load-balancing status.'); } finally { setStatusLoading(false); } }, []);
+  useEffect(() => { void load(); }, [load]); useEffect(() => { void loadStatus(selectedPolicy); }, [selectedPolicy, loadStatus]);
 
-  const loadStatus = useCallback(async (policyId: string) => {
-    if (!policyId) { setStatus(null); return; }
-    const token = getAccessToken();
-    if (!token) return;
-    setStatusLoading(true);
-    try {
-      const next = await apiFetch<PolicyStatus>(`/load-balancing/policies/${policyId}/status`, { headers: { Authorization: `Bearer ${token}` } });
-      setStatus(next);
-    } catch (cause: unknown) {
-      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load load-balancing status.');
-    } finally { setStatusLoading(false); }
-  }, []);
+  const summary = useMemo(() => { const available = wans.filter((wan) => wan.enabled && !wan.drainRequested && ['HEALTHY', 'DEGRADED', 'RECOVERING'].includes(wan.healthState)); const down = wans.filter((wan) => ['UNAVAILABLE', 'DISABLED'].includes(wan.healthState) || !wan.enabled).length; const utilization = available.map((wan) => wan.observedUtilizationPercent).filter((x): x is number => x != null && Number.isFinite(Number(x))); return { available: available.length, down, maxUtilization: utilization.length ? Math.max(...utilization) : null }; }, [wans]);
 
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void loadStatus(selectedPolicy); }, [selectedPolicy, loadStatus]);
+  async function rebalance() { if (!selectedPolicy) return; const token = getAccessToken(); if (!token) { setError('Authentication required.'); return; } setWorking(true); setError(null); try { await apiFetch(`/load-balancing/policies/${selectedPolicy}/rebalance`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ reason: 'operator_rebalance' }) }); await loadStatus(selectedPolicy); } catch (cause: unknown) { setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Rebalance decision failed.'); } finally { setWorking(false); } }
 
-  const summary = useMemo(() => {
-    const available = wans.filter((wan) => wan.enabled && !wan.drainRequested && ['HEALTHY', 'DEGRADED', 'RECOVERING'].includes(wan.healthState));
-    const down = wans.filter((wan) => ['UNAVAILABLE', 'DISABLED'].includes(wan.healthState) || !wan.enabled).length;
-    const utilization = available.map((wan) => wan.observedUtilizationPercent).filter((x): x is number => x != null && Number.isFinite(Number(x)));
-    return { available: available.length, down, maxUtilization: utilization.length ? Math.max(...utilization) : null };
-  }, [wans]);
-
-  async function rebalance() {
-    if (!selectedPolicy) return;
-    const token = getAccessToken();
-    if (!token) { setError('Authentication required.'); return; }
-    setWorking(true); setError(null);
-    try {
-      await apiFetch(`/load-balancing/policies/${selectedPolicy}/rebalance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason: 'operator_rebalance' }),
-      });
-      await loadStatus(selectedPolicy);
-    } catch (cause: unknown) {
-      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Rebalance decision failed.');
-    } finally { setWorking(false); }
-  }
-
-  return (
-    <main className="shell">
-      <header className="header"><div><div className="eyebrow">JASLYN NET / NOC</div><h1>WAN &amp; Load Balancing</h1><p>Observed network state is separated from configured policy. Routing changes are never implied by a dashboard button.</p></div><div className="actions"><a href="/network" className="button secondary">Network inventory</a><button className="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div></header>
-      {error && <div className="error" role="alert">{error}</div>}
-
-      <section className="summary-grid" aria-label="WAN summary">
-        <div className="card"><span>WAN members</span><strong>{wans.length}</strong><small>{summary.available} eligible now</small></div>
-        <div className="card"><span>Unavailable / disabled</span><strong>{summary.down}</strong><small>Observed state</small></div>
-        <div className="card"><span>Peak utilization</span><strong>{fmt(summary.maxUtilization, '%')}</strong><small>From current telemetry</small></div>
-        <div className="card"><span>Policies</span><strong>{policies.length}</strong><small>Tenant scoped</small></div>
-      </section>
-
-      <section className="panel"><div className="panel-head"><div><span className="kicker">WAN OVERVIEW</span><h2>Connectivity members</h2></div><span className="muted">{loading ? 'Loading live data…' : `${wans.length} configured`}</span></div>
-        <div className="wan-grid">{wans.map((wan) => <article className="wan-card" key={wan.id}>
-          <div className="wan-top"><div><strong>{wan.name}</strong><small>{wan.provider ?? 'Provider not set'} · {wan.interfaceName ?? 'Interface not set'}</small></div><span className={badgeClass(wan.healthState)}>{wan.healthState}</span></div>
-          <div className="metrics"><div><span>Capacity</span><strong>{wan.capacityMbps} Mbps</strong></div><div><span>Weight</span><strong>{wan.configuredWeight}</strong></div><div><span>Priority</span><strong>{wan.priority}</strong></div><div><span>Sessions</span><strong>{wan.activeSessions}</strong></div><div><span>Latency</span><strong>{fmt(wan.latencyMs, ' ms')}</strong></div><div><span>Loss</span><strong>{fmt(wan.packetLossPercent, '%')}</strong></div></div>
-          <div className="traffic"><div><span>Download</span><strong>{formatBytesPerSecond(wan.observedDownloadBps)}</strong></div><div><span>Upload</span><strong>{formatBytesPerSecond(wan.observedUploadBps)}</strong></div><div><span>Utilization</span><strong>{fmt(wan.observedUtilizationPercent, '%')}</strong></div></div>
-          <div className="wan-foot"><span>{wan.gateway ? `Gateway ${wan.gateway}` : 'Gateway not configured'}</span><span>{wan.drainRequested ? 'Drain requested' : wan.enabled ? 'Enabled' : 'Disabled'}</span></div>
-        </article>)}{!loading && !wans.length && <div className="empty">No WAN connections exist yet. The page is intentionally empty rather than inventing links.</div>}</div>
-      </section>
-
-      <section className="panel"><div className="panel-head"><div><span className="kicker">LOAD BALANCE POLICY</span><h2>Deterministic path decision</h2></div><label className="policy-select">Policy<select value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value)}><option value="">Select policy</option>{policies.map((policy) => <option key={policy.id} value={policy.id}>{policy.name} · {policy.strategy}</option>)}</select></label></div>
-        {!selectedPolicy ? <div className="empty">Create a load-balancing policy to inspect eligibility and distribution.</div> : statusLoading ? <div className="empty">Evaluating current WAN state…</div> : status ? <>
-          <div className="policy-banner"><div><strong>{status.name}</strong><span>{status.strategy} · {status.capacityAware ? 'capacity-aware' : 'configured-weight only'}</span></div><div className="policy-state"><span className={status.decision.failoverActive ? 'dot warning' : 'dot healthy'}/>{status.decision.failoverActive ? 'Failover/degradation state active' : 'Normal eligibility'}</div></div>
-          <div className="distribution">{status.decision.eligibleMembers.map((member) => <div className="distribution-row" key={member.wanConnectionId}><div><strong>{status.members.find((wan) => wan.id === member.wanConnectionId)?.name ?? member.wanConnectionId}</strong><small>{member.healthState} · configured weight {member.configuredWeight}</small></div><div className="bar"><i style={{ width: `${Math.min(100, member.effectiveWeight / Math.max(...status.decision.eligibleMembers.map((x) => x.effectiveWeight), 1) * 100)}%` }}/></div><strong>{member.effectiveWeight.toFixed(2)}</strong><span>{fmt(member.utilizationPercent, '%')}</span></div>)}</div>
-          <div className="notice"><strong>Decision-only mode</strong><span>This subsystem currently calculates eligibility/effective weights and records an audited rebalance event. It does not claim to have changed router routing because no WAN-routing adapter is implemented for the connected device yet.</span></div>
-          <div className="actions-row"><button className="button" onClick={() => void rebalance()} disabled={working || !status.decision.eligibleMembers.length}>{working ? 'Recording decision…' : 'Recalculate & audit rebalance'}</button><span className="muted">Generated {new Date(status.generatedAt).toLocaleString()}</span></div>
-        </> : <div className="empty">No status data returned.</div>}
-      </section>
-    </main>
-  );
+  return <main className="shell">
+    <header className="header"><div><div className="eyebrow">JASLYN NET / NOC</div><h1>WAN &amp; Load Balancing</h1><p>Configured policy and observed network state stay separate. Router changes are only available when the connected adapter exposes and implements the required capability.</p></div><div className="actions"><a href="/network" className="button secondary">Network inventory</a><button className="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button></div></header>
+    {error && <div className="error" role="alert">{error}</div>}
+    <section className="summary-grid" aria-label="WAN summary"><div className="card"><span>WAN members</span><strong>{wans.length}</strong><small>{summary.available} eligible now</small></div><div className="card"><span>Unavailable / disabled</span><strong>{summary.down}</strong><small>Observed state</small></div><div className="card"><span>Peak utilization</span><strong>{fmt(summary.maxUtilization, '%')}</strong><small>Current telemetry only</small></div><div className="card"><span>Policies</span><strong>{policies.length}</strong><small>Tenant scoped</small></div></section>
+    <section className="panel"><div className="panel-head"><div><span className="kicker">WAN OVERVIEW</span><h2>Connectivity members</h2></div><span className="muted">{loading ? 'Loading live data…' : `${wans.length} configured`}</span></div><div className="wan-grid">{wans.map((wan) => <article className="wan-card" key={wan.id}><div className="wan-top"><div><strong>{wan.name}</strong><small>{wan.provider ?? 'Provider not set'} · {wan.interfaceName ?? 'Interface not set'}</small></div><span className={badgeClass(wan.healthState)}>{wan.healthState}</span></div><div className="metrics"><div><span>Capacity</span><strong>{wan.capacityMbps} Mbps</strong></div><div><span>Weight</span><strong>{wan.configuredWeight}</strong></div><div><span>Priority</span><strong>{wan.priority}</strong></div><div><span>Sessions</span><strong>{wan.activeSessions}</strong></div><div><span>Latency</span><strong>{fmt(wan.latencyMs, ' ms')}</strong></div><div><span>Loss</span><strong>{fmt(wan.packetLossPercent, '%')}</strong></div></div><div className="traffic"><div><span>Download</span><strong>{formatBytesPerSecond(wan.observedDownloadBps)}</strong></div><div><span>Upload</span><strong>{formatBytesPerSecond(wan.observedUploadBps)}</strong></div><div><span>Utilization</span><strong>{fmt(wan.observedUtilizationPercent, '%')}</strong></div></div><div className="capabilities"><span className={wan.routingCapabilities.weightedLoadBalancing ? 'cap supported' : 'cap'}>Weighted LB</span><span className={wan.routingCapabilities.failover ? 'cap supported' : 'cap'}>Failover</span><span className={wan.routingCapabilities.routeWrite ? 'cap supported' : 'cap'}>Route write</span><span className={wan.routingCapabilities.telemetry ? 'cap supported' : 'cap'}>Telemetry</span></div><div className="wan-foot"><span>{wan.gateway ? `Gateway ${wan.gateway}` : 'Gateway not configured'}</span><span>{wan.drainRequested ? 'Drain requested' : wan.enabled ? 'Enabled' : 'Disabled'}</span></div></article>)}{!loading && !wans.length && <div className="empty">No WAN connections exist yet. The page is intentionally empty rather than inventing links.</div>}</div></section>
+    <section className="panel"><div className="panel-head"><div><span className="kicker">LOAD BALANCE POLICY</span><h2>Deterministic path decision</h2></div><label className="policy-select">Policy<select value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value)}><option value="">Select policy</option>{policies.map((policy) => <option key={policy.id} value={policy.id}>{policy.name} · {policy.strategy}</option>)}</select></label></div>
+      {!selectedPolicy ? <div className="empty">Create a load-balancing policy to inspect eligibility and distribution.</div> : statusLoading ? <div className="empty">Evaluating current WAN state…</div> : status ? <><div className="policy-banner"><div><strong>{status.name}</strong><span>{status.strategy} · {status.capacityAware ? 'capacity-aware' : 'configured-weight only'}</span></div><div className="policy-state"><span className={status.decision.failoverActive ? 'dot warning' : 'dot healthy'}/>{status.decision.failoverActive ? 'Failover/degradation state active' : 'Normal eligibility'}</div></div><div className="capability-banner"><div><strong>Router capability</strong><span>{status.routingCapabilities.routeWrite ? 'Route write exposed by adapter' : 'Route write not exposed by adapter'}</span></div><div><strong>Telemetry</strong><span>{status.routingCapabilities.telemetry ? 'Available' : 'Not available'}</span></div><div><strong>Failover</strong><span>{status.routingCapabilities.failover ? 'Available' : 'Not available'}</span></div></div><div className="distribution">{status.decision.eligibleMembers.map((member) => <div className="distribution-row" key={member.wanConnectionId}><div><strong>{status.members.find((wan) => wan.id === member.wanConnectionId)?.name ?? member.wanConnectionId}</strong><small>{member.healthState} · configured weight {member.configuredWeight}</small></div><div className="bar"><i style={{ width: `${Math.min(100, member.effectiveWeight / Math.max(...status.decision.eligibleMembers.map((x) => x.effectiveWeight), 1) * 100)}%` }}/></div><strong>{member.effectiveWeight.toFixed(2)}</strong><span>{fmt(member.utilizationPercent, '%')}</span></div>)}</div><div className="notice"><strong>{status.applyAvailable ? 'Adapter capability available' : 'Decision-only mode'}</strong><span>{status.applyAvailable ? 'The connected protocol exposes route-write capability, but this controller currently records the decision only until a concrete vendor routing implementation is attached.' : 'This policy is calculated and audited without claiming to have changed router routing.'}</span></div><div className="actions-row"><button className="button" onClick={() => void rebalance()} disabled={working || !status.decision.eligibleMembers.length}>{working ? 'Recording decision…' : 'Recalculate & audit rebalance'}</button><span className="muted">Generated {new Date(status.generatedAt).toLocaleString()}</span></div></> : <div className="empty">No status data returned.</div>}
+    </section>
+  </main>;
 }
