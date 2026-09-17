@@ -5,14 +5,18 @@ describe('MikrotikRestAdapter', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('creates a simple queue for a new client policy', async () => {
+  it('creates a simple queue and verifies the remote policy', async () => {
+    let queue: Record<string, unknown> | null = null;
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.endsWith('/rest/queue/simple?name=jaslyn-10.0.0.8')) return new Response('[]', { status: 200 });
+      if (url.endsWith('/rest/queue/simple?name=jaslyn-10.0.0.8')) {
+        return new Response(queue ? JSON.stringify([queue]) : '[]', { status: 200 });
+      }
       expect(url).toBe('https://router.example/rest/queue/simple');
       expect(init?.method).toBe('PUT');
       expect(init?.headers).toEqual(expect.objectContaining({ accept: 'application/json', 'content-type': 'application/json' }));
       expect(String(init?.body)).toContain('"max-limit":"512k/2048k"');
+      queue = { '.id': '*9', name: 'jaslyn-10.0.0.8', target: '10.0.0.8/32', 'max-limit': '512k/2048k' };
       return new Response('{".id":"*9"}', { status: 200 });
     });
 
@@ -21,23 +25,25 @@ describe('MikrotikRestAdapter', () => {
       { planId: 'plan-1', bandwidth: { uploadKbps: 512, downloadKbps: 2048 } },
     );
 
-    expect(result).toEqual({ ok: true, action: 'created', remotePolicyId: '*9' });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ ok: true, verified: true, action: 'created', remotePolicyId: '*9', verification: { verified: true } });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('updates an existing queue instead of creating a duplicate', async () => {
+  it('updates an existing queue and verifies the new policy', async () => {
+    let queue: Record<string, unknown> = { '.id': '*7', name: 'jaslyn-2001-db8-8', target: '2001:db8::8/128', 'max-limit': '256k/1024k' };
     jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.includes('/rest/queue/simple?name=')) return new Response('[{".id":"*7"}]', { status: 200 });
+      if (url.includes('/rest/queue/simple?name=')) return new Response(JSON.stringify([queue]), { status: 200 });
       expect(url).toBe('https://router.example/rest/queue/simple/*7');
       expect(init?.method).toBe('PATCH');
+      queue = { ...queue, 'max-limit': '256k/1024k' };
       return new Response('', { status: 200 });
     });
 
     await expect(new MikrotikRestAdapter().enforcePolicy(
       'https://router.example', credentials, { ipAddress: '2001:db8::8' },
       { planId: 'plan-2', bandwidth: { uploadKbps: 256, downloadKbps: 1024 } },
-    )).resolves.toEqual({ ok: true, action: 'updated', remotePolicyId: '*7' });
+    )).resolves.toMatchObject({ ok: true, verified: true, action: 'updated', remotePolicyId: '*7', verification: { verified: true } });
   });
 
   it('fails closed when bandwidth policy is empty', async () => {
@@ -47,15 +53,30 @@ describe('MikrotikRestAdapter', () => {
     )).rejects.toMatchObject({ code: 'BANDWIDTH_POLICY_EMPTY' });
   });
 
-  it('disconnects matching hotspot and PPP sessions and returns remote evidence', async () => {
+  it('fails when the router accepts a policy write but read-back does not match', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/rest/queue/simple?name=jaslyn-10.0.0.8')) return new Response(init?.method === 'PUT' ? '[{".id":"*9","target":"10.0.0.8/32","max-limit":"1k/1k"}]' : '[]', { status: 200 });
+      return new Response('{".id":"*9"}', { status: 200 });
+    });
+
+    await expect(new MikrotikRestAdapter().enforcePolicy(
+      'https://router.example', credentials, { ipAddress: '10.0.0.8' },
+      { planId: 'plan-4', bandwidth: { uploadKbps: 512, downloadKbps: 2048 } },
+    )).rejects.toMatchObject({ code: 'POLICY_VERIFICATION_FAILED' });
+  });
+
+  it('disconnects matching hotspot and PPP sessions and verifies absence', async () => {
+    let hotspotActive = true;
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.endsWith('/rest/ip/hotspot/active')) return new Response('[{".id":"*hs1","user":"alice","address":"10.0.0.8"}]', { status: 200 });
+      if (url.endsWith('/rest/ip/hotspot/active')) return new Response(hotspotActive ? '[{".id":"*hs1","user":"alice","address":"10.0.0.8"}]' : '[]', { status: 200 });
       if (url.endsWith('/rest/ip/hotspot/active/*hs1')) {
         expect(init?.method).toBe('DELETE');
+        hotspotActive = false;
         return new Response('', { status: 200 });
       }
-      if (url.endsWith('/rest/ppp/active')) return new Response('[{".id":"*ppp1","name":"other","address":"10.0.0.9"}]', { status: 200 });
+      if (url.endsWith('/rest/ppp/active')) return new Response('[]', { status: 200 });
       throw new Error(`unexpected URL ${url}`);
     });
 
@@ -63,8 +84,22 @@ describe('MikrotikRestAdapter', () => {
       'https://router.example', credentials, { ipAddress: '10.0.0.8', username: 'alice' },
     );
 
-    expect(result).toEqual({ ok: true, disconnected: true, removed: [{ service: 'hotspot', id: '*hs1' }] });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(result).toMatchObject({ ok: true, disconnected: true, verified: true, removed: [{ service: 'hotspot', id: '*hs1' }], verification: { verified: true, remainingMatches: 0 } });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('fails when a session remains after disconnect', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/rest/ip/hotspot/active')) return new Response('[{".id":"*hs1","user":"alice","address":"10.0.0.8"}]', { status: 200 });
+      if (url.endsWith('/rest/ip/hotspot/active/*hs1')) return new Response('', { status: 200 });
+      if (url.endsWith('/rest/ppp/active')) return new Response('[]', { status: 200 });
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    await expect(new MikrotikRestAdapter().disconnectClient(
+      'https://router.example', credentials, { ipAddress: '10.0.0.8' },
+    )).rejects.toMatchObject({ code: 'DISCONNECT_VERIFICATION_FAILED' });
   });
 
   it('returns verified absence when no matching remote session exists', async () => {
@@ -77,7 +112,7 @@ describe('MikrotikRestAdapter', () => {
 
     await expect(new MikrotikRestAdapter().disconnectClient(
       'https://router.example', credentials, { ipAddress: '10.0.0.8' },
-    )).resolves.toEqual({ ok: true, disconnected: false, removed: [] });
+    )).resolves.toMatchObject({ ok: true, disconnected: false, verified: true, removed: [], verification: { verified: true, remainingMatches: 0 } });
   });
 
   it('reports timeout as a stable error code', async () => {
