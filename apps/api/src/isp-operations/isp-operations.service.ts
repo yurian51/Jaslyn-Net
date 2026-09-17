@@ -2,32 +2,9 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { SessionsService } from '../sessions/sessions.service';
-import {
-  AccessState,
-  ChangeAccessStateDto,
-  CreateAccessBindingDto,
-  CreateNetworkJobDto,
-  CreateNetworkSiteDto,
-  JobStatus,
-  ListQueryDto,
-  UpdateNetworkJobDto,
-} from './isp-operations.dto';
+import { AccessState, ChangeAccessStateDto, CreateAccessBindingDto, CreateNetworkJobDto, CreateNetworkSiteDto, JobStatus, ListQueryDto, UpdateNetworkJobDto } from './isp-operations.dto';
 
-type AccessRow = {
-  id: string;
-  customer_id: string;
-  router_id: string | null;
-  package_id: string | null;
-  username: string;
-  access_type: string;
-  state: AccessState;
-  external_reference: string | null;
-  activated_at: Date | null;
-  suspended_at: Date | null;
-  expires_at: Date | null;
-  created_at: Date;
-  updated_at: Date;
-};
+type AccessRow = { id: string; customer_id: string; router_id: string | null; package_id: string | null; username: string; access_type: string; state: AccessState; external_reference: string | null; activated_at: Date | null; suspended_at: Date | null; expires_at: Date | null; created_at: Date; updated_at: Date };
 
 @Injectable()
 export class IspOperationsService {
@@ -59,7 +36,6 @@ export class IspOperationsService {
 
   async changeAccessState(tenantId: string, id: string, input: ChangeAccessStateDto) {
     const client = await this.db.connect();
-    let changed = false;
     try {
       await client.query('BEGIN');
       const current = await client.query<AccessRow>('SELECT * FROM customer_access_bindings WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, id]);
@@ -75,7 +51,6 @@ export class IspOperationsService {
       const updated = await client.query<AccessRow>(`UPDATE customer_access_bindings SET state=$3,activated_at=$4,suspended_at=$5,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING *`, [tenantId, id, input.state, activatedAt, suspendedAt]);
       await client.query(`INSERT INTO access_state_events (tenant_id,access_binding_id,previous_state,new_state,reason,source,payment_id) VALUES ($1,$2,$3,$4,$5,'API',$6)`, [tenantId, id, row.state, input.state, input.reason.trim(), input.paymentId ?? null]);
       await client.query('COMMIT');
-      changed = true;
       const reconciliation = await this.sessions.reconcileAccessState(tenantId, { requestId: `access-binding:${id}` });
       return { ...this.mapAccess(updated.rows[0]), reconciliation };
     } catch (error: unknown) {
