@@ -5,6 +5,8 @@ import { AuditContext, AuditService } from '../../audit/audit.service';
 import { LoadBalancingEngine } from './load-balancing.engine';
 import { CreateLoadBalancePolicyDto, CreateWanConnectionDto, LoadBalanceActionDto, UpdateWanConnectionDto, WanHealthCheckDto } from './load-balancing.dto';
 import { WanMemberState } from './load-balancing.types';
+import { hasWanRoutingCapability } from './load-balancing.capabilities';
+import { NetworkManagementProtocol } from '../../routers/routers.dto';
 
 @Injectable()
 export class LoadBalancingService {
@@ -16,20 +18,27 @@ export class LoadBalancingService {
 
   async listWans(tenantId: string, routerId?: string) {
     const result = await this.db.query(
-      `SELECT id, router_id AS "routerId", name, provider, interface_name AS "interfaceName",
-              host(gateway) AS gateway, address::text AS address, capacity_mbps AS "capacityMbps",
-              configured_weight AS "configuredWeight", priority, failover_priority AS "failoverPriority",
-              enabled, drain_requested AS "drainRequested", health_state AS "healthState",
-              latency_ms AS "latencyMs", jitter_ms AS "jitterMs", packet_loss_percent AS "packetLossPercent",
-              observed_utilization_percent AS "observedUtilizationPercent", observed_upload_bps::text AS "observedUploadBps",
-              observed_download_bps::text AS "observedDownloadBps", active_sessions AS "activeSessions",
-              last_health_check_at AS "lastHealthCheckAt", last_state_change_at AS "lastStateChangeAt"
-       FROM wan_connections
-       WHERE tenant_id=$1 AND ($2::uuid IS NULL OR router_id=$2)
-       ORDER BY priority ASC, name ASC`,
+      `SELECT w.id, w.router_id AS "routerId", w.name, w.provider, w.interface_name AS "interfaceName",
+              host(w.gateway) AS gateway, w.address::text AS address, w.capacity_mbps AS "capacityMbps",
+              w.configured_weight AS "configuredWeight", w.priority, w.failover_priority AS "failoverPriority",
+              w.enabled, w.drain_requested AS "drainRequested", w.health_state AS "healthState",
+              w.latency_ms AS "latencyMs", w.jitter_ms AS "jitterMs", w.packet_loss_percent AS "packetLossPercent",
+              w.observed_utilization_percent AS "observedUtilizationPercent", w.observed_upload_bps::text AS "observedUploadBps",
+              w.observed_download_bps::text AS "observedDownloadBps", w.active_sessions AS "activeSessions",
+              w.last_health_check_at AS "lastHealthCheckAt", w.last_state_change_at AS "lastStateChangeAt",
+              r.management_protocol AS "managementProtocol", r.management_enabled AS "managementEnabled"
+       FROM wan_connections w JOIN routers r ON r.tenant_id=w.tenant_id AND r.id=w.router_id
+       WHERE w.tenant_id=$1 AND ($2::uuid IS NULL OR w.router_id=$2)
+       ORDER BY w.priority ASC, w.name ASC`,
       [tenantId, routerId ?? null],
     );
-    return { data: result.rows, count: result.rowCount ?? 0 };
+    return {
+      data: result.rows.map((row) => ({
+        ...row,
+        routingCapabilities: this.routingCapabilities(row.managementProtocol as NetworkManagementProtocol, row.managementEnabled === true),
+      })),
+      count: result.rowCount ?? 0,
+    };
   }
 
   async createWan(tenantId: string, dto: CreateWanConnectionDto, context: AuditContext = {}) {
@@ -119,21 +128,30 @@ export class LoadBalancingService {
       `SELECT p.id,p.router_id AS "routerId",p.name,p.strategy,p.enabled,p.capacity_aware AS "capacityAware",
               p.rebalance_threshold_percent AS "rebalanceThresholdPercent",p.degrade_threshold_percent AS "degradeThresholdPercent",
               p.unavailable_after_failures AS "unavailableAfterFailures",p.recover_after_successes AS "recoverAfterSuccesses",
-              COUNT(m.id)::int AS "memberCount"
-       FROM load_balance_policies p LEFT JOIN load_balance_members m ON m.tenant_id=p.tenant_id AND m.policy_id=p.id
+              COUNT(m.id)::int AS "memberCount",r.management_protocol AS "managementProtocol",r.management_enabled AS "managementEnabled"
+       FROM load_balance_policies p JOIN routers r ON r.tenant_id=p.tenant_id AND r.id=p.router_id
+       LEFT JOIN load_balance_members m ON m.tenant_id=p.tenant_id AND m.policy_id=p.id
        WHERE p.tenant_id=$1 AND ($2::uuid IS NULL OR p.router_id=$2)
-       GROUP BY p.id ORDER BY p.updated_at DESC`,
+       GROUP BY p.id,r.management_protocol,r.management_enabled ORDER BY p.updated_at DESC`,
       [tenantId, routerId ?? null],
     );
-    return { data: result.rows, count: result.rowCount ?? 0 };
+    return {
+      data: result.rows.map((row) => ({
+        ...row,
+        routingCapabilities: this.routingCapabilities(row.managementProtocol as NetworkManagementProtocol, row.managementEnabled === true),
+      })),
+      count: result.rowCount ?? 0,
+    };
   }
 
   async getPolicy(tenantId: string, id: string) {
     const policy = await this.db.query(
-      `SELECT id,router_id AS "routerId",name,strategy,enabled,capacity_aware AS "capacityAware",
-              rebalance_threshold_percent AS "rebalanceThresholdPercent",degrade_threshold_percent AS "degradeThresholdPercent",
-              unavailable_after_failures AS "unavailableAfterFailures",recover_after_successes AS "recoverAfterSuccesses"
-       FROM load_balance_policies WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
+      `SELECT p.id,p.router_id AS "routerId",p.name,p.strategy,p.enabled,p.capacity_aware AS "capacityAware",
+              p.rebalance_threshold_percent AS "rebalanceThresholdPercent",p.degrade_threshold_percent AS "degradeThresholdPercent",
+              p.unavailable_after_failures AS "unavailableAfterFailures",p.recover_after_successes AS "recoverAfterSuccesses",
+              r.management_protocol AS "managementProtocol",r.management_enabled AS "managementEnabled"
+       FROM load_balance_policies p JOIN routers r ON r.tenant_id=p.tenant_id AND r.id=p.router_id
+       WHERE p.tenant_id=$1 AND p.id=$2`, [tenantId, id]);
     if (!policy.rowCount) throw new NotFoundException('Load-balance policy not found');
     const members = await this.db.query(
       `SELECT w.id,w.name,w.provider,w.interface_name AS "interfaceName",host(w.gateway) AS gateway,
@@ -144,13 +162,23 @@ export class LoadBalancingService {
               w.last_health_check_at AS "lastHealthCheckAt",w.last_state_change_at AS "lastStateChangeAt"
        FROM load_balance_members m JOIN wan_connections w ON w.tenant_id=m.tenant_id AND w.id=m.wan_connection_id
        WHERE m.tenant_id=$1 AND m.policy_id=$2 ORDER BY m.priority ASC,w.name ASC`, [tenantId, id]);
-    return { ...policy.rows[0], members: members.rows };
+    return {
+      ...policy.rows[0],
+      members: members.rows,
+      routingCapabilities: this.routingCapabilities(policy.rows[0].managementProtocol as NetworkManagementProtocol, policy.rows[0].managementEnabled === true),
+    };
   }
 
   async status(tenantId: string, policyId: string) {
     const policy = await this.getPolicy(tenantId, policyId);
     const decision = this.engine.decide(policyId, policy.strategy, policy.members as WanMemberState[], policy.capacityAware);
-    return { policy, decision, generatedAt: new Date().toISOString(), appliedToRouter: false };
+    return {
+      policy,
+      decision,
+      generatedAt: new Date().toISOString(),
+      appliedToRouter: false,
+      applyAvailable: policy.routingCapabilities.routeWrite,
+    };
   }
 
   async rebalance(tenantId: string, policyId: string, context: AuditContext = {}, action?: LoadBalanceActionDto) {
@@ -185,16 +213,30 @@ export class LoadBalancingService {
     return result.rows[0];
   }
 
+  private routingCapabilities(protocol: NetworkManagementProtocol, managementEnabled: boolean) {
+    const enabled = managementEnabled === true;
+    return {
+      telemetry: enabled && hasWanRoutingCapability(protocol, 'wan_telemetry'),
+      gatewayHealth: enabled && hasWanRoutingCapability(protocol, 'gateway_health'),
+      policyRouting: enabled && hasWanRoutingCapability(protocol, 'policy_routing'),
+      weightedLoadBalancing: enabled && hasWanRoutingCapability(protocol, 'weighted_load_balancing'),
+      failover: enabled && hasWanRoutingCapability(protocol, 'failover'),
+      routeRead: enabled && hasWanRoutingCapability(protocol, 'route_read'),
+      routeWrite: enabled && hasWanRoutingCapability(protocol, 'route_write'),
+    };
+  }
+
   private async getWan(tenantId: string, id: string) {
     const result = await this.db.query(
-      `SELECT id,router_id AS "routerId",name,provider,interface_name AS "interfaceName",host(gateway) AS gateway,address::text AS address,
-              capacity_mbps AS "capacityMbps",configured_weight AS "configuredWeight",priority,failover_priority AS "failoverPriority",
-              enabled,drain_requested AS "drainRequested",health_state AS "healthState",latency_ms AS "latencyMs",jitter_ms AS "jitterMs",
-              packet_loss_percent AS "packetLossPercent",observed_utilization_percent AS "observedUtilizationPercent",observed_upload_bps::text AS "observedUploadBps",
-              observed_download_bps::text AS "observedDownloadBps",active_sessions AS "activeSessions",last_health_check_at AS "lastHealthCheckAt",
-              last_state_change_at AS "lastStateChangeAt" FROM wan_connections WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
+      `SELECT w.id,w.router_id AS "routerId",w.name,w.provider,w.interface_name AS "interfaceName",host(w.gateway) AS gateway,w.address::text AS address,
+              w.capacity_mbps AS "capacityMbps",w.configured_weight AS "configuredWeight",w.priority,w.failover_priority AS "failoverPriority",
+              w.enabled,w.drain_requested AS "drainRequested",w.health_state AS "healthState",w.latency_ms AS "latencyMs",w.jitter_ms AS "jitterMs",
+              w.packet_loss_percent AS "packetLossPercent",w.observed_utilization_percent AS "observedUtilizationPercent",w.observed_upload_bps::text AS "observedUploadBps",
+              w.observed_download_bps::text AS "observedDownloadBps",w.active_sessions AS "activeSessions",w.last_health_check_at AS "lastHealthCheckAt",
+              w.last_state_change_at AS "lastStateChangeAt",r.management_protocol AS "managementProtocol",r.management_enabled AS "managementEnabled"
+       FROM wan_connections w JOIN routers r ON r.tenant_id=w.tenant_id AND r.id=w.router_id WHERE w.tenant_id=$1 AND w.id=$2`, [tenantId, id]);
     if (!result.rowCount) throw new NotFoundException('WAN connection not found');
-    return result.rows[0];
+    return { ...result.rows[0], routingCapabilities: this.routingCapabilities(result.rows[0].managementProtocol as NetworkManagementProtocol, result.rows[0].managementEnabled === true) };
   }
 
   private async assertWan(tenantId: string, id: string) {
