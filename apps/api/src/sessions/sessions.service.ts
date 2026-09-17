@@ -133,7 +133,7 @@ export class SessionsService {
       await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState }, auditContext);
       return result.rows[0];
     } catch (error: unknown) {
-      try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
+      try { await client.query('ROLLBACK'); } catch { /* transaction may have already been rolled back */ }
       throw error;
     } finally { client.release(); }
   }
@@ -195,6 +195,19 @@ export class SessionsService {
                  AND (b.expires_at IS NULL OR b.expires_at > now())
              )
            )
+           OR (
+             EXISTS (
+               SELECT 1 FROM customer_service_state css
+               WHERE css.tenant_id=s.tenant_id AND css.customer_id=s.customer_id
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM customer_service_state css
+               WHERE css.tenant_id=s.tenant_id AND css.customer_id=s.customer_id
+                 AND css.state IN ('ACTIVE','GRACE')
+                 AND css.effective_at <= now()
+                 AND (css.expires_at IS NULL OR css.expires_at > now())
+             )
+           )
          )`,
       [tenantId],
     );
@@ -209,7 +222,7 @@ export class SessionsService {
         provider: session.managementProtocol ?? undefined,
         correlationId,
         target: { sessionId: session.id, customerId: session.customerId, ipAddress: session.ipAddress, macAddress: session.macAddress, username: session.username },
-        request: { reason: 'ACCESS_GRANT_OR_BINDING_EXPIRED_OR_MISSING' },
+        request: { reason: 'ACCESS_GRANT_BINDING_OR_SERVICE_STATE_INVALID' },
       });
 
       if (!session.routerId || session.managementProtocol !== 'MIKROTIK_REST' || !session.managementEnabled || !session.apiEndpoint || !session.credentialsEncrypted) {
@@ -249,34 +262,45 @@ export class SessionsService {
 
   private async verifyAccessStillValid(tenantId: string, sessionId: string) {
     const result = await this.db.query(
-      `SELECT EXISTS (
-         SELECT 1 FROM sessions s
-         JOIN access_grants g ON g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id
-         WHERE s.tenant_id=$1 AND s.id=$2 AND g.status='ACTIVE'
-           AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
-           AND (g.router_id IS NULL OR g.router_id=s.router_id)
-       )
-       AND NOT EXISTS (
-         SELECT 1 FROM customer_access_bindings b
-         JOIN sessions s ON s.tenant_id=b.tenant_id AND s.customer_id=b.customer_id
-         WHERE s.tenant_id=$1 AND s.id=$2
-           AND (b.router_id IS NULL OR b.router_id=s.router_id)
-       )
-       OR EXISTS (
-         SELECT 1 FROM sessions s
-         WHERE s.tenant_id=$1 AND s.id=$2
-           AND EXISTS (
-             SELECT 1 FROM access_grants g
-             WHERE g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id AND g.status='ACTIVE'
-               AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
-               AND (g.router_id IS NULL OR g.router_id=s.router_id)
-           )
-           AND EXISTS (
+      `SELECT (
+         EXISTS (
+           SELECT 1 FROM sessions s
+           JOIN access_grants g ON g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id
+           WHERE s.tenant_id=$1 AND s.id=$2 AND g.status='ACTIVE'
+             AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
+             AND (g.router_id IS NULL OR g.router_id=s.router_id)
+         )
+         AND (
+           NOT EXISTS (
              SELECT 1 FROM customer_access_bindings b
-             WHERE b.tenant_id=s.tenant_id AND b.customer_id=s.customer_id
-               AND b.state='ACTIVE' AND (b.router_id IS NULL OR b.router_id=s.router_id)
+             JOIN sessions s ON s.tenant_id=b.tenant_id AND s.customer_id=b.customer_id
+             WHERE s.tenant_id=$1 AND s.id=$2
+               AND (b.router_id IS NULL OR b.router_id=s.router_id)
+           )
+           OR EXISTS (
+             SELECT 1 FROM sessions s
+             JOIN customer_access_bindings b ON b.tenant_id=s.tenant_id AND b.customer_id=s.customer_id
+             WHERE s.tenant_id=$1 AND s.id=$2
+               AND b.state='ACTIVE'
+               AND (b.router_id IS NULL OR b.router_id=s.router_id)
                AND (b.expires_at IS NULL OR b.expires_at > now())
            )
+         )
+         AND (
+           NOT EXISTS (
+             SELECT 1 FROM sessions s
+             JOIN customer_service_state css ON css.tenant_id=s.tenant_id AND css.customer_id=s.customer_id
+             WHERE s.tenant_id=$1 AND s.id=$2
+           )
+           OR EXISTS (
+             SELECT 1 FROM sessions s
+             JOIN customer_service_state css ON css.tenant_id=s.tenant_id AND css.customer_id=s.customer_id
+             WHERE s.tenant_id=$1 AND s.id=$2
+               AND css.state IN ('ACTIVE','GRACE')
+               AND css.effective_at <= now()
+               AND (css.expires_at IS NULL OR css.expires_at > now())
+           )
+         )
        ) AS "hasValidAccess"`,
       [tenantId, sessionId],
     );
