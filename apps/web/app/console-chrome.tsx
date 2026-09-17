@@ -1,21 +1,38 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 
-const nav = [
-  ['Overview', '⌂', '/dashboard'],
-  ['Customers', '◉', '/customers'],
-  ['Sessions', '◌', '/sessions'],
-  ['Network', '⌁', '/network'],
-  ['Purchases', '₮', '/purchases'],
-  ['Plans & Products', '▣', '/packages'],
-  ['Security & Audit', '◈', '/audit'],
-] as const;
+type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'purchases' | 'packages' | 'audit';
+
+const nav: ReadonlyArray<[string, IconName, string]> = [
+  ['Overview', 'overview', '/dashboard'],
+  ['Customers', 'customers', '/customers'],
+  ['Sessions', 'sessions', '/sessions'],
+  ['Network', 'network', '/network'],
+  ['Purchases', 'purchases', '/purchases'],
+  ['Plans & Products', 'packages', '/packages'],
+  ['Security & Audit', 'audit', '/audit'],
+];
 
 const publicRoutes = new Set(['/login', '/register']);
 const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+function NavIcon({ name }: { name: IconName }) {
+  const paths: Record<IconName, ReactNode> = {
+    overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+    customers: <><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c.7-3.2 3.1-5 7.5-5s6.8 1.8 7.5 5" /></>,
+    sessions: <><path d="M7 7h10" /><path d="M7 12h10" /><path d="M7 17h6" /><circle cx="4" cy="7" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="17" r="1" fill="currentColor" stroke="none" /></>,
+    network: <><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8M12 16v4" /><path d="M8 9h8M8 12h5" /></>,
+    purchases: <><path d="M5 7h14l-1 13H6L5 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /><path d="M9 11h.01M15 11h.01" /></>,
+    packages: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.8 12 12l7.5-4.2M12 12v9" /></>,
+    audit: <><path d="M6 3h9l3 3v15H6V3Z" /><path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" /></>,
+  };
+
+  return <svg className="console-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
 
 function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -44,17 +61,20 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   return (
     <div className="console-chrome-frame">
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
-        <div className="console-chrome-brand"><div className="console-chrome-mark">J</div><div><strong>JASLYN NET</strong><small>Network operations platform</small></div></div>
+        <div className="console-chrome-brand">
+          <div className="console-chrome-mark">J</div>
+          <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
+        </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
         <div className="console-chrome-section">CONTROL PLANE</div>
         <nav className="console-chrome-nav" aria-label="Control plane">
           {nav.map(([label, icon, href]) => {
             const active = isRouteActive(pathname, href);
-            return <a key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span aria-hidden="true">{icon}</span><b>{label}</b></a>;
+            return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>;
           })}
         </nav>
         <div className="console-chrome-footer">
-          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Operations console</b><small>Authenticated API workspace</small></span></div>
+          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Workspace session</b><small>Authenticated operator access</small></span></div>
           <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong>J</strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
@@ -62,10 +82,10 @@ function OperationsChrome({ children }: { children: ReactNode }) {
       <nav className="console-chrome-mobile" aria-label="Mobile operations navigation">
         {nav.slice(0, 4).map(([label, icon, href]) => {
           const active = isRouteActive(pathname, href);
-          return <a key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span aria-hidden="true">{icon}</span><b>{label}</b></a>;
+          return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>;
         })}
-        <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span aria-hidden="true">•••</span><b>More</b></button>
-        {moreOpen && <div className="console-chrome-more">{nav.slice(4).map(([label, icon, href]) => <a key={href} href={href} aria-current={isRouteActive(pathname, href) ? 'page' : undefined}><span aria-hidden="true">{icon}</span><b>{label}</b></a>)}</div>}
+        <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span>•••</span><b>More</b></button>
+        {moreOpen && <div className="console-chrome-more">{nav.slice(4).map(([label, icon, href]) => <Link key={href} href={href} aria-current={isRouteActive(pathname, href) ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>)}</div>}
       </nav>
     </div>
   );
