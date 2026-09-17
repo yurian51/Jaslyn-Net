@@ -69,25 +69,16 @@ export class SessionsService {
       if (input.customerId) {
         const customer = await client.query('SELECT id FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true FOR SHARE', [tenantId, input.customerId]);
         if (!customer.rowCount) throw new NotFoundException('Customer not found');
-
         const entitlement = await client.query(
-          `SELECT id
-           FROM access_grants
-           WHERE tenant_id=$1
-             AND customer_id=$2
-             AND status='ACTIVE'
-             AND starts_at IS NOT NULL
-             AND starts_at <= now()
+          `SELECT id FROM access_grants
+           WHERE tenant_id=$1 AND customer_id=$2 AND status='ACTIVE'
+             AND starts_at IS NOT NULL AND starts_at <= now()
              AND (ends_at IS NULL OR ends_at > now())
              AND ($3::uuid IS NULL OR router_id IS NULL OR router_id=$3)
-           ORDER BY ends_at NULLS LAST, created_at DESC
-           LIMIT 1
-           FOR SHARE`,
+           ORDER BY ends_at NULLS LAST, created_at DESC LIMIT 1 FOR SHARE`,
           [tenantId, input.customerId, input.routerId ?? null],
         );
-        if (!entitlement.rowCount) {
-          throw new ForbiddenException('Active access entitlement required before starting a customer session');
-        }
+        if (!entitlement.rowCount) throw new ForbiddenException('Active access entitlement required before starting a customer session');
       }
       if (input.routerId) {
         const router = await client.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, input.routerId]);
@@ -115,9 +106,7 @@ export class SessionsService {
     } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   }
 
   async updateUsage(tenantId: string, id: string, input: UpdateSessionUsageDto) {
@@ -135,18 +124,10 @@ export class SessionsService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      const current = await client.query<{ status: SessionStatus }>(
-        `SELECT status FROM sessions WHERE tenant_id=$1 AND id=$2 AND status IN ('ACTIVE','STALE') FOR UPDATE`,
-        [tenantId, id],
-      );
+      const current = await client.query<{ status: SessionStatus }>(`SELECT status FROM sessions WHERE tenant_id=$1 AND id=$2 AND status IN ('ACTIVE','STALE') FOR UPDATE`, [tenantId, id]);
       if (!current.rowCount) throw new NotFoundException('Active or stale session not found');
       const previousState = current.rows[0].status;
-      const result = await client.query(
-        `UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now())
-         WHERE tenant_id=$1 AND id=$2
-         RETURNING id, router_id AS "routerId", ended_at AS "endedAt", bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status`,
-        [tenantId, id],
-      );
+      const result = await client.query(`UPDATE sessions SET status='ENDED', ended_at=COALESCE(ended_at,now()) WHERE tenant_id=$1 AND id=$2 RETURNING id, router_id AS "routerId", ended_at AS "endedAt", bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status`, [tenantId, id]);
       await this.resetRouterActiveUsers(client, tenantId, result.rows[0].routerId ? [result.rows[0].routerId] : []);
       await client.query('COMMIT');
       await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState }, auditContext);
@@ -154,9 +135,7 @@ export class SessionsService {
     } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   }
 
   async reconcileStale(tenantId: string, staleMinutes = 30) {
@@ -164,36 +143,14 @@ export class SessionsService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      const result = await client.query(
-        `UPDATE sessions s
-         SET status='STALE', ended_at=NULL
-         WHERE s.tenant_id=$1
-           AND s.status='ACTIVE'
-           AND (
-             (s.router_id IS NOT NULL AND EXISTS (
-               SELECT 1 FROM routers r
-               WHERE r.tenant_id=s.tenant_id AND r.id=s.router_id
-                 AND r.status='OFFLINE'
-                 AND (r.last_seen_at IS NULL OR r.last_seen_at < now() - ($2 * interval '1 minute'))
-             ))
-             OR NOT EXISTS (
-               SELECT 1 FROM traffic_samples ts
-               WHERE ts.tenant_id=s.tenant_id AND ts.session_id=s.id
-                 AND ts.sampled_at >= now() - ($2 * interval '1 minute')
-             )
-           )
-         RETURNING s.id, s.router_id AS "routerId", s.started_at AS "startedAt"`,
-        [tenantId, minutes],
-      );
+      const result = await client.query(`UPDATE sessions s SET status='STALE', ended_at=NULL WHERE s.tenant_id=$1 AND s.status='ACTIVE' AND ((s.router_id IS NOT NULL AND EXISTS (SELECT 1 FROM routers r WHERE r.tenant_id=s.tenant_id AND r.id=s.router_id AND r.status='OFFLINE' AND (r.last_seen_at IS NULL OR r.last_seen_at < now() - ($2 * interval '1 minute')))) OR NOT EXISTS (SELECT 1 FROM traffic_samples ts WHERE ts.tenant_id=s.tenant_id AND ts.session_id=s.id AND ts.sampled_at >= now() - ($2 * interval '1 minute'))) RETURNING s.id, s.router_id AS "routerId", s.started_at AS "startedAt"`, [tenantId, minutes]);
       await this.resetRouterActiveUsers(client, tenantId, result.rows.map((row) => row.routerId).filter(Boolean));
       await client.query('COMMIT');
       return { updated: result.rowCount ?? 0, data: result.rows };
     } catch (error: unknown) {
       try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   }
 
   async reconcileAccessState(tenantId: string, auditContext: AuditContext = {}) {
@@ -201,28 +158,14 @@ export class SessionsService {
     let expiredGrants: Array<{ id: string; customerId: string; routerId: string | null }> = [];
     try {
       await client.query('BEGIN');
-      const grants = await client.query(
-        `SELECT id, customer_id AS "customerId", router_id AS "routerId"
-         FROM access_grants
-         WHERE tenant_id=$1 AND status='ACTIVE' AND ends_at IS NOT NULL AND ends_at <= now()
-         FOR UPDATE`,
-        [tenantId],
-      );
+      const grants = await client.query(`SELECT id, customer_id AS "customerId", router_id AS "routerId" FROM access_grants WHERE tenant_id=$1 AND status='ACTIVE' AND ends_at IS NOT NULL AND ends_at <= now() FOR UPDATE`, [tenantId]);
       expiredGrants = grants.rows;
-      if (expiredGrants.length) {
-        await client.query(
-          `UPDATE access_grants SET status='EXPIRED', updated_at=now()
-           WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status='ACTIVE'`,
-          [tenantId, expiredGrants.map((grant) => grant.id)],
-        );
-      }
+      if (expiredGrants.length) await client.query(`UPDATE access_grants SET status='EXPIRED', updated_at=now() WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status='ACTIVE'`, [tenantId, expiredGrants.map((grant) => grant.id)]);
       await client.query('COMMIT');
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
 
     const sessions = await this.db.query(
       `SELECT s.id, s.customer_id AS "customerId", s.router_id AS "routerId", s.username,
@@ -232,11 +175,26 @@ export class SessionsService {
        FROM sessions s
        LEFT JOIN routers r ON r.tenant_id=s.tenant_id AND r.id=s.router_id
        WHERE s.tenant_id=$1 AND s.status='ACTIVE'
-         AND NOT EXISTS (
-           SELECT 1 FROM access_grants g
-           WHERE g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id AND g.status='ACTIVE'
-             AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
-             AND (g.router_id IS NULL OR g.router_id=s.router_id)
+         AND (
+           NOT EXISTS (
+             SELECT 1 FROM access_grants g
+             WHERE g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id AND g.status='ACTIVE'
+               AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
+               AND (g.router_id IS NULL OR g.router_id=s.router_id)
+           )
+           OR (
+             EXISTS (
+               SELECT 1 FROM customer_access_bindings b
+               WHERE b.tenant_id=s.tenant_id AND b.customer_id=s.customer_id
+                 AND (b.router_id IS NULL OR b.router_id=s.router_id)
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM customer_access_bindings b
+               WHERE b.tenant_id=s.tenant_id AND b.customer_id=s.customer_id
+                 AND b.state='ACTIVE' AND (b.router_id IS NULL OR b.router_id=s.router_id)
+                 AND (b.expires_at IS NULL OR b.expires_at > now())
+             )
+           )
          )`,
       [tenantId],
     );
@@ -251,7 +209,7 @@ export class SessionsService {
         provider: session.managementProtocol ?? undefined,
         correlationId,
         target: { sessionId: session.id, customerId: session.customerId, ipAddress: session.ipAddress, macAddress: session.macAddress, username: session.username },
-        request: { reason: 'ACCESS_GRANT_EXPIRED_OR_MISSING' },
+        request: { reason: 'ACCESS_GRANT_OR_BINDING_EXPIRED_OR_MISSING' },
       });
 
       if (!session.routerId || session.managementProtocol !== 'MIKROTIK_REST' || !session.managementEnabled || !session.apiEndpoint || !session.credentialsEncrypted) {
@@ -269,8 +227,8 @@ export class SessionsService {
           macAddress: session.macAddress ?? undefined,
         });
         await this.networkCommands.markExecuted(tenantId, [command.id], enforcement);
-        const verified = await this.verifyNoActiveGrant(tenantId, session.id);
-        if (!verified) {
+        const accessValid = await this.verifyAccessStillValid(tenantId, session.id);
+        if (!accessValid) {
           await this.networkCommands.markVerified(tenantId, command.id, { ...enforcement, entitlementVerified: true });
           await this.end(tenantId, session.id, auditContext);
           results.push({ sessionId: session.id, commandId: command.id, state: 'ENDED', enforcement });
@@ -285,47 +243,56 @@ export class SessionsService {
       }
     }
 
-    if (expiredGrants.length || results.length) {
-      await this.audit.record(tenantId, 'ACCESS_STATE_RECONCILED', 'access', undefined, {
-        expiredGrantCount: expiredGrants.length,
-        affectedSessionCount: results.length,
-        results,
-      }, auditContext);
-    }
+    if (expiredGrants.length || results.length) await this.audit.record(tenantId, 'ACCESS_STATE_RECONCILED', 'access', undefined, { expiredGrantCount: expiredGrants.length, affectedSessionCount: results.length, results }, auditContext);
     return { expiredGrants: expiredGrants.length, sessions: results };
   }
 
-  private async verifyNoActiveGrant(tenantId: string, sessionId: string) {
+  private async verifyAccessStillValid(tenantId: string, sessionId: string) {
     const result = await this.db.query(
       `SELECT EXISTS (
-         SELECT 1
-         FROM sessions s
+         SELECT 1 FROM sessions s
          JOIN access_grants g ON g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id
          WHERE s.tenant_id=$1 AND s.id=$2 AND g.status='ACTIVE'
            AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
            AND (g.router_id IS NULL OR g.router_id=s.router_id)
-       ) AS "hasActiveGrant"`,
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM customer_access_bindings b
+         JOIN sessions s ON s.tenant_id=b.tenant_id AND s.customer_id=b.customer_id
+         WHERE s.tenant_id=$1 AND s.id=$2
+           AND (b.router_id IS NULL OR b.router_id=s.router_id)
+       )
+       OR EXISTS (
+         SELECT 1 FROM sessions s
+         WHERE s.tenant_id=$1 AND s.id=$2
+           AND EXISTS (
+             SELECT 1 FROM access_grants g
+             WHERE g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id AND g.status='ACTIVE'
+               AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
+               AND (g.router_id IS NULL OR g.router_id=s.router_id)
+           )
+           AND EXISTS (
+             SELECT 1 FROM customer_access_bindings b
+             WHERE b.tenant_id=s.tenant_id AND b.customer_id=s.customer_id
+               AND b.state='ACTIVE' AND (b.router_id IS NULL OR b.router_id=s.router_id)
+               AND (b.expires_at IS NULL OR b.expires_at > now())
+           )
+       ) AS "hasValidAccess"`,
       [tenantId, sessionId],
     );
-    return Boolean(result.rows[0]?.hasActiveGrant);
+    return Boolean(result.rows[0]?.hasValidAccess);
   }
 
   private async markSessionStale(tenantId: string, id: string, routerId: string | null) {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      await client.query(
-        `UPDATE sessions SET status='STALE', ended_at=NULL
-         WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE'`,
-        [tenantId, id],
-      );
-      await this.resetRouterActiveUsers(client, tenantId, routerId ? [routerId] : []);
+      const result = await client.query(`UPDATE sessions SET status='STALE', ended_at=NULL WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE' RETURNING router_id AS "routerId"`, [tenantId, id]);
+      if (result.rowCount) await this.resetRouterActiveUsers(client, tenantId, [routerId ?? result.rows[0].routerId].filter(Boolean));
       await client.query('COMMIT');
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   }
 }
