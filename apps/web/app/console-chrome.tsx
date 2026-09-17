@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 
-type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'purchases' | 'packages' | 'audit';
+type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'purchases' | 'packages' | 'incidents' | 'audit';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Overview', 'overview', '/dashboard'],
@@ -14,6 +14,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Network', 'network', '/network'],
   ['Purchases', 'purchases', '/purchases'],
   ['Plans & Products', 'packages', '/packages'],
+  ['Incident Center', 'incidents', '/incidents'],
   ['Security & Audit', 'audit', '/audit'],
 ];
 
@@ -28,6 +29,7 @@ function NavIcon({ name }: { name: IconName }) {
     network: <><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8M12 16v4" /><path d="M8 9h8M8 12h5" /></>,
     purchases: <><path d="M5 7h14l-1 13H6L5 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /><path d="M9 11h.01M15 11h.01" /></>,
     packages: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.8 12 12l7.5-4.2M12 12v9" /></>,
+    incidents: <><path d="M12 3 21 20H3L12 3Z" /><path d="M12 9v5" /><path d="M12 17h.01" /></>,
     audit: <><path d="M6 3h9l3 3v15H6V3Z" /><path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" /></>,
   };
 
