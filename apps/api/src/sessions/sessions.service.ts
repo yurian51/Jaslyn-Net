@@ -41,8 +41,12 @@ export class SessionsService {
         if (!customer.rowCount) throw new NotFoundException('Customer not found');
         const entitlement = await client.query(`SELECT id FROM access_grants WHERE tenant_id=$1 AND customer_id=$2 AND status='ACTIVE' AND starts_at IS NOT NULL AND starts_at<=now() AND (ends_at IS NULL OR ends_at>now()) AND ($3::uuid IS NULL OR router_id IS NULL OR router_id=$3) ORDER BY ends_at NULLS LAST, created_at DESC LIMIT 1 FOR SHARE`, [tenantId, input.customerId, input.routerId ?? null]);
         if (!entitlement.rowCount) throw new ForbiddenException('Active access entitlement required before starting a customer session');
-        const serviceState = await client.query(`SELECT state FROM customer_service_state WHERE tenant_id=$1 AND customer_id=$2 FOR SHARE`, [tenantId, input.customerId]);
-        if (serviceState.rowCount && !['ACTIVE', 'GRACE'].includes(serviceState.rows[0].state)) throw new ForbiddenException(`Customer service state ${serviceState.rows[0].state} does not permit a new session`);
+        const serviceState = await client.query(`SELECT state, effective_at AS "effectiveAt", expires_at AS "expiresAt" FROM customer_service_state WHERE tenant_id=$1 AND customer_id=$2 FOR SHARE`, [tenantId, input.customerId]);
+        if (serviceState.rowCount) {
+          const state = serviceState.rows[0];
+          const validWindow = new Date(state.effectiveAt).getTime() <= Date.now() && (state.expiresAt == null || new Date(state.expiresAt).getTime() > Date.now());
+          if (!['ACTIVE', 'GRACE'].includes(state.state) || !validWindow) throw new ForbiddenException(`Customer service state ${state.state} does not permit a new session`);
+        }
       }
       if (input.routerId) {
         const router = await client.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, input.routerId]);
@@ -60,10 +64,7 @@ export class SessionsService {
         if ((error as DatabaseError)?.code === '23505') throw new ConflictException('An active session already exists for this device on this router');
         throw error;
       }
-    } catch (error: unknown) {
-      try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ }
-      throw error;
-    } finally { client.release(); }
+    } catch (error: unknown) { try { await client.query('ROLLBACK'); } catch { /* transaction may already be rolled back */ } throw error; } finally { client.release(); }
   }
 
   async updateUsage(tenantId: string, id: string, input: UpdateSessionUsageDto) {
