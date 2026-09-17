@@ -54,7 +54,21 @@ export default function DashboardPage() {
   const currency = data?.tenant?.currency ?? 'TZS';
   const revenue = data?.revenueSeries ?? [];
   const revenueTotal = useMemo(() => revenue.reduce((sum, value) => sum + value, 0), [revenue]);
-  const maxRevenue = Math.max(...revenue, 0);
+  const revenueChart = useMemo(() => {
+    if (!revenue.length) return null;
+    const min = Math.min(...revenue, 0);
+    const max = Math.max(...revenue, 1);
+    const span = max - min || 1;
+    const points = revenue.map((value, index) => {
+      const x = 18 + (index / Math.max(revenue.length - 1, 1)) * 684;
+      const y = 24 + (1 - (value - min) / span) * 150;
+      return { x, y, value };
+    });
+    const line = points.map(({ x, y }) => `${x},${y}`).join(' ');
+    const area = `18,174 ${line} 702,174`;
+    return { points, line, area };
+  }, [revenue]);
+
   const network = { totalRouters: 0, online: 0, degraded: 0, offline: 0, ...data?.network };
   const operations = {
     networkCommands: { pending: 0, failed: 0, verified: 0, abandoned: 0, ...data?.operations?.networkCommands },
@@ -62,6 +76,7 @@ export default function DashboardPage() {
     access: { activeValid: 0, expiredButActive: 0, expiring24h: 0, ...data?.operations?.access },
   };
   const integrityIssues = operations.networkCommands.failed + operations.sessions.stale + operations.sessions.activeWithoutAccounting + operations.sessions.accountingLagging + operations.access.expiredButActive;
+  const attentionItems = network.offline + network.degraded + operations.networkCommands.failed + operations.access.expiredButActive + operations.access.expiring24h;
   const traffic = (data?.sessions ?? []).reduce((sum, session) => sum + (session.bytesIn ?? 0) + (session.bytesOut ?? 0), 0);
   const availability = data?.kpis?.networkAvailability;
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
@@ -89,11 +104,21 @@ export default function DashboardPage() {
         <article className="kpi"><div className="kpi-label"><span>Network availability</span><b>FABRIC</b></div><strong>{availability == null ? '—' : `${availability}%`}</strong><div className="kpi-foot"><span>{network.offline ? 'ATTENTION' : 'STATUS'}</span><small>{network.online}/{network.totalRouters} routers online</small></div></article>
       </section>
 
+      <section className={`operations-strip ${attentionItems ? 'has-attention' : ''}`} aria-label="Operational attention summary">
+        <div className="operations-strip-label"><span className="operations-strip-dot" /> <strong>{attentionItems ? `${attentionItems} attention signal${attentionItems === 1 ? '' : 's'}` : 'No attention signals'}</strong><small>derived from live tenant telemetry</small></div>
+        <div className="operations-strip-items">
+          <span><b>{network.offline}</b> offline routers</span>
+          <span><b>{network.degraded}</b> degraded</span>
+          <span><b>{operations.networkCommands.failed}</b> failed commands</span>
+          <span><b>{operations.access.expiring24h}</b> expiring 24h</span>
+        </div>
+      </section>
+
       <section className="overview-grid overview-primary">
         <article className="panel overview-panel">
           <div className="panel-head"><div><div className="panel-kicker">COMMERCIAL TELEMETRY</div><h2>Revenue performance</h2><p>Returned payment series for this tenant.</p></div><span className="panel-badge">{revenue.length ? `${revenue.length} PERIODS` : 'NO SERIES'}</span></div>
           <div className="overview-total">{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}<small>{data ? `${money(currency, revenueTotal)} across returned periods` : 'Waiting for authenticated telemetry'}</small></div>
-          {revenue.length ? <div className="overview-bars" aria-label="Revenue series">{revenue.map((value, index) => <span key={`${index}-${value}`} style={{ height: `${Math.max(4, maxRevenue ? Math.round((value / maxRevenue) * 100) : 0)}%` }} title={money(currency, value)} />)}</div> : <div className="overview-empty"><strong>No revenue series returned.</strong><span>No invented figures are shown.</span></div>}
+          {revenueChart ? <div className="overview-chart" role="img" aria-label="Revenue performance line chart"><svg viewBox="0 0 720 190" preserveAspectRatio="none"><line x1="18" y1="24" x2="702" y2="24" /><line x1="18" y1="74" x2="702" y2="74" /><line x1="18" y1="124" x2="702" y2="124" /><line x1="18" y1="174" x2="702" y2="174" /><polygon points={revenueChart.area} /><polyline points={revenueChart.line} /><circle cx={revenueChart.points.at(-1)?.x ?? 18} cy={revenueChart.points.at(-1)?.y ?? 174} r="4" /></svg><div className="overview-chart-axis"><span>Earlier periods</span><span>Latest returned period</span></div></div> : <div className="overview-empty"><strong>No revenue series returned.</strong><span>No invented figures are shown.</span></div>}
         </article>
 
         <article className="panel overview-panel network-summary">
