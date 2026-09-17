@@ -71,6 +71,22 @@ export class LoadBalancingService {
 
   async createPolicy(tenantId: string, dto: CreateLoadBalancePolicyDto, context: AuditContext = {}) {
     await this.assertRouter(tenantId, dto.routerId);
+    const members = dto.members ?? [];
+    const seen = new Set<string>();
+    for (const member of members) {
+      if (seen.has(member.wanConnectionId)) throw new BadRequestException(`Duplicate WAN member: ${member.wanConnectionId}`);
+      seen.add(member.wanConnectionId);
+    }
+    if (members.length) {
+      const available = await this.db.query(
+        `SELECT id FROM wan_connections WHERE tenant_id=$1 AND router_id=$2 AND id=ANY($3::uuid[])`,
+        [tenantId, dto.routerId, members.map((member) => member.wanConnectionId)],
+      );
+      const availableIds = new Set<string>(available.rows.map((row) => row.id as string));
+      const missing = members.map((member) => member.wanConnectionId).filter((id) => !availableIds.has(id));
+      if (missing.length) throw new BadRequestException(`WAN member does not belong to router: ${missing.join(', ')}`);
+    }
+
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
@@ -82,15 +98,15 @@ export class LoadBalancingService {
          dto.rebalanceThresholdPercent ?? 15, dto.degradeThresholdPercent ?? 80, dto.unavailableAfterFailures ?? 3, dto.recoverAfterSuccesses ?? 3],
       );
       const id = result.rows[0].id as string;
-      for (const member of dto.members ?? []) {
+      for (const member of members) {
         await client.query(
           `INSERT INTO load_balance_members (tenant_id,policy_id,wan_connection_id,configured_weight,priority,enabled)
-           SELECT $1,$2,w.id,$3,$4,$5 FROM wan_connections w WHERE w.tenant_id=$1 AND w.id=$6 AND w.router_id=$7`,
-          [tenantId, id, member.configuredWeight ?? 1, member.priority ?? 100, member.enabled ?? true, member.wanConnectionId, dto.routerId],
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [tenantId, id, member.wanConnectionId, member.configuredWeight ?? 1, member.priority ?? 100, member.enabled ?? true],
         );
       }
       await client.query('COMMIT');
-      await this.audit.record(tenantId, 'LOAD_BALANCE_POLICY_CREATED', 'load_balance_policy', id, { routerId: dto.routerId, strategy: dto.strategy, memberCount: dto.members?.length ?? 0 }, context);
+      await this.audit.record(tenantId, 'LOAD_BALANCE_POLICY_CREATED', 'load_balance_policy', id, { routerId: dto.routerId, strategy: dto.strategy, memberCount: members.length }, context);
       return this.getPolicy(tenantId, id);
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
@@ -134,7 +150,7 @@ export class LoadBalancingService {
   async status(tenantId: string, policyId: string) {
     const policy = await this.getPolicy(tenantId, policyId);
     const decision = this.engine.decide(policyId, policy.strategy, policy.members as WanMemberState[], policy.capacityAware);
-    return { policy, decision, generatedAt: new Date().toISOString() };
+    return { policy, decision, generatedAt: new Date().toISOString(), appliedToRouter: false };
   }
 
   async rebalance(tenantId: string, policyId: string, context: AuditContext = {}, action?: LoadBalanceActionDto) {
@@ -152,10 +168,10 @@ export class LoadBalancingService {
       `INSERT INTO load_balance_events (tenant_id,router_id,policy_id,event_type,correlation_id,evidence)
        VALUES ($1,$2,$3,'TRAFFIC_REBALANCED',$4,$5::jsonb)
        ON CONFLICT (tenant_id,event_type,correlation_id) WHERE correlation_id IS NOT NULL DO NOTHING`,
-      [tenantId, status.policy.routerId, policyId, correlationId, JSON.stringify({ distribution, reason: action?.reason ?? 'operator_or_automation' })],
+      [tenantId, status.policy.routerId, policyId, correlationId, JSON.stringify({ distribution, reason: action?.reason ?? 'operator_or_automation', appliedToRouter: false })],
     );
-    await this.audit.record(tenantId, 'TRAFFIC_REBALANCED', 'load_balance_policy', policyId, { distribution, reason: action?.reason ?? 'operator_or_automation' }, context);
-    return { ...status, distribution };
+    await this.audit.record(tenantId, 'TRAFFIC_REBALANCED_DECISION', 'load_balance_policy', policyId, { distribution, reason: action?.reason ?? 'operator_or_automation', appliedToRouter: false }, context);
+    return { ...status, distribution, appliedToRouter: false, action: 'DECISION_ONLY_UNTIL_DEVICE_ADAPTER_SUPPORTS_WAN_ROUTING' };
   }
 
   async addHealthCheck(tenantId: string, wanId: string, dto: WanHealthCheckDto, context: AuditContext = {}) {
