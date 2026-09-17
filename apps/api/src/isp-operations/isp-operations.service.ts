@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { SessionsService } from '../sessions/sessions.service';
 import {
   AccessState,
   ChangeAccessStateDto,
@@ -31,7 +32,7 @@ type AccessRow = {
 @Injectable()
 export class IspOperationsService {
   readonly moduleName = 'isp-operations';
-  constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly sessions: SessionsService) {}
 
   async listAccessBindings(tenantId: string, query: ListQueryDto) {
     const offset = (query.page - 1) * query.limit;
@@ -58,6 +59,7 @@ export class IspOperationsService {
 
   async changeAccessState(tenantId: string, id: string, input: ChangeAccessStateDto) {
     const client = await this.db.connect();
+    let changed = false;
     try {
       await client.query('BEGIN');
       const current = await client.query<AccessRow>('SELECT * FROM customer_access_bindings WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, id]);
@@ -73,7 +75,9 @@ export class IspOperationsService {
       const updated = await client.query<AccessRow>(`UPDATE customer_access_bindings SET state=$3,activated_at=$4,suspended_at=$5,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING *`, [tenantId, id, input.state, activatedAt, suspendedAt]);
       await client.query(`INSERT INTO access_state_events (tenant_id,access_binding_id,previous_state,new_state,reason,source,payment_id) VALUES ($1,$2,$3,$4,$5,'API',$6)`, [tenantId, id, row.state, input.state, input.reason.trim(), input.paymentId ?? null]);
       await client.query('COMMIT');
-      return this.mapAccess(updated.rows[0]);
+      changed = true;
+      const reconciliation = await this.sessions.reconcileAccessState(tenantId, { requestId: `access-binding:${id}` });
+      return { ...this.mapAccess(updated.rows[0]), reconciliation };
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       if (this.pgCode(error) === '23503') throw new NotFoundException('Payment was not found for this tenant');
