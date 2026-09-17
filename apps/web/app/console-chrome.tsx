@@ -15,6 +15,7 @@ const nav = [
 ] as const;
 
 const publicRoutes = new Set(['/login', '/register']);
+const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
 function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -36,24 +37,35 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreActive = nav.slice(4).some(([, , href]) => isRouteActive(pathname, href));
+
+  useEffect(() => { setMoreOpen(false); }, [pathname]);
 
   return (
     <div className="console-chrome-frame">
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
         <div className="console-chrome-brand"><div className="console-chrome-mark">J</div><div><strong>JASLYN NET</strong><small>Network operations platform</small></div></div>
-        <div className="console-chrome-workspace"><span /> <b>GLOBAL WORKSPACE</b><em>⌄</em></div>
+        <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
         <div className="console-chrome-section">CONTROL PLANE</div>
-        <nav className="console-chrome-nav">{nav.map(([label, icon, href]) => <a key={href} className={pathname === href ? 'active' : ''} href={href} aria-current={pathname === href ? 'page' : undefined}><span>{icon}</span><b>{label}</b></a>)}</nav>
+        <nav className="console-chrome-nav" aria-label="Control plane">
+          {nav.map(([label, icon, href]) => {
+            const active = isRouteActive(pathname, href);
+            return <a key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span aria-hidden="true">{icon}</span><b>{label}</b></a>;
+          })}
+        </nav>
         <div className="console-chrome-footer">
-          <div className="console-chrome-health"><i /> <span><b>Control plane</b><small>API-backed operations</small></span></div>
-          <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong>J</strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em>↪</em></button>
+          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Operations console</b><small>Authenticated API workspace</small></span></div>
+          <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong>J</strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
       <div className="console-chrome-content">{children}</div>
       <nav className="console-chrome-mobile" aria-label="Mobile operations navigation">
-        {nav.slice(0, 4).map(([label, icon, href]) => <a key={href} className={pathname === href ? 'active' : ''} href={href} aria-current={pathname === href ? 'page' : undefined}><span>{icon}</span><b>{label}</b></a>)}
-        <button type="button" className={moreOpen ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span>•••</span><b>More</b></button>
-        {moreOpen && <div className="console-chrome-more">{nav.slice(4).map(([label, icon, href]) => <a key={href} href={href}><span>{icon}</span><b>{label}</b></a>)}</div>}
+        {nav.slice(0, 4).map(([label, icon, href]) => {
+          const active = isRouteActive(pathname, href);
+          return <a key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span aria-hidden="true">{icon}</span><b>{label}</b></a>;
+        })}
+        <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span aria-hidden="true">•••</span><b>More</b></button>
+        {moreOpen && <div className="console-chrome-more">{nav.slice(4).map(([label, icon, href]) => <a key={href} href={href} aria-current={isRouteActive(pathname, href) ? 'page' : undefined}><span aria-hidden="true">{icon}</span><b>{label}</b></a>)}</div>}
       </nav>
     </div>
   );
