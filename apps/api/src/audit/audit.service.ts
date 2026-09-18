@@ -128,6 +128,21 @@ export class AuditService {
            FROM sessions s
           WHERE s.tenant_id=$1 AND s.correlation_id=$2
          UNION ALL
+         SELECT 'PAYMENT_EVENT', e.id::text, e.created_at, e.event_type, 'payment_event', e.id::text,
+                jsonb_build_object('provider',e.provider,'providerEventId',e.provider_event_id,'paymentId',e.payment_id,'processingStatus',e.processing_status,'signatureValid',e.signature_valid)
+           FROM payment_events e
+          WHERE e.tenant_id=$1 AND e.correlation_id=$2
+         UNION ALL
+         SELECT 'RADIUS_ACCOUNTING', e.id::text, e.created_at, e.status_type, 'radius_accounting_event', e.id::text,
+                jsonb_build_object('username',e.username,'acctSessionId',e.acct_session_id,'inputOctets',e.input_octets,'outputOctets',e.output_octets,'sessionTime',e.session_time)
+           FROM radius_accounting_events e
+          WHERE e.tenant_id=$1 AND e.correlation_id=$2
+         UNION ALL
+         SELECT 'RADIUS_EVENT', e.id::text, e.created_at, e.result, 'radius_event', e.id::text,
+                jsonb_build_object('username',e.username,'packetCode',e.packet_code,'packetIdentifier',e.packet_identifier,'error',e.error)
+           FROM radius_events e
+          WHERE e.tenant_id=$1 AND e.correlation_id=$2
+         UNION ALL
          SELECT 'LEDGER', t.id::text, t.posted_at, t.transaction_type,
                 t.reference_type, t.reference_id::text,
                 jsonb_build_object('description',t.description,'correlationId',t.correlation_id)
