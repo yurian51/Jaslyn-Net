@@ -76,6 +76,7 @@ export default function PurchasesPage() {
   }
 
   const selectedProvider = providers.find(item => item.code === provider) ?? providers[0] ?? FALLBACK_PAYMENT_PROVIDERS[0];
+  const paymentProvidersInRows = Array.from(new Set(rows.map(row => row.provider).filter(Boolean) as string[]));
   const filteredRows = rows.filter(row => {
     const needle = query.trim().toLowerCase();
     const matchesQuery = !needle || [row.customerName, row.customerId, row.packageName, row.id, row.currency].some(value => String(value).toLowerCase().includes(needle));
@@ -117,7 +118,7 @@ export default function PurchasesPage() {
       </select>
       <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} aria-label="Filter payment method">
         <option value="ALL">All payment methods</option>
-        {providers.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
+        {paymentProvidersInRows.map(code => <option key={code} value={code}>{providers.find(item => item.code === code)?.name ?? code.replaceAll('_', ' ')}</option>)}
       </select>
       <button type="button" className="filter-reset" onClick={() => { setQuery(''); setStatusFilter('ALL'); setPaymentMethod('ALL'); }}>Clear</button>
     </div>
@@ -129,7 +130,8 @@ export default function PurchasesPage() {
       <div className="table-wrap"><table><thead><tr><th>Customer</th><th>Plan</th><th>Amount</th><th>Status</th><th>Access</th><th>Created</th><th></th></tr></thead>
         <tbody>{filteredRows.map(row => {
           const access = row.status.toUpperCase() === 'ACTIVE' ? 'ACTIVE' : row.endsAt && new Date(row.endsAt).getTime() > Date.now() ? 'GRANTED' : '—';
-          return <tr key={row.id} onClick={() => setDetailId(row.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailId(row.id); } }} tabIndex={0} aria-selected={detailId === row.id} className={detailId === row.id ? 'selected' : ''}>
+          const openPurchase = () => { setSelected(row.id); setDetailId(row.id); };
+          return <tr key={row.id} onClick={openPurchase} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPurchase(); } }} tabIndex={0} aria-selected={detailId === row.id} className={detailId === row.id ? 'selected' : ''}>
             <td><strong>{row.customerName}</strong><small>{row.customerId.slice(0, 10)}…</small></td>
             <td>{row.packageName}<small>{row.provider ? row.provider.replaceAll('_', ' ') : 'Payment provider not recorded'}</small></td><td><strong>{row.currency} {Number(row.price).toLocaleString()}</strong></td>
             <td><span className={`status ${row.status.toLowerCase()}`}>{row.status.replaceAll('_', ' ')}</span></td>
@@ -138,7 +140,7 @@ export default function PurchasesPage() {
           </tr>;
         })}</tbody>
       </table></div>
-      <div className="mobile-purchase-list">{filteredRows.map(row => <button key={row.id} type="button" className="mobile-purchase-item" onClick={() => setDetailId(row.id)}>
+      <div className="mobile-purchase-list">{filteredRows.map(row => <button key={row.id} type="button" className="mobile-purchase-item" onClick={() => { setSelected(row.id); setDetailId(row.id); }}>
         <span className="mobile-purchase-icon">▱</span><span><strong>{row.packageName}</strong><small>{row.customerName} · {row.currency} {Number(row.price).toLocaleString()}</small></span><b className={`status ${row.status.toLowerCase()}`}>{row.status.replaceAll('_', ' ')}</b>
       </button>)}</div>
     </>}
@@ -174,7 +176,8 @@ export default function PurchasesPage() {
       <div><span>Customer</span><strong>{detail.customerName}</strong></div><div><span>Customer ID</span><strong>{detail.customerId}</strong></div>
       <div><span>Package</span><strong>{detail.packageName}</strong></div><div><span>Router</span><strong>{detail.routerId || 'Not assigned'}</strong></div>
       <div><span>Starts</span><strong>{date(detail.startsAt)}</strong></div><div><span>Expires</span><strong>{date(detail.endsAt)}</strong></div>
-      <div><span>Created</span><strong>{date(detail.createdAt)}</strong></div><div><span>Access</span><strong>{detail.status.toUpperCase() === 'ACTIVE' ? 'Active' : 'Pending / not active'}</strong></div>
+      <div><span>Created</span><strong>{date(detail.createdAt)}</strong></div><div><span>Payment provider</span><strong>{detail.provider ? detail.provider.replaceAll('_', ' ') : 'Not recorded'}</strong></div>
+      <div><span>Access</span><strong>{detail.accessStatus ?? (detail.status.toUpperCase() === 'ACTIVE' ? 'ACTIVE' : 'Pending / not active')}</strong></div>
     </div>
     <div className="drawer-actions"><button type="button" onClick={() => { setSelected(detail.id); document.getElementById('payment-control')?.scrollIntoView({behavior:'smooth',block:'center'}); setDetailId(''); }}>Manage payment</button><a href="/sessions">View sessions</a><button type="button" onClick={() => window.print()}>Print</button></div>
   </aside>
