@@ -31,7 +31,7 @@ export class PaymentsController {
   webhook(
     @Req() req: WebhookRequest,
     @Param('tenantId') tenantId: string,
-    @Headers('x-nexora-signature') signature: string | undefined,
+    @Headers('x-jaslyn-signature') signature: string | undefined,
     @Body() dto: PaymentWebhookDto,
   ) {
     if (!req.rawBody) throw new Error('Raw webhook body is unavailable');
