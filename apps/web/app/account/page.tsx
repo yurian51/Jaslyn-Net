@@ -15,7 +15,7 @@ const initialBrand={brandColor:'#1769E0',logoUrl:'',supportPhone:'',supportWhats
 
 export default function AccountPage(){
  const [data,setData]=useState<AccountData|null>(null); const [members,setMembers]=useState<Member[]>([]); const [profile,setProfile]=useState(initial); const [brand,setBrand]=useState(initialBrand); const [payments,setPayments]=useState({acceptVouchers:true,acceptOnlinePayments:true}); const [support,setSupport]=useState(''); const [confirm,setConfirm]=useState(''); const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
- const token=()=>getAccessToken()?{Authorization:`Bearer ${getAccessToken()}`}:{};
+ const token=(): Record<string,string> => { const value=getAccessToken(); return value ? {Authorization:`Bearer ${value}`} : {}; };
  async function load(){setBusy(true);try{const [a,t]=await Promise.all([apiFetch<AccountData>('/account',{headers:token()}),apiFetch<{data:Member[]}>('/account/team',{headers:token()})]);setData(a);setMembers(t.data);setProfile({...initial,...a.profile});setBrand({...initialBrand,...a.profile});setPayments(a.paymentDisplay)}catch(e){setMessage(e instanceof Error?e.message:'Unable to load account')}finally{setBusy(false)}}
  useEffect(()=>{void load()},[]);
  async function save(path:string,body:any){setBusy(true);setMessage('');try{const next=await apiFetch<AccountData>(path,{method:'PUT',headers:{...token(),'Content-Type':'application/json'},body:JSON.stringify(body)});setData(next);setProfile({...initial,...next.profile});setBrand({...initialBrand,...next.profile});setPayments(next.paymentDisplay);setMessage('Saved successfully.')}catch(e){setMessage(e instanceof Error?e.message:'Save failed')}finally{setBusy(false)}}
