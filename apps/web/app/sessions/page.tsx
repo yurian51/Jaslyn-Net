@@ -69,7 +69,7 @@ export default function SessionsPage() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">J</div><div><span>JASLYN NET</span><small>Network operations platform</small></div></div>
+        <div className="brand"><div className="brand-mark"><img src="/brand/jaslyn-net-icon.svg" alt="" /></div><div><span>JASLYN NET</span><small>Network operations platform</small></div></div>
         <div className="workspace-switch"><span className="workspace-dot"/> Global Workspace <span>⌄</span></div>
         <nav className="nav">
           <p className="nav-section">OPERATIONS</p>
@@ -81,7 +81,7 @@ export default function SessionsPage() {
           <a className="nav-item" href="/network"><span className="nav-icon">⌁</span>Network</a>
         </nav>
         <div className="sidebar-status"><span className="pulse"/><div><strong>{error ? 'API unavailable' : 'Session monitor'}</strong><small>{error ?? `${count} session records loaded`}</small></div></div>
-        <div className="profile"><div className="avatar">J</div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div></div>
+        <div className="profile"><div className="avatar"><img src="/brand/jaslyn-net-icon.svg" alt="" /></div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div></div>
       </aside>
       <section className="content">
         <header className="topbar">

@@ -3,8 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { jwtVerify } from 'jose';
 
 export type AuthenticatedRequest = {
-  headers: { authorization?: string };
+  headers: { authorization?: string; 'user-agent'?: string | string[] };
   requestId?: string;
+  ip?: string;
   user?: {
     id: string;
     tenantId: string;

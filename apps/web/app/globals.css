@@ -67,6 +67,7 @@ button:disabled { cursor: not-allowed; }
   height: 34px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border-radius: 9px;
   background: #eef3ff;
   color: #3158b8;
@@ -74,6 +75,9 @@ button:disabled { cursor: not-allowed; }
   font-weight: 800;
   box-shadow: none;
 }
+.brand-mark img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.avatar { width: 29px; height: 29px; display: grid; place-items: center; overflow: hidden; border-radius: 8px; background: #eef3ff; color: #3c5fc0; font-size: 10px; font-weight: 800; }
+.avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .brand span { display: block; color: #f8fafc; font-size: 14px; font-weight: 800; letter-spacing: .1em; }
 .brand small { display: block; margin-top: 3px; color: #66768e; font-size: 8px; }
 .workspace-switch {

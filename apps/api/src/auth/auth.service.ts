@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
@@ -7,11 +7,14 @@ import { promisify } from 'node:util';
 import { SignJWT } from 'jose';
 import { PG_POOL } from '../database/database.module';
 import { LoginDto, RegisterDto } from './auth.dto';
+import { AuthenticatedRequest } from './auth.guard';
 
 const scrypt = promisify(scryptCallback);
 const PASSWORD_KEY_LENGTH = 64;
 const ISSUER = 'jaslyn-net';
 const AUDIENCE = 'jaslyn-net-api';
+const TERMS_VERSION = '2026-09-18';
+const PRIVACY_VERSION = '2026-09-18';
 
 interface UserTokenRecord { id: string; tenant_id: string; email: string; full_name: string; role: string; }
 interface TenantTokenRecord { id: string; name: string; slug: string; status: string; currency: string; timezone: string; }
@@ -20,7 +23,10 @@ interface TenantTokenRecord { id: string; name: string; slug: string; status: st
 export class AuthService {
   constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly config: ConfigService) {}
 
-  async register(input: RegisterDto) {
+  async register(input: RegisterDto, context: { ip?: string; userAgent?: string } = {}) {
+    if (input.acceptTerms !== true || input.acceptPrivacy !== true) {
+      throw new BadRequestException('Acceptance of the current Terms of Use and Privacy Notice is required');
+    }
     const slug = this.slugify(input.businessName);
     const passwordHash = await this.hashPassword(input.password);
     const client = await this.db.connect();
@@ -34,6 +40,11 @@ export class AuthService {
         'INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, tenant_id, email, full_name, role',
         [tenant.rows[0].id, input.email.toLowerCase().trim(), passwordHash, input.fullName.trim(), 'OWNER'],
       );
+      await client.query(
+        `INSERT INTO legal_acceptances (tenant_id, user_id, document_type, document_version, ip_address, user_agent)
+         VALUES ($1,$2,'TERMS_OF_USE',$3,$4,$5),($1,$2,'PRIVACY_NOTICE',$6,$4,$5)`,
+        [tenant.rows[0].id, user.rows[0].id, TERMS_VERSION, context.ip ?? null, context.userAgent?.slice(0, 500) ?? null, PRIVACY_VERSION],
+      );
       await client.query('COMMIT');
       return this.issueTokens(user.rows[0], tenant.rows[0]);
     } catch (error) {
@@ -41,6 +52,42 @@ export class AuthService {
       if (isUniqueViolation(error)) throw new ConflictException('Business slug or email already exists');
       throw error;
     } finally { client.release(); }
+  }
+
+  async acceptLegalDocument(user: NonNullable<AuthenticatedRequest['user']>, documentType: 'TERMS_OF_USE' | 'PRIVACY_NOTICE', context: { ip?: string; userAgent?: string | string[] } = {}) {
+    const version = documentType === 'TERMS_OF_USE' ? TERMS_VERSION : documentType === 'PRIVACY_NOTICE' ? PRIVACY_VERSION : null;
+    if (!version) throw new BadRequestException('Unsupported legal document');
+
+    await this.db.query(
+      `INSERT INTO legal_acceptances (tenant_id, user_id, document_type, document_version, ip_address, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (tenant_id, user_id, document_type, document_version) DO NOTHING`,
+      [user.tenantId, user.id, documentType, version, context.ip ?? null, Array.isArray(context.userAgent) ? (context.userAgent[0]?.slice(0, 500) ?? null) : (context.userAgent?.slice(0, 500) ?? null)],
+    );
+    return { documentType, documentVersion: version, accepted: true };
+  }
+
+  async getLegalAcceptanceStatus(user: NonNullable<AuthenticatedRequest['user']>) {
+    const result = await this.db.query<{ document_type: 'TERMS_OF_USE' | 'PRIVACY_NOTICE'; document_version: string; accepted_at: string }>(
+      `SELECT DISTINCT ON (document_type) document_type, document_version, accepted_at
+       FROM legal_acceptances
+       WHERE tenant_id = $1 AND user_id = $2
+       ORDER BY document_type, accepted_at DESC`,
+      [user.tenantId, user.id],
+    );
+    const current = { TERMS_OF_USE, PRIVACY_NOTICE };
+    return {
+      documents: Object.entries(current).map(([documentType, documentVersion]) => {
+        const accepted = result.rows.find((row) => row.document_type === documentType);
+        return {
+          documentType,
+          currentVersion: documentVersion,
+          acceptedVersion: accepted?.document_version ?? null,
+          acceptedAt: accepted?.accepted_at ?? null,
+          current: accepted?.document_version === documentVersion,
+        };
+      }),
+    };
   }
 
   async login(input: LoginDto) {

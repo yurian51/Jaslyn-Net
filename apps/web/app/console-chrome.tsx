@@ -4,8 +4,9 @@ import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
+import { apiFetch } from '../lib/api';
 
-type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'loadBalancing' | 'purchases' | 'packages' | 'incidents' | 'audit';
+type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'loadBalancing' | 'isp' | 'purchases' | 'packages' | 'incidents' | 'audit';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Overview', 'overview', '/dashboard'],
@@ -13,6 +14,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Sessions', 'sessions', '/sessions'],
   ['Network', 'network', '/network'],
   ['WAN & Load Balancing', 'loadBalancing', '/load-balancing'],
+  ['ISP Operations', 'isp', '/isp'],
   ['Purchases', 'purchases', '/purchases'],
   ['Plans & Products', 'packages', '/packages'],
   ['Incident Center', 'incidents', '/incidents'],
@@ -20,6 +22,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 ];
 
 const publicRoutes = new Set(['/login', '/register']);
+const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
 const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
 function NavIcon({ name }: { name: IconName }) {
@@ -29,6 +32,7 @@ function NavIcon({ name }: { name: IconName }) {
     sessions: <><path d="M7 7h10" /><path d="M7 12h10" /><path d="M7 17h6" /><circle cx="4" cy="7" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="17" r="1" fill="currentColor" stroke="none" /></>,
     network: <><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8M12 16v4" /><path d="M8 9h8M8 12h5" /></>,
     loadBalancing: <><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M8 7.5 16 16.5M18 8v4M18 12l-3-3M18 12l3-3M6 16v-4M6 12l-3 3M6 12l3 3" /></>,
+    isp: <><path d="M4 18h16" /><path d="M7 18V9l5-4 5 4v9" /><path d="M10 18v-5h4v5" /><path d="M9 9h.01M15 9h.01" /></>,
     purchases: <><path d="M5 7h14l-1 13H6L5 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /><path d="M9 11h.01M15 11h.01" /></>,
     packages: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.8 12 12l7.5-4.2M12 12v9" /></>,
     incidents: <><path d="M12 3 21 20H3L12 3Z" /><path d="M12 9v5" /><path d="M12 17h.01" /></>,
@@ -41,15 +45,15 @@ function NavIcon({ name }: { name: IconName }) {
 function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [checking, setChecking] = useState(!publicRoutes.has(pathname));
+  const [checking, setChecking] = useState(!isPublicRoute(pathname));
 
   useEffect(() => {
-    if (publicRoutes.has(pathname)) { setChecking(false); return; }
+    if (isPublicRoute(pathname)) { setChecking(false); return; }
     if (!getAccessToken()) { router.replace('/login'); return; }
     setChecking(false);
   }, [pathname, router]);
 
-  if (publicRoutes.has(pathname)) return <>{children}</>;
+  if (isPublicRoute(pathname)) return <>{children}</>;
   if (checking) return <div className="console-auth-loading"><div className="console-auth-spinner" /><span>Verifying workspace session…</span></div>;
   return <>{children}</>;
 }
@@ -58,15 +62,31 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [legalUpdate, setLegalUpdate] = useState(false);
   const moreActive = nav.slice(5).some(([, , href]) => isRouteActive(pathname, href));
 
   useEffect(() => { setMoreOpen(false); }, [pathname]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const token = getAccessToken();
+    if (!token) return;
+    apiFetch<{ documents: Array<{ current: boolean }> }>('/auth/legal-acceptance', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((result) => {
+      if (!cancelled) setLegalUpdate(result.documents.some((document) => !document.current));
+    }).catch(() => {
+      if (!cancelled) setLegalUpdate(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="console-chrome-frame">
+      {legalUpdate && <div className="console-legal-alert" role="status"><span><strong>Legal documents updated</strong><small>Review the current Terms and Privacy Notice before continuing.</small></span><Link href="/legal">Review legal center</Link></div>}
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
         <div className="console-chrome-brand">
-          <div className="console-chrome-mark">J</div>
+          <div className="console-chrome-mark"><img src="/brand/jaslyn-net-icon.svg" alt="" /></div>
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
@@ -78,8 +98,8 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="console-chrome-footer">
-          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Workspace session</b><small>Authenticated operator access</small></span></div>
-          <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong>J</strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
+          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Workspace session</b><small>Authenticated operator access</small></span></div><Link className="console-chrome-legal" href="/legal/privacy">Privacy & legal</Link>
+          <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong><img src="/brand/jaslyn-net-icon.svg" alt="" /></strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
       <div className="console-chrome-content">{children}</div>
@@ -97,5 +117,5 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
 export default function ConsoleChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  return <AuthGate>{publicRoutes.has(pathname) ? children : <OperationsChrome>{children}</OperationsChrome>}</AuthGate>;
+  return <AuthGate>{isPublicRoute(pathname) ? children : <OperationsChrome>{children}</OperationsChrome>}</AuthGate>;
 }

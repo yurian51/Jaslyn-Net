@@ -175,12 +175,14 @@ export class LoadBalancingService {
   async status(tenantId: string, policyId: string) {
     const policy = await this.getPolicy(tenantId, policyId);
     const decision = this.engine.decide(policyId, policy.strategy, policy.members as WanMemberState[], policy.capacityAware);
+    const adapterAvailable = hasWanRoutingAdapter(policy.managementProtocol as NetworkManagementProtocol);
     return {
       policy,
       decision,
       generatedAt: new Date().toISOString(),
       appliedToRouter: false,
-      applyAvailable: policy.routingCapabilities.routeWrite,
+      adapterAvailable,
+      applyAvailable: adapterAvailable && policy.routingCapabilities.routeWrite,
     };
   }
 
@@ -196,7 +198,7 @@ export class LoadBalancingService {
     }));
 
     let networkApply: { applied: boolean; verified: boolean; reason?: string; protocol?: NetworkManagementProtocol } = { applied: false, verified: false, reason: 'No device routing adapter was invoked.' };
-    if (status.policy.managementProtocol === 'MIKROTIK_REST' && status.policy.managementEnabled === true && status.policy.routingCapabilities.routeWrite) {
+    if (hasWanRoutingAdapter(status.policy.managementProtocol as NetworkManagementProtocol) && status.policy.managementEnabled === true && status.policy.routingCapabilities.routeWrite) {
       const router = await this.db.query(
         `SELECT api_endpoint AS "apiEndpoint", management_credentials_encrypted AS "credentialsEncrypted"
          FROM routers WHERE tenant_id=$1 AND id=$2`,
@@ -238,12 +240,13 @@ export class LoadBalancingService {
 
   async addHealthCheck(tenantId: string, wanId: string, dto: WanHealthCheckDto, context: AuditContext = {}) {
     await this.assertWan(tenantId, wanId);
-    if (!['HTTP','HTTPS','TCP','DNS'].includes(dto.method) && !dto.target) throw new BadRequestException('Health-check target is required');
+    const target = dto.target.trim();
+    if (!target) throw new BadRequestException('Health-check target is required');
     const result = await this.db.query(
       `INSERT INTO wan_health_checks (tenant_id,wan_connection_id,method,target,interval_seconds,timeout_ms,failure_threshold,recovery_threshold,enabled)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [tenantId, wanId, dto.method, dto.target.trim(), dto.intervalSeconds ?? 10, dto.timeoutMs ?? 3000, dto.failureThreshold ?? 3, dto.recoveryThreshold ?? 3, dto.enabled ?? true]);
-    await this.audit.record(tenantId, 'WAN_HEALTH_CHECK_CREATED', 'wan_connection', wanId, { healthCheckId: result.rows[0].id, method: dto.method, target: dto.target }, context);
+      [tenantId, wanId, dto.method, target, dto.intervalSeconds ?? 10, dto.timeoutMs ?? 3000, dto.failureThreshold ?? 3, dto.recoveryThreshold ?? 3, dto.enabled ?? true]);
+    await this.audit.record(tenantId, 'WAN_HEALTH_CHECK_CREATED', 'wan_connection', wanId, { healthCheckId: result.rows[0].id, method: dto.method, target }, context);
     return result.rows[0];
   }
 
@@ -286,4 +289,9 @@ export class LoadBalancingService {
 
 function errorCode(error: unknown) {
   return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'NETWORK_ERROR';
+}
+
+
+function hasWanRoutingAdapter(protocol: NetworkManagementProtocol) {
+  return protocol === 'MIKROTIK_REST';
 }

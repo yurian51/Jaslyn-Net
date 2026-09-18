@@ -23,9 +23,9 @@ export default function LoginPage() {
   }
   return (
     <main className="auth-page"><section className="auth-shell" aria-label="Jaslyn Net sign in">
-      <div className="auth-brand-block"><div className="auth-mark">J</div><div><strong>JASLYN NET</strong><span>Connectivity operations platform</span></div></div>
+      <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-net-primary.svg" alt="JASLYN NET — Supreme Hybrid Network Operating Engine" /></div>
       <div className="auth-layout">
-        <div className="auth-intro"><span className="auth-kicker">NETWORK OPERATIONS</span><h1>Run your network<br />from one control plane.</h1><p>Subscribers, sessions, devices, billing and network state connected in one operational workspace.</p><div className="auth-capabilities"><span><i /> Live network state</span><span><i /> Subscriber & billing control</span><span><i /> Audited operator actions</span></div></div>
+        <div className="auth-intro"><img className="auth-brand-mark" src="/brand/jaslyn-net-mark.svg" alt="" aria-hidden="true" /><span className="auth-kicker">NETWORK OPERATIONS</span><h1>Run your network<br />from one control plane.</h1><p>Subscribers, sessions, devices, billing and network state connected in one operational workspace.</p><div className="auth-capabilities"><span><i /> Live network state</span><span><i /> Subscriber & billing control</span><span><i /> Audited operator actions</span></div></div>
         <form className="auth-card" onSubmit={submit} noValidate>
           <div className="auth-card-head"><span>SECURE ACCESS</span><h2>Sign in</h2><p>Use your Jaslyn Net operator account.</p></div>
           {error && <div className="auth-error" role="alert">{error}</div>}
@@ -35,7 +35,7 @@ export default function LoginPage() {
           <p className="auth-security"><span>●</span> Authenticated sessions are protected by the Jaslyn Net API.</p>
         </form>
       </div>
-      <footer className="auth-footer"><span>JASLYN NET</span><span>New network? <a href="/register">Create a workspace</a></span></footer>
+      <footer className="auth-footer"><span>JASLYN NET</span><span><a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/cookies">Cookies</a> · <a href="/legal">Legal Center</a> · New network? <a href="/register">Create a workspace</a></span></footer>
     </section></main>
   );
 }

@@ -107,6 +107,9 @@ export class MikrotikRestAdapter {
     timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {
     const identity = normalizeClient(client);
+    if (!identity.ipAddress && !identity.username && !identity.macAddress) {
+      throw Object.assign(new TypeError('At least one client identity is required for disconnect enforcement'), { code: 'CLIENT_IDENTITY_REQUIRED' });
+    }
     const removed: Array<{ service: 'hotspot' | 'ppp'; id: string }> = [];
 
     const hotspot = await this.request(baseUrl, credentials, 'ip/hotspot/active', { timeoutMs });
@@ -248,15 +251,20 @@ function normalizeClient(client: MikrotikClient) {
   return {
     ipAddress: client.ipAddress?.trim() || undefined,
     username: client.username?.trim() || undefined,
-    macAddress: client.macAddress?.trim().toLowerCase() || undefined,
+    macAddress: normalizeMac(client.macAddress),
   };
 }
 
+function normalizeMac(value: string | undefined) {
+  const normalized = String(value ?? '').trim().toLowerCase().replace(/[-.]/g, ':');
+  return normalized || undefined;
+}
+
 function matchesClient(row: JsonRecord, client: ReturnType<typeof normalizeClient>) {
-  const address = typeof row.address === 'string' ? row.address : undefined;
-  const name = typeof row.name === 'string' ? row.name : undefined;
-  const user = typeof row.user === 'string' ? row.user : undefined;
-  const mac = typeof row['mac-address'] === 'string' ? row['mac-address'].toLowerCase() : undefined;
+  const address = typeof row.address === 'string' ? row.address.trim() : undefined;
+  const name = typeof row.name === 'string' ? row.name.trim() : undefined;
+  const user = typeof row.user === 'string' ? row.user.trim() : undefined;
+  const mac = typeof row['mac-address'] === 'string' ? normalizeMac(row['mac-address']) : undefined;
   return Boolean((client.ipAddress && address === client.ipAddress) || (client.username && (name === client.username || user === client.username)) || (client.macAddress && mac === client.macAddress));
 }
 
