@@ -13,7 +13,8 @@ type Wan = {
 };
 
 type Policy = { id: string; routerId: string; name: string; strategy: string; enabled: boolean; capacityAware: boolean; memberCount: number; routingCapabilities: Wan['routingCapabilities'] };
-type PolicyStatus = Policy & { members: Wan[]; decision: { eligibleMembers: Array<{ wanConnectionId: string; configuredWeight: number; effectiveWeight: number; priority: number; healthState: string; capacityMbps: number; utilizationPercent: number | null }>; failoverActive: boolean }; generatedAt: string; appliedToRouter: boolean; applyAvailable: boolean };\ntype ApplyResult = { applied: boolean; verified: boolean; protocol?: string; reason?: string };
+type PolicyStatus = Policy & { members: Wan[]; decision: { eligibleMembers: Array<{ wanConnectionId: string; configuredWeight: number; effectiveWeight: number; priority: number; healthState: string; capacityMbps: number; utilizationPercent: number | null }>; failoverActive: boolean }; generatedAt: string; appliedToRouter: boolean; applyAvailable: boolean };
+type ApplyResult = { applied: boolean; verified: boolean; protocol?: string; reason?: string };
 type Collection<T> = { data: T[]; count: number };
 type Router = { id: string; name: string; managementProtocol?: string; managementEnabled?: boolean; };
 const STRATEGIES = ['WEIGHTED','PRIMARY_SECONDARY','LEAST_UTILIZED','CONNECTION_BASED','POLICY_BASED','SERVICE_BASED','DESTINATION_BASED','SOURCE_BASED','SUBNET_BASED','CUSTOMER_BASED'] as const;
