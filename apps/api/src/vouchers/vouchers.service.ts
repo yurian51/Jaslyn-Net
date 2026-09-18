@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CreateVoucherBatchDto, RedeemVoucherDto } from './vouchers.dto';
+import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
 
 @Injectable()
 export class VouchersService {
@@ -77,7 +78,7 @@ export class VouchersService {
       await client.query('BEGIN');
       const voucher=await client.query(
         `SELECT v.id,v.package_id,v.status,v.expires_at,v.device_limit,p.duration_seconds,p.price,p.currency,p.name AS package_name,
-                p.is_free_trial,p.free_trial_frequency,c.phone
+                p.data_limit_bytes,p.download_bps,p.upload_bps,p.is_free_trial,p.free_trial_frequency,c.phone
          FROM vouchers v JOIN packages p ON p.id=v.package_id AND p.tenant_id=v.tenant_id
          JOIN customers c ON c.tenant_id=$1 AND c.id=$2
          WHERE v.tenant_id=$1 AND v.code=$3 FOR UPDATE`,
@@ -103,10 +104,10 @@ export class VouchersService {
         [tenantId,input.customerId,v.package_id,input.routerId??null,v.price,v.currency,v.duration_seconds],
       );
       await client.query(
-        `INSERT INTO access_grants(tenant_id,purchase_id,customer_id,router_id,status,starts_at,ends_at,device_limit)
-         VALUES($1,$2,$3,$4,'ACTIVE',(SELECT starts_at FROM wifi_plan_purchases WHERE id=$2),(SELECT ends_at FROM wifi_plan_purchases WHERE id=$2),$5)
-         ON CONFLICT(purchase_id) DO UPDATE SET status='ACTIVE',starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,device_limit=EXCLUDED.device_limit,updated_at=now()`,
-        [tenantId,purchase.rows[0].id,input.customerId,input.routerId??null,v.device_limit],
+        `INSERT INTO access_grants(tenant_id,purchase_id,customer_id,router_id,status,starts_at,ends_at,network_policy,device_limit)
+         VALUES($1,$2,$3,$4,'ACTIVE',(SELECT starts_at FROM wifi_plan_purchases WHERE id=$2),(SELECT ends_at FROM wifi_plan_purchases WHERE id=$2),$5::jsonb,$6)
+         ON CONFLICT(purchase_id) DO UPDATE SET status='ACTIVE',starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,network_policy=EXCLUDED.network_policy,device_limit=EXCLUDED.device_limit,updated_at=now()`,
+        [tenantId,purchase.rows[0].id,input.customerId,input.routerId??null,JSON.stringify(networkPolicy),v.device_limit],
       );
       await client.query('UPDATE vouchers SET status=\'USED\',used_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,v.id]);
       await client.query('COMMIT');
