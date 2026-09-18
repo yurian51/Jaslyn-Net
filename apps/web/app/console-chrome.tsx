@@ -30,6 +30,12 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Settings', 'settings', '/settings'],
 ];
 
+const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
+  ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
+  ['Commercial', ['/purchases', '/payments', '/vouchers', '/packages']],
+  ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
+];
+
 const publicRoutes = new Set(['/login', '/register']);
 const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
 const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -139,7 +145,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
         })}
         <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span>•••</span><b>More</b></button>
         <Link key="settings-mobile" className={isRouteActive(pathname, '/settings') ? 'active' : ''} href="/settings" aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link>
-        {moreOpen && <div className="console-chrome-more"><div className="console-chrome-more-title">JASLYN NET · OPERATIONS</div>{nav.filter(([, , href]) => !['/dashboard', '/customers', '/sessions', '/network', '/settings'].includes(href)).map(([label, icon, href]) => <Link key={href} href={href} aria-current={isRouteActive(pathname, href) ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>)}<Link href="/settings" className={isRouteActive(pathname, '/settings') ? 'active' : ''} aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link></div>}
+        {moreOpen && <div className="console-chrome-more"><div className="console-chrome-more-title">JASLYN NET · OPERATIONS</div>{mobileMoreGroups.map(([group, hrefs]) => <div className="console-chrome-more-group" key={group}><div className="console-chrome-more-group-title">{group}</div>{hrefs.map(href => { const item = nav.find(([, , itemHref]) => itemHref === href); if (!item) return null; const [label, icon] = item; const active = isRouteActive(pathname, href); return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>; })}</div>)}<div className="console-chrome-more-group"><div className="console-chrome-more-group-title">Workspace</div><Link href="/settings" className={isRouteActive(pathname, '/settings') ? 'active' : ''} aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link></div></div>}
       </nav>
     </div>
   );
