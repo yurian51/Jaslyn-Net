@@ -6,7 +6,7 @@ import { getAccessToken } from '../../lib/auth';
 
 type Item={id:string;customerName?:string;username:string;accessType:string;state:string;expiresAt?:string|null};
 type Page={data:Item[];pagination:{total:number}};
-const headers=()=>{const t=getAccessToken();return t?{Authorization:'Bearer '+t}:{}};
+const headers=(): Record<string,string>=>{const t=getAccessToken();return t?{Authorization:'Bearer '+t}:{} };
 
 export default function AccessNetworkPage(){
  const [data,setData]=useState<Page|null>(null),[type,setType]=useState<'ALL'|'HOTSPOT'|'RADIUS'|'PPPOE'|'STATIC'>('ALL'),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState<string|null>(null);
