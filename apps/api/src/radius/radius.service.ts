@@ -6,8 +6,8 @@ import { createSocket, Socket } from 'node:dgram';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { SecureNetworkCredentials } from '../common/secure-network-credentials';
-import { CreateRadiusNasDto, SetRadiusCredentialDto } from './radius.dto';
-import { ATTR, attribute, decryptUserPassword, encodeResponse, makeString, makeUInt32, makeVendorSpecific, parsePacket, RADIUS_CODES, stringAttribute, uint32Attribute, verifyRequestAuthenticator } from './radius.protocol';
+import { CreateRadiusNasDto, DisconnectRadiusSessionDto, SetRadiusCredentialDto } from './radius.dto';
+import { ATTR, attribute, decryptUserPassword, encodeRequest, encodeResponse, makeString, makeUInt32, makeVendorSpecific, parsePacket, RADIUS_CODES, stringAttribute, uint32Attribute, verifyRequestAuthenticator } from './radius.protocol';
 
 @Injectable()
 export class RadiusService implements OnModuleInit, OnModuleDestroy {
@@ -46,6 +46,28 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
 
   async listNas(tenantId:string){
     const r=await this.db.query(`SELECT id,name,address::text AS "address",auth_port AS "authPort",accounting_port AS "accountingPort",coa_port AS "coaPort",enabled,created_at AS "createdAt",updated_at AS "updatedAt" FROM radius_nas_clients WHERE tenant_id=$1 ORDER BY name`,[tenantId]);return {data:r.rows};
+  }
+
+  async disconnectSession(tenantId:string,input:DisconnectRadiusSessionDto){
+    const nas=await this.db.query(`SELECT id,name,address::text AS "address",coa_port AS "coaPort",secret_encrypted AS "secretEncrypted" FROM radius_nas_clients WHERE tenant_id=$1 AND id=$2 AND enabled=true`,[tenantId,input.nasClientId]);
+    if(!nas.rowCount) throw new Error('Enabled RADIUS NAS client not found');
+    const row=nas.rows[0]; const secret=Buffer.from(this.secure.decrypt(row.secretEncrypted).password??'','utf8');
+    if(!secret.length) throw new Error('RADIUS NAS secret is unavailable');
+    const attributes=[makeString(ATTR.USER_NAME,input.username.trim())];
+    if(input.acctSessionId?.trim()) attributes.push(makeString(ATTR.ACCT_SESSION_ID,input.acctSessionId.trim()));
+    const packet=encodeRequest(RADIUS_CODES.DISCONNECT_REQUEST,randomBytes(1)[0],attributes);
+    const result=await new Promise<{code:number;response:Buffer}>((resolve,reject)=>{
+      const socket=createSocket('udp4'); const timer=setTimeout(()=>{socket.close();reject(new Error('RADIUS Disconnect-Request timed out'));},3000);
+      socket.once('error',error=>{clearTimeout(timer);socket.close();reject(error)});
+      socket.on('message',(msg:Buffer)=>{clearTimeout(timer);socket.close();resolve({code:parsePacket(msg).code,response:msg})});
+      socket.send(packet,0,packet.length,row.coaPort,row.address,error=>{if(error){clearTimeout(timer);socket.close();reject(error)}});
+    });
+    const parsed=parsePacket(result.response);
+    const expected=createHash('md5').update(Buffer.concat([result.response.subarray(0,4),packet.subarray(4,20),result.response.subarray(20),secret])).digest();
+    if(!timingSafeEqual(parsed.authenticator,expected)) throw new Error('Invalid RADIUS Disconnect response authenticator');
+    const accepted=parsed.code===RADIUS_CODES.DISCONNECT_ACK;
+    await this.db.query(`INSERT INTO radius_events(tenant_id,nas_client_id,packet_code,packet_identifier,username,result,error) VALUES($1,$2,$3,$4,$5,$6,$7)`,[tenantId,row.id,RADIUS_CODES.DISCONNECT_REQUEST,packet[1],input.username.trim(),accepted?'DISCONNECT_ACK':'DISCONNECT_NAK',accepted?null:`NAS returned RADIUS code ${parsed.code}`]).catch(()=>undefined);
+    return {accepted,nas:{id:row.id,name:row.name,address:row.address},username:input.username.trim(),acctSessionId:input.acctSessionId??null};
   }
 
   async setCredential(tenantId:string,input:SetRadiusCredentialDto){
