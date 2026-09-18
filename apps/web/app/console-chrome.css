@@ -380,3 +380,5 @@ td { padding: 12px 9px; font-size: 11px; }
   .panel-head { gap: 10px; }
   .panel-badge { font-size: 7px; }
 }
+
+.console-chrome-legal{display:block;margin:7px 0 2px;padding-left:1px;color:#8a98aa;font-size:8px;font-weight:700;text-decoration:none}.console-chrome-legal:hover{color:#2f66c2;text-decoration:underline}
