@@ -16,6 +16,12 @@ export class VouchersService {
     return randomBytes(9).toString('base64url').toUpperCase().replace(/[-_]/g, '').slice(0, 12);
   }
 
+  private assertBatchQuantity(quantity: number) {
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10000) {
+      throw new ConflictException('Voucher quantity must be between 1 and 10,000');
+    }
+  }
+
   async list(tenantId: string) {
     const result = await this.db.query(
       `SELECT v.id, v.code, v.package_id AS "packageId", v.status,
@@ -32,6 +38,7 @@ export class VouchersService {
   }
 
   async createBatch(tenantId: string, input: CreateVoucherBatchDto) {
+    this.assertBatchQuantity(input.quantity);
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
