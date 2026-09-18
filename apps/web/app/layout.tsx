@@ -9,7 +9,8 @@ import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
   title: 'JASLYN NET | Network Operations Platform',
-  description: 'Network, billing and connectivity operations platform for connected businesses.',
+  description: 'JASLYN NET is a network, billing and connectivity operations platform for connected businesses.',
+  icons: { icon: '/brand/jaslyn-net-icon.svg', shortcut: '/brand/jaslyn-net-icon.svg', apple: '/brand/jaslyn-net-icon.svg' },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
