@@ -94,6 +94,58 @@ export class PaymentsService {
     } finally { client.release(); }
   }
 
+  private async postVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
+    const cashCode = `CASH:${provider}`.slice(0, 64);
+    const revenueCode = 'REVENUE:WIFI';
+    const cashAccount = await client.query<{ id: string }>(
+      `INSERT INTO financial_ledger_accounts (tenant_id, code, name, account_type, currency)
+       VALUES ($1,$2,$3,'ASSET',$4)
+       ON CONFLICT (tenant_id, code) DO UPDATE SET name=EXCLUDED.name, currency=EXCLUDED.currency
+       RETURNING id`,
+      [tenantId, cashCode, `Settlement ${provider}`, currency],
+    );
+    const revenueAccount = await client.query<{ id: string }>(
+      `INSERT INTO financial_ledger_accounts (tenant_id, code, name, account_type, currency)
+       VALUES ($1,$2,'WiFi service revenue','REVENUE',$3)
+       ON CONFLICT (tenant_id, code) DO UPDATE SET name=EXCLUDED.name, currency=EXCLUDED.currency
+       RETURNING id`,
+      [tenantId, revenueCode, currency],
+    );
+    const transaction = await client.query<{ id: string }>(
+      `INSERT INTO financial_ledger_transactions
+         (tenant_id,transaction_type,reference_type,reference_id,correlation_id,description)
+       VALUES ($1,'PAYMENT','PAYMENT',$2,$3,$4)
+       ON CONFLICT (tenant_id,transaction_type,reference_type,reference_id) WHERE reference_id IS NOT NULL DO NOTHING
+       RETURNING id`,
+      [tenantId, paymentId, paymentId, `Verified payment settlement via ${provider}`],
+    );
+    let transactionId = transaction.rows[0]?.id;
+    if (!transactionId) {
+      const existing = await client.query<{ id: string }>(
+        `SELECT id FROM financial_ledger_transactions
+         WHERE tenant_id=$1 AND transaction_type='PAYMENT' AND reference_type='PAYMENT' AND reference_id=$2
+         LIMIT 1`,
+        [tenantId, paymentId],
+      );
+      transactionId = existing.rows[0]?.id;
+    }
+    if (!transactionId) throw new ConflictException('Verified payment settlement ledger transaction could not be created');
+
+    const existingEntries = await client.query(
+      `SELECT 1 FROM financial_ledger_entries WHERE tenant_id=$1 AND transaction_id=$2 LIMIT 1`,
+      [tenantId, transactionId],
+    );
+    if (!existingEntries.rowCount) {
+      await client.query(
+        `INSERT INTO financial_ledger_entries
+           (tenant_id,transaction_id,account_id,currency,debit,credit)
+         VALUES ($1,$2,$3,$4,$5,0),($1,$2,$6,$4,0,$5)`,
+        [tenantId, transactionId, cashAccount.rows[0]?.id, currency, amount, revenueAccount.rows[0]?.id],
+      );
+    }
+    return transactionId;
+  }
+
   private async resolveWebhookSecret(tenantId: string, provider: string): Promise<string> {
     const result = await this.db.query(`SELECT webhook_secret_ref AS "webhookSecretRef" FROM payment_provider_configs WHERE tenant_id=$1 AND provider=$2 AND is_active=true`, [tenantId, provider]);
     const ref = result.rows[0]?.webhookSecretRef as string | undefined;
@@ -176,6 +228,10 @@ export class PaymentsService {
       }
 
       const nextStatus = input.status;
+      if (nextStatus === 'SUCCESS') {
+        await this.postVerifiedSettlement(client, tenantId, payment.id, String((await client.query<{ amount: string }>(`SELECT amount FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.id])).rows[0]?.amount ?? '0'), String((await client.query<{ currency: string }>(`SELECT currency FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.id])).rows[0]?.currency ?? 'TZS'), provider);
+      }
+
       if (nextStatus === 'SUCCESS' && payment.status === 'REFUNDED') {
         throw new ConflictException('A refunded payment cannot be settled again');
       }
