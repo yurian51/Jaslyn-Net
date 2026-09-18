@@ -98,10 +98,11 @@ export class PaymentsService {
 
   async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
     const payment = await client.query<{ status: string; amount: string; currency: string; provider: string }>(
-      `SELECT status, amount, currency, provider FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
+      `SELECT status, amount, currency, provider, correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
       [tenantId, paymentId],
     );
     const settledPayment = payment.rows[0];
+    const correlationId = settledPayment?.correlationId ?? getCorrelationId() ?? `payment:${paymentId}`;
     if (!settledPayment || settledPayment.status !== 'SUCCESS') throw new ConflictException('Only a successfully persisted payment can be settled');
     if (settledPayment.provider !== provider) throw new ConflictException('Settlement provider does not match payment provider');
     if (String(settledPayment.amount) !== String(amount) || settledPayment.currency !== currency) throw new ConflictException('Settlement amount or currency does not match payment');
@@ -136,7 +137,7 @@ export class PaymentsService {
        VALUES ($1,'PAYMENT','PAYMENT',$2,$3,$4)
        ON CONFLICT (tenant_id,transaction_type,reference_type,reference_id) WHERE reference_id IS NOT NULL DO NOTHING
        RETURNING id`,
-      [tenantId, paymentId, paymentId, `Verified payment settlement via ${provider}`],
+      [tenantId, paymentId, correlationId, `Verified payment settlement via ${provider}`],
     );
     let transactionId = transaction.rows[0]?.id;
     if (!transactionId) {
