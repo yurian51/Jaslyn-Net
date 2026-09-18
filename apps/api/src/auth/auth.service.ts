@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
@@ -24,7 +24,7 @@ export class AuthService {
 
   async register(input: RegisterDto, context: { ip?: string; userAgent?: string } = {}) {
     if (input.acceptTerms !== true || input.acceptPrivacy !== true) {
-      throw new ConflictException('Acceptance of the current Terms of Use and Privacy Notice is required');
+      throw new BadRequestException('Acceptance of the current Terms of Use and Privacy Notice is required');
     }
     const slug = this.slugify(input.businessName);
     const passwordHash = await this.hashPassword(input.password);
