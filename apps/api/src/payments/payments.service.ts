@@ -97,7 +97,7 @@ export class PaymentsService {
   }
 
   async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
-    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string }>(
+    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string; correlationId: string | null }>(
       `SELECT status, amount, currency, provider, correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
       [tenantId, paymentId],
     );
