@@ -20,7 +20,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Security & Audit', 'audit', '/audit'],
 ];
 
-const publicRoutes = new Set(['/login', '/register']);
+const publicRoutes = new Set(['/login', '/register', '/legal']);
 const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
 function NavIcon({ name }: { name: IconName }) {
