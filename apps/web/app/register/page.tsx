@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false); const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,7 +24,7 @@ export default function RegisterPage() {
     event.preventDefault();
     setBusy(true); setError('');
     try {
-      const result = await apiFetch<RegisterResponse>('/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessName: businessName.trim(), fullName: fullName.trim(), email: email.trim(), password }) });
+      const result = await apiFetch<RegisterResponse>('/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessName: businessName.trim(), fullName: fullName.trim(), email: email.trim(), password, acceptTerms, acceptPrivacy }) });
       storeAccessToken(result.accessToken);
       router.replace('/dashboard');
     } catch (cause) {
@@ -45,7 +46,9 @@ export default function RegisterPage() {
             <label>Your full name<input required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Network administrator" /></label>
             <label>Email address<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@example.com" /></label>
             <label>Password<div className="auth-password"><input type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 12 characters" /><button type="button" onClick={() => setShowPassword(v => !v)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
-            <button className="auth-submit" disabled={busy}>{busy ? 'Creating workspace…' : 'Create Jaslyn Net workspace'}</button>
+            <label className="legal-consent"><input type="checkbox" required checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} /><span>I agree to the <a href="/legal/terms" target="_blank" rel="noreferrer">Terms of Use</a>.</span></label>
+            <label className="legal-consent"><input type="checkbox" required checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} /><span>I acknowledge the <a href="/legal/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>.</span></label>
+            <button className="auth-submit" disabled={busy || !acceptTerms || !acceptPrivacy}>{busy ? 'Creating workspace…' : 'Create Jaslyn Net workspace'}</button>
             <p className="auth-security"><span>●</span> Your owner account is isolated to the workspace you create.</p>
           </form>
         </div>
