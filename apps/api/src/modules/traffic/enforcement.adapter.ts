@@ -8,10 +8,17 @@ export interface BandwidthEnforcementCommand {
   apiEndpoint?: string; protocol?: NetworkManagementProtocol; merakiGroupPolicyId?: string;
   maxDownloadMbps: number; maxUploadMbps: number; priority: number;
 }
+export interface NetworkDisconnectCommand {
+  routerId: string; customerId: string; sessionId?: string; username?: string; targetAddress?: string; targetMacAddress?: string;
+  apiEndpoint?: string; protocol?: NetworkManagementProtocol;
+}
+export interface DisconnectResult { disconnected: boolean; details: Record<string, unknown>; }
 export interface EnforcementVerification { verified: boolean; details: Record<string, unknown>; }
 export interface TrafficEnforcementAdapter {
   apply(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<void>;
   verify?(commands: BandwidthEnforcementCommand[], credentials?: NetworkCredentials): Promise<EnforcementVerification[]>;
+  disconnect?(commands: NetworkDisconnectCommand[], credentials?: NetworkCredentials): Promise<DisconnectResult[]>;
+  verifyDisconnected?(commands: NetworkDisconnectCommand[], credentials?: NetworkCredentials): Promise<EnforcementVerification[]>;
   clearManaged(apiEndpoint: string, credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
   reconcileManaged(apiEndpoint: string, keepQueueNames: string[], credentials?: NetworkCredentials, options?: EnforcementReconcileOptions): Promise<number>;
 }

@@ -4,7 +4,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { NetworkCredentials, SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { NetworkManagementProtocol } from './routers.dto';
-import { MikrotikRestAdapter } from './mikrotik-rest.adapter';
+import { TrafficEnforcementService } from '../modules/traffic/enforcement.service';
 
 export interface EnforceRouterPolicyInput {
   packageId: string;
@@ -17,7 +17,7 @@ export class NetworkEnforcementService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly audit: AuditService,
     private readonly secureCredentials: SecureNetworkCredentials,
-    private readonly mikrotik: MikrotikRestAdapter,
+    private readonly trafficEnforcement: TrafficEnforcementService,
   ) {}
 
   async enforce(tenantId: string, routerId: string, input: EnforceRouterPolicyInput, context: AuditContext = {}) {
@@ -35,50 +35,73 @@ export class NetworkEnforcementService {
 
     if (!row.managementEnabled) throw new BadRequestException('Router management is disabled');
     if (!row.apiEndpoint) throw new BadRequestException('Router management endpoint is not configured');
-    if (!row.credentialsEncrypted) throw new BadRequestException('Router management credentials are not configured');
-    if (row.managementProtocol !== 'MIKROTIK_REST') {
+
+    const protocol = row.managementProtocol as NetworkManagementProtocol;
+    if (!this.trafficEnforcement.supportsProtocol(protocol)) {
       return {
         ok: false,
         status: 'blocked' as const,
         reason: 'UNSUPPORTED_NETWORK_PROTOCOL',
-        protocol: row.managementProtocol as NetworkManagementProtocol,
+        protocol,
       };
     }
+    if (!row.credentialsEncrypted) throw new BadRequestException('Router management credentials are not configured');
 
     const credentials = this.secureCredentials.decrypt(row.credentialsEncrypted) as NetworkCredentials;
     const downloadKbps = bpsToKbps(row.downloadBps, 'download_bps');
     const uploadKbps = bpsToKbps(row.uploadBps, 'upload_bps');
-    const policy = {
-      planId: row.packageId as string,
-      bandwidth: { downloadKbps, uploadKbps },
-    };
-
-    const health = await this.mikrotik.health(row.apiEndpoint, credentials);
-    if (!health.ok) {
-      await this.audit.record(tenantId, 'NETWORK_ENFORCEMENT_BLOCKED', 'router', routerId, {
-        reason: 'NETWORK_ADAPTER_UNHEALTHY', protocol: row.managementProtocol, code: health.code,
-      }, context);
-      return { ok: false, status: 'blocked' as const, reason: 'NETWORK_ADAPTER_UNHEALTHY', protocol: row.managementProtocol, health };
-    }
+    const maxDownloadMbps = downloadKbps / 1000;
+    const maxUploadMbps = uploadKbps / 1000;
+    const correlationId = `router-policy:${routerId}:${input.ipAddress}:${input.packageId}`;
 
     try {
-      const enforcement = await this.mikrotik.enforcePolicy(row.apiEndpoint, credentials, { ipAddress: input.ipAddress }, policy);
-      await this.audit.record(tenantId, 'NETWORK_POLICY_ENFORCED', 'router', routerId, {
-        protocol: row.managementProtocol, packageId: row.packageId, clientIp: input.ipAddress, action: enforcement.action,
+      const enforcement = await this.trafficEnforcement.applyCommands([
+        {
+          routerId,
+          customerId: `ip:${input.ipAddress}`,
+          targetAddress: input.ipAddress,
+          apiEndpoint: row.apiEndpoint,
+          protocol,
+          maxDownloadMbps,
+          maxUploadMbps,
+          priority: 1,
+        },
+      ], credentials, protocol, tenantId, correlationId);
+
+      const verified = enforcement.commandCount > 0 && enforcement.verifiedCommandIds.length === enforcement.commandCount;
+      const event = verified ? 'NETWORK_POLICY_ENFORCED' : 'NETWORK_POLICY_EXECUTED_UNVERIFIED';
+      await this.audit.record(tenantId, event, 'router', routerId, {
+        protocol,
+        packageId: row.packageId,
+        clientIp: input.ipAddress,
+        commandIds: enforcement.commandIds,
+        verifiedCommandIds: enforcement.verifiedCommandIds,
+        verificationFailures: enforcement.verificationFailures,
       }, context);
-      return { ok: true, status: 'enforced' as const, protocol: row.managementProtocol, routerId, packageId: row.packageId, clientIp: input.ipAddress, enforcement };
+
+      return {
+        ok: enforcement.applied,
+        status: verified ? 'verified' as const : enforcement.applied ? 'executed_unverified' as const : 'already_terminal' as const,
+        protocol,
+        routerId,
+        packageId: row.packageId,
+        clientIp: input.ipAddress,
+        commandIds: enforcement.commandIds,
+        verifiedCommandIds: enforcement.verifiedCommandIds,
+        verificationFailures: enforcement.verificationFailures,
+      };
     } catch (error: unknown) {
       const safe = { code: errorCode(error), message: error instanceof Error ? error.message : 'Network policy enforcement failed' };
       await this.audit.record(tenantId, 'NETWORK_ENFORCEMENT_FAILED', 'router', routerId, {
-        protocol: row.managementProtocol, packageId: row.packageId, clientIp: input.ipAddress, errorCode: safe.code,
+        protocol, packageId: row.packageId, clientIp: input.ipAddress, errorCode: safe.code,
       }, context);
-      return { ok: false, status: 'failed' as const, reason: 'NETWORK_POLICY_ENFORCEMENT_FAILED', protocol: row.managementProtocol, error: safe };
+      return { ok: false, status: 'failed' as const, reason: 'NETWORK_POLICY_ENFORCEMENT_FAILED', protocol, error: safe };
     }
   }
 }
 
-function bpsToKbps(value: unknown, field: string): number | null {
-  if (value == null) return null;
+function bpsToKbps(value: unknown, field: string): number {
+  if (value == null) throw new BadRequestException(`${field} is required for direct network enforcement`);
   const numeric = typeof value === 'number' ? value : Number(value);
   if (!Number.isSafeInteger(numeric) || numeric <= 0) throw new BadRequestException(`${field} must be a positive integer`);
   const kbps = Math.floor(numeric / 1000);

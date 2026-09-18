@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { PG_POOL } from '../../database/database.module';
@@ -29,6 +29,9 @@ export class NetworkCommandService {
 
   async queue(tenantId: string, input: NetworkCommandInput) {
     const id = randomUUID();
+    const target = JSON.stringify(input.target ?? {});
+    const request = JSON.stringify(input.request ?? {});
+    const provider = input.provider ?? null;
     const result = await this.db.query(
       `INSERT INTO network_commands
          (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
@@ -36,17 +39,26 @@ export class NetworkCommandService {
        ON CONFLICT (tenant_id, command_type, correlation_id) WHERE correlation_id IS NOT NULL
        DO NOTHING
        RETURNING id`,
-      [id, tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system',
-        JSON.stringify(input.target ?? {}), JSON.stringify(input.request ?? {}), input.provider ?? null, input.correlationId ?? null],
+      [id, tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system', target, request, provider, input.correlationId ?? null],
     );
     if (result.rowCount) return { id: result.rows[0].id, reused: false };
     if (input.correlationId) {
       const existing = await this.db.query(
-        `SELECT id FROM network_commands
+        `SELECT id,
+                target = $4::jsonb AS target_matches,
+                request = $5::jsonb AS request_matches,
+                provider IS NOT DISTINCT FROM $6 AS provider_matches
+         FROM network_commands
          WHERE tenant_id=$1 AND command_type=$2 AND correlation_id=$3`,
-        [tenantId, input.commandType, input.correlationId],
+        [tenantId, input.commandType, input.correlationId, target, request, provider],
       );
-      if (existing.rowCount) return { id: existing.rows[0].id, reused: true };
+      if (existing.rowCount) {
+        const row = existing.rows[0];
+        if (!row.target_matches || !row.request_matches || !row.provider_matches) {
+          throw new ConflictException('Network command correlation is already bound to a different operation');
+        }
+        return { id: row.id, reused: true };
+      }
     }
     throw new Error('Network command could not be queued');
   }
@@ -61,33 +73,68 @@ export class NetworkCommandService {
         const commandCorrelationId = correlationId
           ? `${correlationId}:${command.sessionId ?? command.customerId}`
           : undefined;
+        const target = {
+          customerId: command.customerId,
+          sessionId: command.sessionId,
+          address: command.targetAddress,
+          mac: command.targetMacAddress,
+        };
+        const request = command;
+        const provider = command.protocol ?? null;
 
         if (commandCorrelationId) {
           const existing = await client.query(
-            `SELECT id, status FROM network_commands
+            `SELECT id, status,
+                    target = $3::jsonb AS target_matches,
+                    request = $4::jsonb AS request_matches,
+                    provider IS NOT DISTINCT FROM $5 AS provider_matches
+             FROM network_commands
              WHERE tenant_id=$1 AND command_type='BANDWIDTH_ENFORCEMENT' AND correlation_id=$2
              FOR UPDATE`,
-            [tenantId, commandCorrelationId],
+            [tenantId, commandCorrelationId, JSON.stringify(target), JSON.stringify(request), provider],
           );
           if (existing.rowCount) {
-            const existingStatus = existing.rows[0].status as NetworkCommandStatus;
-            if (existingStatus === 'VERIFIED' || existingStatus === 'ABANDONED') {
-              created.push({ id: existing.rows[0].id, command, status: existingStatus, reused: true });
-              continue;
+            const row = existing.rows[0];
+            if (!row.target_matches || !row.request_matches || !row.provider_matches) {
+              throw new ConflictException('Network command correlation is already bound to a different operation');
             }
-            await client.query(
-              `UPDATE network_commands
-               SET router_id=$3, actor=$4, target=$5::jsonb, request=$6::jsonb, provider=$7,
-                   status='QUEUED', error=NULL, response=NULL, verification=NULL,
-                   sent_at=NULL, completed_at=NULL, verified_at=NULL, updated_at=now()
-               WHERE tenant_id=$1 AND id=$2`,
-              [tenantId, existing.rows[0].id, command.routerId, actor,
-                JSON.stringify({ customerId: command.customerId, sessionId: command.sessionId, address: command.targetAddress, mac: command.targetMacAddress }),
-                JSON.stringify(command), command.protocol ?? null],
-            );
-            created.push({ id: existing.rows[0].id, command, status: 'QUEUED', reused: true });
+            const existingStatus = row.status as NetworkCommandStatus;
+            created.push({ id: row.id, command, status: existingStatus, reused: true });
             continue;
           }
+
+          const insert = await client.query(
+            `INSERT INTO network_commands
+               (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
+             VALUES ($1,$2,$3,'BANDWIDTH_ENFORCEMENT',$4,$5::jsonb,$6::jsonb,$7,'QUEUED',0,$8)
+             ON CONFLICT (tenant_id, command_type, correlation_id) WHERE correlation_id IS NOT NULL
+             DO NOTHING
+             RETURNING id, status`,
+            [randomUUID(), tenantId, command.routerId, actor,
+              JSON.stringify(target), JSON.stringify(request), provider, commandCorrelationId],
+          );
+          if (insert.rowCount) {
+            created.push({ id: insert.rows[0].id, command, status: insert.rows[0].status as NetworkCommandStatus, reused: false });
+            continue;
+          }
+
+          const winner = await client.query(
+            `SELECT id, status,
+                    target = $3::jsonb AS target_matches,
+                    request = $4::jsonb AS request_matches,
+                    provider IS NOT DISTINCT FROM $5 AS provider_matches
+             FROM network_commands
+             WHERE tenant_id=$1 AND command_type='BANDWIDTH_ENFORCEMENT' AND correlation_id=$2
+             FOR UPDATE`,
+            [tenantId, commandCorrelationId, JSON.stringify(target), JSON.stringify(request), provider],
+          );
+          if (!winner.rowCount) throw new Error('Network command conflict winner could not be read');
+          const row = winner.rows[0];
+          if (!row.target_matches || !row.request_matches || !row.provider_matches) {
+            throw new ConflictException('Network command correlation is already bound to a different operation');
+          }
+          created.push({ id: row.id, command, status: row.status as NetworkCommandStatus, reused: true });
+          continue;
         }
 
         const result = await client.query(
@@ -96,8 +143,7 @@ export class NetworkCommandService {
            VALUES ($1,$2,$3,'BANDWIDTH_ENFORCEMENT',$4,$5::jsonb,$6::jsonb,$7,'QUEUED',0,$8)
            RETURNING id, status`,
           [randomUUID(), tenantId, command.routerId, actor,
-            JSON.stringify({ customerId: command.customerId, sessionId: command.sessionId, address: command.targetAddress, mac: command.targetMacAddress }),
-            JSON.stringify(command), command.protocol ?? null, commandCorrelationId ?? null],
+            JSON.stringify(target), JSON.stringify(request), provider, commandCorrelationId ?? null],
         );
         created.push({ id: result.rows[0].id, command, status: result.rows[0].status as NetworkCommandStatus, reused: false });
       }
@@ -107,6 +153,46 @@ export class NetworkCommandService {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally { client.release(); }
+  }
+
+  async claimPending(tenantId?: string, limit = 20, staleAfterSeconds = 300) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 20), 1), 100);
+    const safeStale = Math.min(Math.max(Math.trunc(staleAfterSeconds || 300), 30), 3600);
+    const result = await this.db.query(
+      `WITH candidates AS (
+         SELECT id
+         FROM network_commands
+         WHERE ($1::uuid IS NULL OR tenant_id=$1)
+           AND (
+             status IN ('QUEUED','RETRYING')
+             OR (status='SENT' AND sent_at < now() - ($2::integer * interval '1 second'))
+           )
+         ORDER BY created_at
+         FOR UPDATE SKIP LOCKED
+         LIMIT $3
+       )
+       UPDATE network_commands c
+       SET status='SENT', sent_at=now(), updated_at=now()
+       FROM candidates
+       WHERE c.id=candidates.id
+       RETURNING c.id, c.tenant_id AS "tenantId", c.router_id AS "routerId", c.command_type AS "commandType",
+                 c.target, c.request, c.provider, c.status, c.attempts, c.correlation_id AS "correlationId"`,
+      [tenantId ?? null, safeStale, safeLimit],
+    );
+    return result.rows;
+  }
+
+  async retry(tenantId: string, id: string) {
+    const result = await this.db.query(
+      `UPDATE network_commands
+       SET status='RETRYING', error=NULL, response=NULL, verification=NULL,
+           sent_at=NULL, completed_at=NULL, verified_at=NULL, updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 AND status='FAILED'
+       RETURNING id, status`,
+      [tenantId, id],
+    );
+    if (!result.rowCount) throw new ConflictException('Only FAILED network commands can be explicitly retried');
+    return result.rows[0];
   }
 
   async markExecuted(tenantId: string, ids: string[], response: unknown = {}) {
@@ -127,6 +213,20 @@ export class NetworkCommandService {
        WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status IN ('QUEUED','SENT','ACCEPTED','RETRYING')`,
       [tenantId, ids, message],
     );
+  }
+
+  async markVerificationFailed(tenantId: string, id: string, verification: unknown) {
+    const message = typeof verification === 'object' && verification !== null && 'reason' in verification
+      ? String((verification as { reason?: unknown }).reason ?? 'NETWORK_VERIFICATION_FAILED')
+      : 'NETWORK_VERIFICATION_FAILED';
+    const result = await this.db.query(
+      `UPDATE network_commands
+       SET status='FAILED', error=$3, verification=$4::jsonb, completed_at=now(), updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 AND status='EXECUTED'
+       RETURNING id, status, verification, error`,
+      [tenantId, id, message.slice(0, 2000), JSON.stringify(verification ?? {})],
+    );
+    return result.rows[0] ?? null;
   }
 
   async markVerified(tenantId: string, id: string, verification: unknown) {
