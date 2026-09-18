@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
+import { IncidentsService } from '../incidents/incidents.service';
 import { NetworkCredentials, SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { CreateRouterDto, NetworkManagementProtocol, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
 import { WORLDWIDE_NETWORK_CAPABILITIES } from '../modules/traffic/network-capabilities';
@@ -12,6 +13,7 @@ export class RoutersService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly audit: AuditService,
     private readonly secureCredentials: SecureNetworkCredentials,
+    private readonly incidents: IncidentsService,
   ) {}
 
   private readonly selectRouter = `SELECT id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
@@ -157,6 +159,7 @@ export class RoutersService {
       [tenantId, id, status, input.activeUsers ?? null],
     );
     if (!result.rowCount) throw new NotFoundException('Router not found');
+    if (status === 'ONLINE') await this.incidents.resolveRouterOffline(tenantId, id, context);
     await this.audit.record(tenantId, 'ROUTER_HEARTBEAT', 'router', id, { status, activeUsers: input.activeUsers }, context);
     return result.rows[0];
   }
@@ -170,6 +173,9 @@ export class RoutersService {
        RETURNING id, status, last_seen_at AS "lastSeenAt"`,
       [tenantId, minutes],
     );
+    for (const router of result.rows) {
+      await this.incidents.syncRouterOffline(tenantId, router.id, context);
+    }
     if (result.rowCount) await this.audit.record(tenantId, 'ROUTERS_MARKED_OFFLINE', 'router', undefined, {
       staleMinutes: minutes, routerIds: result.rows.map((row) => row.id), count: result.rowCount,
     }, context);

@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: jaslyn-net-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -28,37 +35,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in \
-            apps/api/migrations/001_initial_schema.sql apps/api/migrations/002_saas_billing_access.sql \
-            apps/api/migrations/005_payment_hardening.sql apps/api/migrations/006_payment_provider_configs.sql \
-            apps/api/migrations/007_voucher_hardening.sql apps/api/migrations/008_operational_hardening.sql \
-            apps/api/migrations/009_payment_concurrency.sql apps/api/migrations/010_notification_queue_indexes.sql \
-            apps/api/migrations/011_payment_event_tenant_isolation.sql apps/api/migrations/012_notification_outbox_hardening.sql \
-            apps/api/migrations/013_session_integrity.sql apps/api/migrations/014_traffic_fairness.sql \
-            apps/api/migrations/015_traffic_samples.sql apps/api/migrations/016_traffic_enforcement_events.sql \
-            apps/api/migrations/017_network_device_management.sql apps/api/migrations/018_network_device_credentials.sql \
-            apps/api/migrations/019_service_policy_indexes.sql apps/api/migrations/020_payment_event_immutability.sql \
-            apps/api/migrations/021_session_state_truth.sql apps/api/migrations/022_network_command_fabric.sql \
-            apps/api/migrations/023_network_command_idempotency.sql apps/api/migrations/024_network_policy_snapshots.sql \
-            apps/api/migrations/025_access_grant_policy_guard.sql apps/api/migrations/026_access_grant_policy_integrity.sql \
-            apps/api/migrations/027_purchase_expiry_sync.sql; do
-            test -f "$file"
-          done
-          grep -q "routers_management_protocol_idx" apps/api/migrations/017_network_device_management.sql
-          grep -q "UNIFI_NETWORK_API" apps/api/migrations/017_network_device_management.sql
-          grep -q "OPENWRT_UBUS" apps/api/migrations/017_network_device_management.sql
-          grep -q "CAMBIUM_CNMAESTRO" apps/api/migrations/017_network_device_management.sql
-          grep -q "management_credentials_encrypted" apps/api/migrations/018_network_device_credentials.sql
-          grep -q "management_credentials_version" apps/api/migrations/018_network_device_credentials.sql
-          grep -q "wifi_plan_purchases_active_customer_router_idx" apps/api/migrations/019_service_policy_indexes.sql
-          grep -q "payment_events_immutable_fields_trg" apps/api/migrations/020_payment_event_immutability.sql
-          grep -q "sessions_status_check" apps/api/migrations/021_session_state_truth.sql
-          grep -q "network_commands_active_idx" apps/api/migrations/022_network_command_fabric.sql
-          grep -q "network_commands_correlation_command_uq" apps/api/migrations/023_network_command_idempotency.sql
-          grep -q "network_policy" apps/api/migrations/024_network_policy_snapshots.sql
-          grep -q "access_grants_policy_snapshot_trg" apps/api/migrations/025_access_grant_policy_guard.sql
-          grep -q "access_grants_active_policy_check" apps/api/migrations/026_access_grant_policy_integrity.sql
-          grep -q "access_grant_purchase_expiry_sync_trg" apps/api/migrations/027_purchase_expiry_sync.sql
+          for file in apps/api/migrations/*.sql; do test -f "$file"; done
+          test -f apps/api/migrations/028_connectivity_incidents.sql
+          test -f apps/api/migrations/029_wan_load_balancing.sql
+          grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
+          grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
+          grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
+          grep -q "load_balance_events" apps/api/migrations/029_wan_load_balancing.sql
       - name: Lint API
         run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API

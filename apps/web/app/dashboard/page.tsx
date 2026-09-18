@@ -1,109 +1,157 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
-import { apiFetch } from '../../lib/api';
 
 type Overview = {
   tenant?: { currency?: string; timezone?: string; name?: string; status?: string };
   revenueSeries?: number[];
   kpis?: { monthlyRevenue?: number; activeCustomers?: number; onlineSessions?: number; networkAvailability?: number | null; paymentFailures?: number };
   network?: { totalRouters?: number; online?: number; degraded?: number; offline?: number };
-  operations?: {
-    networkCommands?: { pending?: number; failed?: number; verified?: number; abandoned?: number };
-    sessions?: { stale?: number; activeWithoutAccounting?: number; accountingLagging?: number };
-    access?: { activeValid?: number; expiredButActive?: number; expiring24h?: number };
-  };
+  operations?: { networkCommands?: { pending?: number; failed?: number; verified?: number; abandoned?: number }; sessions?: { stale?: number; activeWithoutAccounting?: number; accountingLagging?: number }; access?: { activeValid?: number; expiredButActive?: number; expiring24h?: number } };
   sessions?: Array<{ customer?: string; location?: string; router?: string; ip_address?: string; started_at?: string; bytesIn?: number; bytesOut?: number; status?: string }>;
   locations?: Array<{ name?: string; routers?: number; activeUsers?: number; onlineRouters?: number }>;
 };
 
-const nav = [
-  ['Overview', '⌂', '/dashboard'], ['Customers', '◉', '/customers'], ['Sessions', '◌', '/sessions'], ['Network', '⌁', '/network'], ['Purchases', '₮', '/purchases'], ['Plans & Products', '▣', '/packages'], ['Security & Audit', '◈', '/audit'],
-] as const;
-
-const operationalAreas = [
-  { title: 'Customers', description: 'Subscriber accounts and identity', href: '/customers', icon: '◉' },
-  { title: 'Plans & Products', description: 'WiFi packages and service policy', href: '/packages', icon: '▣' },
-  { title: 'Sessions', description: 'Active connections and traffic', href: '/sessions', icon: '◌' },
-  { title: 'Purchases', description: 'Customer purchases and access', href: '/purchases', icon: '₮' },
-  { title: 'Network', description: 'Routers and connectivity health', href: '/network', icon: '⌁' },
-  { title: 'Security & Audit', description: 'Tenant operational event trail', href: '/audit', icon: '◈' },
-] as const;
-
-function formatNumber(value: number) { return new Intl.NumberFormat('en-US').format(value); }
-function formatMoney(currency: string, value: number) { return `${currency} ${formatNumber(value)}`; }
-function formatBytes(value: number) {
+const n = (value: number) => new Intl.NumberFormat('en-US').format(value);
+const money = (currency: string, value: number) => `${currency} ${n(value)}`;
+const bytes = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']; let size = value; let index = 0;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = value;
+  let index = 0;
   while (size >= 1024 && index < units.length - 1) { size /= 1024; index += 1; }
   return `${size >= 10 || index === 0 ? Math.round(size) : size.toFixed(1)} ${units[index]}`;
-}
-function formatDuration(startedAt?: string) {
-  if (!startedAt) return '—'; const started = new Date(startedAt).getTime(); if (!Number.isFinite(started)) return '—';
-  const minutes = Math.max(0, Math.floor((Date.now() - started) / 60000)); if (minutes < 60) return `${minutes}m`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
+};
+const duration = (value?: string) => {
+  if (!value) return '—';
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return '—';
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+};
 
 export default function DashboardPage() {
-  const pathname = usePathname(); const [overview, setOverview] = useState<Overview | null>(null); const [loadError, setLoadError] = useState<string | null>(null);
-  useEffect(() => { const token = getAccessToken(); if (!token) return; apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } }).then(setOverview).catch((error: unknown) => setLoadError(error instanceof Error ? error.message : 'Unable to load dashboard data.')); }, []);
+  const [data, setData] = useState<Overview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const currency = overview?.tenant?.currency ?? 'TZS'; const revenueValues = overview?.revenueSeries ?? []; const maxRevenue = Math.max(...revenueValues, 0);
-  const revenueBars = revenueValues.length ? revenueValues.map((value) => (maxRevenue ? Math.max(5, (value / maxRevenue) * 100) : 0)) : [];
-  const monthlyRevenue = overview?.kpis?.monthlyRevenue ?? 0; const activeCustomers = overview?.kpis?.activeCustomers ?? 0; const onlineSessions = overview?.kpis?.onlineSessions ?? 0;
-  const availability = overview?.kpis?.networkAvailability; const network = { totalRouters: 0, online: 0, degraded: 0, offline: 0, ...overview?.network }; const liveSessions = overview?.sessions ?? [];
-  const operations = { networkCommands: { pending: 0, failed: 0, verified: 0, abandoned: 0, ...overview?.operations?.networkCommands }, sessions: { stale: 0, activeWithoutAccounting: 0, accountingLagging: 0, ...overview?.operations?.sessions }, access: { activeValid: 0, expiredButActive: 0, expiring24h: 0, ...overview?.operations?.access } };
-  const availabilityLabel = availability == null ? 'N/A' : `${availability}%`;
-  const attentionCount = (overview?.kpis?.paymentFailures ?? 0) + network.degraded + network.offline + operations.networkCommands.failed + operations.sessions.stale + operations.sessions.accountingLagging + operations.access.expiredButActive;
-  const liveDataLabel = overview ? 'LIVE DATA' : loadError ? 'API UNAVAILABLE' : 'CONSOLE READY';
-  const truthIssueCount = operations.networkCommands.failed + operations.sessions.stale + operations.sessions.activeWithoutAccounting + operations.sessions.accountingLagging + operations.access.expiredButActive;
-  const revenueSummary = useMemo(() => { if (!revenueValues.length) return 'No revenue series returned by the tenant API.'; const total = revenueValues.reduce((sum, value) => sum + value, 0); return `${formatMoney(currency, total)} across ${revenueValues.length} daily periods`; }, [currency, revenueValues]);
+  const load = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) { setError('Authentication required.'); setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } }));
+    } catch (cause: unknown) {
+      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load dashboard telemetry.');
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const currency = data?.tenant?.currency ?? 'TZS';
+  const revenue = data?.revenueSeries ?? [];
+  const revenueTotal = useMemo(() => revenue.reduce((sum, value) => sum + value, 0), [revenue]);
+  const revenueChart = useMemo(() => {
+    if (!revenue.length) return null;
+    const min = Math.min(...revenue, 0);
+    const max = Math.max(...revenue, 1);
+    const span = max - min || 1;
+    const points = revenue.map((value, index) => {
+      const x = 18 + (index / Math.max(revenue.length - 1, 1)) * 684;
+      const y = 24 + (1 - (value - min) / span) * 150;
+      return { x, y, value };
+    });
+    const line = points.map(({ x, y }) => `${x},${y}`).join(' ');
+    const area = `18,174 ${line} 702,174`;
+    return { points, line, area };
+  }, [revenue]);
+
+  const network = { totalRouters: 0, online: 0, degraded: 0, offline: 0, ...data?.network };
+  const operations = {
+    networkCommands: { pending: 0, failed: 0, verified: 0, abandoned: 0, ...data?.operations?.networkCommands },
+    sessions: { stale: 0, activeWithoutAccounting: 0, accountingLagging: 0, ...data?.operations?.sessions },
+    access: { activeValid: 0, expiredButActive: 0, expiring24h: 0, ...data?.operations?.access },
+  };
+  const integrityIssues = operations.networkCommands.failed + operations.sessions.stale + operations.sessions.activeWithoutAccounting + operations.sessions.accountingLagging + operations.access.expiredButActive;
+  const attentionItems = network.offline + network.degraded + operations.networkCommands.failed + operations.access.expiredButActive + operations.access.expiring24h;
+  const traffic = (data?.sessions ?? []).reduce((sum, session) => sum + (session.bytesIn ?? 0) + (session.bytesOut ?? 0), 0);
+  const availability = data?.kpis?.networkAvailability;
+  const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
 
   return (
-    <main className="app-shell dashboard-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">J</div><div><span>JASLYN NET</span><small>Network operations platform</small></div></div>
-        <div className="workspace-switch"><span className="workspace-dot" /> Global Workspace <span>⌄</span></div>
-        <nav className="nav" aria-label="Jaslyn Net operations"><p className="nav-section">OPERATIONS</p>{nav.map(([item, icon, href]) => { const active = pathname === href; return <a key={item} href={href} className={active ? 'nav-item active' : 'nav-item'} aria-current={active ? 'page' : undefined}><span className="nav-icon">{icon}</span><span>{item}</span></a>; })}</nav>
-        <div className="sidebar-status"><span className="pulse" /><div><strong>{liveDataLabel}</strong><small>{overview ? 'Tenant overview loaded' : loadError ?? 'Live values require an authenticated session'}</small></div></div>
-        <div className="profile"><div className="avatar">J</div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div><span className="profile-more">•••</span></div>
-      </aside>
-      <section className="content">
-        <header className="topbar dashboard-topbar"><div className="topbar-copy"><div className="eyebrow">JASLYN NET / CONTROL CENTER</div><h1>Operations overview</h1><p className="context">Commercial performance, subscriber access and network health in one operational view.</p></div><div className="top-actions"><span className="data-state"><i /> {liveDataLabel}</span><div className="avatar small-avatar">J</div></div></header>
-        {loadError && <div className="error-banner" role="alert">{loadError}</div>}
-        {!overview && !loadError && <div className="inspection-banner"><strong>Inspection mode</strong><span>The console is rendered without invented tenant metrics. Live values appear after an authenticated API session is available.</span></div>}
+    <main className="overview-page">
+      <header className="overview-header">
+        <div>
+          <div className="eyebrow">JASLYN NET / CONTROL CENTER</div>
+          <h1>Network operations overview</h1>
+          <p className="context">Technical state, customer state and business state in one operator view.</p>
+        </div>
+        <div className="top-actions">
+          <span className={`data-state ${error ? 'danger' : ''}`}><i /> {error ? 'API UNAVAILABLE' : loading ? 'REFRESHING' : 'LIVE API DATA'}</span>
+          <button className="selector" type="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh telemetry'}</button>
+        </div>
+      </header>
 
-        <section className="kpi-grid dashboard-kpis" aria-label="Business and network metrics">
-          <article className="kpi"><div className="kpi-label"><span>Monthly revenue</span><b>COMMERCIAL</b></div><strong>{overview ? formatMoney(currency, monthlyRevenue) : '—'}</strong><div className="kpi-foot"><span>{overview ? 'LIVE' : 'WAITING'}</span><small>successful payments this month</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Active customers</span><b>USERS</b></div><strong>{overview ? formatNumber(activeCustomers) : '—'}</strong><div className="kpi-foot"><span>{overview ? 'LIVE' : 'WAITING'}</span><small>active subscriber accounts</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Online sessions</span><b>ACCESS</b></div><strong>{overview ? formatNumber(onlineSessions) : '—'}</strong><div className="kpi-foot"><span>{overview ? 'LIVE' : 'WAITING'}</span><small>connections right now</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Router availability</span><b>NETWORK</b></div><strong>{overview ? availabilityLabel : '—'}</strong><div className="kpi-foot"><span>{overview ? `${network.online}/${network.totalRouters}` : 'WAITING'}</span><small>{network.degraded + network.offline} need attention</small></div></article>
-        </section>
+      {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
 
-        <section className="hero-grid">
-          <article className="panel revenue-panel"><div className="panel-head"><div><div className="panel-kicker">REVENUE + COLLECTIONS</div><h2>Monthly revenue flow</h2><p>Successful payment value returned by the tenant overview API.</p></div><span className="panel-badge">{overview ? 'LIVE' : 'NO LIVE DATA'}</span></div><div className="revenue-total"><strong>{overview ? formatMoney(currency, monthlyRevenue) : '—'}</strong><small>{revenueSummary}</small></div><div className="chart" aria-label="Revenue performance chart"><div className="chart-scale"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div><div className="chart-body"><div className="grid-line g1" /><div className="grid-line g2" /><div className="grid-line g3" /><div className="grid-line g4" />{revenueBars.length ? <div className="bars">{revenueBars.map((height, index) => <span style={{ height: `${height}%` }} key={index} aria-label={`Revenue day ${index + 1}`} />)}</div> : <div className="chart-empty"><strong>Revenue series unavailable</strong><span>The API has not supplied daily payment values for this tenant.</span></div>}</div></div></article>
-          <article className="panel health-panel"><div className="panel-kicker">NETWORK CONTROL</div><h2>Router health</h2><p>{network.totalRouters} registered router{network.totalRouters === 1 ? '' : 's'} across the tenant.</p><div className="health-ring" style={{ background: availability == null ? '#eef1f5' : `conic-gradient(#5578e9 0 ${Math.max(0, Math.min(100, availability))}%,#e8edf4 ${Math.max(0, Math.min(100, availability))}% 100%)` }}><div><strong>{availabilityLabel}</strong><span>availability</span></div></div><div className="health-stats"><div><span className="health-dot online" /><strong>{network.online}</strong><small>Online</small></div><div><span className="health-dot warn" /><strong>{network.degraded}</strong><small>Degraded</small></div><div><span className="health-dot down" /><strong>{network.offline}</strong><small>Offline</small></div></div><a className="full-button" href="/network">Open network operations <span>→</span></a></article>
-        </section>
+      <section className="kpi-grid overview-kpis" aria-label="Network and business KPIs">
+        <article className="kpi"><div className="kpi-label"><span>Monthly revenue</span><b>BILLING</b></div><strong>{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}</strong><div className="kpi-foot"><span>API</span><small>successful payment value</small></div></article>
+        <article className="kpi"><div className="kpi-label"><span>Active customers</span><b>CUSTOMERS</b></div><strong>{data ? n(data.kpis?.activeCustomers ?? 0) : '—'}</strong><div className="kpi-foot"><span>LIVE</span><small>tenant subscriber accounts</small></div></article>
+        <article className="kpi"><div className="kpi-label"><span>Online sessions</span><b>ACCESS</b></div><strong>{data ? n(data.kpis?.onlineSessions ?? 0) : '—'}</strong><div className="kpi-foot"><span>LIVE</span><small>current network connections</small></div></article>
+        <article className="kpi"><div className="kpi-label"><span>Network availability</span><b>FABRIC</b></div><strong>{availability == null ? '—' : `${availability}%`}</strong><div className="kpi-foot"><span>{network.offline ? 'ATTENTION' : 'STATUS'}</span><small>{network.online}/{network.totalRouters} routers online</small></div></article>
+      </section>
 
-        <section className="content-grid dashboard-lower-grid">
-          <article className="panel locations-panel"><div className="panel-head"><div><div className="panel-kicker">MULTI-SITE NETWORK</div><h2>Locations</h2><p>Actual location and router activity returned by the overview API.</p></div><a className="text-link" href="/network">Network →</a></div>{overview?.locations?.length ? <div className="location-table"><div className="location-header"><span>LOCATION</span><span>ROUTERS</span><span>USERS</span><span>ONLINE</span><span>UPTIME</span></div>{overview.locations.map((row, index) => { const name = row.name ?? 'Unknown'; const routers = row.routers ?? 0; const onlineRouters = row.onlineRouters ?? 0; const uptime = routers ? Math.round((onlineRouters / routers) * 1000) / 10 : null; return <div className="location-row" key={`${name}-${index}`}><div className="region"><span className="region-code">{name.slice(0, 2).toUpperCase()}</span><strong>{name}</strong></div><span>{routers}</span><span>{formatNumber(row.activeUsers ?? 0)}</span><span>{onlineRouters}/{routers}</span><span className="uptime">● {uptime == null ? 'N/A' : `${uptime}%`}</span></div>; })}</div> : <div className="module-empty"><strong>No location data returned</strong><span>{overview ? 'The tenant has no location records in the overview response.' : 'Live location data is intentionally not fabricated.'}</span><a href="/network">Inspect network inventory →</a></div>}</article>
-          <article className="panel attention-panel"><div className="panel-head"><div><div className="panel-kicker">STATE CONSISTENCY</div><h2>Operational truth</h2><p>Database-backed contradictions and delayed network evidence.</p></div><span className="alert-count">{overview ? truthIssueCount : '—'}</span></div>
-            {overview ? <>
-              <div className="truth-grid"><div><strong>{operations.networkCommands.pending}</strong><small>commands pending</small></div><div><strong>{operations.networkCommands.failed}</strong><small>commands failed</small></div><div><strong>{operations.sessions.stale}</strong><small>stale sessions</small></div><div><strong>{operations.sessions.activeWithoutAccounting}</strong><small>active without accounting</small></div><div><strong>{operations.sessions.accountingLagging}</strong><small>accounting lagging</small></div><div><strong>{operations.access.expiredButActive}</strong><small>expired but active</small></div></div>
-              {operations.networkCommands.failed > 0 && <a className="attention-item" href="/network"><span className="severity critical" /><div><strong>Network commands failed</strong><small>{operations.networkCommands.failed} command{operations.networkCommands.failed === 1 ? '' : 's'} require operational review.</small></div><span>›</span></a>}
-              {operations.sessions.stale + operations.sessions.activeWithoutAccounting + operations.sessions.accountingLagging > 0 && <a className="attention-item" href="/sessions"><span className="severity warning" /><div><strong>Session truth requires reconciliation</strong><small>Stale or insufficient accounting evidence was detected.</small></div><span>›</span></a>}
-              {operations.access.expiredButActive > 0 && <a className="attention-item" href="/sessions"><span className="severity critical" /><div><strong>Expired access still active</strong><small>{operations.access.expiredButActive} active entitlement{operations.access.expiredButActive === 1 ? '' : 's'} are past expiry.</small></div><span>›</span></a>}
-              {truthIssueCount === 0 && <div className="module-empty compact"><strong>No detected consistency exceptions</strong><span>The current overview queries returned no command, session-accounting or access contradictions.</span></div>}
-            </> : <div className="module-empty compact"><strong>No live truth signals yet</strong><span>Connect authenticated tenant data to inspect commands, sessions and entitlement consistency.</span></div>}
-            <a className="full-button" href="/audit">Review audit trail <span>→</span></a></article>
-        </section>
+      <section className={`operations-strip ${attentionItems ? 'has-attention' : ''}`} aria-label="Operational attention summary">
+        <div className="operations-strip-label"><span className="operations-strip-dot" /> <strong>{attentionItems ? `${attentionItems} attention signal${attentionItems === 1 ? '' : 's'}` : 'No attention signals'}</strong><small>derived from live tenant telemetry</small></div>
+        <div className="operations-strip-items">
+          <span><b>{network.offline}</b> offline routers</span>
+          <span><b>{network.degraded}</b> degraded</span>
+          <span><b>{operations.networkCommands.failed}</b> failed commands</span>
+          <span><b>{operations.access.expiring24h}</b> expiring 24h</span>
+        </div>
+      </section>
 
-        <section className="panel operations-panel"><div className="panel-head"><div><div className="panel-kicker">CONTROL SURFACES</div><h2>Operate the network business</h2><p>Every destination below maps to an implemented Jaslyn Net route.</p></div></div><div className="operations-grid">{operationalAreas.map((area) => <a className="operation-card" href={area.href} key={area.href}><span className="operation-icon">{area.icon}</span><div><strong>{area.title}</strong><small>{area.description}</small></div><span className="operation-arrow">→</span></a>)}</div></section>
+      <section className="overview-grid overview-primary">
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">COMMERCIAL TELEMETRY</div><h2>Revenue performance</h2><p>Returned payment series for this tenant.</p></div><span className="panel-badge">{revenue.length ? `${revenue.length} PERIODS` : 'NO SERIES'}</span></div>
+          <div className="overview-total">{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}<small>{data ? `${money(currency, revenueTotal)} across returned periods` : 'Waiting for authenticated telemetry'}</small></div>
+          {revenueChart ? <div className="overview-chart" role="img" aria-label="Revenue performance line chart"><svg viewBox="0 0 720 190" preserveAspectRatio="none"><line x1="18" y1="24" x2="702" y2="24" /><line x1="18" y1="74" x2="702" y2="74" /><line x1="18" y1="124" x2="702" y2="124" /><line x1="18" y1="174" x2="702" y2="174" /><polygon points={revenueChart.area} /><polyline points={revenueChart.line} /><circle cx={revenueChart.points.at(-1)?.x ?? 18} cy={revenueChart.points.at(-1)?.y ?? 174} r="4" /></svg><div className="overview-chart-axis"><span>Earlier periods</span><span>Latest returned period</span></div></div> : <div className="overview-empty"><strong>No revenue series returned.</strong><span>No invented figures are shown.</span></div>}
+        </article>
 
-        <section className="panel sessions-panel dashboard-sessions"><div className="panel-head"><div><div className="panel-kicker">LIVE ACCESS</div><h2>Active sessions</h2><p>{overview ? `${formatNumber(onlineSessions)} users currently connected.` : 'Authenticated tenant data required for live session details.'}</p></div><div className="session-actions"><span className="live-pill"><i /> LIVE</span><a className="outline-button" href="/sessions">View sessions →</a></div></div><div className="table-wrap desktop-session-table"><table><thead><tr>{['Customer', 'Location', 'Router', 'IP address', 'Traffic', 'Duration', 'Status'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{liveSessions.map((row, index) => { const traffic = (row.bytesIn ?? 0) + (row.bytesOut ?? 0); return <tr key={`${row.customer ?? 'unknown'}-${row.ip_address ?? 'unknown'}-${index}`}><td>{row.customer ?? 'Unknown customer'}</td><td>{row.location ?? 'Unassigned'}</td><td>{row.router ?? 'Unknown router'}</td><td>{row.ip_address ?? '—'}</td><td>{formatBytes(traffic)}</td><td>{formatDuration(row.started_at)}</td><td><span className={`status ${(row.status ?? 'UNKNOWN').toLowerCase()}`}><i /> {row.status ?? 'UNKNOWN'}</span></td></tr>; })}</tbody></table>{!liveSessions.length && <div className="empty-state">{overview ? 'No active sessions were returned for this tenant.' : 'Live session rows are withheld until authenticated tenant data is available.'}</div>}</div><div className="mobile-session-list">{liveSessions.map((row, index) => { const traffic = (row.bytesIn ?? 0) + (row.bytesOut ?? 0); return <a className="mobile-session-card" href="/sessions" key={`${row.customer ?? 'unknown'}-mobile-${row.ip_address ?? 'unknown'}-${index}`}><div className="mobile-session-head"><strong>{row.customer ?? 'Unknown customer'}</strong><span className={`status ${(row.status ?? 'UNKNOWN').toLowerCase()}`}><i /> {row.status ?? 'UNKNOWN'}</span></div><div className="mobile-session-meta"><span>{row.location ?? 'Unassigned'}</span><span>{row.router ?? 'Unknown router'}</span><span>{row.ip_address ?? '—'}</span></div><div className="mobile-session-foot"><span>{formatBytes(traffic)}</span><span>{formatDuration(row.started_at)}</span></div></a> })}{!liveSessions.length && <div className="empty-state">{overview ? 'No active sessions were returned for this tenant.' : 'Live session details require authentication.'}</div>}</div></section>
-        <footer className="footer"><span>JASLYN NET · Connectivity &amp; ISP Operations</span><span>{overview ? 'Live tenant data · API connected' : 'Development inspection · no fabricated metrics'}</span></footer>
+        <article className="panel overview-panel network-summary">
+          <div className="panel-head"><div><div className="panel-kicker">NETWORK FABRIC</div><h2>Router health</h2><p>{n(network.totalRouters)} registered devices</p></div><span className="panel-badge">{network.degraded + network.offline ? `${network.degraded + network.offline} ATTENTION` : 'STABLE'}</span></div>
+          <div className="health-meter" style={healthStyle}><div className="health-meter-value">{availability == null ? 'N/A' : `${availability}%`}<small>availability</small></div></div>
+          <div className="health-stats"><div><b>{network.online}</b><span>ONLINE</span></div><div><b>{network.degraded}</b><span>DEGRADED</span></div><div><b>{network.offline}</b><span>OFFLINE</span></div></div>
+        </article>
+      </section>
+
+      <section className="overview-grid overview-secondary">
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">REAL-TIME ACCESS</div><h2>Active sessions</h2><p>Latest sessions returned by the operational overview.</p></div><a className="panel-badge" href="/sessions">OPEN SESSIONS →</a></div>
+          <div className="table-wrap"><table><thead><tr><th>CUSTOMER</th><th>LOCATION</th><th>ROUTER</th><th>IP</th><th>TRAFFIC</th><th>DURATION</th><th>STATE</th></tr></thead><tbody>{data?.sessions?.length ? data.sessions.slice(0, 8).map((session, index) => <tr key={`${session.customer ?? 'session'}-${index}`}><td><strong>{session.customer ?? 'Unknown'}</strong></td><td>{session.location ?? '—'}</td><td>{session.router ?? '—'}</td><td>{session.ip_address ?? '—'}</td><td>{bytes((session.bytesIn ?? 0) + (session.bytesOut ?? 0))}</td><td>{duration(session.started_at)}</td><td><span className="status active"><i />{session.status ?? 'ACTIVE'}</span></td></tr>) : <tr><td colSpan={7}><div className="empty-state">{loading ? 'Loading live session telemetry…' : 'No live session records returned by the API.'}</div></td></tr>}</tbody></table></div>
+        </article>
+
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">SYSTEM INTEGRITY</div><h2>Operational truth</h2><p>Cross-domain consistency signals.</p></div><span className={`panel-badge ${integrityIssues ? 'badge-danger' : ''}`}>{data ? integrityIssues : '—'} ISSUES</span></div>
+          <div className="truth-grid"><div><b>{operations.networkCommands.pending}</b><span>Commands pending</span></div><div><b>{operations.networkCommands.failed}</b><span>Commands failed</span></div><div><b>{operations.sessions.stale}</b><span>Stale sessions</span></div><div><b>{operations.sessions.accountingLagging}</b><span>Accounting lagging</span></div><div><b>{operations.access.expiredButActive}</b><span>Expired access active</span></div><div><b>{operations.access.expiring24h}</b><span>Expiring in 24h</span></div></div>
+          {integrityIssues > 0 && <div className="notice"><strong>Operator attention required.</strong> {integrityIssues} consistency signal{integrityIssues === 1 ? '' : 's'} returned by the API.</div>}
+        </article>
+      </section>
+
+      <section className="panel overview-panel">
+        <div className="panel-head"><div><div className="panel-kicker">OPERATOR SHORTCUTS</div><h2>Control surfaces</h2><p>Jump directly into the operational domains that can change network or customer state.</p></div></div>
+        <div className="shortcut-grid">
+          <a href="/customers"><b>Customers</b><span>Subscriber accounts and customer operations →</span></a>
+          <a href="/sessions"><b>Sessions</b><span>Inspect active, stale and ended connections →</span></a>
+          <a href="/network"><b>Network</b><span>Routers, gateways and management state →</span></a>
+          <a href="/packages"><b>Plans &amp; Products</b><span>Access packages and catalogue operations →</span></a>
+          <a href="/purchases"><b>Purchases</b><span>Payment and purchase operations →</span></a>
+          <a href="/audit"><b>Security &amp; Audit</b><span>Tenant-scoped operational event trail →</span></a>
+        </div>
+        <div className="overview-footer-metrics"><span><b>{bytes(traffic)}</b> observed traffic in returned sessions</span><span>Timezone: {data?.tenant?.timezone ?? 'tenant configured'}</span></div>
       </section>
     </main>
   );

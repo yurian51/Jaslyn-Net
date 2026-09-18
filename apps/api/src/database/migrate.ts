@@ -4,14 +4,33 @@ import { Client } from 'pg';
 
 const MIGRATION_LOCK_KEY = 7_421_931;
 
-async function main() {
-  const connectionString = process.env.DATABASE_URL || (process.env.DATABASE_HOST && process.env.DATABASE_NAME && process.env.DATABASE_USER ? `postgresql://${encodeURIComponent(process.env.DATABASE_USER)}:${encodeURIComponent(process.env.DATABASE_PASSWORD ?? '')}@${process.env.DATABASE_HOST}/${process.env.DATABASE_NAME}?sslmode=require` : undefined);
-  if (!connectionString) throw new Error('DATABASE_URL is required');
+function buildConnectionString(env: NodeJS.ProcessEnv): string {
+  const direct = env.DATABASE_URL?.trim();
+  if (direct) return direct;
 
-  const sslMode = (process.env.DATABASE_SSL ?? 'require').toLowerCase();
-  if (!['disable', 'require', 'verify-full'].includes(sslMode)) throw new Error('DATABASE_SSL must be disable, require, or verify-full');
-  const ssl = sslMode === 'disable' ? undefined : { rejectUnauthorized: sslMode === 'verify-full' };
-  const client = new Client({ connectionString, ssl });
+  const host = env.DATABASE_HOST?.trim();
+  const name = env.DATABASE_NAME?.trim();
+  const user = env.DATABASE_USER?.trim();
+  if (!host || !name || !user) {
+    throw new Error('DATABASE_URL is required (or DATABASE_HOST, DATABASE_NAME, and DATABASE_USER must be provided)');
+  }
+
+  const password = env.DATABASE_PASSWORD ?? '';
+  const port = env.DATABASE_PORT?.trim() || '5432';
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(name)}`;
+}
+
+function buildSsl(env: NodeJS.ProcessEnv): false | { rejectUnauthorized: boolean } {
+  const sslMode = (env.DATABASE_SSL ?? 'require').trim().toLowerCase();
+  if (!['disable', 'require', 'verify-full'].includes(sslMode)) {
+    throw new Error('DATABASE_SSL must be disable, require, or verify-full');
+  }
+  return sslMode === 'disable' ? false : { rejectUnauthorized: sslMode === 'verify-full' };
+}
+
+async function main() {
+  const connectionString = buildConnectionString(process.env);
+  const client = new Client({ connectionString, ssl: buildSsl(process.env) });
   await client.connect();
 
   try {
@@ -19,9 +38,7 @@ async function main() {
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
 
     const migrationDir = join(process.cwd(), 'migrations');
-    const files = (await readdir(migrationDir))
-      .filter((file) => /^\d+_.+\.sql$/.test(file))
-      .sort();
+    const files = (await readdir(migrationDir)).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
 
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');

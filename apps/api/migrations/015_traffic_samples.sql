@@ -1,5 +1,10 @@
 BEGIN;
 
+-- sessions.id is globally unique, but the traffic schema intentionally uses tenant-scoped composite foreign keys.
+-- PostgreSQL requires the referenced composite key to be backed by a unique constraint/index.
+CREATE UNIQUE INDEX IF NOT EXISTS sessions_tenant_id_uq
+  ON sessions (tenant_id, id);
+
 CREATE TABLE IF NOT EXISTS traffic_samples (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,

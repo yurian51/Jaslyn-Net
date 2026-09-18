@@ -16,6 +16,21 @@ export interface MikrotikClient {
   macAddress?: string;
 }
 
+export interface MikrotikPolicyVerification {
+  verified: boolean;
+  remotePolicyId: string;
+  expectedMaxLimit: string;
+  actualMaxLimit?: string;
+  actualTarget?: string;
+  reason?: string;
+}
+
+export interface MikrotikDisconnectVerification {
+  verified: boolean;
+  remainingMatches: number;
+  reason?: string;
+}
+
 @Injectable()
 export class MikrotikRestAdapter {
   async health(baseUrl: string, credentials: NetworkCredentials, timeoutMs = DEFAULT_TIMEOUT_MS) {
@@ -53,23 +68,36 @@ export class MikrotikRestAdapter {
 
     const existing = await this.request(baseUrl, credentials, `queue/simple?name=${encodeURIComponent(queueName)}`, { timeoutMs });
     const first = Array.isArray(existing) && isRecord(existing[0]) ? existing[0] : null;
+    let remotePolicyId: string;
+    let action: 'created' | 'updated';
+
     if (typeof first?.['.id'] === 'string') {
-      const remoteId = first['.id'];
-      await this.request(baseUrl, credentials, `queue/simple/${encodeURIComponent(remoteId)}`, {
-        method: 'PATCH',
-        body: queue,
-        timeoutMs,
+      remotePolicyId = first['.id'];
+      action = 'updated';
+      await this.request(baseUrl, credentials, `queue/simple/${encodeURIComponent(remotePolicyId)}`, {
+        method: 'PATCH', body: queue, timeoutMs,
       });
-      return { ok: true, action: 'updated' as const, remotePolicyId: remoteId };
+    } else {
+      action = 'created';
+      const created = await this.request(baseUrl, credentials, 'queue/simple', {
+        method: 'PUT', body: queue, timeoutMs,
+      });
+      const createdRecord = isRecord(created) ? created : null;
+      if (typeof createdRecord?.['.id'] !== 'string') {
+        throw Object.assign(new Error('Router did not return a remote policy id'), { code: 'REMOTE_POLICY_ID_MISSING' });
+      }
+      remotePolicyId = createdRecord['.id'];
     }
 
-    const created = await this.request(baseUrl, credentials, 'queue/simple', {
-      method: 'PUT',
-      body: queue,
-      timeoutMs,
-    });
-    const createdRecord = isRecord(created) ? created : null;
-    return { ok: true, action: 'created' as const, remotePolicyId: typeof createdRecord?.['.id'] === 'string' ? createdRecord['.id'] : null };
+    const verification = await this.verifyPolicy(baseUrl, credentials, queueName, remotePolicyId, queue, timeoutMs);
+    if (!verification.verified) {
+      throw Object.assign(
+        new Error(`MikroTik policy verification failed: ${verification.reason ?? 'remote state mismatch'}`),
+        { code: 'POLICY_VERIFICATION_FAILED', verification },
+      );
+    }
+
+    return { ok: true as const, verified: true as const, action, remotePolicyId, verification };
   }
 
   async disconnectClient(
@@ -101,7 +129,65 @@ export class MikrotikRestAdapter {
       }
     }
 
-    return { ok: true as const, disconnected: removed.length > 0, removed };
+    const verification = await this.verifyDisconnected(baseUrl, credentials, identity, timeoutMs);
+    if (!verification.verified) {
+      throw Object.assign(
+        new Error(`MikroTik disconnect verification failed: ${verification.reason ?? 'session remains active'}`),
+        { code: 'DISCONNECT_VERIFICATION_FAILED', verification },
+      );
+    }
+
+    return { ok: true as const, disconnected: removed.length > 0, verified: true as const, removed, verification };
+  }
+
+  private async verifyPolicy(
+    baseUrl: string,
+    credentials: NetworkCredentials,
+    queueName: string,
+    remotePolicyId: string,
+    expected: JsonRecord,
+    timeoutMs: number,
+  ): Promise<MikrotikPolicyVerification> {
+    try {
+      const current = await this.request(baseUrl, credentials, `queue/simple?name=${encodeURIComponent(queueName)}`, { timeoutMs });
+      const rows = Array.isArray(current) ? current.filter(isRecord) : [];
+      const remote = rows.find((row) => row['.id'] === remotePolicyId);
+      const expectedMaxLimit = String(expected['max-limit']);
+      if (!remote) return { verified: false, remotePolicyId, expectedMaxLimit, reason: 'Remote queue was not found after policy write' };
+      const actualMaxLimit = typeof remote['max-limit'] === 'string' ? remote['max-limit'] : undefined;
+      const actualTarget = typeof remote.target === 'string' ? remote.target : undefined;
+      const verified = actualMaxLimit === expectedMaxLimit && actualTarget === expected.target;
+      return {
+        verified, remotePolicyId, expectedMaxLimit, actualMaxLimit, actualTarget,
+        reason: verified ? undefined : 'Remote queue does not match the requested policy',
+      };
+    } catch (error: unknown) {
+      return { verified: false, remotePolicyId, expectedMaxLimit: String(expected['max-limit']), reason: `Verification request failed: ${errorCode(error)}` };
+    }
+  }
+
+  private async verifyDisconnected(
+    baseUrl: string,
+    credentials: NetworkCredentials,
+    client: ReturnType<typeof normalizeClient>,
+    timeoutMs: number,
+  ): Promise<MikrotikDisconnectVerification> {
+    try {
+      const [hotspot, ppp] = await Promise.all([
+        this.request(baseUrl, credentials, 'ip/hotspot/active', { timeoutMs }),
+        this.request(baseUrl, credentials, 'ppp/active', { timeoutMs }),
+      ]);
+      const remainingMatches = [...(Array.isArray(hotspot) ? hotspot : []), ...(Array.isArray(ppp) ? ppp : [])]
+        .filter(isRecord)
+        .filter((entry) => matchesClient(entry, client)).length;
+      return {
+        verified: remainingMatches === 0,
+        remainingMatches,
+        reason: remainingMatches === 0 ? undefined : 'Matching active session remains after disconnect',
+      };
+    } catch (error: unknown) {
+      return { verified: false, remainingMatches: -1, reason: `Verification request failed: ${errorCode(error)}` };
+    }
   }
 
   private async request(
@@ -128,17 +214,10 @@ export class MikrotikRestAdapter {
       });
       const text = await response.text();
       const data = text ? parseJson(text) : null;
-      if (!response.ok) {
-        throw Object.assign(new Error(`RouterOS request failed with HTTP ${response.status}`), {
-          code: `HTTP_${response.status}`,
-          status: response.status,
-        });
-      }
+      if (!response.ok) throw Object.assign(new Error(`RouterOS request failed with HTTP ${response.status}`), { code: `HTTP_${response.status}`, status: response.status });
       return data;
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw Object.assign(new Error('RouterOS request timed out'), { code: 'TIMEOUT' });
-      }
+      if (error instanceof Error && error.name === 'AbortError') throw Object.assign(new Error('RouterOS request timed out'), { code: 'TIMEOUT' });
       throw error;
     } finally {
       clearTimeout(timer);
@@ -178,11 +257,7 @@ function matchesClient(row: JsonRecord, client: ReturnType<typeof normalizeClien
   const name = typeof row.name === 'string' ? row.name : undefined;
   const user = typeof row.user === 'string' ? row.user : undefined;
   const mac = typeof row['mac-address'] === 'string' ? row['mac-address'].toLowerCase() : undefined;
-  return Boolean(
-    (client.ipAddress && address === client.ipAddress) ||
-    (client.username && (name === client.username || user === client.username)) ||
-    (client.macAddress && mac === client.macAddress),
-  );
+  return Boolean((client.ipAddress && address === client.ipAddress) || (client.username && (name === client.username || user === client.username)) || (client.macAddress && mac === client.macAddress));
 }
 
 function targetForIp(ip: string) {
@@ -200,11 +275,8 @@ function rate(value: number | null, field: string) {
 }
 
 function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw Object.assign(new Error('RouterOS returned invalid JSON'), { code: 'INVALID_ROUTER_RESPONSE' });
-  }
+  try { return JSON.parse(text); }
+  catch { throw Object.assign(new Error('RouterOS returned invalid JSON'), { code: 'INVALID_ROUTER_RESPONSE' }); }
 }
 
 function isRecord(value: unknown): value is JsonRecord {
