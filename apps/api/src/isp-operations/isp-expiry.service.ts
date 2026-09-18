@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { SessionsService } from '../sessions/sessions.service';
 
@@ -57,7 +57,7 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
   async reconcile(): Promise<ExpiryResult> {
     if (this.running) return { expiredBindings: 0, suspendedCustomers: 0 };
     this.running = true;
-    let client: Awaited<ReturnType<Pool['connect']>> | undefined;
+    let client: PoolClient | undefined;
     try {
       client = await this.db.connect();
       await client.query('BEGIN');
