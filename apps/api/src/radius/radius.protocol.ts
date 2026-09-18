@@ -78,3 +78,4 @@ export function verifyRequestAuthenticator(packet:RadiusPacket, raw:Buffer, secr
 
 export function makeString(type:number,value:string):RadiusAttribute { return {type,value:Buffer.from(value,'utf8')}; }
 export function makeUInt32(type:number,value:number):RadiusAttribute { const b=Buffer.alloc(4);b.writeUInt32BE(value>>>0);return {type,value:b}; }
+export function makeVendorSpecific(vendorId:number, vendorType:number, value:string|Buffer):RadiusAttribute { const payload=Buffer.isBuffer(value)?value:Buffer.from(value,'utf8'); if(payload.length>247) throw new Error('Vendor-Specific value exceeds RADIUS attribute limit'); const b=Buffer.alloc(6+payload.length); b.writeUInt32BE(vendorId,0); b.writeUInt8(vendorType,4); b.writeUInt8(payload.length+2,5); payload.copy(b,6); return {type:ATTR.VENDOR_SPECIFIC,value:b}; }
