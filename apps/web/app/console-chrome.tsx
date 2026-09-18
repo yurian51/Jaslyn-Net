@@ -36,7 +36,7 @@ const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
 ];
 
-const publicRoutes = new Set(['/login', '/register']);
+const publicRoutes = new Set(['/', '/login', '/register']);
 const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
 const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
