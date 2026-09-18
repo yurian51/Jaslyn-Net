@@ -95,6 +95,14 @@ export class PaymentsService {
   }
 
   async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
+    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string }>(
+      `SELECT status, amount, currency, provider FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
+      [tenantId, paymentId],
+    );
+    const settledPayment = payment.rows[0];
+    if (!settledPayment || settledPayment.status !== 'SUCCESS') throw new ConflictException('Only a successfully persisted payment can be settled');
+    if (settledPayment.provider !== provider) throw new ConflictException('Settlement provider does not match payment provider');
+    if (String(settledPayment.amount) !== String(amount) || settledPayment.currency !== currency) throw new ConflictException('Settlement amount or currency does not match payment');
     const cashCode = `CASH:${provider}:${currency}`.slice(0, 64);
     const revenueCode = `REVENUE:WIFI:${currency}`.slice(0, 64);
     const cashAccount = await client.query<{ id: string }>(
@@ -228,6 +236,13 @@ export class PaymentsService {
       }
 
       const nextStatus = input.status;
+      if (nextStatus === 'SUCCESS' && payment.status === 'REFUNDED') {
+        throw new ConflictException('A refunded payment cannot be settled again');
+      }
+      await client.query(
+        `UPDATE payments SET provider_reference=COALESCE($2, provider_reference), status=$3, raw_payload=$4, updated_at=now() WHERE tenant_id=$1 AND id=$5`,
+        [tenantId, input.providerReference?.trim() ?? null, nextStatus, input.payload ?? {}, payment.id],
+      );
       if (nextStatus === 'SUCCESS') {
         const settled = await client.query<{ amount: string; currency: string }>(
           `SELECT amount, currency FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
@@ -238,14 +253,6 @@ export class PaymentsService {
         if (paymentAmount == null || paymentCurrency == null) throw new ConflictException('Verified payment has no settlement amount or currency');
         await this.recordVerifiedSettlement(client, tenantId, payment.id, paymentAmount, paymentCurrency, provider);
       }
-
-      if (nextStatus === 'SUCCESS' && payment.status === 'REFUNDED') {
-        throw new ConflictException('A refunded payment cannot be settled again');
-      }
-      await client.query(
-        `UPDATE payments SET provider_reference=COALESCE($2, provider_reference), status=$3, raw_payload=$4, updated_at=now() WHERE tenant_id=$1 AND id=$5`,
-        [tenantId, input.providerReference?.trim() ?? null, nextStatus, input.payload ?? {}, payment.id],
-      );
 
       if (nextStatus === 'SUCCESS' && payment.purchaseId) {
         const purchase = await client.query(`SELECT id, package_id, customer_id, router_id, status FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.purchaseId]);
