@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { SignJWT } from 'jose';
 import { PG_POOL } from '../database/database.module';
 import { LoginDto, RegisterDto } from './auth.dto';
+import { AuthenticatedRequest } from './auth.guard';
 
 const scrypt = promisify(scryptCallback);
 const PASSWORD_KEY_LENGTH = 64;
