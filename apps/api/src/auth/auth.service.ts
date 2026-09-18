@@ -75,7 +75,7 @@ export class AuthService {
        ORDER BY document_type, accepted_at DESC`,
       [user.tenantId, user.id],
     );
-    const current = { TERMS_OF_USE, PRIVACY_NOTICE };
+    const current = { TERMS_OF_USE: TERMS_VERSION, PRIVACY_NOTICE: PRIVACY_VERSION };
     return {
       documents: Object.entries(current).map(([documentType, documentVersion]) => {
         const accepted = result.rows.find((row) => row.document_type === documentType);
