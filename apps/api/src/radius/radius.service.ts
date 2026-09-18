@@ -57,7 +57,7 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     return {accessBindingId:input.accessBindingId,username:binding.rows[0].username,enabled:input.enabled??true};
   }
 
-  private async handlePacket(raw:Buffer,rinfo:{address:string},kind:'auth'|'accounting'){
+  private async handlePacket(raw:Buffer,rinfo:{address:string;port:number},kind:'auth'|'accounting'){
     let packet; try{packet=parsePacket(raw);}catch{return;}
     const nas=await this.db.query(`SELECT id,tenant_id,secret_encrypted,enabled FROM radius_nas_clients WHERE address=$1::inet AND enabled=true LIMIT 1`,[rinfo.address]).catch(()=>({rowCount:0,rows:[] as any[]}));
     if(!nas.rowCount) return;
