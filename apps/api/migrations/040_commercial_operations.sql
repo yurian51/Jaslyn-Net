@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS voucher_batches (
 
 ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS batch_id uuid;
 ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS device_limit integer NOT NULL DEFAULT 1;
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS device_limit integer NOT NULL DEFAULT 1;
 
 DO $$
 BEGIN
@@ -41,8 +42,12 @@ BEGIN
   END IF;
 END $$;
 
+ALTER TABLE access_grants DROP CONSTRAINT IF EXISTS access_grants_device_limit_chk;
+ALTER TABLE access_grants ADD CONSTRAINT access_grants_device_limit_chk CHECK (device_limit BETWEEN 1 AND 100);
+
 ALTER TABLE vouchers DROP CONSTRAINT IF EXISTS vouchers_device_limit_chk;
 ALTER TABLE vouchers ADD CONSTRAINT vouchers_device_limit_chk CHECK (device_limit BETWEEN 1 AND 100);
 CREATE INDEX IF NOT EXISTS vouchers_tenant_batch_idx ON vouchers (tenant_id, batch_id);
+CREATE INDEX IF NOT EXISTS access_grants_device_limit_idx ON access_grants (tenant_id, customer_id, device_limit);
 
 COMMIT;
