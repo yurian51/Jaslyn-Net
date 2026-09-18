@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export type RadiusAttribute = { type: number; value: Buffer };
 export type RadiusPacket = { code: number; identifier: number; authenticator: Buffer; attributes: RadiusAttribute[] };
@@ -59,6 +59,8 @@ function encodeAttributes(attributes: RadiusAttribute[]) {
   }
   return Buffer.concat(chunks);
 }
+
+export function encodeRequest(code:number, identifier:number, attributes:RadiusAttribute[]) { const authenticator=randomBytes(16); const attrs=encodeAttributes(attributes); const header=Buffer.alloc(20); header.writeUInt8(code,0); header.writeUInt8(identifier,1); header.writeUInt16BE(20+attrs.length,2); authenticator.copy(header,4); return Buffer.concat([header,attrs]); }
 
 export function encodeResponse(code:number, identifier:number, requestAuthenticator:Buffer, attributes:RadiusAttribute[], secret:Buffer) {
   const attrs=encodeAttributes(attributes);
