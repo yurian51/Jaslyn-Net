@@ -20,7 +20,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   IF NEW.status IS DISTINCT FROM OLD.status THEN
-    IF OLD.status = 'PENDING' AND NEW.status IN ('SUCCESS','FAILED','REFUNDED') THEN
+    IF OLD.status = 'PENDING' AND NEW.status IN ('SUCCESS','FAILED') THEN
       NULL;
     ELSIF OLD.status = 'SUCCESS' AND NEW.status = 'REFUNDED' THEN
       NULL;
