@@ -43,6 +43,7 @@ jobs:
           test -f apps/api/migrations/033_customer_service_state_history.sql
           test -f apps/api/migrations/034_fiber_line_state_history.sql
           test -f apps/api/migrations/035_legal_acceptances.sql
+          test -f apps/api/migrations/036_ipam.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
           grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
@@ -52,6 +53,8 @@ jobs:
           grep -q "customer_service_state_events" apps/api/migrations/033_customer_service_state_history.sql
           grep -q "fiber_line_events" apps/api/migrations/034_fiber_line_state_history.sql
           grep -q "legal_acceptances" apps/api/migrations/035_legal_acceptances.sql
+          grep -q "ipam_pools" apps/api/migrations/036_ipam.sql
+          grep -q "ipam_addresses" apps/api/migrations/036_ipam.sql
       - name: Lint API
         run: pnpm --filter @jaslyn-net/api lint
       - name: Typecheck API
