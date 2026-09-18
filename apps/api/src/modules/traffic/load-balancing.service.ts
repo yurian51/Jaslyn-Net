@@ -175,12 +175,14 @@ export class LoadBalancingService {
   async status(tenantId: string, policyId: string) {
     const policy = await this.getPolicy(tenantId, policyId);
     const decision = this.engine.decide(policyId, policy.strategy, policy.members as WanMemberState[], policy.capacityAware);
+    const adapterAvailable = hasWanRoutingAdapter(policy.managementProtocol as NetworkManagementProtocol);
     return {
       policy,
       decision,
       generatedAt: new Date().toISOString(),
       appliedToRouter: false,
-      applyAvailable: policy.routingCapabilities.routeWrite,
+      adapterAvailable,
+      applyAvailable: adapterAvailable && policy.routingCapabilities.routeWrite,
     };
   }
 
@@ -196,7 +198,7 @@ export class LoadBalancingService {
     }));
 
     let networkApply: { applied: boolean; verified: boolean; reason?: string; protocol?: NetworkManagementProtocol } = { applied: false, verified: false, reason: 'No device routing adapter was invoked.' };
-    if (status.policy.managementProtocol === 'MIKROTIK_REST' && status.policy.managementEnabled === true && status.policy.routingCapabilities.routeWrite) {
+    if (hasWanRoutingAdapter(status.policy.managementProtocol as NetworkManagementProtocol) && status.policy.managementEnabled === true && status.policy.routingCapabilities.routeWrite) {
       const router = await this.db.query(
         `SELECT api_endpoint AS "apiEndpoint", management_credentials_encrypted AS "credentialsEncrypted"
          FROM routers WHERE tenant_id=$1 AND id=$2`,
@@ -286,4 +288,9 @@ export class LoadBalancingService {
 
 function errorCode(error: unknown) {
   return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'NETWORK_ERROR';
+}
+
+
+function hasWanRoutingAdapter(protocol: NetworkManagementProtocol) {
+  return protocol === 'MIKROTIK_REST';
 }
