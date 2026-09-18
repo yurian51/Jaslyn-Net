@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS financial_ledger_transactions (
   UNIQUE (tenant_id, id),
   CHECK (transaction_type IN ('PAYMENT','REFUND','COMMISSION','ADJUSTMENT','TAX','RESELLER_SETTLEMENT','TRANSFER','OTHER'))
 );
+CREATE UNIQUE INDEX IF NOT EXISTS financial_ledger_transactions_reference_uq ON financial_ledger_transactions (tenant_id, transaction_type, reference_type, reference_id) WHERE reference_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS financial_ledger_transactions_ref_idx ON financial_ledger_transactions (tenant_id, reference_type, reference_id);
 CREATE INDEX IF NOT EXISTS financial_ledger_transactions_correlation_idx ON financial_ledger_transactions (tenant_id, correlation_id) WHERE correlation_id IS NOT NULL;
 
