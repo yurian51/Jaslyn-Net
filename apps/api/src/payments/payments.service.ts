@@ -95,8 +95,8 @@ export class PaymentsService {
   }
 
   async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
-    const cashCode = `CASH:${provider}`.slice(0, 64);
-    const revenueCode = 'REVENUE:WIFI';
+    const cashCode = `CASH:${provider}:${currency}`.slice(0, 64);
+    const revenueCode = `REVENUE:WIFI:${currency}`.slice(0, 64);
     const cashAccount = await client.query<{ id: string }>(
       `INSERT INTO financial_ledger_accounts (tenant_id, code, name, account_type, currency)
        VALUES ($1,$2,$3,'ASSET',$4)
