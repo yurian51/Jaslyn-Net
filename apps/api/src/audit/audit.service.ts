@@ -108,6 +108,26 @@ export class AuditService {
            FROM audit_logs a
           WHERE a.tenant_id=$1 AND a.correlation_id=$2
          UNION ALL
+         SELECT 'PAYMENT', p.id::text, p.created_at, 'PAYMENT', 'payment', p.id::text,
+                jsonb_build_object('status',p.status,'provider',p.provider,'purchaseId',p.purchase_id,'amount',p.amount,'currency',p.currency)
+           FROM payments p
+          WHERE p.tenant_id=$1 AND p.correlation_id=$2
+         UNION ALL
+         SELECT 'PURCHASE', p.id::text, p.created_at, 'PURCHASE', 'purchase', p.id::text,
+                jsonb_build_object('status',p.status,'customerId',p.customer_id,'packageId',p.package_id,'routerId',p.router_id,'startsAt',p.starts_at,'endsAt',p.ends_at)
+           FROM wifi_plan_purchases p
+          WHERE p.tenant_id=$1 AND p.correlation_id=$2
+         UNION ALL
+         SELECT 'ACCESS_GRANT', g.id::text, g.created_at, 'ACCESS_GRANT', 'access_grant', g.id::text,
+                jsonb_build_object('status',g.status,'customerId',g.customer_id,'purchaseId',g.purchase_id,'routerId',g.router_id,'startsAt',g.starts_at,'endsAt',g.ends_at)
+           FROM access_grants g
+          WHERE g.tenant_id=$1 AND g.correlation_id=$2
+         UNION ALL
+         SELECT 'SESSION', s.id::text, s.started_at, 'SESSION', 'session', s.id::text,
+                jsonb_build_object('status',s.status,'customerId',s.customer_id,'routerId',s.router_id,'username',s.username,'startedAt',s.started_at,'endedAt',s.ended_at)
+           FROM sessions s
+          WHERE s.tenant_id=$1 AND s.correlation_id=$2
+         UNION ALL
          SELECT 'LEDGER', t.id::text, t.posted_at, t.transaction_type,
                 t.reference_type, t.reference_id::text,
                 jsonb_build_object('description',t.description,'correlationId',t.correlation_id)
