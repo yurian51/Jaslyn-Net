@@ -12,3 +12,9 @@ export class SetRadiusCredentialDto {
   @IsString() @MinLength(1) @MaxLength(256) password!: string;
   @IsOptional() @IsBoolean() enabled?: boolean;
 }
+
+export class DisconnectRadiusSessionDto {
+  @IsUUID() nasClientId!: string;
+  @IsString() @MinLength(1) @MaxLength(253) username!: string;
+  @IsOptional() @IsString() @MaxLength(253) acctSessionId?: string;
+}
