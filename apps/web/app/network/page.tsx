@@ -128,7 +128,7 @@ export default function NetworkPage() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><img src="/brand/jaslyn-net-icon.svg" alt="" /></div><div><span>JASLYN NET</span><small>Network operations platform</small></div></div>
+        <div className="brand"><div className="brand-mark"><img src="/brand/file_000000006450821195473e1e14153e8a.svg" alt="" /></div><div><span>JASLYN NET</span><small>Network operations platform</small></div></div>
         <div className="workspace-switch"><span className="workspace-dot"/> Global Workspace <span>⌄</span></div>
         <nav className="nav"><p className="nav-section">OPERATIONS</p>
           <a className="nav-item" href="/dashboard"><span className="nav-icon">⌂</span>Overview</a>
@@ -140,7 +140,7 @@ export default function NetworkPage() {
           <a className="nav-item" href="/audit"><span className="nav-icon">◈</span>Security &amp; Audit</a>
         </nav>
         <div className="sidebar-status"><span className="pulse"/><div><strong>{error ? 'API unavailable' : 'Network monitor'}</strong><small>{error ?? `${routers.length} devices loaded`}</small></div></div>
-        <div className="profile"><div className="avatar"><img src="/brand/jaslyn-net-icon.svg" alt="" /></div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div></div>
+        <div className="profile"><div className="avatar"><img src="/brand/file_000000006450821195473e1e14153e8a.svg" alt="" /></div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div></div>
       </aside>
       <section className="content">
         <header className="topbar"><div><div className="eyebrow">JASLYN NET / NETWORK</div><h1>Network operations</h1><p className="context">Register routers, gateways and managed network devices, then monitor their operational state.</p></div><div className="top-actions"><button className="selector primary-action" onClick={() => { setError(null); setShowCreate(true); }}>+ Add device</button><button className="selector" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh devices'}</button></div></header>
