@@ -140,8 +140,8 @@ export class TrafficEnforcementService {
       const verification = await adapter.verifyDisconnected([command], credentials);
       const verificationResult = verification[0];
       const verified = verificationResult?.verified === true;
-      if (commandId && tenantId && verified && verificationResult) await this.networkCommands.markVerified(tenantId, commandId, verificationResult.details);
-      if (commandId && tenantId && !verified) await this.networkCommands.markVerificationFailed(tenantId, commandId, verificationResult?.details ?? { reason: 'DISCONNECT_VERIFICATION_MISMATCH' });
+      if (commandId && tenantId && verified && verificationResult) await this.networkCommands!.markVerified(tenantId, commandId, verificationResult.details);
+      if (commandId && tenantId && !verified) await this.networkCommands!.markVerificationFailed(tenantId, commandId, verificationResult?.details ?? { reason: 'DISCONNECT_VERIFICATION_MISMATCH' });
       return { applied: execution[0]?.disconnected === true, commandId, verified, details: { execution: details, verification: verification[0]?.details ?? {} } };
     } catch (error) { if (commandId && tenantId) await this.networkCommands!.markFailed(tenantId, [commandId], error); throw error; }
   }
