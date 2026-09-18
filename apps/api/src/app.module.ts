@@ -14,6 +14,7 @@ import { PackagesModule } from './packages/packages.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { PaymentsModule } from './payments/payments.module';
 import { RoutersModule } from './routers/routers.module';
+import { SalesModule } from './sales/sales.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { VouchersModule } from './vouchers/vouchers.module';
 import { TrafficModule } from './modules/traffic/traffic.module';
@@ -40,6 +41,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     PaymentsModule,
     RoutersModule,
     SessionsModule,
+    SalesModule,
     VouchersModule,
     TrafficModule,
     IspOperationsModule,

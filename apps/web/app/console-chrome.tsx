@@ -20,6 +20,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['WAN & Load Balancing', 'loadBalancing', '/load-balancing'],
   ['ISP Operations', 'isp', '/isp'],
   ['Purchases', 'purchases', '/purchases'],
+  ['Sales', 'payments', '/sales'],
   ['Payments', 'payments', '/payments'],
   ['Vouchers', 'vouchers', '/vouchers'],
   ['Plans & Products', 'packages', '/packages'],
@@ -33,7 +34,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 
 const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
-  ['Commercial', ['/purchases', '/payments', '/vouchers', '/packages']],
+  ['Commercial', ['/purchases', '/sales', '/payments', '/vouchers', '/packages']],
   ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
   ['Workspace', ['/account', '/settings']],
 ];

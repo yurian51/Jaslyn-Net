@@ -149,7 +149,14 @@ export default function NetworkPage() {
 
         {showCreate && <section className="panel device-provisioning" aria-label="Add network device">
           <div className="panel-head"><div><div className="panel-kicker">DEVICE PROVISIONING</div><h2>Add network device</h2><p>Register the device in this tenant. Credentials are encrypted by the API and never returned to the browser.</p></div><button className="close-button" type="button" onClick={() => { setShowCreate(false); setError(null); }}>Close</button></div>
-          <form className="device-form" onSubmit={createDevice}>
+          <div className="device-presets" aria-label="Device type presets">
+  <span>Quick setup</span>
+  <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'MikroTik Router', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST', apiEndpoint: '' })}>MikroTik</button>
+  <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Omada EAP', vendor: 'TP-Link Omada', managementProtocol: 'OMADA_CONTROLLER_API' })}>Omada EAP</button>
+  <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'RADIUS AP', vendor: 'RADIUS NAS', managementProtocol: 'RADIUS_NAS' })}>RADIUS AP</button>
+  <a href="/isp">My sites →</a>
+</div>
+<form className="device-form" onSubmit={createDevice}>
             <div className="form-section"><div className="form-section-title">Identity</div><div className="form-grid">
               <label>Device name *<input required maxLength={120} value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Nduruma Core Router"/></label>
               <label>Vendor *<input required maxLength={60} value={form.vendor} onChange={(e) => setField('vendor', e.target.value)} placeholder="MikroTik"/></label>
@@ -192,7 +199,7 @@ export default function NetworkPage() {
       </section>
       <style jsx>{`
         .primary-action{background:#172033!important;color:#fff!important;border-color:#172033!important}
-        .device-provisioning{margin-bottom:12px}
+        .device-presets{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:12px 0;padding:10px;border:1px solid #e8ebf0;border-radius:8px;background:#f8fafc}.device-presets span{font-size:8px;font-weight:800;color:#7d899a;margin-right:2px}.device-presets button,.device-presets a{border:1px solid #dfe4eb;background:#fff;border-radius:6px;padding:7px 9px;font-size:8px;color:#334155;text-decoration:none}.device-presets button:hover,.device-presets a:hover{border-color:#b9c7da;background:#f2f6fb}.device-provisioning{margin-bottom:12px}
         .device-provisioning .panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
         .device-provisioning h2{font-size:18px;margin:6px 0 4px}
         .device-provisioning p{margin:0;color:#7d899a;font-size:10px;max-width:700px}

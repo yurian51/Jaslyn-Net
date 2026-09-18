@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 const toInt = ({ value }: { value: unknown }) => value === undefined || value === '' ? value : Number(value);
 const toBoolean = ({ value }: { value: unknown }) => value === undefined || value === '' ? value : value === true || value === 'true';
@@ -9,6 +9,7 @@ export class ListPackagesQueryDto {
   @Transform(toInt) @IsOptional() @IsInt() @Min(1) @Max(10000) page = 1;
   @Transform(toInt) @IsOptional() @IsInt() @Min(1) @Max(100) limit = 25;
   @Transform(toBoolean) @IsOptional() @IsBoolean() activeOnly?: boolean;
+  @Transform(toBoolean) @IsOptional() @IsBoolean() portalOnly?: boolean;
 }
 
 export class CreatePackageDto {
@@ -19,6 +20,10 @@ export class CreatePackageDto {
   @IsOptional() @IsInt() @Min(1) dataLimitBytes?: number;
   @IsOptional() @IsInt() @Min(1) downloadBps?: number;
   @IsOptional() @IsInt() @Min(1) uploadBps?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(100) devicesPerCode?: number;
+  @IsOptional() @IsBoolean() showOnPortal?: boolean;
+  @IsOptional() @IsBoolean() isFreeTrial?: boolean;
+  @IsOptional() @IsIn(['ONCE_PER_PHONE','ONCE_PER_CUSTOMER','UNLIMITED']) freeTrialFrequency?: 'ONCE_PER_PHONE'|'ONCE_PER_CUSTOMER'|'UNLIMITED';
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
@@ -30,5 +35,9 @@ export class UpdatePackageDto {
   @IsOptional() @IsInt() @Min(1) dataLimitBytes?: number;
   @IsOptional() @IsInt() @Min(1) downloadBps?: number;
   @IsOptional() @IsInt() @Min(1) uploadBps?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(100) devicesPerCode?: number;
+  @IsOptional() @IsBoolean() showOnPortal?: boolean;
+  @IsOptional() @IsBoolean() isFreeTrial?: boolean;
+  @IsOptional() @IsIn(['ONCE_PER_PHONE','ONCE_PER_CUSTOMER','UNLIMITED']) freeTrialFrequency?: 'ONCE_PER_PHONE'|'ONCE_PER_CUSTOMER'|'UNLIMITED';
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
