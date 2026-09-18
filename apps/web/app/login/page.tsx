@@ -35,7 +35,7 @@ export default function LoginPage() {
           <p className="auth-security"><span>●</span> Authenticated sessions are protected by the Jaslyn Net API.</p>
         </form>
       </div>
-      <footer className="auth-footer"><span>JASLYN NET</span><span>New network? <a href="/register">Create a workspace</a></span></footer>
+      <footer className="auth-footer"><span>JASLYN NET</span><span><a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/cookies">Cookies</a> · <a href="/legal">Legal Center</a> · New network? <a href="/register">Create a workspace</a></span></footer>
     </section></main>
   );
 }
