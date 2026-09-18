@@ -1,58 +1,59 @@
-# NEXORA — Product Architecture
+# JASLYN NET — Product Architecture
 
 ## Product position
-NEXORA is a multi-tenant connected-business and ISP operations platform for hotspot billing, vouchers, subscriptions, payments, network operations and customer management.
-
-## Brand
-**NEXORA**  
-*The Operating Platform for Connected Businesses.*
+JASLYN NET is a multi-tenant connectivity and ISP operations platform for WiFi billing, vouchers, subscriptions, payments, AAA, sessions and network operations.
 
 ## Core domains
 - Identity, organization and tenant isolation
 - Customers and devices
 - Sites and routers
-- Plans and voucher batches
-- Subscriptions and sessions
-- Payments and reconciliation
-- Captive portal
-- MikroTik and FreeRADIUS adapters
-- Agents/resellers and commissions
-- Reports, alerts and audit logs
+- Plans, purchases and voucher batches
+- Payments, verification, settlement and reconciliation
+- Entitlements, access bindings and RADIUS credentials
+- Sessions, accounting and IPAM
+- Network commands, enforcement and incidents
+- Notifications, reporting and audit logs
 
 ## Architecture rule
-Start as a modular monolith with strict module boundaries. PostgreSQL is the source of truth. Redis is for ephemeral state, caching and background jobs. External integrations must be adapter-based and idempotent.
+JASLYN NET is a modular monolith with strict domain ownership. PostgreSQL is the source of truth. External integrations are adapter boundaries and are never represented as operational until independently verified.
+
+## Canonical ownership
+- Customer: `customers` / CustomersService
+- Package: `packages` / PackagesService
+- Purchase: `wifi_plan_purchases` / PurchasesService
+- Payment: `payments` / PaymentsService
+- Voucher: `vouchers` / VouchersService
+- Financial settlement: `financial_ledger_transactions` + entries / PaymentsService settlement path
+- Entitlement: `access_grants` / purchase lifecycle and access reconciliation
+- Access binding: `customer_access_bindings` / IspOperationsService
+- RADIUS credential: `radius_user_credentials` / RadiusService
+- Session: `sessions` / SessionsService
+- Accounting: `radius_accounting_events` plus session usage reconciliation
+- IP allocation: `ipam_addresses` / IpamService
+- Router/NAS: `routers` and `radius_nas_clients`, each with distinct ownership
+- Network command: network command fabric
+- Enforcement: traffic enforcement adapters
+- Incident: `incidents` / IncidentsService
+- Notification: `notification_outbox` / NotificationsService
+- Audit: `audit_logs` / AuditService
 
 ## Integration boundaries
-### Network
-`NetworkAdapter` is responsible for router operations and health polling. MikroTik RouterOS API is the first adapter. SSH is an explicit fallback, never an implicit command execution path.
-
-### Authentication
-`AuthService` owns credentials, access tokens, refresh/session lifecycle and tenant context. Authorization must be enforced server-side and every tenant-scoped query must carry organization context.
-
 ### Payments
-`PaymentProvider` exposes initiate, verify, refund and webhook-verification contracts. A successful browser redirect is never sufficient to activate service. Activation requires a verified provider event or an independently verified provider status.
+`PaymentProvider` is an extension boundary. A provider is not operational merely because it exists in the product catalog or has tenant configuration. Provider execution and verification must be backed by a real adapter. Unsupported external operations fail closed.
 
 ### RADIUS
-FreeRADIUS is an integration boundary, not a reason to leak billing rules into router-specific code. Accounting events update session usage through an idempotent event processor.
+RADIUS authenticates against active access bindings and their credentials. RADIUS accounting is network-observed evidence and must not become a second commercial/session authority.
 
-## MVP order
-1. CI/build verification
-2. Auth + tenant isolation + RBAC
-3. Customers, sites and routers
-4. Plans + voucher engine
-5. Sessions and subscriptions
-6. Payment abstraction + webhook idempotency
-7. MikroTik adapter + router health
-8. Captive portal
-9. FreeRADIUS/PPPoE
-10. Reports, alerts and agent/reseller controls
+### Network
+Router management and enforcement are capability-driven. A catalog entry is not an implementation. Network state is only updated from verified device interaction or explicit persisted operational evidence.
 
 ## Security invariants
 - No secrets in Git.
-- Passwords use strong password hashing with per-user salts.
-- Sensitive credentials are encrypted at rest.
+- Strong password hashing and encrypted network credentials.
 - Tenant boundaries are enforced in API/service/database access paths.
 - Critical mutations produce audit events.
-- Payment webhook handlers are idempotent.
-- Destructive router actions require explicit authorization and confirmation.
+- Payment state transitions are database-guarded.
+- Payment settlement requires a persisted successful payment.
+- Network mutations use idempotent command state and verified execution.
+- Access reconciliation fails closed when network enforcement cannot be verified.
 - Real integrations are never represented as connected until verified.
