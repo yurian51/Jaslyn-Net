@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../../audit/audit.module';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
@@ -17,6 +18,7 @@ import { LoadBalancingEngine } from './load-balancing.engine';
 import { LoadBalancingService } from './load-balancing.service';
 
 @Module({
+  imports: [AuditModule],
   controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController, LoadBalancingController],
   providers: [
     SecureNetworkCredentials,
