@@ -43,7 +43,6 @@ export class BillingController {
     @Body() dto: PaymentWebhookDto,
   ) {
     if (!req.rawBody) throw new UnauthorizedException('Raw webhook body is unavailable');
-    this.billing.verifyWebhookSignature(req.rawBody, signature ?? providerSignature);
-    return this.billing.processPaymentWebhook(req.params.provider, dto);
+    return this.billing.processPaymentWebhook(req.params.provider, dto, req.rawBody, signature ?? providerSignature);
   }
 }
