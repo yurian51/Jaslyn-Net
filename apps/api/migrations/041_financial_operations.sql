@@ -1,13 +1,6 @@
 BEGIN;
 
 ALTER TABLE payments
-  ADD CONSTRAINT payments_tenant_id_uq UNIQUE (tenant_id, id);
-ALTER TABLE wifi_plan_purchases
-  ADD CONSTRAINT wifi_plan_purchases_tenant_id_uq UNIQUE (tenant_id, id);
-ALTER TABLE customers
-  ADD CONSTRAINT customers_tenant_id_uq UNIQUE (tenant_id, id);
-
-ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS settlement_amount numeric(20,6),
   ADD COLUMN IF NOT EXISTS settlement_currency char(3),
   ADD COLUMN IF NOT EXISTS fx_rate numeric(30,12),
