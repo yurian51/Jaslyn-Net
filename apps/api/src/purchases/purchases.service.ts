@@ -93,15 +93,16 @@ export class PurchasesService {
     const provider = input.provider.trim().toLowerCase();
     const providerReference = input.providerReference.trim();
     const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
-    const correlationId = getCorrelationId() ?? `purchase:${purchaseId}`;
+    let correlationId = getCorrelationId() ?? null;
     try {
       await client.query('BEGIN');
       const purchase = await client.query(
-        `SELECT id, customer_id, package_id, router_id, price, currency, status FROM wifi_plan_purchases WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
+        `SELECT id, customer_id, package_id, router_id, price, currency, status, correlation_id FROM wifi_plan_purchases WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
         [tenantId, purchaseId],
       );
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       const current = purchase.rows[0];
+      correlationId ??= current.correlation_id ?? `purchase:${purchaseId}`;
       if (current.status === 'ACTIVE' || current.status === 'PAID') {
         await client.query('COMMIT');
         return this.get(tenantId, purchaseId);
