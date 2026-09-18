@@ -94,7 +94,7 @@ export class PaymentsService {
     } finally { client.release(); }
   }
 
-  private async postVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
+  async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
     const cashCode = `CASH:${provider}`.slice(0, 64);
     const revenueCode = 'REVENUE:WIFI';
     const cashAccount = await client.query<{ id: string }>(
@@ -229,7 +229,14 @@ export class PaymentsService {
 
       const nextStatus = input.status;
       if (nextStatus === 'SUCCESS') {
-        await this.postVerifiedSettlement(client, tenantId, payment.id, String((await client.query<{ amount: string }>(`SELECT amount FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.id])).rows[0]?.amount ?? '0'), String((await client.query<{ currency: string }>(`SELECT currency FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.id])).rows[0]?.currency ?? 'TZS'), provider);
+        const settled = await client.query<{ amount: string; currency: string }>(
+          `SELECT amount, currency FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
+          [tenantId, payment.id],
+        );
+        const paymentAmount = settled.rows[0]?.amount;
+        const paymentCurrency = settled.rows[0]?.currency;
+        if (paymentAmount == null || paymentCurrency == null) throw new ConflictException('Verified payment has no settlement amount or currency');
+        await this.recordVerifiedSettlement(client, tenantId, payment.id, paymentAmount, paymentCurrency, provider);
       }
 
       if (nextStatus === 'SUCCESS' && payment.status === 'REFUNDED') {
