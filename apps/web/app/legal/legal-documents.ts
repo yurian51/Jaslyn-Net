@@ -84,7 +84,11 @@ export const legalDocuments: LegalDocument[] = [
       { title: '14. Changes', paragraphs: [
         'The Company may update these Terms to reflect changes in the Service, law, security requirements or business operations. Material changes will be communicated through the Service or another reasonable channel. Continued use after the effective date of an updated version constitutes acceptance to the extent permitted by law.'
       ]},
-      { title: '15. Legal contact', paragraphs: [
+      { title: '15. Compliance framework', paragraphs: [
+        'Depending on the Service, transaction and location, JASLYN NET operations may be subject to applicable Tanzanian laws and regulatory requirements concerning personal data protection, electronic transactions, cybercrime, payments, consumer protection, telecommunications and intellectual property. Relevant instruments include the Personal Data Protection Act, 2022, the Electronic Transactions Act, the Cybercrimes Act, the National Payment Systems Act and other laws or regulations applicable to the particular activity.',
+        'The Company does not represent that one policy alone satisfies every legal obligation of a customer operating an ISP, hotspot or telecommunications-related business. Customers remain responsible for obtaining the licences, registrations, permits and regulatory approvals applicable to their own services.'
+      ]},
+      { title: '16. Legal contact', paragraphs: [
         'The contracting entity is YURIAN TECH LTD. Formal legal notices should be submitted through the official JASLYN NET support or legal contact channel made available in the Service and should identify the organization, account, subject matter and requested action. The Company may require identity and authority verification before processing a legal request.'
       ]}
     ]
