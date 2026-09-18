@@ -109,18 +109,26 @@ export class TrafficEnforcementService {
     let existingStatus: NetworkCommandStatus | undefined;
     if (this.networkCommands && tenantId) {
       const queued = await this.networkCommands.queue(tenantId, { routerId: command.routerId, commandType: 'DISCONNECT_SESSION', actor: 'network-control', provider: protocol, correlationId, target: { sessionId: command.sessionId, customerId: command.customerId, username: command.username, ipAddress: command.targetAddress, macAddress: command.targetMacAddress }, request: { reason: 'ACCESS_RECONCILIATION' } });
-      commandId = queued.id;
-      const existing = await this.networkCommands.get(tenantId, queued.id);
+      const persistedCommandId = queued.id;
+      commandId = persistedCommandId;
+      const existing = await this.networkCommands.get(tenantId, persistedCommandId);
       existingStatus = existing.status as NetworkCommandStatus;
-      if (existingStatus === 'VERIFIED') return { applied: false, commandId, verified: true, details: existing.verification ?? {} };
+      if (existingStatus === 'VERIFIED') return { applied: false, commandId: persistedCommandId, verified: true, details: existing.verification ?? {} };
       if (existingStatus === 'EXECUTED') {
         try {
           const verification = await adapter.verifyDisconnected([command], credentials);
-          const verified = verification[0]?.verified === true;
-          if (verified) { await this.networkCommands.markVerified(tenantId, commandId, verification[0].details); return { applied: false, commandId, verified: true, details: { verification: verification[0].details } }; }
-          await this.networkCommands.markVerificationFailed(tenantId, commandId, verification[0]?.details ?? { reason: 'DISCONNECT_VERIFICATION_MISMATCH' });
+          const verificationResult = verification[0];
+          const verified = verificationResult?.verified === true;
+          if (verified && verificationResult) {
+            await this.networkCommands.markVerified(tenantId, persistedCommandId, verificationResult.details);
+            return { applied: false, commandId: persistedCommandId, verified: true, details: { verification: verificationResult.details } };
+          }
+          await this.networkCommands.markVerificationFailed(tenantId, persistedCommandId, verificationResult?.details ?? { reason: 'DISCONNECT_VERIFICATION_MISMATCH' });
           existingStatus = 'FAILED';
-        } catch { await this.networkCommands.markVerificationFailed(tenantId, commandId, { reason: 'DISCONNECT_VERIFICATION_FAILED' }); existingStatus = 'FAILED'; }
+        } catch {
+          await this.networkCommands.markVerificationFailed(tenantId, persistedCommandId, { reason: 'DISCONNECT_VERIFICATION_FAILED' });
+          existingStatus = 'FAILED';
+        }
       }
       if (existingStatus === 'FAILED' || existingStatus === 'ABANDONED') throw new ServiceUnavailableException(`Network disconnect command ${commandId} is ${existingStatus} and requires explicit retry handling`);
     }
@@ -130,9 +138,10 @@ export class TrafficEnforcementService {
       const details = execution[0]?.details ?? {};
       if (commandId && tenantId) await this.networkCommands!.markExecuted(tenantId, [commandId], details);
       const verification = await adapter.verifyDisconnected([command], credentials);
-      const verified = verification[0]?.verified === true;
-      if (commandId && tenantId && verified) await this.networkCommands.markVerified(tenantId, commandId, verification[0].details);
-      if (commandId && tenantId && !verified) await this.networkCommands.markVerificationFailed(tenantId, commandId, verification[0]?.details ?? { reason: 'DISCONNECT_VERIFICATION_MISMATCH' });
+      const verificationResult = verification[0];
+      const verified = verificationResult?.verified === true;
+      if (commandId && tenantId && verified && verificationResult) await this.networkCommands.markVerified(tenantId, commandId, verificationResult.details);
+      if (commandId && tenantId && !verified) await this.networkCommands.markVerificationFailed(tenantId, commandId, verificationResult?.details ?? { reason: 'DISCONNECT_VERIFICATION_MISMATCH' });
       return { applied: execution[0]?.disconnected === true, commandId, verified, details: { execution: details, verification: verification[0]?.details ?? {} } };
     } catch (error) { if (commandId && tenantId) await this.networkCommands!.markFailed(tenantId, [commandId], error); throw error; }
   }
