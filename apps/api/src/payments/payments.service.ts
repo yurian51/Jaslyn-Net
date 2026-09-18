@@ -169,7 +169,7 @@ export class PaymentsService {
       if (payment.provider !== provider) throw new ConflictException('Webhook provider does not match payment provider');
       await client.query(`UPDATE payment_events SET payment_id=$1 WHERE tenant_id=$2 AND id=$3`, [payment.id, tenantId, eventId]);
 
-      if (payment.status === 'SUCCESS') {
+      if (payment.status === 'SUCCESS' && input.status === 'SUCCESS') {
         await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
         await client.query('COMMIT');
         return { accepted: true, duplicate: false, paymentId: payment.id, alreadySuccessful: true, statePreserved: input.status !== 'SUCCESS' };
