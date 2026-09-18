@@ -49,7 +49,7 @@ export default function RegisterPage() {
             <p className="auth-security"><span>●</span> Your owner account is isolated to the workspace you create.</p>
           </form>
         </div>
-        <footer className="auth-footer"><span>JASLYN NET</span><span>Already have an account? <a href="/login">Sign in</a></span></footer>
+        <footer className="auth-footer"><span>JASLYN NET</span><span><a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/cookies">Cookies</a> · <a href="/legal">Legal Center</a> · Already have an account? <a href="/login">Sign in</a></span></footer>
       </section>
     </main>
   );
