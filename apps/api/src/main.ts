@@ -21,6 +21,7 @@ async function bootstrap() {
   app.enableCors({
     origin: allowAnyOrigin ? true : configuredOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
     credentials: !allowAnyOrigin,
+    exposedHeaders: ['x-request-id', 'x-correlation-id'],
   });
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
