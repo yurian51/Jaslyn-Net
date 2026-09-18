@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -13,5 +13,10 @@ export class AuditController {
   @Get()
   list(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
     return this.audit.list(req.user!.tenantId, Number(limit) || 100);
+  }
+
+  @Get('trace/:correlationId')
+  trace(@Req() req: AuthenticatedRequest, @Param('correlationId') correlationId: string) {
+    return this.audit.trace(req.user!.tenantId, correlationId);
   }
 }
