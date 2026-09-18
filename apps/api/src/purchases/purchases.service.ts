@@ -4,6 +4,7 @@ import { PG_POOL } from '../database/database.module';
 import { PaymentsService } from '../payments/payments.service';
 import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
 import { ConfirmPurchasePaymentDto, CreatePurchaseDto } from './purchases.dto';
+import { getCorrelationId } from '../common/correlation-context';
 
 @Injectable()
 export class PurchasesService {
@@ -55,6 +56,7 @@ export class PurchasesService {
 
   async create(tenantId: string, input: CreatePurchaseDto) {
     const client = await this.db.connect();
+    const correlationId = getCorrelationId() ?? `purchase:${input.customerId}:${input.packageId}`;
     try {
       await client.query('BEGIN');
       const packageResult = await client.query(
@@ -73,8 +75,8 @@ export class PurchasesService {
       }
       const plan = packageResult.rows[0];
       const result = await client.query(
-        `INSERT INTO wifi_plan_purchases (tenant_id, customer_id, package_id, router_id, price, currency, status) VALUES ($1,$2,$3,$4,$5,$6,'PENDING_PAYMENT') RETURNING id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId", price, currency, status, created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [tenantId, input.customerId, input.packageId, input.routerId ?? null, plan.price, plan.currency],
+        `INSERT INTO wifi_plan_purchases (tenant_id, customer_id, package_id, router_id, price, currency, status, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,'PENDING_PAYMENT',$7) RETURNING id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId", price, currency, status, created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [tenantId, input.customerId, input.packageId, input.routerId ?? null, plan.price, plan.currency, correlationId],
       );
       await client.query('COMMIT');
       return result.rows[0];
@@ -91,6 +93,7 @@ export class PurchasesService {
     const provider = input.provider.trim().toLowerCase();
     const providerReference = input.providerReference.trim();
     const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
+    const correlationId = getCorrelationId() ?? `purchase:${purchaseId}`;
     try {
       await client.query('BEGIN');
       const purchase = await client.query(
@@ -153,7 +156,7 @@ export class PurchasesService {
           uploadBps: plan.upload_bps,
         });
         await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
-        await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
+        await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
         await client.query('COMMIT');
         return { purchase: await this.get(tenantId, purchaseId), paymentId: existing.id };
       }
@@ -179,8 +182,8 @@ export class PurchasesService {
         await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       } else {
         const payment = await client.query(
-          `INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, provider_reference, amount, currency, status, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-          [tenantId, current.customer_id, current.id, provider, providerReference, current.price, current.currency, requestedStatus, key],
+          `INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, provider_reference, amount, currency, status, idempotency_key, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+          [tenantId, current.customer_id, current.id, provider, providerReference, current.price, current.currency, requestedStatus, key, correlationId],
         );
         paymentId = payment.rows[0].id;
         if (requestedStatus === 'FAILED') {
