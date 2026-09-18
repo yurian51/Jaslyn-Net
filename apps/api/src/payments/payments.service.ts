@@ -59,12 +59,13 @@ export class PaymentsService {
     const client = await this.db.connect();
     const provider = input.provider.trim().toLowerCase();
     const key = input.idempotencyKey?.trim() || `intent:${input.purchaseId}:${provider}`;
-    const correlationId = getCorrelationId() ?? `payment-intent:${input.purchaseId}`;
+    let correlationId = getCorrelationId() ?? null;
     try {
       await client.query('BEGIN');
-      const purchase = await client.query(`SELECT id, customer_id, price, currency, status FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, input.purchaseId]);
+      const purchase = await client.query(`SELECT id, customer_id, price, currency, status, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, input.purchaseId]);
       if (!purchase.rowCount) throw new NotFoundException('Purchase not found');
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
+      correlationId ??= purchase.rows[0].correlation_id ?? `payment-intent:${input.purchaseId}`;
       await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency, client);
       const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
