@@ -188,7 +188,12 @@ export class PaymentsService {
   async webhook(tenantId: string, input: PaymentWebhookDto, rawBody: Buffer, signature?: string) {
     const provider = input.provider.trim().toLowerCase();
     const providerEventId = input.providerEventId.trim();
-    const correlationId = getCorrelationId() ?? `payment-webhook:${provider}:${providerEventId}`;
+    let correlationId = getCorrelationId() ?? null;
+    if (!correlationId && input.paymentId) {
+      const payment = await this.db.query<{ correlationId: string | null }>(`SELECT correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2`, [tenantId, input.paymentId]);
+      correlationId = payment.rows[0]?.correlationId ?? null;
+    }
+    correlationId ??= `payment-webhook:${provider}:${providerEventId}`;
     const secret = await this.resolveWebhookSecret(tenantId, provider);
     this.verifyWebhookSignature(secret, rawBody, signature);
 
