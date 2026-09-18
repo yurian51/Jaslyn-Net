@@ -86,13 +86,14 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [legalUpdate, setLegalUpdate] = useState(false);
   // Keep only the highest-frequency operator destinations in the Android bottom bar.
   // Everything else remains reachable through More, preserving a clean hybrid-app shell.
   const mobilePrimaryHrefs = ['/dashboard', '/customers', '/sessions', '/network'];
   const moreActive = nav.some(([, , href]) => !mobilePrimaryHrefs.includes(href) && href !== '/settings' && isRouteActive(pathname, href));
 
-  useEffect(() => { setMoreOpen(false); }, [pathname]);
+  useEffect(() => { setMoreOpen(false); setHeaderMenuOpen(false); }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,8 +137,18 @@ function OperationsChrome({ children }: { children: ReactNode }) {
         </Link>
         <div className="console-mobile-header-actions">
           <Link href="/notifications" aria-label="Notifications"><NavIcon name="notifications" /></Link>
-          <Link href="/settings" aria-label="Settings"><NavIcon name="settings" /></Link>
+          <button type="button" aria-label="More workspace actions" aria-expanded={headerMenuOpen} onClick={() => setHeaderMenuOpen(v => !v)}>
+            <span aria-hidden="true">⋮</span>
+          </button>
         </div>
+        {headerMenuOpen && (
+          <div className="console-mobile-header-menu" role="menu" aria-label="Workspace shortcuts">
+            <Link href="/purchases" role="menuitem"><NavIcon name="purchases" /><span>Purchase & Access</span></Link>
+            <Link href="/network" role="menuitem"><NavIcon name="network" /><span>Network</span></Link>
+            <Link href="/notifications" role="menuitem"><NavIcon name="notifications" /><span>Notifications</span></Link>
+            <Link href="/settings" role="menuitem"><NavIcon name="settings" /><span>Settings</span></Link>
+          </div>
+        )}
       </header>
       <div className="console-chrome-content">{children}</div>
       <nav className="console-chrome-mobile" aria-label="Mobile operations navigation">
