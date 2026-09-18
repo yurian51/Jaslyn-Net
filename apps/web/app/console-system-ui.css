@@ -1,0 +1,378 @@
+/* JASLYN NET — system-wide UI/UX language
+ * Applied after route-specific styles so the whole console shares one visual system.
+ * Reference direction: compact operations console, calm surfaces, strong hierarchy,
+ * restrained borders, real data density, and mobile-first navigation.
+ */
+
+:root {
+  --jn-ui-bg: #f5f7fa;
+  --jn-ui-surface: #ffffff;
+  --jn-ui-surface-soft: #f8fafc;
+  --jn-ui-border: #e2e7ee;
+  --jn-ui-border-soft: #edf1f5;
+  --jn-ui-ink: #172033;
+  --jn-ui-copy: #526075;
+  --jn-ui-muted: #8995a6;
+  --jn-ui-navy: #091321;
+  --jn-ui-blue: #2563eb;
+  --jn-ui-blue-soft: #eef3ff;
+  --jn-ui-green: #16845a;
+  --jn-ui-red: #b23a46;
+  --jn-ui-amber: #a66b12;
+  --jn-ui-radius: 11px;
+  --jn-ui-shadow: 0 1px 2px rgba(15,23,42,.035), 0 8px 24px rgba(15,23,42,.04);
+}
+
+html, body { background: var(--jn-ui-bg); }
+body { color: var(--jn-ui-ink); }
+
+.console-chrome-content {
+  background: var(--jn-ui-bg);
+}
+
+/* Route shells */
+.console-chrome-content > .app-shell,
+.console-chrome-content > .hybrid-dashboard,
+.console-chrome-content > .customer-page,
+.console-chrome-content > .package-page,
+.console-chrome-content > .purchase-page,
+.console-chrome-content > main {
+  color: var(--jn-ui-ink);
+}
+
+/* Shared page header */
+.topbar,
+.customer-header,
+.package-header,
+.purchase-page > header,
+.overview-header {
+  margin-bottom: 20px;
+}
+
+.topbar h1,
+.customer-header h1,
+.package-header h1,
+.purchase-page h1,
+.overview-header h1 {
+  color: #111a2a !important;
+  font-weight: 760 !important;
+  letter-spacing: -.04em !important;
+}
+
+.topbar .context,
+.customer-header p,
+.package-header p,
+.purchase-page header p,
+.overview-header .context {
+  color: var(--jn-ui-muted) !important;
+}
+
+/* Cards and panels */
+.console-chrome-content .panel,
+.console-chrome-content .kpi,
+.console-chrome-content .hd-card,
+.console-chrome-content .hd-panel,
+.console-chrome-content .plan-card,
+.console-chrome-content .purchase-summary,
+.console-chrome-content .quick-actions-panel {
+  background: var(--jn-ui-surface);
+  border-color: var(--jn-ui-border);
+  border-radius: var(--jn-ui-radius);
+  box-shadow: var(--jn-ui-shadow);
+}
+
+/* Controls */
+.console-chrome-content input,
+.console-chrome-content select,
+.console-chrome-content textarea,
+.console-chrome-content .selector,
+.console-chrome-content .date-button,
+.console-chrome-content .icon-button,
+.console-chrome-content .secondary-button,
+.console-chrome-content .close-button,
+.console-chrome-content .refresh {
+  border-color: var(--jn-ui-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--jn-ui-ink);
+}
+
+.console-chrome-content input:focus,
+.console-chrome-content select:focus,
+.console-chrome-content textarea:focus {
+  outline: none;
+  border-color: #7da0ea;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.08);
+}
+
+.console-chrome-content .primary-button,
+.console-chrome-content .primary-action {
+  background: var(--jn-ui-blue) !important;
+  border-color: var(--jn-ui-blue) !important;
+  color: #fff !important;
+  border-radius: 8px;
+  font-weight: 750;
+}
+
+/* Tables: quiet, dense, operational */
+.console-chrome-content table { border-collapse: collapse; }
+.console-chrome-content th {
+  color: #8995a5 !important;
+  background: #fbfcfd;
+  border-bottom-color: var(--jn-ui-border) !important;
+  font-weight: 800;
+}
+.console-chrome-content td {
+  color: #536074;
+  border-bottom-color: var(--jn-ui-border-soft);
+}
+.console-chrome-content tbody tr:hover {
+  background: #fafbfd;
+}
+
+/* Status language */
+.console-chrome-content .status.active,
+.console-chrome-content .status.online,
+.console-chrome-content .status.paid,
+.console-chrome-content .status.success {
+  color: var(--jn-ui-green);
+  background: #eaf7f0;
+}
+.console-chrome-content .status.pending,
+.console-chrome-content .status.pending_payment,
+.console-chrome-content .status.degraded,
+.console-chrome-content .status.stale {
+  color: var(--jn-ui-amber);
+  background: #fff7e7;
+}
+.console-chrome-content .status.failed,
+.console-chrome-content .status.offline,
+.console-chrome-content .status.canceled,
+.console-chrome-content .status.ended,
+.console-chrome-content .status.error {
+  color: var(--jn-ui-red);
+  background: #fff0f1;
+}
+
+/* Forms */
+.console-chrome-content .form-section {
+  border-color: var(--jn-ui-border-soft);
+}
+.console-chrome-content .form-section-title,
+.console-chrome-content .panel-kicker,
+.console-chrome-content .eyebrow {
+  color: #8995a6;
+  letter-spacing: .13em;
+}
+.console-chrome-content label {
+  color: #667387;
+}
+
+/* Empty / loading states */
+.console-chrome-content .empty,
+.console-chrome-content .empty-state {
+  color: #8995a4;
+}
+.console-chrome-content .empty-state strong {
+  color: #4d5a6f;
+}
+
+/* Remove visual duplication from route-local shells while preserving their logic. */
+.console-chrome-content > .app-shell > .sidebar,
+.console-chrome-content > .hybrid-dashboard > .hd-side {
+  display: none !important;
+}
+.console-chrome-content > .app-shell > .content {
+  width: 100% !important;
+  margin-left: 0 !important;
+  max-width: none !important;
+}
+
+/* Dashboard becomes the same product, not a second application. */
+.console-chrome-content > .hybrid-dashboard .hd-main {
+  width: 100% !important;
+}
+.console-chrome-content > .hybrid-dashboard .hd-top {
+  background: #fff;
+  border-bottom-color: var(--jn-ui-border);
+}
+.console-chrome-content > .hybrid-dashboard .hd-body {
+  background: var(--jn-ui-bg);
+}
+.console-chrome-content > .hybrid-dashboard .hd-card {
+  overflow: hidden;
+}
+.console-chrome-content > .hybrid-dashboard .hd-btn {
+  border-radius: 8px;
+}
+.console-chrome-content > .hybrid-dashboard .hd-btn.primary {
+  background: var(--jn-ui-navy) !important;
+  border-color: var(--jn-ui-navy) !important;
+}
+
+/* Mobile: the reference becomes a true app surface rather than a squeezed desktop. */
+@media (max-width: 700px) {
+  .console-chrome-content {
+    min-height: 100svh;
+  }
+
+  .console-chrome-content > .app-shell > .content,
+  .console-chrome-content > .app-shell,
+  .console-chrome-content > .customer-page,
+  .console-chrome-content > .package-page,
+  .console-chrome-content > .purchase-page {
+    width: 100% !important;
+    min-height: 100svh !important;
+    margin: 0 !important;
+  }
+
+  .console-chrome-content > .app-shell > .content {
+    padding: 14px 10px 96px !important;
+  }
+
+  .topbar {
+    padding: 10px 8px 8px;
+    margin-bottom: 9px;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .topbar h1 { font-size: 24px !important; }
+  .topbar .context { font-size: 10px; line-height: 1.45; }
+
+  .top-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .top-actions > * { width: 100%; }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .kpi {
+    min-height: 96px !important;
+    padding: 13px !important;
+    border-radius: 12px !important;
+  }
+
+  .kpi > strong { font-size: 21px !important; }
+
+  .panel {
+    padding: 14px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 2px 14px rgba(20,44,82,.045) !important;
+  }
+
+  .panel-head {
+    gap: 9px;
+  }
+
+  .panel h2 { font-size: 15px !important; }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .console-chrome-content table {
+    min-width: 680px;
+  }
+
+  .customer-layout,
+  .package-layout,
+  .workspace {
+    display: block !important;
+  }
+
+  .customer-layout > *,
+  .package-layout > *,
+  .workspace > * {
+    margin-bottom: 10px;
+  }
+
+  .search-box {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .customer-row {
+    grid-template-columns: 1fr auto !important;
+    gap: 8px !important;
+  }
+
+  .plan-grid,
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+
+  .plan-card {
+    min-height: 150px;
+    border-radius: 12px !important;
+  }
+
+  .device-provisioning .panel-head {
+    flex-direction: column;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-actions {
+    position: sticky;
+    bottom: 74px;
+    z-index: 10;
+    margin-left: -14px;
+    margin-right: -14px;
+    padding: 12px 14px 4px;
+    background: rgba(255,255,255,.96);
+    backdrop-filter: blur(10px);
+  }
+
+  .console-chrome-content > .hybrid-dashboard .hd-top {
+    height: auto !important;
+    min-height: 58px;
+    padding: 10px 14px !important;
+  }
+
+  .console-chrome-content > .hybrid-dashboard .hd-body {
+    padding: 14px 10px 96px !important;
+  }
+
+  .console-chrome-content > .hybrid-dashboard .hd-grid,
+  .console-chrome-content > .hybrid-dashboard .hd-wide {
+    grid-template-columns: 1fr !important;
+    gap: 9px !important;
+  }
+
+  .console-chrome-content > .hybrid-dashboard .hd-kpi {
+    min-height: 96px !important;
+  }
+
+  .console-chrome-content > .hybrid-dashboard .hd-search {
+    display: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .console-chrome-content > .app-shell > .content {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .top-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi {
+    min-height: 91px !important;
+    padding: 11px !important;
+  }
+
+  .kpi > strong { font-size: 19px !important; }
+}
