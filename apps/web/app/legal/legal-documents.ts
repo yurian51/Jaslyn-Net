@@ -156,7 +156,7 @@ export const legalDocuments: LegalDocument[] = [
         'If the Company determines that a personal data incident has occurred, it will investigate, contain, document and remediate the incident and make notifications required by applicable law. Customers must promptly report suspected breaches involving their accounts or data so that coordinated response can begin.'
       ]},
       { title: '13. Regulatory framework', paragraphs: [
-        'For Tanzania-related processing, this Notice is designed with reference to the Personal Data Protection Act, 2022 and applicable regulations and guidance issued by the Personal Data Protection Commission. The Act establishes minimum requirements for collection and processing and recognizes rights and duties for data controllers, processors and data subjects. cite-source',
+        'For Tanzania-related processing, this Notice is designed with reference to the Personal Data Protection Act, 2022 and applicable regulations and guidance issued by the Personal Data Protection Commission. The Act establishes minimum requirements for collection and processing and recognizes rights and duties for data controllers, processors and data subjects.',
         'Nothing in this Notice removes a right or protection that cannot lawfully be excluded.'
       ]}
     ]
