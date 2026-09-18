@@ -53,7 +53,7 @@ export class TrafficCollectorService implements OnModuleInit, OnModuleDestroy {
         const routers = await client.query<RouterRecord>(
           `SELECT id, tenant_id AS "tenantId", api_endpoint AS "apiEndpoint", controller_endpoint AS "controllerEndpoint",
                   management_protocol AS "managementProtocol", capabilities, management_credentials_encrypted AS "managementCredentialsEncrypted"
-           FROM routers WHERE management_enabled=true AND enabled=true AND (api_enabled=true OR controller_endpoint IS NOT NULL) ORDER BY id`,
+           FROM routers WHERE management_enabled=true AND (api_endpoint IS NOT NULL OR controller_endpoint IS NOT NULL) ORDER BY id`,
         );
         for (const router of routers.rows) {
           try { samples += await this.collectRouter(router); }
