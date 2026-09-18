@@ -240,12 +240,13 @@ export class LoadBalancingService {
 
   async addHealthCheck(tenantId: string, wanId: string, dto: WanHealthCheckDto, context: AuditContext = {}) {
     await this.assertWan(tenantId, wanId);
-    if (!['HTTP','HTTPS','TCP','DNS'].includes(dto.method) && !dto.target) throw new BadRequestException('Health-check target is required');
+    const target = dto.target.trim();
+    if (!target) throw new BadRequestException('Health-check target is required');
     const result = await this.db.query(
       `INSERT INTO wan_health_checks (tenant_id,wan_connection_id,method,target,interval_seconds,timeout_ms,failure_threshold,recovery_threshold,enabled)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [tenantId, wanId, dto.method, dto.target.trim(), dto.intervalSeconds ?? 10, dto.timeoutMs ?? 3000, dto.failureThreshold ?? 3, dto.recoveryThreshold ?? 3, dto.enabled ?? true]);
-    await this.audit.record(tenantId, 'WAN_HEALTH_CHECK_CREATED', 'wan_connection', wanId, { healthCheckId: result.rows[0].id, method: dto.method, target: dto.target }, context);
+      [tenantId, wanId, dto.method, target, dto.intervalSeconds ?? 10, dto.timeoutMs ?? 3000, dto.failureThreshold ?? 3, dto.recoveryThreshold ?? 3, dto.enabled ?? true]);
+    await this.audit.record(tenantId, 'WAN_HEALTH_CHECK_CREATED', 'wan_connection', wanId, { healthCheckId: result.rows[0].id, method: dto.method, target }, context);
     return result.rows[0];
   }
 
