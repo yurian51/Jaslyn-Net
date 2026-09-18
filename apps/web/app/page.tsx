@@ -24,7 +24,7 @@ const packages = [
   ['Full Day','Day-pass access','Set duration, speed and access policy from Packages.'],
   ['1 Week','Longer prepaid access','Combine duration, bandwidth and customer rules.'],
 ];
-const pricing = [
+const pricing: Array<[string, string, string, string[]]> = [
   ['Free','For a single router / evaluation','Core control-plane workflows.',['Customers & packages','Vouchers & sessions','RADIUS / AAA foundations','Network operations']],
   ['Operator','For growing WiFi operations','Multi-site operational workflows.',['Everything in Free','More routers and locations','Advanced billing operations','Load balancing & network controls']],
   ['ISP / Enterprise','For larger deployments','Scale around your infrastructure.',['Everything in Operator','Multi-location operations','Advanced integrations','Enterprise support & controls']],
@@ -38,7 +38,7 @@ const faqs = [
   ['Can I manage multiple locations?','Yes. Locations, routers, customers, sessions and operational modules are designed around tenant and multi-site management.'],
 ];
 
-const modules = [
+const modules: Array<[string, string]> = [
   ['Billing','Packages, subscriptions, invoices and revenue workflows.'],
   ['Customers','Accounts, devices and service lifecycle.'],
   ['Hotspot','Captive portal and access policies.'],
