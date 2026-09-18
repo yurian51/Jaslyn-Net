@@ -146,11 +146,23 @@ export class PaymentsService {
     try {
       await client.query('BEGIN');
       let payment: PaymentRecord | undefined;
-      if (input.purchaseId) {
-        const result = await client.query<PaymentRecord>(`SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [tenantId, input.purchaseId]);
+      if (input.paymentId) {
+        const result = await client.query<PaymentRecord>(
+          `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
+          [tenantId, input.paymentId],
+        );
+        payment = result.rows[0];
+      } else if (input.purchaseId) {
+        const result = await client.query<PaymentRecord>(
+          `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+          [tenantId, input.purchaseId],
+        );
         payment = result.rows[0];
       } else if (input.providerReference) {
-        const result = await client.query<PaymentRecord>(`SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND provider=$2 AND provider_reference=$3 FOR UPDATE`, [tenantId, provider, input.providerReference.trim()]);
+        const result = await client.query<PaymentRecord>(
+          `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND provider=$2 AND provider_reference=$3 FOR UPDATE`,
+          [tenantId, provider, input.providerReference.trim()],
+        );
         payment = result.rows[0];
       }
       if (!payment) throw new NotFoundException('Payment could not be resolved');
@@ -163,8 +175,14 @@ export class PaymentsService {
         return { accepted: true, duplicate: false, paymentId: payment.id, alreadySuccessful: true, statePreserved: input.status !== 'SUCCESS' };
       }
 
-      const nextStatus = input.status === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
-      await client.query(`UPDATE payments SET provider_reference=COALESCE($2, provider_reference), status=$3, raw_payload=$4, updated_at=now() WHERE tenant_id=$1 AND id=$5`, [tenantId, input.providerReference?.trim() ?? null, nextStatus, input.payload ?? {}, payment.id]);
+      const nextStatus = input.status;
+      if (nextStatus === 'SUCCESS' && payment.status === 'REFUNDED') {
+        throw new ConflictException('A refunded payment cannot be settled again');
+      }
+      await client.query(
+        `UPDATE payments SET provider_reference=COALESCE($2, provider_reference), status=$3, raw_payload=$4, updated_at=now() WHERE tenant_id=$1 AND id=$5`,
+        [tenantId, input.providerReference?.trim() ?? null, nextStatus, input.payload ?? {}, payment.id],
+      );
 
       if (nextStatus === 'SUCCESS' && payment.purchaseId) {
         const purchase = await client.query(`SELECT id, package_id, customer_id, router_id, status FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.purchaseId]);
@@ -231,6 +249,28 @@ export class PaymentsService {
       if (nextStatus === 'FAILED' && payment.purchaseId) {
         await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='PENDING_PAYMENT'`, [tenantId, payment.purchaseId]);
       }
+
+      if (nextStatus === 'REFUNDED' && payment.purchaseId) {
+        const successfulSibling = await client.query(
+          `SELECT 1 FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='SUCCESS' AND id<>$3 LIMIT 1`,
+          [tenantId, payment.purchaseId, payment.id],
+        );
+        if (!successfulSibling.rowCount) {
+          await client.query(
+            `UPDATE wifi_plan_purchases
+             SET status='REFUNDED', updated_at=now()
+             WHERE tenant_id=$1 AND id=$2 AND status IN ('PENDING_PAYMENT','PAID','ACTIVE')`,
+            [tenantId, payment.purchaseId],
+          );
+          await client.query(
+            `UPDATE access_grants
+             SET status='REVOKED', updated_at=now()
+             WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('PENDING','ACTIVE')`,
+            [tenantId, payment.purchaseId],
+          );
+        }
+      }
+
       await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
       await client.query('COMMIT');
       return { accepted: true, duplicate: false, paymentId: payment.id };
