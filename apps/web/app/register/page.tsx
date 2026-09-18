@@ -35,7 +35,7 @@ export default function RegisterPage() {
   return (
     <main className="auth-page">
       <section className="auth-shell" aria-label="Create Jaslyn Net workspace">
-        <div className="auth-brand-block"><div className="auth-mark">J</div><div><strong>JASLYN NET</strong><span>Connectivity operations platform</span></div></div>
+        <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-net-primary.svg" alt="JASLYN NET — Supreme Hybrid Network Operating Engine" /></div>
         <div className="auth-layout">
           <div className="auth-intro"><span className="auth-kicker">NEW OPERATIONS WORKSPACE</span><h1>Put your network<br />under one control plane.</h1><p>Create a tenant workspace for subscribers, packages, network devices, sessions, billing and operations.</p><div className="auth-capabilities"><span><i /> Tenant-isolated operations</span><span><i /> Network and billing control</span><span><i /> Secure operator identity</span></div></div>
           <form className="auth-card" onSubmit={submit} noValidate>
