@@ -7,7 +7,7 @@ import { getAccessToken } from '../../lib/auth';
 type FiberLine={id:string;name:string;customerName?:string;technology:string;serviceStatus:string;upstreamBps?:number|null;downstreamBps?:number|null;installationAddress?:string|null};
 type Page={data:FiberLine[];pagination:{total:number}};
 const rate=(bps?:number|null)=>bps==null?'—':Math.round(bps/1000000)+' Mbps';
-const headers=()=>{const t=getAccessToken();return t?{Authorization:'Bearer '+t}:{}};
+const headers=(): Record<string,string>=>{const t=getAccessToken();return t?{Authorization:'Bearer '+t}:{} };
 
 export default function FiberPage(){
  const [data,setData]=useState<Page|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState<string|null>(null);
