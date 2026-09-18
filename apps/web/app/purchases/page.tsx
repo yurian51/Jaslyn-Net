@@ -42,7 +42,7 @@ export default function PurchasesPage() {
       const available = (methods.data ?? FALLBACK_PAYMENT_PROVIDERS).filter(item => item.enabled);
       const operational = available.length ? available : FALLBACK_PAYMENT_PROVIDERS;
       setProviders(operational);
-      if (!available.some(item => item.code === provider && item.enabled)) setProvider('manual');
+      if (!available.some(item => item.code === provider && item.enabled)) setProvider(operational[0]?.code ?? 'manual');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load purchase operations.');
     } finally { setLoading(false); }
