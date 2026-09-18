@@ -14,11 +14,17 @@ export class PurchasesService {
 
   async list(tenantId: string, customerId?: string) {
     const result = await this.db.query(
-      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, pay.provider, ag.status AS "accessStatus", p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
        FROM wifi_plan_purchases p
        JOIN customers c ON c.tenant_id = p.tenant_id AND c.id = p.customer_id
        JOIN packages k ON k.tenant_id = p.tenant_id AND k.id = p.package_id
        LEFT JOIN access_grants ag ON ag.tenant_id = p.tenant_id AND ag.purchase_id = p.id
+       LEFT JOIN LATERAL (
+         SELECT provider FROM payments
+         WHERE tenant_id = p.tenant_id AND purchase_id = p.id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) pay ON true
        WHERE p.tenant_id = $1 AND ($2::uuid IS NULL OR p.customer_id = $2)
        ORDER BY p.created_at DESC
        LIMIT 200`,
@@ -29,11 +35,17 @@ export class PurchasesService {
 
   async get(tenantId: string, id: string) {
     const result = await this.db.query(
-      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, pay.provider, ag.status AS "accessStatus", p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
        FROM wifi_plan_purchases p
        JOIN customers c ON c.tenant_id = p.tenant_id AND c.id = p.customer_id
        JOIN packages k ON k.tenant_id = p.tenant_id AND k.id = p.package_id
        LEFT JOIN access_grants ag ON ag.tenant_id = p.tenant_id AND ag.purchase_id = p.id
+       LEFT JOIN LATERAL (
+         SELECT provider FROM payments
+         WHERE tenant_id = p.tenant_id AND purchase_id = p.id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) pay ON true
        WHERE p.tenant_id = $1 AND p.id = $2`,
       [tenantId, id],
     );
