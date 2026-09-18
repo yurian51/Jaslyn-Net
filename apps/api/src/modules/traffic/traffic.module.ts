@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AuditModule } from '../../audit/audit.module';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
@@ -13,13 +12,10 @@ import { TrafficOrchestratorController } from './traffic-orchestrator.controller
 import { TrafficCollectorService } from './traffic-collector.service';
 import { NetworkCommandService } from './network-command.service';
 import { NetworkCommandController } from './network-command.controller';
-import { LoadBalancingController } from './load-balancing.controller';
-import { LoadBalancingEngine } from './load-balancing.engine';
-import { LoadBalancingService } from './load-balancing.service';
+import { NetworkCommandWorkerService } from './network-command-worker.service';
 
 @Module({
-  imports: [AuditModule],
-  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController, LoadBalancingController],
+  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController],
   providers: [
     SecureNetworkCredentials,
     FairnessService,
@@ -28,8 +24,6 @@ import { LoadBalancingService } from './load-balancing.service';
     MikroTikTrafficEnforcementAdapter,
     MerakiTrafficEnforcementAdapter,
     NetworkDeviceAdapterRegistry,
-    LoadBalancingEngine,
-    LoadBalancingService,
     {
       provide: TrafficEnforcementService,
       useFactory: (
@@ -45,16 +39,8 @@ import { LoadBalancingService } from './load-balancing.service';
     },
     TrafficOrchestratorService,
     TrafficCollectorService,
+    NetworkCommandWorkerService,
   ],
-  exports: [
-    FairnessService,
-    TrafficEnforcementService,
-    TrafficSamplesService,
-    TrafficOrchestratorService,
-    NetworkDeviceAdapterRegistry,
-    NetworkCommandService,
-    LoadBalancingEngine,
-    LoadBalancingService,
-  ],
+  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService],
 })
 export class TrafficModule {}
