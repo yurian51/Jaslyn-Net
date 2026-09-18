@@ -6,9 +6,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { apiFetch } from '../lib/api';
 
-type IconName = 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings';
+type IconName = 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
+  ['Account & Workspace', 'account', '/account'],
   ['Overview', 'overview', '/dashboard'],
   ['Customers', 'customers', '/customers'],
   ['Sessions', 'sessions', '/sessions'],
@@ -34,6 +35,7 @@ const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
   ['Commercial', ['/purchases', '/payments', '/vouchers', '/packages']],
   ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
+  ['Workspace', ['/account', '/settings']],
 ];
 
 const publicRoutes = new Set(['/', '/login', '/register']);
@@ -42,6 +44,7 @@ const isRouteActive = (pathname: string, href: string) => pathname === href || p
 
 function NavIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
+    account: <><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c.7-3.2 3.1-5 7.5-5s6.8 1.8 7.5 5" /></>,
     overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
     customers: <><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c.7-3.2 3.1-5 7.5-5s6.8 1.8 7.5 5" /></>,
     sessions: <><path d="M7 7h10" /><path d="M7 12h10" /><path d="M7 17h6" /><circle cx="4" cy="7" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="4" cy="17" r="1" fill="currentColor" stroke="none" /></>,
@@ -146,6 +149,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
             <Link href="/purchases" role="menuitem"><NavIcon name="purchases" /><span>Purchase & Access</span></Link>
             <Link href="/network" role="menuitem"><NavIcon name="network" /><span>Network</span></Link>
             <Link href="/notifications" role="menuitem"><NavIcon name="notifications" /><span>Notifications</span></Link>
+            <Link href="/account" role="menuitem"><NavIcon name="account" /><span>Account & Workspace</span></Link>
             <Link href="/settings" role="menuitem"><NavIcon name="settings" /><span>Settings</span></Link>
           </div>
         )}
@@ -158,7 +162,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
         })}
         <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span>•••</span><b>More</b><i className="console-mobile-dot" aria-hidden="true" /></button>
         <Link key="mobile-quick-scan" className="console-mobile-scan" href="/purchases" aria-label="Quick purchase and access" title="Quick purchase and access"><span aria-hidden="true">+</span></Link>
-        {moreOpen && <div className="console-chrome-more"><div className="console-chrome-more-title">JASLYN NET · OPERATIONS</div>{mobileMoreGroups.map(([group, hrefs]) => <div className="console-chrome-more-group" key={group}><div className="console-chrome-more-group-title">{group}</div>{hrefs.map(href => { const item = nav.find(([, , itemHref]) => itemHref === href); if (!item) return null; const [label, icon] = item; const active = isRouteActive(pathname, href); return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>; })}</div>)}<div className="console-chrome-more-group"><div className="console-chrome-more-group-title">Workspace</div><Link href="/settings" className={isRouteActive(pathname, '/settings') ? 'active' : ''} aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link></div></div>}
+        {moreOpen && <div className="console-chrome-more"><div className="console-chrome-more-title">JASLYN NET · OPERATIONS</div>{mobileMoreGroups.map(([group, hrefs]) => <div className="console-chrome-more-group" key={group}><div className="console-chrome-more-group-title">{group}</div>{hrefs.map(href => { const item = nav.find(([, , itemHref]) => itemHref === href); if (!item) return null; const [label, icon] = item; const active = isRouteActive(pathname, href); return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>; })}</div>)}<div className="console-chrome-more-group"><div className="console-chrome-more-group-title">Workspace</div><Link href="/account" className={isRouteActive(pathname, '/account') ? 'active' : ''} aria-current={isRouteActive(pathname, '/account') ? 'page' : undefined}><span><NavIcon name="account" /></span><b>Account & Workspace</b></Link><Link href="/settings" className={isRouteActive(pathname, '/settings') ? 'active' : ''} aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link></div></div>}
       </nav>
     </div>
   );

@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AccountModule } from './account/account.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
@@ -25,6 +26,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    AccountModule,
     AuditModule,
     AuthModule,
     HealthModule,
