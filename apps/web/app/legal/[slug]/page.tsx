@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { legalDocumentMap, legalDocuments } from '../legal-documents';
-import '../legal.css';
 
 export function generateStaticParams() {
   return legalDocuments.map((document) => ({ slug: document.slug }));
