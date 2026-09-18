@@ -7,6 +7,7 @@ import { NetworkCredentials, SecureNetworkCredentials } from '../common/secure-n
 import { NetworkCommandService } from '../modules/traffic/network-command.service';
 import { TrafficEnforcementService } from '../modules/traffic/enforcement.service';
 import { NetworkDisconnectCommand } from '../modules/traffic/enforcement.adapter';
+import { getCorrelationId } from '../common/correlation-context';
 
 type DatabaseError = { code?: string };
 type SessionStatus = 'ACTIVE' | 'STALE' | 'ENDED';
@@ -64,6 +65,7 @@ export class SessionsService {
   }
 
   async start(tenantId: string, input: StartSessionDto, auditContext: AuditContext = {}) {
+    const correlationId = getCorrelationId() ?? `session:${input.customerId ?? input.username ?? 'anonymous'}`;
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
@@ -94,12 +96,12 @@ export class SessionsService {
       }
       try {
         const result = await client.query(
-          `INSERT INTO sessions (tenant_id, customer_id, router_id, username, ip_address, mac_address)
-           VALUES ($1,$2,$3,$4,$5,$6)
+          `INSERT INTO sessions (tenant_id, customer_id, router_id, username, ip_address, mac_address, correlation_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)
            RETURNING id, customer_id AS "customerId", router_id AS "routerId", username,
                      ip_address AS "ipAddress", mac_address::text AS "macAddress", started_at AS "startedAt",
                      status, bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal"`,
-          [tenantId, input.customerId ?? null, input.routerId ?? null, input.username?.trim() || null, input.ipAddress ?? null, input.macAddress ?? null],
+          [tenantId, input.customerId ?? null, input.routerId ?? null, input.username?.trim() || null, input.ipAddress ?? null, input.macAddress ?? null, correlationId],
         );
         const session = result.rows[0];
         await this.resetRouterActiveUsers(client, tenantId, input.routerId ? [input.routerId] : []);
