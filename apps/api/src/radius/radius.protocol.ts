@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export type RadiusAttribute = { type: number; value: Buffer };
 export type RadiusPacket = { code: number; identifier: number; authenticator: Buffer; attributes: RadiusAttribute[] };
