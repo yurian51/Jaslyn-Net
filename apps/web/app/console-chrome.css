@@ -517,3 +517,5 @@ html[data-jn-reduce-motion="true"] *,html[data-jn-reduce-motion="true"] *::befor
   .mobile-nav-preview{gap:3px}.mobile-nav-preview div{min-height:54px;font-size:6px}.setting-row{gap:10px}.setting-row small{font-size:7px}.setting-row select{min-width:120px}
 }
 @media(max-width:380px){.settings-header h1{font-size:22px}.setting-row{align-items:flex-start}.setting-row select{height:34px}.settings-save{right:10px;bottom:88px}}
+
+.console-chrome-more-group{display:grid;gap:4px;margin-top:7px}.console-chrome-more-group:first-of-type{margin-top:0}.console-chrome-more-group-title{padding:5px 8px 3px;color:#60728c;font-size:7px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
