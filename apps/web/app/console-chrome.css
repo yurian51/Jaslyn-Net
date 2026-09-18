@@ -1,4 +1,27 @@
 /* Jaslyn Net operations console: restrained NOC styling, not dashboard cosplay. */
+.console-legal-alert {
+  position: fixed;
+  top: 12px;
+  right: 18px;
+  z-index: 120;
+  width: min(520px, calc(100vw - 36px));
+  min-height: 58px;
+  padding: 10px 12px 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid #d9e1ec;
+  border-left: 3px solid #2563eb;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15,23,42,.12);
+}
+.console-legal-alert > span { min-width: 0; display: block; }
+.console-legal-alert strong { display: block; color: #172235; font-size: 11px; }
+.console-legal-alert small { display: block; margin-top: 3px; color: #738196; font-size: 9px; line-height: 1.4; }
+.console-legal-alert a { margin-left: auto; flex: 0 0 auto; padding: 8px 10px; border-radius: 7px; color: #fff; background: #2563eb; font-size: 9px; font-weight: 750; text-decoration: none; }
+.console-legal-alert a:hover { background: #1d4ed8; }
+
 .console-chrome-frame {
   --console-sidebar: 264px;
   --console-bg: #f5f7fa;
