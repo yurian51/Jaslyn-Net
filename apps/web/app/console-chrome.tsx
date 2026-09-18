@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { apiFetch } from '../lib/api';
 
-type IconName = 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'vouchers' | 'packages' | 'incidents' | 'audit';
+type IconName = 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'incidents' | 'audit';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Overview', 'overview', '/dashboard'],
@@ -19,8 +19,11 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['WAN & Load Balancing', 'loadBalancing', '/load-balancing'],
   ['ISP Operations', 'isp', '/isp'],
   ['Purchases', 'purchases', '/purchases'],
+  ['Payments', 'payments', '/payments'],
   ['Vouchers', 'vouchers', '/vouchers'],
   ['Plans & Products', 'packages', '/packages'],
+  ['Network Commands', 'networkCommands', '/network-commands'],
+  ['Notifications', 'notifications', '/notifications'],
   ['Incident Center', 'incidents', '/incidents'],
   ['Security & Audit', 'audit', '/audit'],
 ];
@@ -41,8 +44,11 @@ function NavIcon({ name }: { name: IconName }) {
     loadBalancing: <><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M8 7.5 16 16.5M18 8v4M18 12l-3-3M18 12l3-3M6 16v-4M6 12l-3 3M6 12l3 3" /></>,
     isp: <><path d="M4 18h16" /><path d="M7 18V9l5-4 5 4v9" /><path d="M10 18v-5h4v5" /><path d="M9 9h.01M15 9h.01" /></>,
     purchases: <><path d="M5 7h14l-1 13H6L5 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /><path d="M9 11h.01M15 11h.01" /></>,
+    payments: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18M7 15h4" /></>,
     vouchers: <><path d="M4 7h16v10H4z" /><path d="M8 7v10M16 7v10" /><path d="M10 10h4M10 14h2" /></>,
     packages: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.8 12 12l7.5-4.2M12 12v9" /></>,
+    networkCommands: <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/></>,
+    notifications: <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
     incidents: <><path d="M12 3 21 20H3L12 3Z" /><path d="M12 9v5" /><path d="M12 17h.01" /></>,
     audit: <><path d="M6 3h9l3 3v15H6V3Z" /><path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" /></>,
   };
