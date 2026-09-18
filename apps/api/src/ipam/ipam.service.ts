@@ -49,20 +49,21 @@ export class IpamService {
 
   async createPool(tenantId: string, dto: CreateIpamPoolDto) {
     const network = dto.network.trim();
-    const overlap = await this.db.query(
-      `SELECT id,name,network::text AS network FROM ipam_pools
-       WHERE tenant_id=$1 AND network && $2::cidr
-       LIMIT 1`,
-      [tenantId, network],
-    );
+    let overlap;
+    try {
+      overlap = await this.db.query(
+        `SELECT id,name,network::text AS network FROM ipam_pools
+         WHERE tenant_id=$1 AND network && $2::cidr
+         LIMIT 1`,
+        [tenantId, network],
+      );
+    } catch (error: unknown) {
+      if ((error as { code?: string }).code === '22P02') throw new BadRequestException('Invalid CIDR network');
+      throw error;
+    }
     if (overlap.rowCount) throw new ConflictException(`IPAM network overlaps existing pool ${overlap.rows[0].name} (${overlap.rows[0].network})`);
 
     if (dto.gateway) {
-      const gateway = await this.db.query(
-        `SELECT ($2::inet <<= network) AS contained FROM ipam_pools WHERE tenant_id=$1 AND false`,
-        [tenantId, dto.gateway],
-      );
-      void gateway;
       try {
         const validation = await this.db.query(`SELECT ($1::inet <<= $2::cidr) AS contained`, [dto.gateway, network]);
         if (!validation.rows[0].contained) throw new BadRequestException('Gateway must belong to the pool network');
