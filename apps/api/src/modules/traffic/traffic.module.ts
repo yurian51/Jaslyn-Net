@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
+import { AuditModule } from '../../audit/audit.module';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
 import { MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
@@ -13,9 +14,13 @@ import { TrafficCollectorService } from './traffic-collector.service';
 import { NetworkCommandService } from './network-command.service';
 import { NetworkCommandController } from './network-command.controller';
 import { NetworkCommandWorkerService } from './network-command-worker.service';
+import { LoadBalancingController } from './load-balancing.controller';
+import { LoadBalancingService } from './load-balancing.service';
+import { LoadBalancingEngine } from './load-balancing.engine';
 
 @Module({
-  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController],
+  imports: [AuditModule],
+  controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController, LoadBalancingController],
   providers: [
     SecureNetworkCredentials,
     FairnessService,
@@ -40,7 +45,9 @@ import { NetworkCommandWorkerService } from './network-command-worker.service';
     TrafficOrchestratorService,
     TrafficCollectorService,
     NetworkCommandWorkerService,
+    LoadBalancingEngine,
+    LoadBalancingService,
   ],
-  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService],
+  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService, LoadBalancingService],
 })
 export class TrafficModule {}
