@@ -207,7 +207,7 @@ export class LoadBalancingService {
         try {
           const credentials = this.secureCredentials.decrypt(row.credentialsEncrypted as string);
           const adapter = new MikrotikWanRoutingAdapter(row.apiEndpoint as string, credentials);
-          const targets = status.policy.members.map((member) => ({
+          const targets = (status.policy.members as WanMemberState[]).map((member) => ({
             wanConnectionId: member.id as string,
             interfaceName: member.interfaceName as string | null,
             gateway: member.gateway as string | null,
