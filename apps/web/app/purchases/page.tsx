@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getAccessToken } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 
-type Purchase = { id: string; customerId: string; customerName: string; packageId: string; packageName: string; routerId?: string | null; price: string | number; currency: string; status: string; startsAt?: string | null; endsAt?: string | null; createdAt: string };
+type Purchase = { id: string; customerId: string; customerName: string; packageId: string; packageName: string; routerId?: string | null; price: string | number; currency: string; status: string; provider?: string | null; accessStatus?: string | null; startsAt?: string | null; endsAt?: string | null; createdAt: string };
 type PaymentProvider = { code: string; name: string; subtitle: string; logoUrl?: string; fallback: string; tone: string; category: string; countries: string[]; currencies: string[]; directIntegration: boolean; webhookSupported: boolean; reconciliationSupported: boolean; configured: boolean; enabled: boolean };
 
 const FALLBACK_PAYMENT_PROVIDERS: PaymentProvider[] = [
@@ -80,13 +80,16 @@ export default function PurchasesPage() {
     const needle = query.trim().toLowerCase();
     const matchesQuery = !needle || [row.customerName, row.customerId, row.packageName, row.id, row.currency].some(value => String(value).toLowerCase().includes(needle));
     const matchesStatus = statusFilter === 'ALL' || row.status.toUpperCase() === statusFilter;
-    return matchesQuery && matchesStatus;
+    const matchesPayment = paymentMethod === 'ALL' || String(row.provider ?? '').toLowerCase() === paymentMethod.toLowerCase();
+    return matchesQuery && matchesStatus && matchesPayment;
   });
   const paidCount = rows.filter(row => ['PAID', 'SUCCESS', 'ACTIVE'].includes(row.status.toUpperCase())).length;
   const pendingCount = rows.filter(row => row.status.toUpperCase().includes('PENDING')).length;
   const failedCount = rows.filter(row => ['FAILED', 'CANCELED', 'CANCELLED'].includes(row.status.toUpperCase())).length;
   const activeCount = rows.filter(row => row.status.toUpperCase() === 'ACTIVE').length;
-  const totalValue = rows.filter(row => ['PAID', 'SUCCESS', 'ACTIVE'].includes(row.status.toUpperCase())).reduce((sum, row) => sum + Number(row.price || 0), 0);
+  const paidRows = rows.filter(row => ['PAID', 'SUCCESS', 'ACTIVE'].includes(row.status.toUpperCase()));
+  const paidCurrencies = Array.from(new Set(paidRows.map(row => row.currency))).filter(Boolean);
+  const totalValue = paidRows.reduce((sum, row) => sum + Number(row.price || 0), 0);
   const detail = rows.find(row => row.id === detailId);
   return <main className="purchase-page"><header><div className="eyebrow">JASLYN NET / COMMERCIAL OPERATIONS</div><h1>Purchases & Access</h1><p>Track plan purchases, payment confirmation and customer access lifecycle.</p></header><section className="purchase-summary">
   <div className="purchase-summary-icon">▱</div>
@@ -105,7 +108,7 @@ export default function PurchasesPage() {
       <div><span>Pending</span><strong>{pendingCount}</strong></div>
       <div><span>Failed</span><strong>{failedCount}</strong></div>
       <div><span>Active access</span><strong>{activeCount}</strong></div>
-      <div><span>Paid value</span><strong>TZS {totalValue.toLocaleString()}</strong></div>
+      <div><span>Paid value</span><strong>{paidCurrencies.length === 1 ? `${paidCurrencies[0]} ${totalValue.toLocaleString()}` : paidCurrencies.length > 1 ? `${paidCurrencies.length} currencies` : '—'}</strong></div>
     </div>
     <div className="ledger-toolbar">
       <label className="purchase-search"><span aria-hidden="true">⌕</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search customer, phone, package or transaction…" aria-label="Search purchases" /></label>
@@ -128,9 +131,9 @@ export default function PurchasesPage() {
           const access = row.status.toUpperCase() === 'ACTIVE' ? 'ACTIVE' : row.endsAt && new Date(row.endsAt).getTime() > Date.now() ? 'GRANTED' : '—';
           return <tr key={row.id} onClick={() => setDetailId(row.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailId(row.id); } }} tabIndex={0} aria-selected={detailId === row.id} className={detailId === row.id ? 'selected' : ''}>
             <td><strong>{row.customerName}</strong><small>{row.customerId.slice(0, 10)}…</small></td>
-            <td>{row.packageName}</td><td><strong>{row.currency} {Number(row.price).toLocaleString()}</strong></td>
+            <td>{row.packageName}<small>{row.provider ? row.provider.replaceAll('_', ' ') : 'Payment provider not recorded'}</small></td><td><strong>{row.currency} {Number(row.price).toLocaleString()}</strong></td>
             <td><span className={`status ${row.status.toLowerCase()}`}>{row.status.replaceAll('_', ' ')}</span></td>
-            <td><span className={`access-state ${access.toLowerCase()}`}><i />{access}</span></td><td>{date(row.createdAt)}</td>
+            <td><span className={`access-state ${String(row.accessStatus ?? access).toLowerCase()}`}><i />{row.accessStatus ?? access}</span></td><td>{date(row.createdAt)}</td>
             <td><button type="button" className="row-view" onClick={e => { e.stopPropagation(); setDetailId(row.id); }}>View</button></td>
           </tr>;
         })}</tbody>
