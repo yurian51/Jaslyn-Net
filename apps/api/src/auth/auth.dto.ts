@@ -23,6 +23,12 @@ export class RegisterDto {
   acceptPrivacy!: boolean;
 }
 
+export class LegalAcceptanceDto {
+  @IsString()
+  @IsIn(['TERMS_OF_USE', 'PRIVACY_NOTICE'])
+  documentType!: 'TERMS_OF_USE' | 'PRIVACY_NOTICE';
+}
+
 export class LoginDto {
   @IsEmail()
   email!: string;
