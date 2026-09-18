@@ -205,7 +205,7 @@ export class PurchasesService {
         uploadBps: plan.upload_bps,
       });
       await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
-      await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
+      await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
       await client.query('COMMIT');
       return { purchase: await this.get(tenantId, purchaseId), paymentId };
     } catch (error: any) {
