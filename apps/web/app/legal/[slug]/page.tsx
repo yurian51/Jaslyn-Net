@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { legalDocumentMap, legalDocuments } from '../legal-documents';
+import LegalAcceptance from '../legal-acceptance';
 
 export function generateStaticParams() {
   return legalDocuments.map((document) => ({ slug: document.slug }));
@@ -31,7 +32,7 @@ export default async function LegalDocumentPage({ params }: { params: Promise<{ 
         <div className="legal-meta"><span>Effective: {document.effectiveDate}</span><span>Owner: YURIAN TECH LTD</span></div>
       </div>
       <aside className="legal-notice"><strong>Important</strong><span>This document is part of the JASLYN NET service terms. It is written for operational use and should be read with any signed order, applicable service-specific agreement and mandatory law.</span></aside>
-      <div className="legal-content">
+      {(document.slug === 'terms' || document.slug === 'privacy') && <LegalAcceptance documentType={document.slug === 'terms' ? 'TERMS_OF_USE' : 'PRIVACY_NOTICE'} documentVersion="2026-09-18" />}\n      <div className="legal-content">
         {document.sections.map((section) => <section key={section.title}>
           <h2>{section.title}</h2>
           {section.paragraphs?.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
