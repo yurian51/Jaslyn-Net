@@ -8,6 +8,7 @@ import './overview.css';
 import './auth.css';
 import './legal/legal.css';
 import './console-system-ui.css';
+import './landing.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
