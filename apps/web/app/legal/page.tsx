@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { legalDocuments } from './legal-documents';
-import './legal.css';
 
 export const metadata = {
   title: 'Legal Center | JASLYN NET',
