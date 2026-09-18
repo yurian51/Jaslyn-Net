@@ -103,10 +103,10 @@ export class VouchersService {
         [tenantId,input.customerId,v.package_id,input.routerId??null,v.price,v.currency,v.duration_seconds],
       );
       await client.query(
-        `INSERT INTO access_grants(tenant_id,purchase_id,customer_id,router_id,status,starts_at,ends_at)
-         VALUES($1,$2,$3,$4,'ACTIVE',(SELECT starts_at FROM wifi_plan_purchases WHERE id=$2),(SELECT ends_at FROM wifi_plan_purchases WHERE id=$2))
-         ON CONFLICT(purchase_id) DO UPDATE SET status='ACTIVE',starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,updated_at=now()`,
-        [tenantId,purchase.rows[0].id,input.customerId,input.routerId??null],
+        `INSERT INTO access_grants(tenant_id,purchase_id,customer_id,router_id,status,starts_at,ends_at,device_limit)
+         VALUES($1,$2,$3,$4,'ACTIVE',(SELECT starts_at FROM wifi_plan_purchases WHERE id=$2),(SELECT ends_at FROM wifi_plan_purchases WHERE id=$2),$5)
+         ON CONFLICT(purchase_id) DO UPDATE SET status='ACTIVE',starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,device_limit=EXCLUDED.device_limit,updated_at=now()`,
+        [tenantId,purchase.rows[0].id,input.customerId,input.routerId??null,v.device_limit],
       );
       await client.query('UPDATE vouchers SET status=\'USED\',used_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,v.id]);
       await client.query('COMMIT');
