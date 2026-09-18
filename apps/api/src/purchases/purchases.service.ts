@@ -15,7 +15,7 @@ export class PurchasesService {
 
   async list(tenantId: string, customerId?: string) {
     const result = await this.db.query(
-      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, pay.provider, ag.status AS "accessStatus", p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+      `SELECT p.id, p.customer_id AS "customerId", c.full_name AS "customerName", p.package_id AS "packageId", k.name AS "packageName", p.router_id AS "routerId", p.price, p.currency, p.status, p.correlation_id AS "correlationId", pay.provider, ag.status AS "accessStatus", p.starts_at AS "startsAt", p.ends_at AS "endsAt", ag.network_policy AS "networkPolicy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
        FROM wifi_plan_purchases p
        JOIN customers c ON c.tenant_id = p.tenant_id AND c.id = p.customer_id
        JOIN packages k ON k.tenant_id = p.tenant_id AND k.id = p.package_id
