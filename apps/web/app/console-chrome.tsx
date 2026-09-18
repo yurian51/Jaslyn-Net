@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { apiFetch } from '../lib/api';
 
-type IconName = 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit';
+type IconName = 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Overview', 'overview', '/dashboard'],
@@ -27,6 +27,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Notifications', 'notifications', '/notifications'],
   ['Incident Center', 'incidents', '/incidents'],
   ['Security & Audit', 'audit', '/audit'],
+  ['Settings', 'settings', '/settings'],
 ];
 
 const publicRoutes = new Set(['/login', '/register']);
@@ -53,6 +54,7 @@ function NavIcon({ name }: { name: IconName }) {
     radius: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" /></>,
     incidents: <><path d="M12 3 21 20H3L12 3Z" /><path d="M12 9v5" /><path d="M12 17h.01" /></>,
     audit: <><path d="M6 3h9l3 3v15H6V3Z" /><path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05-1.41 1.41-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V20h-2v-.32a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05-1.41-1.41.05-.05A1.8 1.8 0 0 0 9.2 15a1.8 1.8 0 0 0-1.65-1.09H7v-2h.32A1.8 1.8 0 0 0 8.97 10a1.8 1.8 0 0 0-.36-1.98l-.05-.05 1.41-1.41.05.05A1.8 1.8 0 0 0 12 6.25V6h2v.32A1.8 1.8 0 0 0 15.09 7.97a1.8 1.8 0 0 0 1.98-.36l.05-.05 1.41 1.41-.05.05A1.8 1.8 0 0 0 18.83 11H19v2h-.32A1.8 1.8 0 0 0 17.03 15Z" /></>,
   };
 
   return <svg className="console-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
@@ -118,14 +120,25 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong><img src="/brand/file_000000006450821195473e1e14153e8a.svg" alt="" /></strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
+      <header className="console-mobile-header">
+        <Link href="/dashboard" className="console-mobile-brand" aria-label="JASLYN NET overview">
+          <span><img src="/brand/file_000000006450821195473e1e14153e8a.svg" alt="" /></span>
+          <strong>JASLYN NET</strong>
+        </Link>
+        <div className="console-mobile-header-actions">
+          <Link href="/notifications" aria-label="Notifications"><NavIcon name="notifications" /></Link>
+          <Link href="/settings" aria-label="Settings"><NavIcon name="settings" /></Link>
+        </div>
+      </header>
       <div className="console-chrome-content">{children}</div>
       <nav className="console-chrome-mobile" aria-label="Mobile operations navigation">
-        {nav.slice(0, 4).map(([label, icon, href]) => {
+        {nav.filter(([, , href]) => ['/dashboard', '/customers', '/sessions', '/network'].includes(href)).map(([label, icon, href]) => {
           const active = isRouteActive(pathname, href);
           return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>;
         })}
         <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span>•••</span><b>More</b></button>
-        {moreOpen && <div className="console-chrome-more">{nav.slice(4).map(([label, icon, href]) => <Link key={href} href={href} aria-current={isRouteActive(pathname, href) ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>)}</div>}
+        <Link key="settings-mobile" className={isRouteActive(pathname, '/settings') ? 'active' : ''} href="/settings" aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link>
+        {moreOpen && <div className="console-chrome-more"><div className="console-chrome-more-title">JASLYN NET · OPERATIONS</div>{nav.filter(([, , href]) => !['/dashboard', '/customers', '/sessions', '/network', '/settings'].includes(href)).map(([label, icon, href]) => <Link key={href} href={href} aria-current={isRouteActive(pathname, href) ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>)}<Link href="/settings" className={isRouteActive(pathname, '/settings') ? 'active' : ''} aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link></div>}
       </nav>
     </div>
   );
