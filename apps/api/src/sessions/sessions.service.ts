@@ -65,7 +65,7 @@ export class SessionsService {
   }
 
   async start(tenantId: string, input: StartSessionDto, auditContext: AuditContext = {}) {
-    const correlationId = getCorrelationId() ?? `session:${input.customerId ?? input.username ?? 'anonymous'}`;
+    let correlationId = getCorrelationId() ?? null;
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
@@ -74,7 +74,7 @@ export class SessionsService {
         if (!customer.rowCount) throw new NotFoundException('Customer not found');
 
         const entitlement = await client.query(
-          `SELECT id
+          `SELECT id, correlation_id AS "correlationId"
            FROM access_grants
            WHERE tenant_id=$1
              AND customer_id=$2
@@ -89,19 +89,21 @@ export class SessionsService {
           [tenantId, input.customerId, input.routerId ?? null],
         );
         if (!entitlement.rowCount) throw new ForbiddenException('Active access entitlement required before starting a customer session');
+        correlationId ??= entitlement.rows[0]?.correlationId ?? null;
       }
       if (input.routerId) {
         const router = await client.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, input.routerId]);
         if (!router.rowCount) throw new NotFoundException('Router not found');
       }
       try {
+        const effectiveCorrelationId = correlationId ?? `session:${input.customerId ?? input.username ?? 'anonymous'}`;
         const result = await client.query(
           `INSERT INTO sessions (tenant_id, customer_id, router_id, username, ip_address, mac_address, correlation_id)
            VALUES ($1,$2,$3,$4,$5,$6,$7)
            RETURNING id, customer_id AS "customerId", router_id AS "routerId", username,
                      ip_address AS "ipAddress", mac_address::text AS "macAddress", started_at AS "startedAt",
                      status, bytes_in AS "bytesIn", bytes_out AS "bytesOut", bytes_total AS "bytesTotal"`,
-          [tenantId, input.customerId ?? null, input.routerId ?? null, input.username?.trim() || null, input.ipAddress ?? null, input.macAddress ?? null, correlationId],
+          [tenantId, input.customerId ?? null, input.routerId ?? null, input.username?.trim() || null, input.ipAddress ?? null, input.macAddress ?? null, effectiveCorrelationId],
         );
         const session = result.rows[0];
         await this.resetRouterActiveUsers(client, tenantId, input.routerId ? [input.routerId] : []);
