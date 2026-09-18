@@ -129,4 +129,49 @@ describe('PaymentsService', () => {
     expect(eventClient.release).toHaveBeenCalled();
     expect(db.connect).toHaveBeenCalledTimes(1);
   });
+
+
+  it('resolves legacy webhook delivery by payment id and accepts REFUNDED lifecycle state', async () => {
+    const secret = 'test-webhook-secret';
+    const rawBody = Buffer.from('{"event":"payment.refunded","paymentId":"pay-1"}');
+    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const eventClient = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
+        if (sql.includes('INSERT INTO payment_events')) return { rowCount: 1, rows: [{ id: 'event-1' }] };
+        if (sql.includes('UPDATE payment_events SET payment_id')) return { rowCount: 1, rows: [] };
+        if (sql.includes('FROM payments WHERE tenant_id=$1 AND id=$2')) {
+          return { rowCount: 1, rows: [{ id: 'pay-1', provider: 'mpesa', status: 'SUCCESS', purchaseId: 'purchase-1' }] };
+        }
+        if (sql.includes('UPDATE payments SET provider_reference')) return { rowCount: 1, rows: [] };
+        if (sql.includes("FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='SUCCESS'")) return { rowCount: 0, rows: [] };
+        if (sql.includes('UPDATE wifi_plan_purchases')) return { rowCount: 1, rows: [] };
+        if (sql.includes('UPDATE access_grants')) return { rowCount: 1, rows: [] };
+        if (sql.includes('UPDATE payment_events SET processing_status')) return { rowCount: 1, rows: [] };
+        if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        throw new Error(`Unexpected SQL: ${sql}`);
+      }),
+      release: jest.fn(),
+    };
+    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn().mockResolvedValue(eventClient),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-refund-1',
+      eventType: 'payment.refunded',
+      paymentId: 'pay-1',
+      status: 'REFUNDED',
+      providerReference: 'MPESA-REFUND-1',
+    }, rawBody, signature)).resolves.toMatchObject({ accepted: true, paymentId: 'pay-1' });
+
+    expect(eventClient.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE tenant_id=$1 AND id=$2 FOR UPDATE'),
+      ['tenant-1', 'pay-1'],
+    );
+  });
 });
