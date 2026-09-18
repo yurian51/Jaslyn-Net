@@ -137,6 +137,7 @@ export class PurchasesService {
           `UPDATE payments SET provider_reference=$2, status='SUCCESS', updated_at=now() WHERE tenant_id=$1 AND id=$3`,
           [tenantId, providerReference, existing.id],
         );
+        await this.payments.recordVerifiedSettlement(client, tenantId, existing.id, current.price, current.currency, provider);
         const packageResult = await client.query(
           `SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`,
           [tenantId, current.package_id],
@@ -175,6 +176,7 @@ export class PurchasesService {
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
         await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId]);
+        await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       } else {
         const payment = await client.query(
           `INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, provider_reference, amount, currency, status, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
