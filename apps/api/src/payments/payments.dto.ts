@@ -40,8 +40,12 @@ export class PaymentWebhookDto {
   @IsUUID()
   purchaseId?: string;
 
-  @IsIn(['SUCCESS', 'FAILED'])
-  status!: 'SUCCESS' | 'FAILED';
+  @IsOptional()
+  @IsUUID()
+  paymentId?: string;
+
+  @IsIn(['SUCCESS', 'FAILED', 'REFUNDED'])
+  status!: 'SUCCESS' | 'FAILED' | 'REFUNDED';
 
   @IsOptional()
   payload?: Record<string, unknown>;
