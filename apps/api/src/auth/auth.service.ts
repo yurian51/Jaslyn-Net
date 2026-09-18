@@ -54,6 +54,42 @@ export class AuthService {
     } finally { client.release(); }
   }
 
+  async acceptLegalDocument(user: NonNullable<AuthenticatedRequest['user']>, documentType: 'TERMS_OF_USE' | 'PRIVACY_NOTICE', context: { ip?: string; userAgent?: string | string[] } = {}) {
+    const version = documentType === 'TERMS_OF_USE' ? TERMS_VERSION : documentType === 'PRIVACY_NOTICE' ? PRIVACY_VERSION : null;
+    if (!version) throw new BadRequestException('Unsupported legal document');
+
+    await this.db.query(
+      `INSERT INTO legal_acceptances (tenant_id, user_id, document_type, document_version, ip_address, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (tenant_id, user_id, document_type, document_version) DO NOTHING`,
+      [user.tenantId, user.id, documentType, version, context.ip ?? null, Array.isArray(context.userAgent) ? (context.userAgent[0]?.slice(0, 500) ?? null) : (context.userAgent?.slice(0, 500) ?? null)],
+    );
+    return { documentType, documentVersion: version, accepted: true };
+  }
+
+  async getLegalAcceptanceStatus(user: NonNullable<AuthenticatedRequest['user']>) {
+    const result = await this.db.query<{ document_type: 'TERMS_OF_USE' | 'PRIVACY_NOTICE'; document_version: string; accepted_at: string }>(
+      `SELECT DISTINCT ON (document_type) document_type, document_version, accepted_at
+       FROM legal_acceptances
+       WHERE tenant_id = $1 AND user_id = $2
+       ORDER BY document_type, accepted_at DESC`,
+      [user.tenantId, user.id],
+    );
+    const current = { TERMS_OF_USE, PRIVACY_NOTICE };
+    return {
+      documents: Object.entries(current).map(([documentType, documentVersion]) => {
+        const accepted = result.rows.find((row) => row.document_type === documentType);
+        return {
+          documentType,
+          currentVersion: documentVersion,
+          acceptedVersion: accepted?.document_version ?? null,
+          acceptedAt: accepted?.accepted_at ?? null,
+          current: accepted?.document_version === documentVersion,
+        };
+      }),
+    };
+  }
+
   async login(input: LoginDto) {
     const result = await this.db.query<UserTokenRecord & { is_active: boolean; password_hash: string; tenant_name: string; tenant_slug: string; tenant_status: string; currency: string; timezone: string }>(
       `SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.is_active, u.password_hash,
