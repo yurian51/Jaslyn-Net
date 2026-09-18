@@ -8,8 +8,11 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('register')
-  register(@Body() input: RegisterDto) {
-    return this.auth.register(input);
+  register(@Body() input: RegisterDto, @Req() request: { ip?: string; headers: Record<string, string | string[] | undefined> }) {
+    const forwarded = request.headers['x-forwarded-for'];
+    const forwardedIp = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]?.trim();
+    const userAgent = request.headers['user-agent'];
+    return this.auth.register(input, { ip: forwardedIp || request.ip, userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent });
   }
 
   @Post('login')
