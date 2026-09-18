@@ -7,7 +7,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { CreateRadiusNasDto, SetRadiusCredentialDto } from './radius.dto';
-import { ATTR, attribute, decryptUserPassword, encodeResponse, makeString, makeUInt32, parsePacket, RADIUS_CODES, stringAttribute, uint32Attribute } from './radius.protocol';
+import { ATTR, attribute, decryptUserPassword, encodeResponse, makeString, makeUInt32, makeVendorSpecific, parsePacket, RADIUS_CODES, stringAttribute, uint32Attribute, verifyRequestAuthenticator } from './radius.protocol';
 
 @Injectable()
 export class RadiusService implements OnModuleInit, OnModuleDestroy {
@@ -62,13 +62,15 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     const nas=await this.db.query(`SELECT id,tenant_id,secret_encrypted,enabled FROM radius_nas_clients WHERE address=$1::inet AND enabled=true LIMIT 1`,[rinfo.address]).catch(()=>({rowCount:0,rows:[] as any[]}));
     if(!nas.rowCount) return;
     const row=nas.rows[0]; const secretObj=this.secure.decrypt(row.secret_encrypted); const secret=Buffer.from(secretObj.password??'','utf8');
+    if (!secret.length) return;
     try{
-      if(kind==='auth' && packet.code===RADIUS_CODES.ACCESS_REQUEST) await this.handleAccessRequest(raw,packet,row.tenant_id,row.id,secret);
-      else if(kind==='accounting' && packet.code===RADIUS_CODES.ACCOUNTING_REQUEST) await this.handleAccounting(raw,packet,row.tenant_id,row.id,secret);
+      if (kind === 'accounting' && !verifyRequestAuthenticator(packet, raw, secret)) return;
+      if(kind==='auth' && packet.code===RADIUS_CODES.ACCESS_REQUEST) await this.handleAccessRequest(raw,packet,row.tenant_id,row.id,secret,rinfo.address,rinfo.port);
+      else if(kind==='accounting' && packet.code===RADIUS_CODES.ACCOUNTING_REQUEST) await this.handleAccounting(raw,packet,row.tenant_id,row.id,secret,rinfo.address,rinfo.port);
     }catch(error){this.logger.error(error instanceof Error?error.message:String(error));}
   }
 
-  private async handleAccessRequest(raw:Buffer,packet:any,tenantId:string,nasId:string,secret:Buffer){
+  private async handleAccessRequest(raw:Buffer,packet:any,tenantId:string,nasId:string,secret:Buffer,nasAddress:string,nasPort:number){
     const username=stringAttribute(packet,ATTR.USER_NAME); const encryptedPassword=attribute(packet,ATTR.USER_PASSWORD);
     if(!username || !encryptedPassword){return;}
     const password=decryptUserPassword(encryptedPassword,secret,packet.authenticator).toString('utf8');
@@ -85,20 +87,20 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
         reply=[makeUInt32(ATTR.SESSION_TIMEOUT,Math.min(duration,2147483647)),makeUInt32(ATTR.ACCT_INTERIM_INTERVAL,Math.min(300,Math.max(60,Math.trunc(duration/20)||60)))];
         if(binding.rows[0].download_bps || binding.rows[0].upload_bps){
           const down=Math.max(1,Math.round(Number(binding.rows[0].download_bps||binding.rows[0].upload_bps)/1000)); const up=Math.max(1,Math.round(Number(binding.rows[0].upload_bps||binding.rows[0].download_bps)/1000));
-          reply.push(makeString(26,Buffer.from(Uint32Array.from([14988,8]).buffer).toString('binary')));
+          reply.push(makeVendorSpecific(14988,8,`${Math.max(1,Math.round(Number(binding.rows[0].upload_bps||binding.rows[0].download_bps)/1000))}k/${Math.max(1,Math.round(Number(binding.rows[0].download_bps||binding.rows[0].upload_bps)/1000))}k`));
         }
       }
     }
     const response=encodeResponse(accepted?RADIUS_CODES.ACCESS_ACCEPT:RADIUS_CODES.ACCESS_REJECT,packet.identifier,packet.authenticator,accepted?reply:[makeString(ATTR.REPLY_MESSAGE,'Access denied')],secret);
-    this.authSocket?.send(response,0,response.length,1812,rinfo.address);
+    this.authSocket?.send(response,0,response.length,nasPort,nasAddress);
     await this.db.query(`INSERT INTO radius_events(tenant_id,nas_client_id,packet_code,packet_identifier,username,result) VALUES($1,$2,$3,$4,$5,$6)`,[tenantId,nasId,packet.code,packet.identifier,username,accepted?'ACCEPT':'REJECT']).catch(()=>undefined);
   }
 
-  private async handleAccounting(raw:Buffer,packet:any,tenantId:string,nasId:string,secret:Buffer){
+  private async handleAccounting(raw:Buffer,packet:any,tenantId:string,nasId:string,secret:Buffer,nasAddress:string,nasPort:number){
     const status=uint32Attribute(packet,ATTR.ACCT_STATUS_TYPE); const map:any={1:'START',3:'INTERIM_UPDATE',2:'STOP',7:'ON'};
     const statusType=map[status??0]; if(!statusType)return;
     const username=stringAttribute(packet,ATTR.USER_NAME)??null; const sessionId=stringAttribute(packet,ATTR.ACCT_SESSION_ID)??null;
     await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')})))]); 
-    const response=encodeResponse(RADIUS_CODES.ACCOUNTING_RESPONSE,packet.identifier,packet.authenticator,[],secret); this.accountingSocket?.send(response,0,response.length,1813,'0.0.0.0');
+    const response=encodeResponse(RADIUS_CODES.ACCOUNTING_RESPONSE,packet.identifier,packet.authenticator,[],secret); this.accountingSocket?.send(response,0,response.length,nasPort,nasAddress);
   }
 }
