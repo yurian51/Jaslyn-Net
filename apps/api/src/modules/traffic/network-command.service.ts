@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { PG_POOL } from '../../database/database.module';
 import { BandwidthEnforcementCommand } from './enforcement.adapter';
+import { getCorrelationId } from '../../common/correlation-context';
 
 export type NetworkCommandStatus = 'QUEUED' | 'SENT' | 'ACCEPTED' | 'EXECUTED' | 'VERIFIED' | 'FAILED' | 'RETRYING' | 'ABANDONED';
 
@@ -32,6 +33,7 @@ export class NetworkCommandService {
     const target = JSON.stringify(input.target ?? {});
     const request = JSON.stringify(input.request ?? {});
     const provider = input.provider ?? null;
+    const correlationId = input.correlationId ?? getCorrelationId();
     const result = await this.db.query(
       `INSERT INTO network_commands
          (id, tenant_id, router_id, command_type, actor, target, request, provider, status, attempts, correlation_id)
@@ -39,10 +41,10 @@ export class NetworkCommandService {
        ON CONFLICT (tenant_id, command_type, correlation_id) WHERE correlation_id IS NOT NULL
        DO NOTHING
        RETURNING id`,
-      [id, tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system', target, request, provider, input.correlationId ?? null],
+      [id, tenantId, input.routerId ?? null, input.commandType, input.actor ?? 'system', target, request, provider, correlationId ?? null],
     );
     if (result.rowCount) return { id: result.rows[0].id, reused: false };
-    if (input.correlationId) {
+    if (correlationId) {
       const existing = await this.db.query(
         `SELECT id,
                 target = $4::jsonb AS target_matches,
@@ -50,7 +52,7 @@ export class NetworkCommandService {
                 provider IS NOT DISTINCT FROM $6 AS provider_matches
          FROM network_commands
          WHERE tenant_id=$1 AND command_type=$2 AND correlation_id=$3`,
-        [tenantId, input.commandType, input.correlationId, target, request, provider],
+        [tenantId, input.commandType, correlationId, target, request, provider],
       );
       if (existing.rowCount) {
         const row = existing.rows[0];
