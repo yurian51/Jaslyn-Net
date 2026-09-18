@@ -1,10 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { getCorrelationId } from '../common/correlation-context';
 
 export type AuditContext = {
   userId?: string;
   requestId?: string;
+  correlationId?: string;
   ipAddress?: string;
   userAgent?: string;
 };
@@ -43,10 +45,11 @@ export class AuditService {
     context: AuditContext = {},
   ) {
     const safeMetadata = sanitizeMetadata(metadata) as Record<string, unknown>;
+    const correlationId = context.correlationId ?? getCorrelationId() ?? context.requestId ?? null;
     const result = await this.db.query(
       `INSERT INTO audit_logs
-        (tenant_id, actor_user_id, action, resource_type, resource_id, request_id, ip_address, user_agent, metadata)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        (tenant_id, actor_user_id, action, resource_type, resource_id, request_id, correlation_id, ip_address, user_agent, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING id, created_at AS "createdAt"`,
       [
         tenantId,
@@ -55,6 +58,7 @@ export class AuditService {
         resourceType.trim().toLowerCase(),
         resourceId ?? null,
         context.requestId ?? null,
+        correlationId,
         context.ipAddress ?? null,
         context.userAgent ?? null,
         safeMetadata,
@@ -72,6 +76,7 @@ export class AuditService {
          a.resource_type AS "resourceType",
          a.resource_id AS "resourceId",
          a.request_id AS "requestId",
+         a.correlation_id AS "correlationId",
          a.ip_address AS "ipAddress",
          a.user_agent AS "userAgent",
          a.metadata,
@@ -87,5 +92,41 @@ export class AuditService {
       [tenantId, safeLimit],
     );
     return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
+  async trace(tenantId: string, correlationId: string, limit = 500) {
+    const normalized = correlationId.trim();
+    if (!normalized || normalized.length > 128) {
+      return { correlationId: normalized, data: [], count: 0 };
+    }
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 500), 1), 1000);
+    const result = await this.db.query(
+      `WITH evidence AS (
+         SELECT 'AUDIT' AS source, a.id::text AS id, a.created_at AS occurred_at,
+                a.action AS operation, a.resource_type AS resource_type,
+                a.resource_id::text AS resource_id, a.metadata AS details
+           FROM audit_logs a
+          WHERE a.tenant_id=$1 AND a.correlation_id=$2
+         UNION ALL
+         SELECT 'LEDGER', t.id::text, t.posted_at, t.transaction_type,
+                t.reference_type, t.reference_id::text,
+                jsonb_build_object('description',t.description,'correlationId',t.correlation_id)
+           FROM financial_ledger_transactions t
+          WHERE t.tenant_id=$1 AND t.correlation_id=$2
+         UNION ALL
+         SELECT 'NETWORK_COMMAND', n.id::text, n.created_at, n.command_type,
+                'network_command', n.id::text,
+                jsonb_build_object('status',n.status,'routerId',n.router_id,'provider',n.provider,'verification',n.verification,'error',n.error)
+           FROM network_commands n
+          WHERE n.tenant_id=$1 AND n.correlation_id=$2
+       )
+       SELECT source, id, occurred_at AS "occurredAt", operation, resource_type AS "resourceType",
+              resource_id AS "resourceId", details
+         FROM evidence
+        ORDER BY occurred_at ASC
+        LIMIT $3`,
+      [tenantId, normalized, safeLimit],
+    );
+    return { correlationId: normalized, data: result.rows, count: result.rowCount ?? 0 };
   }
 }
