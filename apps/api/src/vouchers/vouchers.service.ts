@@ -98,6 +98,7 @@ export class VouchersService {
       if(!customer.rowCount) throw new NotFoundException('Customer not found');
       if(!customer.rows[0].is_active) throw new ConflictException('Customer is inactive');
       if(input.routerId){const router=await client.query('SELECT id,status FROM routers WHERE tenant_id=$1 AND id=$2 FOR SHARE',[tenantId,input.routerId]);if(!router.rowCount)throw new NotFoundException('Router not found')}
+      const networkPolicy = compileNetworkPolicy({ packageId: v.package_id, name: v.package_name, durationSeconds: v.duration_seconds, dataLimitBytes: v.data_limit_bytes, downloadBps: v.download_bps, uploadBps: v.upload_bps });
       const purchase=await client.query(
         `INSERT INTO wifi_plan_purchases(tenant_id,customer_id,package_id,router_id,price,currency,status,starts_at,ends_at)
          VALUES($1,$2,$3,$4,$5,$6,'PAID',now(),now()+($7::bigint*interval '1 second')) RETURNING id,starts_at AS "startsAt",ends_at AS "endsAt"`,
