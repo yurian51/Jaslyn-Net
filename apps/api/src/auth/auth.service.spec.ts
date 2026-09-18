@@ -52,5 +52,44 @@ describe('AuthService legal acceptance', () => {
     ]);
     expect(client.query).toHaveBeenLastCalledWith('COMMIT');
   });
-});
+  it('records the current legal version idempotently for an authenticated user', async () => {
+    const { service, db } = createService();
+    db.query = jest.fn().mockResolvedValue({ rows: [] });
 
+    await expect((service as any).acceptLegalDocument(
+      { id: 'user-1', tenantId: 'tenant-1', role: 'OWNER', email: 'operator@example.com' },
+      'TERMS_OF_USE',
+      { ip: '192.0.2.11', userAgent: 'TestAgent/2.0' },
+    )).resolves.toEqual({
+      documentType: 'TERMS_OF_USE',
+      documentVersion: '2026-09-18',
+      accepted: true,
+    });
+
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('ON CONFLICT (tenant_id, user_id, document_type, document_version) DO NOTHING'),
+      ['tenant-1', 'user-1', 'TERMS_OF_USE', '2026-09-18', '192.0.2.11', 'TestAgent/2.0'],
+    );
+  });
+
+  it('returns current and accepted legal versions without crossing tenant boundaries', async () => {
+    const { service, db } = createService();
+    db.query = jest.fn().mockResolvedValue({
+      rows: [{ document_type: 'TERMS_OF_USE', document_version: '2026-09-18', accepted_at: '2026-09-18T10:00:00.000Z' }],
+    });
+
+    await expect((service as any).getLegalAcceptanceStatus(
+      { id: 'user-1', tenantId: 'tenant-1', role: 'OWNER', email: 'operator@example.com' },
+    )).resolves.toEqual({
+      documents: [
+        { documentType: 'TERMS_OF_USE', currentVersion: '2026-09-18', acceptedVersion: '2026-09-18', acceptedAt: '2026-09-18T10:00:00.000Z', current: true },
+        { documentType: 'PRIVACY_NOTICE', currentVersion: '2026-09-18', acceptedVersion: null, acceptedAt: null, current: false },
+      ],
+    });
+
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE tenant_id = $1 AND user_id = $2'),
+      ['tenant-1', 'user-1'],
+    );
+  });
+});
