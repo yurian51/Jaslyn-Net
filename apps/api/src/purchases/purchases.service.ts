@@ -128,7 +128,7 @@ export class PurchasesService {
 
         if (requestedStatus === 'FAILED') {
           await client.query(
-            `UPDATE payments SET provider_reference=$2, status='FAILED', updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+            `UPDATE payments SET provider_reference=$2, status='FAILED', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
             [tenantId, providerReference, existing.id, correlationId],
           );
           await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
@@ -138,7 +138,7 @@ export class PurchasesService {
 
         await client.query(
           `UPDATE payments SET provider_reference=$2, status='SUCCESS', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
-          [tenantId, providerReference, existing.id],
+          [tenantId, providerReference, existing.id, correlationId],
         );
         await this.payments.recordVerifiedSettlement(client, tenantId, existing.id, current.price, current.currency, provider);
         const packageResult = await client.query(
@@ -173,12 +173,12 @@ export class PurchasesService {
       if (pending.rowCount) {
         paymentId = pending.rows[0].id;
         if (requestedStatus === 'FAILED') {
-          await client.query(`UPDATE payments SET provider_reference=$2, status='FAILED', idempotency_key=$3, updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
+          await client.query(`UPDATE payments SET provider_reference=$2, status='FAILED', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
           await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId]);
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
-        await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId]);
+        await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
         await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       } else {
         const payment = await client.query(
