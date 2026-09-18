@@ -20,7 +20,8 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Security & Audit', 'audit', '/audit'],
 ];
 
-const publicRoutes = new Set(['/login', '/register', '/legal']);
+const publicRoutes = new Set(['/login', '/register']);
+const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
 const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
 function NavIcon({ name }: { name: IconName }) {
@@ -43,15 +44,15 @@ function NavIcon({ name }: { name: IconName }) {
 function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [checking, setChecking] = useState(!publicRoutes.has(pathname));
+  const [checking, setChecking] = useState(!isPublicRoute(pathname));
 
   useEffect(() => {
-    if (publicRoutes.has(pathname)) { setChecking(false); return; }
+    if (isPublicRoute(pathname)) { setChecking(false); return; }
     if (!getAccessToken()) { router.replace('/login'); return; }
     setChecking(false);
   }, [pathname, router]);
 
-  if (publicRoutes.has(pathname)) return <>{children}</>;
+  if (isPublicRoute(pathname)) return <>{children}</>;
   if (checking) return <div className="console-auth-loading"><div className="console-auth-spinner" /><span>Verifying workspace session…</span></div>;
   return <>{children}</>;
 }
@@ -99,5 +100,5 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
 export default function ConsoleChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  return <AuthGate>{publicRoutes.has(pathname) ? children : <OperationsChrome>{children}</OperationsChrome>}</AuthGate>;
+  return <AuthGate>{isPublicRoute(pathname) ? children : <OperationsChrome>{children}</OperationsChrome>}</AuthGate>;
 }
