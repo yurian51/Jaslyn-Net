@@ -103,6 +103,15 @@ export class PaymentsService {
     if (!settledPayment || settledPayment.status !== 'SUCCESS') throw new ConflictException('Only a successfully persisted payment can be settled');
     if (settledPayment.provider !== provider) throw new ConflictException('Settlement provider does not match payment provider');
     if (String(settledPayment.amount) !== String(amount) || settledPayment.currency !== currency) throw new ConflictException('Settlement amount or currency does not match payment');
+    await client.query(
+      `UPDATE payments
+          SET verification_status='VERIFIED',
+              verified_at=COALESCE(verified_at,now()),
+              verification_source=COALESCE(verification_source,'MANUAL_SETTLEMENT'),
+              updated_at=now()
+        WHERE tenant_id=$1 AND id=$2 AND status='SUCCESS'`,
+      [tenantId, paymentId],
+    );
     const cashCode = `CASH:${provider}:${currency}`.slice(0, 64);
     const revenueCode = `REVENUE:WIFI:${currency}`.slice(0, 64);
     const cashAccount = await client.query<{ id: string }>(
@@ -179,175 +188,59 @@ export class PaymentsService {
     this.verifyWebhookSignature(secret, rawBody, signature);
 
     const eventClient = await this.db.connect();
-    let eventId: string;
     try {
       await eventClient.query('BEGIN');
-      const inserted = await eventClient.query(`INSERT INTO payment_events (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status) VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED') ON CONFLICT (tenant_id, provider, provider_event_id) WHERE provider_event_id IS NOT NULL DO NOTHING RETURNING id, processing_status AS "processingStatus", payment_id AS "paymentId"`, [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}]);
-      if (inserted.rowCount) {
-        eventId = inserted.rows[0].id;
-        await eventClient.query('COMMIT');
-      } else {
-        const existing = await eventClient.query(`SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId" FROM payment_events WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3 FOR UPDATE`, [tenantId, provider, providerEventId]);
+
+      const inserted = await eventClient.query(
+        `INSERT INTO payment_events
+           (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status)
+         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED')
+         ON CONFLICT (tenant_id, provider, provider_event_id)
+         WHERE provider_event_id IS NOT NULL
+         DO NOTHING
+         RETURNING id`,
+        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}],
+      );
+
+      if (!inserted.rowCount) {
+        const existing = await eventClient.query(
+          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId"
+             FROM payment_events
+            WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
+            FOR UPDATE`,
+          [tenantId, provider, providerEventId],
+        );
         if (!existing.rowCount) throw new ConflictException('Payment event could not be resolved after conflict');
-        if (existing.rows[0].eventType !== input.eventType.trim()) throw new ConflictException('Payment event identifier is already bound to a different event type');
-        eventId = existing.rows[0].id;
-        if (existing.rows[0].processingStatus === 'PROCESSED') {
-          await eventClient.query('COMMIT');
-          return { accepted: true, duplicate: true, paymentId: existing.rows[0].paymentId };
+        if (existing.rows[0].eventType !== input.eventType.trim()) {
+          throw new ConflictException('Payment event identifier is already bound to a different event type');
         }
         await eventClient.query('COMMIT');
+        return {
+          accepted: true,
+          duplicate: true,
+          paymentId: existing.rows[0].paymentId,
+          processingStatus: existing.rows[0].processingStatus,
+          requiresVerification: existing.rows[0].processingStatus !== 'PROCESSED',
+        };
       }
+
+      const eventId = inserted.rows[0].id as string;
+      await eventClient.query('COMMIT');
+
+      return {
+        accepted: true,
+        duplicate: false,
+        eventId,
+        processingStatus: 'RECEIVED',
+        requiresVerification: true,
+        paymentId: input.paymentId ?? null,
+        providerReference: input.providerReference ?? null,
+      };
     } catch (error: unknown) {
       await eventClient.query('ROLLBACK').catch(() => undefined);
       throw error;
-    } finally { eventClient.release(); }
-
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
-      let payment: PaymentRecord | undefined;
-      if (input.paymentId) {
-        const result = await client.query<PaymentRecord>(
-          `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
-          [tenantId, input.paymentId],
-        );
-        payment = result.rows[0];
-      } else if (input.purchaseId) {
-        const result = await client.query<PaymentRecord>(
-          `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
-          [tenantId, input.purchaseId],
-        );
-        payment = result.rows[0];
-      } else if (input.providerReference) {
-        const result = await client.query<PaymentRecord>(
-          `SELECT id, provider, status, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND provider=$2 AND provider_reference=$3 FOR UPDATE`,
-          [tenantId, provider, input.providerReference.trim()],
-        );
-        payment = result.rows[0];
-      }
-      if (!payment) throw new NotFoundException('Payment could not be resolved');
-      if (payment.provider !== provider) throw new ConflictException('Webhook provider does not match payment provider');
-      await client.query(`UPDATE payment_events SET payment_id=$1 WHERE tenant_id=$2 AND id=$3`, [payment.id, tenantId, eventId]);
-
-      if (payment.status === 'SUCCESS' && input.status === 'SUCCESS') {
-        await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
-        await client.query('COMMIT');
-        return { accepted: true, duplicate: false, paymentId: payment.id, alreadySuccessful: true, statePreserved: input.status !== 'SUCCESS' };
-      }
-
-      const nextStatus = input.status;
-      if (nextStatus === 'SUCCESS' && payment.status === 'REFUNDED') {
-        throw new ConflictException('A refunded payment cannot be settled again');
-      }
-      await client.query(
-        `UPDATE payments SET provider_reference=COALESCE($2, provider_reference), status=$3, raw_payload=$4, updated_at=now() WHERE tenant_id=$1 AND id=$5`,
-        [tenantId, input.providerReference?.trim() ?? null, nextStatus, input.payload ?? {}, payment.id],
-      );
-      if (nextStatus === 'SUCCESS') {
-        const settled = await client.query<{ amount: string; currency: string }>(
-          `SELECT amount, currency FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
-          [tenantId, payment.id],
-        );
-        const paymentAmount = settled.rows[0]?.amount;
-        const paymentCurrency = settled.rows[0]?.currency;
-        if (paymentAmount == null || paymentCurrency == null) throw new ConflictException('Verified payment has no settlement amount or currency');
-        await this.recordVerifiedSettlement(client, tenantId, payment.id, paymentAmount, paymentCurrency, provider);
-      }
-
-      if (nextStatus === 'SUCCESS' && payment.purchaseId) {
-        const purchase = await client.query(`SELECT id, package_id, customer_id, router_id, status FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, payment.purchaseId]);
-        if (purchase.rowCount && purchase.rows[0].status === 'PENDING_PAYMENT') {
-          const pkg = await client.query(`SELECT duration_seconds FROM packages WHERE tenant_id=$1 AND id=$2`, [tenantId, purchase.rows[0].package_id]);
-          if (!pkg.rowCount) throw new NotFoundException('Package not found');
-          await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now()+($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchase.rows[0].id, pkg.rows[0].duration_seconds]);
-          await client.query(`INSERT INTO access_grants (tenant_id,purchase_id,customer_id,router_id,status,starts_at,ends_at) SELECT tenant_id,id,customer_id,router_id,'ACTIVE',starts_at,ends_at FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE',starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,updated_at=now()`, [tenantId, purchase.rows[0].id]);
-
-          const activatedBinding = await client.query<{ id: string; previousState: string }>(
-            `WITH candidate AS (
-               SELECT id, state AS "previousState"
-               FROM customer_access_bindings
-               WHERE tenant_id=$1 AND customer_id=$2 AND package_id=$3
-                 AND router_id IS NOT DISTINCT FROM $4::uuid
-                 AND state IN ('PENDING','SUSPENDED')
-               ORDER BY created_at ASC
-               LIMIT 1
-               FOR UPDATE
-             )
-             UPDATE customer_access_bindings b
-             SET state='ACTIVE', activated_at=COALESCE(b.activated_at,now()),
-                 suspended_at=NULL, expires_at=(SELECT ends_at FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$5), updated_at=now()
-             FROM candidate c
-             WHERE b.tenant_id=$1 AND b.id=c.id
-             RETURNING b.id, c."previousState"`,
-            [tenantId, purchase.rows[0].customer_id, purchase.rows[0].package_id, purchase.rows[0].router_id, purchase.rows[0].id],
-          );
-          if (activatedBinding.rowCount) {
-            await client.query(
-              `INSERT INTO access_state_events
-                 (tenant_id,access_binding_id,previous_state,new_state,reason,source,payment_id)
-               VALUES ($1,$2,$3,'ACTIVE',$4,'PAYMENT_WEBHOOK',$5)`,
-              [tenantId, activatedBinding.rows[0].id, activatedBinding.rows[0].previousState, `Purchase ${purchase.rows[0].id} paid successfully`, payment.id],
-            );
-          }
-
-          const serviceState = await client.query<{ state: string }>(
-            `SELECT state FROM customer_service_state WHERE tenant_id=$1 AND customer_id=$2 FOR UPDATE`,
-            [tenantId, purchase.rows[0].customer_id],
-          );
-          const currentState = serviceState.rows[0]?.state;
-          if (!currentState || ['PENDING', 'GRACE', 'SUSPENDED'].includes(currentState)) {
-            const previousState = currentState ?? null;
-            await client.query(
-              `INSERT INTO customer_service_state
-                 (tenant_id,customer_id,state,reason,source,effective_at,expires_at)
-               VALUES ($1,$2,'ACTIVE',$3,'PAYMENT_WEBHOOK',now(),(SELECT ends_at FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$4))
-               ON CONFLICT (tenant_id,customer_id) DO UPDATE SET
-                 state='ACTIVE',reason=EXCLUDED.reason,source=EXCLUDED.source,
-                 effective_at=EXCLUDED.effective_at,expires_at=EXCLUDED.expires_at`,
-              [tenantId, purchase.rows[0].customer_id, `Purchase ${purchase.rows[0].id} paid successfully`, purchase.rows[0].id],
-            );
-            await client.query(
-              `INSERT INTO customer_service_state_events
-                 (tenant_id,customer_id,previous_state,new_state,reason,source,effective_at)
-               VALUES ($1,$2,$3,'ACTIVE',$4,'PAYMENT_WEBHOOK',now())`,
-              [tenantId, purchase.rows[0].customer_id, previousState, `Purchase ${purchase.rows[0].id} paid successfully`],
-            );
-          }
-        }
-      }
-
-      if (nextStatus === 'FAILED' && payment.purchaseId) {
-        await client.query(`UPDATE wifi_plan_purchases SET status='CANCELED', updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='PENDING_PAYMENT'`, [tenantId, payment.purchaseId]);
-      }
-
-      if (nextStatus === 'REFUNDED' && payment.purchaseId) {
-        const successfulSibling = await client.query(
-          `SELECT 1 FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='SUCCESS' AND id<>$3 LIMIT 1`,
-          [tenantId, payment.purchaseId, payment.id],
-        );
-        if (!successfulSibling.rowCount) {
-          await client.query(
-            `UPDATE wifi_plan_purchases
-             SET status='REFUNDED', updated_at=now()
-             WHERE tenant_id=$1 AND id=$2 AND status IN ('PENDING_PAYMENT','PAID','ACTIVE')`,
-            [tenantId, payment.purchaseId],
-          );
-          await client.query(
-            `UPDATE access_grants
-             SET status='REVOKED', updated_at=now()
-             WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('PENDING','ACTIVE')`,
-            [tenantId, payment.purchaseId],
-          );
-        }
-      }
-
-      await client.query(`UPDATE payment_events SET processing_status='PROCESSED', processed_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]);
-      await client.query('COMMIT');
-      return { accepted: true, duplicate: false, paymentId: payment.id };
-    } catch (error: unknown) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      await this.db.query(`UPDATE payment_events SET processing_status='FAILED' WHERE tenant_id=$1 AND id=$2`, [tenantId, eventId]).catch(() => undefined);
-      throw error;
-    } finally { client.release(); }
+    } finally {
+      eventClient.release();
+    }
   }
 }
