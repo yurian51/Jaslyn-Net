@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { decryptUserPassword, encodeResponse, parsePacket, RADIUS_CODES } from './radius.protocol';
+import { decryptUserPassword, encodeRequest, encodeResponse, parsePacket, RADIUS_CODES, ATTR, makeString } from './radius.protocol';
 import { createHash } from 'node:crypto';
 
 describe('RADIUS protocol',()=>{
@@ -18,4 +18,5 @@ describe('RADIUS protocol',()=>{
   const encrypted=Buffer.alloc(16);for(let i=0;i<16;i++)encrypted[i]=padded[i]^cipher[i];
   expect(decryptUserPassword(encrypted,secret,auth).toString()).toBe('password');
  });
+ it('encodes an outbound Disconnect-Request with an RFC-sized packet',()=>{ const packet=encodeRequest(RADIUS_CODES.DISCONNECT_REQUEST,9,[makeString(ATTR.USER_NAME,'subscriber')]); const parsed=parsePacket(packet); expect(parsed.code).toBe(RADIUS_CODES.DISCONNECT_REQUEST); expect(parsed.identifier).toBe(9); expect(parsed.authenticator).toHaveLength(16); expect(parsed.attributes[0]?.value.toString()).toBe('subscriber'); });
 });
