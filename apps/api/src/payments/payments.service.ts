@@ -20,7 +20,7 @@ export class PaymentsService {
 
   async list(tenantId: string) {
     const result = await this.db.query(
-      `SELECT id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, provider_reference AS "providerReference", amount, currency, status, idempotency_key AS "idempotencyKey", created_at AS "createdAt", updated_at AS "updatedAt" FROM payments WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 200`,
+      `SELECT id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, provider_reference AS "providerReference", amount, currency, status, idempotency_key AS "idempotencyKey", correlation_id AS "correlationId", created_at AS "createdAt", updated_at AS "updatedAt" FROM payments WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 200`,
       [tenantId],
     );
     return { data: result.rows };
