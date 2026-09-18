@@ -7,12 +7,14 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
+import { getCorrelationId } from './correlation-context';
 
 type RequestLike = {
   method?: string;
   originalUrl?: string;
   url?: string;
   requestId?: string;
+  correlationId?: string;
   route?: { path?: string };
 };
 
@@ -49,9 +51,11 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
           ? 500
           : response.statusCode ?? 200;
     const requestId = request.requestId ?? '-';
+    const correlationId = request.correlationId ?? getCorrelationId() ?? requestId;
 
     this.logger.log(JSON.stringify({
       requestId,
+      correlationId,
       method: request.method ?? 'UNKNOWN',
       path,
       status,
