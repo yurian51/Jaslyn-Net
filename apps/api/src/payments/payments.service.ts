@@ -5,6 +5,7 @@ import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 import { PAYMENT_METHOD_CATALOG, getPaymentMethod } from './payment-method.catalog';
+import { getCorrelationId } from '../common/correlation-context';
 
 type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
@@ -58,6 +59,7 @@ export class PaymentsService {
     const client = await this.db.connect();
     const provider = input.provider.trim().toLowerCase();
     const key = input.idempotencyKey?.trim() || `intent:${input.purchaseId}:${provider}`;
+    const correlationId = getCorrelationId() ?? `payment-intent:${input.purchaseId}`;
     try {
       await client.query('BEGIN');
       const purchase = await client.query(`SELECT id, customer_id, price, currency, status FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, input.purchaseId]);
@@ -70,7 +72,7 @@ export class PaymentsService {
         await client.query('COMMIT');
         return { id: existing.rows[0].id, status: existing.rows[0].status, provider: existing.rows[0].provider, idempotencyKey: key, reused: true };
       }
-      const result = await client.query(`INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, amount, currency, status, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,'PENDING',$7) RETURNING id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, amount, currency, status, idempotency_key AS "idempotencyKey", created_at AS "createdAt"`, [tenantId, purchase.rows[0].customer_id, input.purchaseId, provider, purchase.rows[0].price, purchase.rows[0].currency, key]);
+      const result = await client.query(`INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, amount, currency, status, idempotency_key, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,'PENDING',$7,$8) RETURNING id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, amount, currency, status, idempotency_key AS "idempotencyKey", created_at AS "createdAt"`, [tenantId, purchase.rows[0].customer_id, input.purchaseId, provider, purchase.rows[0].price, purchase.rows[0].currency, key, correlationId]);
       await client.query('COMMIT');
       return { ...result.rows[0], reused: false };
     } catch (error: unknown) {
@@ -184,6 +186,7 @@ export class PaymentsService {
   async webhook(tenantId: string, input: PaymentWebhookDto, rawBody: Buffer, signature?: string) {
     const provider = input.provider.trim().toLowerCase();
     const providerEventId = input.providerEventId.trim();
+    const correlationId = getCorrelationId() ?? `payment-webhook:${provider}:${providerEventId}`;
     const secret = await this.resolveWebhookSecret(tenantId, provider);
     this.verifyWebhookSignature(secret, rawBody, signature);
 
@@ -193,13 +196,13 @@ export class PaymentsService {
 
       const inserted = await eventClient.query(
         `INSERT INTO payment_events
-           (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status)
-         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED')
+           (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status, correlation_id)
+         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED',$6)
          ON CONFLICT (tenant_id, provider, provider_event_id)
          WHERE provider_event_id IS NOT NULL
          DO NOTHING
          RETURNING id`,
-        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}],
+        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}, correlationId],
       );
 
       if (!inserted.rowCount) {
