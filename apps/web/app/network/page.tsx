@@ -135,6 +135,7 @@ export default function NetworkPage() {
           <a className="nav-item" href="/customers"><span className="nav-icon">◉</span>Customers</a>
           <a className="nav-item" href="/sessions"><span className="nav-icon">◌</span>Sessions</a>
           <a className="nav-item active" href="/network" aria-current="page"><span className="nav-icon">⌁</span>Network</a>
+          <a className="nav-item" href="/ipam"><span className="nav-icon">#</span>IPAM</a>
           <a className="nav-item" href="/purchases"><span className="nav-icon">₮</span>Purchases</a>
           <a className="nav-item" href="/packages"><span className="nav-icon">▣</span>Plans &amp; Products</a>
           <a className="nav-item" href="/audit"><span className="nav-icon">◈</span>Security &amp; Audit</a>
