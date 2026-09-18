@@ -96,7 +96,7 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     const username=stringAttribute(packet,ATTR.USER_NAME); const encryptedPassword=attribute(packet,ATTR.USER_PASSWORD);
     if(!username || !encryptedPassword){return;}
     const password=decryptUserPassword(encryptedPassword,secret,packet.authenticator).toString('utf8');
-    const binding=await this.db.query(`SELECT b.id,b.username,b.state,b.expires_at,p.duration_seconds,p.data_limit_bytes,p.download_bps,p.upload_bps FROM customer_access_bindings b LEFT JOIN packages p ON p.tenant_id=b.tenant_id AND p.id=b.package_id WHERE b.tenant_id=$1 AND b.username=$2 LIMIT 1`,[tenantId,username]);
+    const binding=await this.db.query(`SELECT b.id,b.username,b.state,b.expires_at,b.correlation_id AS "correlationId",p.duration_seconds,p.data_limit_bytes,p.download_bps,p.upload_bps FROM customer_access_bindings b LEFT JOIN packages p ON p.tenant_id=b.tenant_id AND p.id=b.package_id WHERE b.tenant_id=$1 AND b.username=$2 LIMIT 1`,[tenantId,username]);
     let accepted=false; let reply: any[]=[];
     if(binding.rowCount && binding.rows[0].state==='ACTIVE' && (!binding.rows[0].expires_at || new Date(binding.rows[0].expires_at)>new Date())){
       const cred=await this.db.query(`SELECT password_salt,password_hash,enabled FROM radius_user_credentials WHERE tenant_id=$1 AND access_binding_id=$2`,[tenantId,binding.rows[0].id]);
@@ -115,14 +115,16 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     }
     const response=encodeResponse(accepted?RADIUS_CODES.ACCESS_ACCEPT:RADIUS_CODES.ACCESS_REJECT,packet.identifier,packet.authenticator,accepted?reply:[makeString(ATTR.REPLY_MESSAGE,'Access denied')],secret);
     this.authSocket?.send(response,0,response.length,nasPort,nasAddress);
-    await this.db.query(`INSERT INTO radius_events(tenant_id,nas_client_id,packet_code,packet_identifier,username,result) VALUES($1,$2,$3,$4,$5,$6)`,[tenantId,nasId,packet.code,packet.identifier,username,accepted?'ACCEPT':'REJECT']).catch(()=>undefined);
+    await this.db.query(`INSERT INTO radius_events(tenant_id,nas_client_id,packet_code,packet_identifier,username,result,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7)`,[tenantId,nasId,packet.code,packet.identifier,username,accepted?'ACCEPT':'REJECT',binding.rows[0]?.correlationId ?? null]).catch(()=>undefined);
   }
 
   private async handleAccounting(raw:Buffer,packet:any,tenantId:string,nasId:string,secret:Buffer,nasAddress:string,nasPort:number){
     const status=uint32Attribute(packet,ATTR.ACCT_STATUS_TYPE); const map:any={1:'START',3:'INTERIM_UPDATE',2:'STOP',7:'ON'};
     const statusType=map[status??0]; if(!statusType)return;
     const username=stringAttribute(packet,ATTR.USER_NAME)??null; const sessionId=stringAttribute(packet,ATTR.ACCT_SESSION_ID)??null;
-    await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')})))]); 
+    const binding = username ? await this.db.query(`SELECT correlation_id AS "correlationId" FROM customer_access_bindings WHERE tenant_id=$1 AND username=$2 LIMIT 1`,[tenantId,username]) : { rows: [] as Array<{ correlationId: string | null }> };
+    const correlationId = binding.rows[0]?.correlationId ?? null;
+    await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')}))),correlationId]); 
     const response=encodeResponse(RADIUS_CODES.ACCOUNTING_RESPONSE,packet.identifier,packet.authenticator,[],secret); this.accountingSocket?.send(response,0,response.length,nasPort,nasAddress);
   }
 }
