@@ -12,7 +12,7 @@ type Page<T> = { data:T[]; pagination:{ page:number; limit:number; total:number;
 
 type Tab = 'access'|'jobs'|'sites'|'fiber';
 const tabs: Array<[Tab,string]> = [['access','Customer access'],['jobs','Field jobs'],['sites','Network sites'],['fiber','Fiber lines']];
-const tokenHeaders = () => { const token = getAccessToken(); return token ? { Authorization:`Bearer ${token}` } : {}; };
+const tokenHeaders = (): Record<string, string> => { const token = getAccessToken(); return token ? { Authorization: `Bearer ${token}` } : {}; };
 const formatDate = (value?:string|null) => value ? new Date(value).toLocaleString() : '—';
 const formatRate = (bps?:number|null) => !bps ? '—' : `${Math.round(bps / 1_000_000)} Mbps`;
 
