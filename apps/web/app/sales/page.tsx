@@ -9,7 +9,7 @@ const money=(v:number|string,c='TZS')=>c+' '+Number(v).toLocaleString();
 const fmt=(v?:string)=>v?new Date(v).toLocaleString():'—';
 export default function SalesPage(){
  const [period,setPeriod]=useState<'today'|'week'|'month'|'all'>('month'),[month,setMonth]=useState(''),[summary,setSummary]=useState<Summary|null>(null),[customers,setCustomers]=useState<CustomerRow[]>([]),[query,setQuery]=useState(''),[payments,setPayments]=useState<PaymentRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
- const token=()=>{const t=getAccessToken();return t?{Authorization:'Bearer '+t}:{}};
+ const token=(): Record<string,string> => { const t=getAccessToken(); return t ? { Authorization: 'Bearer '+t } : {}; };
  const load=useCallback(async()=>{setLoading(true);setError('');try{const suffix=month?'&month='+encodeURIComponent(month):'';const h=token();const [s,c]=await Promise.all([apiFetch<Summary>('/sales/summary?period='+period+suffix,{headers:h}),apiFetch<{data:CustomerRow[]}>('/sales/customers?period='+period+suffix,{headers:h})]);setSummary(s);setCustomers(c.data||[])}catch(e){setError(e instanceof Error?e.message:'Unable to load sales analytics')}finally{setLoading(false)}},[period,month]);
  useEffect(()=>{void load()},[load]);
  async function search(){if(query.trim().length<2){setPayments([]);return}try{const r=await apiFetch<{data:PaymentRow[]}>('/sales/payments/search?q='+encodeURIComponent(query.trim()),{headers:token()});setPayments(r.data||[])}catch(e){setError(e instanceof Error?e.message:'Payment search failed')}}
