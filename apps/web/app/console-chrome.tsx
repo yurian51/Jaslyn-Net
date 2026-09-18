@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
+import { apiFetch } from '../lib/api';
 
 type IconName = 'overview' | 'customers' | 'sessions' | 'network' | 'loadBalancing' | 'isp' | 'purchases' | 'packages' | 'incidents' | 'audit';
 
@@ -61,12 +62,28 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [legalUpdate, setLegalUpdate] = useState(false);
   const moreActive = nav.slice(5).some(([, , href]) => isRouteActive(pathname, href));
 
   useEffect(() => { setMoreOpen(false); }, [pathname]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const token = getAccessToken();
+    if (!token) return;
+    apiFetch<{ documents: Array<{ current: boolean }> }>('/auth/legal-acceptance', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((result) => {
+      if (!cancelled) setLegalUpdate(result.documents.some((document) => !document.current));
+    }).catch(() => {
+      if (!cancelled) setLegalUpdate(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="console-chrome-frame">
+      {legalUpdate && <div className="console-legal-alert" role="status"><span><strong>Legal documents updated</strong><small>Review the current Terms and Privacy Notice before continuing.</small></span><Link href="/legal">Review legal center</Link></div>}
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
         <div className="console-chrome-brand">
           <div className="console-chrome-mark"><img src="/brand/jaslyn-net-icon.svg" alt="" /></div>
