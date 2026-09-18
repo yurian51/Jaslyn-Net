@@ -81,7 +81,8 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
   const [legalUpdate, setLegalUpdate] = useState(false);
-  const moreActive = nav.slice(5).some(([, , href]) => isRouteActive(pathname, href));
+  const mobilePrimaryHrefs = ['/dashboard', '/customers', '/sessions', '/network'];
+  const moreActive = nav.some(([, , href]) => !mobilePrimaryHrefs.includes(href) && href !== '/settings' && isRouteActive(pathname, href));
 
   useEffect(() => { setMoreOpen(false); }, [pathname]);
 
