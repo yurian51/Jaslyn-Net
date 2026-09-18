@@ -60,8 +60,8 @@ export default function LoadBalancingPage() {
         body: JSON.stringify({
           routerId: wanForm.routerId, name: wanForm.name.trim(), provider: wanForm.provider.trim() || undefined,
           interfaceName: wanForm.interfaceName.trim() || undefined, gateway: wanForm.gateway.trim() || undefined,
-          capacityMbps: capacity, configuredWeight: Number(wanForm.configuredWeight) || 1,
-          priority: Number(wanForm.priority) || 100, failoverPriority: Number(wanForm.failoverPriority) || 100, enabled: true,
+          capacityMbps: capacity, configuredWeight: wanForm.configuredWeight.trim() ? Number(wanForm.configuredWeight) : 1,
+          priority: wanForm.priority.trim() ? Number(wanForm.priority) : 100, failoverPriority: wanForm.failoverPriority.trim() ? Number(wanForm.failoverPriority) : 100, enabled: true,
         }),
       });
       setWanForm((current) => ({ ...EMPTY_WAN_FORM, routerId: current.routerId }));
