@@ -443,7 +443,7 @@ td { padding: 12px 9px; font-size: 11px; }
   .console-mobile-header-actions .console-nav-icon { width: 17px; height: 17px; }
 
   .console-chrome-mobile {
-    grid-template-columns: repeat(6, minmax(0,1fr));
+    grid-template-columns: repeat(5, minmax(0,1fr));
     height: 78px;
     padding-left: 6px;
     padding-right: 6px;
@@ -520,13 +520,13 @@ html[data-jn-reduce-motion="true"] *,html[data-jn-reduce-motion="true"] *::befor
 
 .console-chrome-more-group{display:grid;gap:4px;margin-top:7px}.console-chrome-more-group:first-of-type{margin-top:0}.console-chrome-more-group-title{padding:5px 8px 3px;color:#60728c;font-size:7px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
 
-/* Reference-match mobile shell: airy header, six-zone bottom bar and floating quick action. */
+/* Reference-match mobile shell: airy header, five-zone primary bar and floating quick action. */
 @media(max-width:820px){
   .console-mobile-header{min-height:72px;padding:10px 18px;background:rgba(255,255,255,.985);box-shadow:0 1px 0 rgba(15,23,42,.04)}
   .console-mobile-brand>span{width:40px;height:40px;flex-basis:40px;border-radius:11px;background:#f1f6ff;border:0}
   .console-mobile-brand strong{font-size:14px;color:#152b4d;letter-spacing:.045em}
   .console-mobile-header-actions{gap:8px}.console-mobile-header-actions a{width:40px;height:40px;border-color:#e5eaf1;background:#fff}
-  .console-chrome-mobile{height:82px;padding:5px 7px 8px;grid-template-columns:repeat(6,1fr);gap:2px;background:rgba(255,255,255,.98);border-top:1px solid #e9edf3;box-shadow:0 -4px 18px rgba(21,43,77,.045)}
+  .console-chrome-mobile{height:82px;padding:5px 7px calc(8px + env(safe-area-inset-bottom));grid-template-columns:repeat(5,1fr);gap:2px;background:rgba(255,255,255,.98);border-top:1px solid #e9edf3;box-shadow:0 -4px 18px rgba(21,43,77,.045)}
   .console-chrome-mobile>a,.console-chrome-mobile>button{height:67px;position:relative;border-radius:12px;font-size:8px;font-weight:600;color:#60718b;gap:4px}
   .console-chrome-mobile>a span,.console-chrome-mobile>button span{width:31px;height:29px;border-radius:9px;background:transparent}
   .console-chrome-mobile>a.active,.console-chrome-mobile>button.active{background:#f1f5ff;color:#183d7a}

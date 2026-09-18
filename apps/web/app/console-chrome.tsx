@@ -87,6 +87,8 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
   const [legalUpdate, setLegalUpdate] = useState(false);
+  // Keep only the highest-frequency operator destinations in the Android bottom bar.
+  // Everything else remains reachable through More, preserving a clean hybrid-app shell.
   const mobilePrimaryHrefs = ['/dashboard', '/customers', '/sessions', '/network'];
   const moreActive = nav.some(([, , href]) => !mobilePrimaryHrefs.includes(href) && href !== '/settings' && isRouteActive(pathname, href));
 
@@ -145,7 +147,6 @@ function OperationsChrome({ children }: { children: ReactNode }) {
         })}
         <button type="button" className={moreOpen || moreActive ? 'active' : ''} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}><span>•••</span><b>More</b><i className="console-mobile-dot" aria-hidden="true" /></button>
         <Link key="mobile-quick-scan" className="console-mobile-scan" href="/purchases" aria-label="Quick purchase and access"><span>⌗</span></Link>
-        <Link key="settings-mobile" className={isRouteActive(pathname, '/settings') ? 'active' : ''} href="/settings" aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link>
         {moreOpen && <div className="console-chrome-more"><div className="console-chrome-more-title">JASLYN NET · OPERATIONS</div>{mobileMoreGroups.map(([group, hrefs]) => <div className="console-chrome-more-group" key={group}><div className="console-chrome-more-group-title">{group}</div>{hrefs.map(href => { const item = nav.find(([, , itemHref]) => itemHref === href); if (!item) return null; const [label, icon] = item; const active = isRouteActive(pathname, href); return <Link key={href} className={active ? 'active' : ''} href={href} aria-current={active ? 'page' : undefined}><span><NavIcon name={icon} /></span><b>{label}</b></Link>; })}</div>)}<div className="console-chrome-more-group"><div className="console-chrome-more-group-title">Workspace</div><Link href="/settings" className={isRouteActive(pathname, '/settings') ? 'active' : ''} aria-current={isRouteActive(pathname, '/settings') ? 'page' : undefined}><span><NavIcon name="settings" /></span><b>Settings</b></Link></div></div>}
       </nav>
     </div>
