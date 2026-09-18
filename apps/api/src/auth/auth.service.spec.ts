@@ -53,3 +53,4 @@ describe('AuthService legal acceptance', () => {
     expect(client.query).toHaveBeenLastCalledWith('COMMIT');
   });
 });
+
