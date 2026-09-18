@@ -17,6 +17,8 @@ import { SessionsModule } from './sessions/sessions.module';
 import { VouchersModule } from './vouchers/vouchers.module';
 import { TrafficModule } from './modules/traffic/traffic.module';
 import { IspOperationsModule } from './isp-operations/isp-operations.module';
+import { IpamModule } from './ipam/ipam.module';
+import { RadiusModule } from './radius/radius.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 
 @Module({
@@ -39,6 +41,8 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     VouchersModule,
     TrafficModule,
     IspOperationsModule,
+    IpamModule,
+    RadiusModule,
   ],
 })
 export class AppModule implements NestModule {
