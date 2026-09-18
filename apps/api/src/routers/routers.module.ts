@@ -13,6 +13,6 @@ import { RoutersService } from './routers.service';
   imports: [AuditModule, ConfigModule, IncidentsModule],
   controllers: [RoutersController, NetworkCapabilitiesController],
   providers: [SecureNetworkCredentials, MikrotikRestAdapter, NetworkEnforcementService, RoutersService],
-  exports: [RoutersService, SecureNetworkCredentials, NetworkEnforcementService],
+  exports: [RoutersService, SecureNetworkCredentials, NetworkEnforcementService, MikrotikRestAdapter],
 })
 export class RoutersModule {}
