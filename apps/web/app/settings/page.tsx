@@ -35,6 +35,7 @@ export default function SettingsPage() {
     setPreferences(next);
     document.documentElement.dataset.jnDensity = next.density;
     document.documentElement.dataset.jnReduceMotion = String(next.reduceMotion);
+    document.documentElement.dataset.jnPaymentSubtitles = String(next.paymentSubtitles);
   }, []);
 
   function update<K extends keyof Preferences>(key: K, value: Preferences[K]) {
