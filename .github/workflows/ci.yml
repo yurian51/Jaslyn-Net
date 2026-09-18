@@ -45,6 +45,8 @@ jobs:
           test -f apps/api/migrations/035_legal_acceptances.sql
           test -f apps/api/migrations/036_ipam.sql
           test -f apps/api/migrations/037_radius_aaa.sql
+          test -f apps/api/migrations/043_connectivity_correlation.sql
+          grep -q "correlation_id" apps/api/migrations/043_connectivity_correlation.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
           grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
