@@ -36,20 +36,77 @@ export default function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connection, setConnection] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) { setError('Authentication required.'); setLoading(false); return; }
+    if (!token) {
+      setError('Authentication required.');
+      setConnection('degraded');
+      setLoading(false);
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setConnection('offline');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    setError(null);
     try {
-      setData(await apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } }));
+      const next = await apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } });
+      setData(next);
+      setError(null);
+      setConnection('online');
+      setLastUpdatedAt(new Date());
     } catch (cause: unknown) {
-      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load dashboard telemetry.');
-    } finally { setLoading(false); }
+      const message = cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load dashboard telemetry.';
+      setError(message);
+      setConnection(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'degraded');
+      // Preserve the last verified snapshot instead of replacing real telemetry with zeros.
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      if (cancelled) return;
+      timer = setTimeout(async () => {
+        if (!document.hidden) await load();
+        schedule();
+      }, document.hidden ? 60_000 : 15_000);
+    };
+
+    const onOnline = () => {
+      setConnection('checking');
+      void load().finally(schedule);
+    };
+    const onOffline = () => setConnection('offline');
+    const onVisibility = () => {
+      if (!document.hidden) void load().finally(schedule);
+      else schedule();
+    };
+
+    void load().finally(schedule);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [load]);
 
   const currency = data?.tenant?.currency ?? 'TZS';
   const revenue = data?.revenueSeries ?? [];
@@ -90,7 +147,7 @@ export default function DashboardPage() {
           <p className="context">Technical state, customer state and business state in one operator view.</p>
         </div>
         <div className="top-actions">
-          <span className={`data-state ${error ? 'danger' : ''}`}><i /> {error ? 'API UNAVAILABLE' : loading ? 'REFRESHING' : 'LIVE API DATA'}</span>
+          <span className={`data-state ${connection === 'offline' || connection === 'degraded' ? 'danger' : ''}`}><i /> {connection === 'offline' ? 'OFFLINE / LAST STATE' : connection === 'degraded' ? 'DEGRADED / LAST STATE' : loading ? 'REFRESHING' : connection === 'checking' ? 'CHECKING API' : 'LIVE API DATA'}{lastUpdatedAt ? ` · ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
           <button className="selector" type="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh telemetry'}</button>
         </div>
       </header>
