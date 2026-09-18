@@ -44,6 +44,7 @@ export default function SettingsPage() {
     window.localStorage.setItem('jaslyn-net.preferences', JSON.stringify(next));
     document.documentElement.dataset.jnDensity = next.density;
     document.documentElement.dataset.jnReduceMotion = String(next.reduceMotion);
+    document.documentElement.dataset.jnPaymentSubtitles = String(next.paymentSubtitles);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1400);
   }
