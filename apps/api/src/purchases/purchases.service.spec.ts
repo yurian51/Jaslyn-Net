@@ -26,6 +26,10 @@ describe('PurchasesService payment confirmation', () => {
         if (sql.includes('SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages')) {
           return { rowCount: 1, rows: [{ id: packageId, name: 'Daily', duration_seconds: 86400, data_limit_bytes: null, download_bps: 10000000, upload_bps: 2000000 }] };
         }
+        if (sql.includes('INSERT INTO financial_ledger_accounts')) return { rowCount: 1, rows: [{ id: sql.includes('WiFi service revenue') ? 'revenue-account' : 'cash-account' }] };
+        if (sql.includes('INSERT INTO financial_ledger_transactions')) return { rowCount: 1, rows: [{ id: 'ledger-tx-1' }] };
+        if (sql.includes('FROM financial_ledger_entries')) return { rowCount: 0, rows: [] };
+        if (sql.includes('INSERT INTO financial_ledger_entries')) return { rowCount: 2, rows: [] };
         if (sql.includes('UPDATE payments SET provider_reference=$2, status=\'SUCCESS\'')) return { rowCount: 1, rows: [] };
         if (sql.includes('UPDATE wifi_plan_purchases SET status=\'PAID\'')) return { rowCount: 1, rows: [] };
         if (sql.includes('INSERT INTO access_grants')) return { rowCount: 1, rows: [] };
