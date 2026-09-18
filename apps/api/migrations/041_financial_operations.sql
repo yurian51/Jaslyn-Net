@@ -5,6 +5,15 @@ BEGIN;
 -- represented explicitly by settlement fields and an auditable FX rate snapshot.
 
 ALTER TABLE payments
+  ADD CONSTRAINT payments_tenant_id_uq UNIQUE (tenant_id, id);
+
+ALTER TABLE wifi_plan_purchases
+  ADD CONSTRAINT wifi_plan_purchases_tenant_id_uq UNIQUE (tenant_id, id);
+
+ALTER TABLE customers
+  ADD CONSTRAINT customers_tenant_id_uq UNIQUE (tenant_id, id);
+
+ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS settlement_amount numeric(20,6),
   ADD COLUMN IF NOT EXISTS settlement_currency char(3),
   ADD COLUMN IF NOT EXISTS fx_rate numeric(30,12),
@@ -42,6 +51,8 @@ CREATE TABLE IF NOT EXISTS resellers (
   CHECK (settlement_currency ~ '^[A-Z]{3}$')
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS resellers_tenant_id_uq ON resellers (tenant_id, id);
+
 CREATE INDEX IF NOT EXISTS resellers_tenant_status_idx
   ON resellers (tenant_id, status);
 
@@ -73,6 +84,8 @@ CREATE TABLE IF NOT EXISTS financial_ledger_transactions (
   CHECK (transaction_type IN ('PAYMENT','REFUND','COMMISSION','ADJUSTMENT','TAX','RESELLER_SETTLEMENT','TRANSFER','OTHER'))
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS financial_ledger_transactions_tenant_id_uq ON financial_ledger_transactions (tenant_id, id);
+
 CREATE INDEX IF NOT EXISTS financial_ledger_transactions_ref_idx
   ON financial_ledger_transactions (tenant_id, reference_type, reference_id);
 
@@ -83,8 +96,10 @@ CREATE INDEX IF NOT EXISTS financial_ledger_transactions_correlation_idx
 CREATE TABLE IF NOT EXISTS financial_ledger_entries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  transaction_id uuid NOT NULL REFERENCES financial_ledger_transactions(id) ON DELETE RESTRICT,
-  account_id uuid NOT NULL REFERENCES financial_ledger_accounts(id) ON DELETE RESTRICT,
+  transaction_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, transaction_id) REFERENCES financial_ledger_transactions(tenant_id, id) ON DELETE RESTRICT,
+  account_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, account_id) REFERENCES financial_ledger_accounts(tenant_id, id) ON DELETE RESTRICT,
   currency char(3) NOT NULL,
   debit numeric(20,6) NOT NULL DEFAULT 0,
   credit numeric(20,6) NOT NULL DEFAULT 0,
@@ -96,6 +111,8 @@ CREATE TABLE IF NOT EXISTS financial_ledger_entries (
   CHECK (exchange_rate IS NULL OR exchange_rate > 0)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS financial_ledger_accounts_tenant_id_uq ON financial_ledger_accounts (tenant_id, id);
+
 CREATE INDEX IF NOT EXISTS financial_ledger_entries_account_idx
   ON financial_ledger_entries (tenant_id, account_id, created_at DESC);
 
@@ -105,15 +122,19 @@ CREATE INDEX IF NOT EXISTS financial_ledger_entries_transaction_idx
 CREATE TABLE IF NOT EXISTS commissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  reseller_id uuid NOT NULL REFERENCES resellers(id) ON DELETE RESTRICT,
-  purchase_id uuid REFERENCES wifi_plan_purchases(id) ON DELETE RESTRICT,
-  payment_id uuid REFERENCES payments(id) ON DELETE RESTRICT,
+  reseller_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, reseller_id) REFERENCES resellers(tenant_id, id) ON DELETE RESTRICT,
+  purchase_id uuid,
+  FOREIGN KEY (tenant_id, purchase_id) REFERENCES wifi_plan_purchases(tenant_id, id) ON DELETE RESTRICT,
+  payment_id uuid,
+  FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id) ON DELETE RESTRICT,
   basis_amount numeric(20,6) NOT NULL,
   currency char(3) NOT NULL,
   rate numeric(9,6) NOT NULL,
   commission_amount numeric(20,6) NOT NULL,
   status text NOT NULL DEFAULT 'ACCRUED',
-  ledger_transaction_id uuid REFERENCES financial_ledger_transactions(id) ON DELETE RESTRICT,
+  ledger_transaction_id uuid,
+  FOREIGN KEY (tenant_id, ledger_transaction_id) REFERENCES financial_ledger_transactions(tenant_id, id) ON DELETE RESTRICT,
   approved_at timestamptz,
   paid_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -132,13 +153,15 @@ CREATE INDEX IF NOT EXISTS commissions_tenant_status_idx
 CREATE TABLE IF NOT EXISTS refunds (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  payment_id uuid NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+  payment_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id) ON DELETE RESTRICT,
   amount numeric(20,6) NOT NULL,
   currency char(3) NOT NULL,
   reason text NOT NULL,
   status text NOT NULL DEFAULT 'REQUESTED',
   provider_reference text,
-  ledger_transaction_id uuid REFERENCES financial_ledger_transactions(id) ON DELETE RESTRICT,
+  ledger_transaction_id uuid,
+  FOREIGN KEY (tenant_id, ledger_transaction_id) REFERENCES financial_ledger_transactions(tenant_id, id) ON DELETE RESTRICT,
   requested_by uuid,
   approved_by uuid,
   requested_at timestamptz NOT NULL DEFAULT now(),
@@ -150,13 +173,16 @@ CREATE TABLE IF NOT EXISTS refunds (
   CHECK (status IN ('REQUESTED','APPROVED','PROCESSING','SUCCEEDED','FAILED','CANCELLED'))
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS tax_rates_tenant_id_uq ON tax_rates (tenant_id, id);
+
 CREATE INDEX IF NOT EXISTS refunds_payment_idx
   ON refunds (tenant_id, payment_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS financial_adjustments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  customer_id uuid REFERENCES customers(id) ON DELETE RESTRICT,
+  customer_id uuid,
+  FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE RESTRICT,
   purchase_id uuid REFERENCES wifi_plan_purchases(id) ON DELETE RESTRICT,
   amount numeric(20,6) NOT NULL,
   currency char(3) NOT NULL,
@@ -224,13 +250,16 @@ CREATE TABLE IF NOT EXISTS reconciliation_runs (
   CHECK (status IN ('RUNNING','COMPLETED','PARTIAL','FAILED'))
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS reconciliation_runs_tenant_id_uq ON reconciliation_runs (tenant_id, id);
+
 CREATE INDEX IF NOT EXISTS reconciliation_runs_tenant_period_idx
   ON reconciliation_runs (tenant_id, period_end DESC);
 
 CREATE TABLE IF NOT EXISTS reconciliation_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  run_id uuid NOT NULL REFERENCES reconciliation_runs(id) ON DELETE CASCADE,
+  run_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, run_id) REFERENCES reconciliation_runs(tenant_id, id) ON DELETE CASCADE,
   payment_id uuid REFERENCES payments(id) ON DELETE RESTRICT,
   provider text,
   provider_reference text,
@@ -296,18 +325,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS invoices_purchase_uq
   ON invoices (tenant_id, purchase_id)
   WHERE purchase_id IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS invoices_tenant_id_uq ON invoices (tenant_id, id);
+
 CREATE INDEX IF NOT EXISTS invoices_customer_status_idx
   ON invoices (tenant_id, customer_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS invoice_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  invoice_id uuid NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  invoice_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id) ON DELETE CASCADE,
   description text NOT NULL,
   quantity numeric(20,6) NOT NULL DEFAULT 1,
   unit_price numeric(20,6) NOT NULL,
   subtotal numeric(20,6) NOT NULL,
-  tax_rate_id uuid REFERENCES tax_rates(id) ON DELETE RESTRICT,
+  tax_rate_id uuid,
+  FOREIGN KEY (tenant_id, tax_rate_id) REFERENCES tax_rates(tenant_id, id) ON DELETE RESTRICT,
   tax_amount numeric(20,6) NOT NULL DEFAULT 0,
   total numeric(20,6) NOT NULL,
   currency char(3) NOT NULL,
