@@ -8,11 +8,11 @@ type Purchase = { id: string; customerId: string; customerName: string; packageI
 type PaymentProvider = { code: string; name: string; subtitle: string; logoUrl?: string; fallback: string; tone: string; category: string; countries: string[]; currencies: string[]; directIntegration: boolean; webhookSupported: boolean; reconciliationSupported: boolean; configured: boolean; enabled: boolean };
 
 const FALLBACK_PAYMENT_PROVIDERS: PaymentProvider[] = [
-  { code: 'manual', name: 'Manual', subtitle: 'JASLYN NET operations', fallback: 'J', tone: 'jaslyn', category: 'MANUAL', countries: ['TZ'], currencies: ['TZS'], directIntegration: true, webhookSupported: false, reconciliationSupported: true, configured: true, enabled: true },
+  { code: 'manual', name: 'Manual', subtitle: 'JASLYN NET operations', fallback: '', tone: 'jaslyn', category: 'MANUAL', countries: ['TZ'], currencies: ['TZS'], directIntegration: true, webhookSupported: false, reconciliationSupported: true, configured: true, enabled: true },
 ];
 
 function date(value?: string | null) { if (!value) return '—'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed); }
-function ProviderLogo({ provider }: { provider: PaymentProvider }) { return <span className={`provider-logo ${provider.tone}`} aria-hidden="true">{provider.logoUrl ? <img src={provider.logoUrl} alt="" loading="lazy" /> : <b>{provider.fallback}</b>}</span>; }
+function ProviderLogo({ provider }: { provider: PaymentProvider }) { return <span className={`provider-logo ${provider.tone}`} aria-hidden="true">{provider.logoUrl ? <img src={provider.logoUrl} alt="" loading="lazy" /> : provider.code === 'manual' ? <img src="/brand/jaslyn-net-icon.svg" alt="" /> : <b>{provider.fallback}</b>}</span>; }
 
 export default function PurchasesPage() {
   const [rows, setRows] = useState<Purchase[]>([]);
