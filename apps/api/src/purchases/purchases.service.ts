@@ -110,6 +110,11 @@ export class PurchasesService {
       if (current.status !== 'PENDING_PAYMENT') throw new BadRequestException(`Purchase cannot be paid from ${current.status}`);
 
       await this.payments.assertMethodCanSettle(tenantId, provider, current.currency, client);
+      // Direct operator confirmation is intentionally limited to the manual settlement boundary.
+      // External providers must transition through their authenticated webhook/verification path.
+      if (provider !== 'manual') {
+        throw new ConflictException('External payment providers must be verified through their provider webhook');
+      }
 
       const key = input.idempotencyKey?.trim() || `purchase:${purchaseId}:${providerReference}`;
       const existingByKey = await client.query(
