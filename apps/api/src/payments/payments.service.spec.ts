@@ -165,6 +165,10 @@ describe('PaymentsService', () => {
       requiresVerification: true,
     });
 
+    expect(eventClient.query).toHaveBeenCalledWith(
+      expect.stringContaining('VALUES ($1,$2,$3,$4,$5,$6,true'),
+      ['tenant-1', 'pay-1', 'mpesa', 'evt-refund-1', 'payment.refunded', expect.anything(), 'payment-webhook:mpesa:evt-refund-1'],
+    );
     expect(eventClient.query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE payments'));
     expect(eventClient.release).toHaveBeenCalled();
   });
