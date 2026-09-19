@@ -2,6 +2,21 @@ import { PaymentsService } from '../payments/payments.service';
 import { PurchasesService } from './purchases.service';
 
 describe('PurchasesService payment confirmation', () => {
+  it('rejects direct confirmation for external providers', async () => {
+    const db = { connect: jest.fn() } as any;
+    const payments = { assertMethodCanSettle: jest.fn().mockResolvedValue({ code: 'mpesa' }) } as any;
+    const service = new PurchasesService(db, payments);
+
+    await expect(service.confirmPayment('tenant-1', 'purchase-1', {
+      provider: 'mpesa',
+      providerReference: 'MPESA-001',
+      status: 'SUCCESS',
+    })).rejects.toThrow('External payment providers must be verified through their provider webhook');
+
+    expect(db.connect).not.toHaveBeenCalled();
+    expect(payments.assertMethodCanSettle).not.toHaveBeenCalled();
+  });
+
   it('settles an existing pending intent instead of creating a second payment', async () => {
     const purchaseId = '11111111-1111-1111-1111-111111111111';
     const tenantId = '22222222-2222-2222-2222-222222222222';
