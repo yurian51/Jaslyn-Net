@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: yurian_wifi
-      POSTGRES_USER: wifi
-      POSTGRES_PASSWORD: wifi
+      POSTGRES_DB: ${POSTGRES_DB:-yurian_wifi}
+      POSTGRES_USER: ${POSTGRES_USER:-wifi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your local environment}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wifi -d yurian_wifi"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wifi} -d ${POSTGRES_DB:-yurian_wifi}"]
       interval: 5s
       timeout: 5s
       retries: 10
