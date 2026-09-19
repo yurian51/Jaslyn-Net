@@ -57,3 +57,9 @@ This repository is developed as a real production system, not a static demo. Fea
 ## Ecosystem
 
 JASLYN NET is one product in the wider JASLYN ecosystem. Other JASLYN products may exist independently, but their capabilities must not be represented as features of JASLYN NET unless they are explicitly implemented in this repository.
+
+## Intellectual property and source control
+
+JASLYN NET is proprietary software of YURIAN TECH LTD. Repository access does not grant a license to copy, redistribute, modify, reverse engineer, or publish the source. Development access is controlled through GitHub permissions, protected branches, CODEOWNERS and security checks.
+
+Production credentials and secrets are never part of the repository. Use environment/deployment secret storage for credentials.
