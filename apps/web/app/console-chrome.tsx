@@ -118,7 +118,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
       {legalUpdate && <div className="console-legal-alert" role="status"><span><strong>Legal documents updated</strong><small>Review the current Terms and Privacy Notice before continuing.</small></span><Link href="/legal">Review legal center</Link></div>}
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
         <div className="console-chrome-brand">
-          <div className="console-chrome-mark"><img src="/brand/jaslyn-net-mark.svg" alt="" /></div>
+          <div className="console-chrome-mark"><img src="/brand/Jaslyn net brand J (2).svg" alt="" /></div>
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
@@ -131,12 +131,12 @@ function OperationsChrome({ children }: { children: ReactNode }) {
         </nav>
         <div className="console-chrome-footer">
           <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Workspace session</b><small>Authenticated operator access</small></span></div><Link className="console-chrome-legal" href="/legal/privacy">Privacy & legal</Link>
-          <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong><img src="/brand/jaslyn-net-mark.svg" alt="" /></strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
+          <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong><img src="/brand/Jaslyn net brand J (2).svg" alt="" /></strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
       <header className="console-mobile-header">
         <Link href="/dashboard" className="console-mobile-brand" aria-label="JASLYN NET overview">
-          <span><img src="/brand/jaslyn-net-mark.svg" alt="" /></span>
+          <span><img src="/brand/Jaslyn net brand J (2).svg" alt="" /></span>
           <strong>JASLYN NET</strong>
         </Link>
         <div className="console-mobile-header-actions">
