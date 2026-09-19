@@ -89,8 +89,13 @@ export class PurchasesService {
   }
 
   async confirmPayment(tenantId: string, purchaseId: string, input: ConfirmPurchasePaymentDto) {
-    const client = await this.db.connect();
     const provider = input.provider.trim().toLowerCase();
+    // Direct operator confirmation is intentionally limited to the manual settlement boundary.
+    // External providers must transition through their authenticated webhook/verification path.
+    if (provider !== 'manual') {
+      throw new ConflictException('External payment providers must be verified through their provider webhook');
+    }
+    const client = await this.db.connect();
     const providerReference = input.providerReference.trim();
     const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
     let correlationId = getCorrelationId() ?? null;
@@ -110,11 +115,6 @@ export class PurchasesService {
       if (current.status !== 'PENDING_PAYMENT') throw new BadRequestException(`Purchase cannot be paid from ${current.status}`);
 
       await this.payments.assertMethodCanSettle(tenantId, provider, current.currency, client);
-      // Direct operator confirmation is intentionally limited to the manual settlement boundary.
-      // External providers must transition through their authenticated webhook/verification path.
-      if (provider !== 'manual') {
-        throw new ConflictException('External payment providers must be verified through their provider webhook');
-      }
 
       const key = input.idempotencyKey?.trim() || `purchase:${purchaseId}:${providerReference}`;
       const existingByKey = await client.query(
