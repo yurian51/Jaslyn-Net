@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   title: 'JASLYN NET | Supreme Hybrid Network Operating Engine',
   description: 'JASLYN NET is a hybrid WiFi billing, AAA, captive portal, payment and network operations platform.',
   icons: {
-    icon: '/branding/jaslyn-net-logo.png',
-    apple: '/branding/jaslyn-net-logo.png',
+    icon: '/brand/Jaslyn net brand J (1).svg',
+    apple: '/brand/Jaslyn net brand J (1).svg',
   },
 };
 
