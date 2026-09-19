@@ -22,7 +22,6 @@ import { IspOperationsModule } from './isp-operations/isp-operations.module';
 import { IpamModule } from './ipam/ipam.module';
 import { RadiusModule } from './radius/radius.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
-import { LifecycleMaintenanceModule } from './maintenance/lifecycle-maintenance.module';
 
 @Module({
   imports: [
@@ -48,7 +47,6 @@ import { LifecycleMaintenanceModule } from './maintenance/lifecycle-maintenance.
     IspOperationsModule,
     IpamModule,
     RadiusModule,
-    LifecycleMaintenanceModule,
   ],
 })
 export class AppModule implements NestModule {
