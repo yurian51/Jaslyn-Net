@@ -50,9 +50,9 @@ export class LifecycleMaintenanceService implements OnModuleInit, OnModuleDestro
 
       for (const tenant of tenants.rows) {
         try {
-          await this.sessions.reconcileAccessState(tenant.id, { source: 'lifecycle-maintenance' });
+          await this.sessions.reconcileAccessState(tenant.id, { correlationId: `maintenance:${tenant.id}` });
           await this.sessions.reconcileStale(tenant.id, 30);
-          await this.routers.markOfflineStale(tenant.id, 5, { source: 'lifecycle-maintenance' });
+          await this.routers.markOfflineStale(tenant.id, 5, { correlationId: `maintenance:${tenant.id}` });
         } catch (error: unknown) {
           const reason = error instanceof Error ? error.message : String(error);
           await this.audit.record(
@@ -61,7 +61,7 @@ export class LifecycleMaintenanceService implements OnModuleInit, OnModuleDestro
             'tenant',
             tenant.id,
             { operation: 'lifecycle-maintenance', reason },
-            { source: 'lifecycle-maintenance' },
+            { correlationId: `maintenance:${tenant.id}` },
           ).catch(() => undefined);
           this.logger.error(JSON.stringify({
             tenantId: tenant.id,
