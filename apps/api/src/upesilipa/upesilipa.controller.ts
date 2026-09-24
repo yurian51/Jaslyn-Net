@@ -16,6 +16,11 @@ export class UpesiLipaController {
   @Get('dashboard')
   dashboard(@Req() req: AuthenticatedRequest) { return this.upesilipa.dashboard(req.user!.tenantId); }
 
+  @Get('health')
+  healthOverview(@Req() req: AuthenticatedRequest) {
+    return this.upesilipa.healthOverview(req.user!.tenantId);
+  }
+
   @Get('sites/:locationId')
   site(@Req() req: AuthenticatedRequest, @Param('locationId') locationId: string) {
     return this.upesilipa.getSiteSettings(req.user!.tenantId, locationId);
