@@ -1,10 +1,15 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { UpesiPayService } from './upesipay.service';
 
 @Controller('upesipay')
 export class UpesiPayController {
   constructor(private readonly upesipay: UpesiPayService) {}
+
+  @Get('capabilities')
+  capabilities() {
+    return this.upesipay.capabilities();
+  }
 
   @Get('channels')
   @UseGuards(AuthGuard)
@@ -16,6 +21,12 @@ export class UpesiPayController {
   @UseGuards(AuthGuard)
   bankPaybills(@Req() req: AuthenticatedRequest) {
     return this.upesipay.getBankPaybills(req.user!.tenantId);
+  }
+
+  @Get('paylink/:tag')
+  @UseGuards(AuthGuard)
+  payLink(@Req() req: AuthenticatedRequest, @Param('tag') tag: string) {
+    return this.upesipay.payLink(req.user!.tenantId, tag);
   }
 
   @Get('merchant-link')
