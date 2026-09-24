@@ -32,7 +32,7 @@
 }
 .data-state i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px rgba(22,132,91,.08)}
 .data-state.danger{color:var(--ov-red);background:#fff3f4;border-color:#f2d8db}
-.selector{height:34px!important;border-radius:8px!important;font-size:9px!important}
+.selector{height:34px!important;border-radius:8px!important;font-size:9px!important}.dashboard-action{white-space:nowrap}.dashboard-action:hover{background:#f7f9fc;border-color:#cfd9e5}
 .error-banner{margin-bottom:12px!important}
 .overview-kpis{margin-bottom:12px}
 .overview-kpis .kpi{
