@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { CreateAdjustmentDto, CreateCommissionDto, CreateDisputeDto, CreateInvoiceDto, CreateLedgerAccountDto, CreateRefundDto, CreateResellerDto, ReconcileDto, TaxRateDto } from './finance.dto';
+import { CreateAdjustmentDto, CreateCommissionDto, CreateDisputeDto, CreateInvoiceDto, CreateInvoiceLineDto, CreateLedgerAccountDto, CreateRefundDto, CreateResellerDto, ReconcileDto, TaxRateDto } from './finance.dto';
 
 @Injectable()
 export class FinanceService {
@@ -15,6 +15,17 @@ export class FinanceService {
   async listInvoices(tenantId:string, customerId?:string) {
     const r=await this.db.query(`SELECT i.*, c.full_name AS "customerName", c.phone FROM invoices i LEFT JOIN customers c ON c.tenant_id=i.tenant_id AND c.id=i.customer_id WHERE i.tenant_id=$1 AND ($2::uuid IS NULL OR i.customer_id=$2) ORDER BY i.created_at DESC LIMIT 500`,[tenantId,customerId??null]);
     return {data:r.rows};
+  }
+
+  async addInvoiceLine(tenantId:string,invoiceId:string,input:CreateInvoiceLineDto) {
+    const invoice=await this.db.query(`SELECT id,currency,status FROM invoices WHERE tenant_id=$1 AND id=$2`,[tenantId,invoiceId]);
+    if(!invoice.rowCount) throw new NotFoundException('Invoice not found');
+    if(invoice.rows[0].status==='PAID' || invoice.rows[0].status==='VOID') throw new ConflictException('Cannot modify a settled or void invoice');
+    const quantity=Number(input.quantity), unitPrice=Number(input.unitPrice), taxAmount=Number(input.taxAmount);
+    const subtotal=Math.round(quantity*unitPrice*1000000)/1000000, total=Math.round((subtotal+taxAmount)*1000000)/1000000;
+    const line=await this.db.query(`INSERT INTO invoice_lines(tenant_id,invoice_id,description,quantity,unit_price,subtotal,tax_rate_id,tax_amount,total,currency) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[tenantId,invoiceId,input.description.trim(),quantity,unitPrice,subtotal,input.taxRateId??null,taxAmount,total,invoice.rows[0].currency]);
+    await this.db.query(`UPDATE invoices SET subtotal=(SELECT COALESCE(SUM(subtotal),0) FROM invoice_lines WHERE tenant_id=$1 AND invoice_id=$2),tax_total=(SELECT COALESCE(SUM(tax_amount),0) FROM invoice_lines WHERE tenant_id=$1 AND invoice_id=$2),total=(SELECT COALESCE(SUM(total),0) FROM invoice_lines WHERE tenant_id=$1 AND invoice_id=$2),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,invoiceId]);
+    return line.rows[0];
   }
 
   async getInvoice(tenantId:string,id:string) {
