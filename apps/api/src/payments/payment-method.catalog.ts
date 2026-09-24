@@ -33,6 +33,7 @@ export const PAYMENT_METHOD_CATALOG: readonly PaymentMethodDefinition[] = [
   { code: 'google_pay', name: 'Google Pay', subtitle: 'Digital wallet', category: 'WALLET', countries: ['*'], currencies: ['*'], fallback: 'G', tone: 'google_pay', directIntegration: false, webhookSupported: true, reconciliationSupported: true },
   { code: 'binance_pay', name: 'Binance Pay', subtitle: 'Crypto payments', category: 'CRYPTO', countries: ['*'], currencies: ['*'], fallback: 'B', tone: 'binance_pay', directIntegration: true, webhookSupported: true, reconciliationSupported: true },
   { code: 'bank', name: 'Bank transfer', subtitle: 'Bank / settlement', category: 'BANK', countries: ['TZ'], currencies: ['TZS'], fallback: 'BK', tone: 'bank', directIntegration: false, webhookSupported: false, reconciliationSupported: true },
+  { code: 'upesipay', name: 'UpesiPay', subtitle: 'M-Pesa collections & wallet services', category: 'WALLET', countries: ['KE'], currencies: ['KES'], fallback: 'UP', tone: 'upesipay', directIntegration: true, webhookSupported: true, reconciliationSupported: true },
 ];
 
 export function getPaymentMethod(code: string) {
