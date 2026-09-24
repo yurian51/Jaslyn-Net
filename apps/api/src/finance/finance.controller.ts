@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { CreateAdjustmentDto, CreateCommissionDto, CreateDisputeDto, CreateInvoiceDto, CreateLedgerAccountDto, CreateRefundDto, CreateResellerDto, ReconcileDto, TaxRateDto } from './finance.dto';
+import { CreateAdjustmentDto, CreateCommissionDto, CreateDisputeDto, CreateInvoiceDto, CreateInvoiceLineDto, CreateLedgerAccountDto, CreateRefundDto, CreateResellerDto, ReconcileDto, TaxRateDto } from './finance.dto';
 import { FinanceService } from './finance.service';
 
 @Controller('finance') @UseGuards(AuthGuard, RolesGuard)
@@ -10,6 +10,7 @@ export class FinanceController {
  constructor(private readonly finance:FinanceService){}
  @Get('invoices') @Roles('OWNER','ADMIN','CASHIER','AGENT') invoices(@Req() r:AuthenticatedRequest,@Query('customerId') c?:string){return this.finance.listInvoices(r.user!.tenantId,c)}
  @Get('invoices/:id') @Roles('OWNER','ADMIN','CASHIER','AGENT') invoice(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.finance.getInvoice(r.user!.tenantId,id)}
+ @Post('invoices/:id/lines') @Roles('OWNER','ADMIN','CASHIER') addInvoiceLine(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:CreateInvoiceLineDto){return this.finance.addInvoiceLine(r.user!.tenantId,id,d)}
  @Post('invoices') @Roles('OWNER','ADMIN','CASHIER') createInvoice(@Req() r:AuthenticatedRequest,@Body() d:CreateInvoiceDto){return this.finance.createInvoice(r.user!.tenantId,d)}
  @Get('ledger/accounts') @Roles('OWNER','ADMIN','CASHIER') accounts(@Req() r:AuthenticatedRequest){return this.finance.listLedgerAccounts(r.user!.tenantId)}
  @Post('ledger/accounts') @Roles('OWNER','ADMIN') createAccount(@Req() r:AuthenticatedRequest,@Body() d:CreateLedgerAccountDto){return this.finance.createLedgerAccount(r.user!.tenantId,d)}
