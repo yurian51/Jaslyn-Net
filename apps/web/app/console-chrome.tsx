@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { apiFetch } from '../lib/api';
 
-type IconName = 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance';
+type IconName = 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance' | 'upesilipa';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Account & Workspace', 'account', '/account'],
@@ -26,6 +26,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Plans & Products', 'packages', '/packages'],
   ['Promotions', 'promotions', '/promotions'],
   ['Finance', 'finance', '/finance'],
+  ['UpesiLipa WiFi', 'upesilipa', '/upesilipa'],
   ['Network Commands', 'networkCommands', '/network-commands'],
   ['RADIUS / AAA', 'radius', '/radius'],
   ['Notifications', 'notifications', '/notifications'],
@@ -36,7 +37,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 
 const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
-  ['Commercial', ['/purchases', '/sales', '/payments', '/vouchers', '/packages', '/promotions', '/finance']],
+  ['Commercial', ['/purchases', '/sales', '/payments', '/vouchers', '/packages', '/promotions', '/finance', '/upesilipa']],
   ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
   ['Workspace', ['/account', '/settings']],
 ];
