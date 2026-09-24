@@ -32,6 +32,23 @@ describe('UpesiLipaService', () => {
     for (const call of query.mock.calls) expect(call[1]).toEqual(['tenant-1']);
   });
 
+  it('aggregates tenant site health without leaking routers across tenants', async () => {
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        { locationId: 'loc-1', locationName: 'Site A', routers: 2, online: 2, offline: 0, degraded: 0 },
+        { locationId: 'loc-2', locationName: 'Site B', routers: 2, online: 1, offline: 1, degraded: 0 },
+        { locationId: 'loc-3', locationName: 'Site C', routers: 0, online: 0, offline: 0, degraded: 0 },
+      ],
+    });
+    const service = new UpesiLipaService({ query } as never, {} as never);
+
+    const result = await service.healthOverview('tenant-1');
+
+    expect(result.summary).toEqual({ sites: 3, healthy: 1, degraded: 1, offline: 0, noDevices: 1 });
+    expect(result.sites.map((site) => site.health)).toEqual(['HEALTHY', 'DEGRADED', 'NO_DEVICES']);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE l.tenant_id=$1'), ['tenant-1']);
+  });
+
   it('derives site health from actual router states', async () => {
     const query = jest.fn()
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'loc-1', name: 'Site A' }] })
