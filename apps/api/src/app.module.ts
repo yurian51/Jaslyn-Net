@@ -7,6 +7,7 @@ import { BillingModule } from './billing/billing.module';
 import { CustomersModule } from './customers/customers.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { FinanceModule } from './finance/finance.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OverviewModule } from './overview/overview.module';
@@ -32,6 +33,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     AuditModule,
     AuthModule,
     HealthModule,
+    FinanceModule,
     IncidentsModule,
     NotificationsModule,
     OverviewModule,
