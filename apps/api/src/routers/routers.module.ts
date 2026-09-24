@@ -4,6 +4,7 @@ import { SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { TrafficModule } from '../modules/traffic/traffic.module';
 import { IncidentsService } from '../incidents/incidents.service';
 import { NetworkCapabilitiesController } from './network-capabilities.controller';
+import { NetworkAdapterRegistry } from './network-adapter-registry';
 import { RoutersController } from './routers.controller';
 import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
@@ -11,7 +12,7 @@ import { RoutersService } from './routers.service';
 @Module({
   imports: [AuditModule, TrafficModule],
   controllers: [RoutersController, NetworkCapabilitiesController],
-  providers: [SecureNetworkCredentials, IncidentsService, NetworkEnforcementService, RoutersService],
-  exports: [RoutersService, SecureNetworkCredentials, NetworkEnforcementService],
+  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, RoutersService],
+  exports: [RoutersService, SecureNetworkCredentials, NetworkAdapterRegistry, NetworkEnforcementService],
 })
 export class RoutersModule {}
