@@ -15,6 +15,9 @@ describe('NetworkAdapterRegistry', () => {
     const registry = new NetworkAdapterRegistry();
 
     expect(registry.get('mikrotik_rest')?.lifecycle).toBe('NATIVE');
+    expect(registry.get('meraki_dashboard_api')?.lifecycle).toBe('NATIVE');
+    expect(registry.get('unifi_network_api')?.lifecycle).toBe('NATIVE');
+    expect(registry.get('openwrt_ubus')?.lifecycle).toBe('NATIVE');
     expect(registry.get('generic_http')?.lifecycle).toBe('GENERIC');
     expect(registry.supports('MERAKI_DASHBOARD_API', 'bandwidth_enforcement')).toBe(true);
     expect(registry.supports('MERAKI_DASHBOARD_API', 'disconnect_client')).toBe(false);
