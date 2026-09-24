@@ -81,7 +81,19 @@ export class SessionsService {
              AND status='ACTIVE'
              AND starts_at IS NOT NULL
              AND starts_at <= now()
-             AND (ends_at IS NULL OR ends_at > now())
+             AND (
+               ends_at IS NULL
+               OR ends_at > now()
+               OR ends_at + make_interval(secs => COALESCE((
+                 SELECT s.grace_period_seconds
+                 FROM upesilipa_site_settings s
+                 JOIN routers rr ON rr.tenant_id=s.tenant_id AND rr.location_id=s.location_id
+                 WHERE s.tenant_id=access_grants.tenant_id
+                   AND rr.id=COALESCE($3, access_grants.router_id)
+                   AND s.enabled=true
+                 LIMIT 1
+               ),0)) > now()
+             )
              AND ($3::uuid IS NULL OR router_id IS NULL OR router_id=$3)
            ORDER BY ends_at NULLS LAST, created_at DESC
            LIMIT 1
@@ -199,7 +211,18 @@ export class SessionsService {
       const grants = await client.query(
         `SELECT id, customer_id AS "customerId", router_id AS "routerId"
          FROM access_grants
-         WHERE tenant_id=$1 AND status='ACTIVE' AND ends_at IS NOT NULL AND ends_at <= now()
+         WHERE tenant_id=$1
+           AND status='ACTIVE'
+           AND ends_at IS NOT NULL
+           AND ends_at + make_interval(secs => COALESCE((
+             SELECT s.grace_period_seconds
+             FROM upesilipa_site_settings s
+             JOIN routers rr ON rr.tenant_id=s.tenant_id AND rr.location_id=s.location_id
+             WHERE s.tenant_id=access_grants.tenant_id
+               AND rr.id=access_grants.router_id
+               AND s.enabled=true
+             LIMIT 1
+           ),0)) <= now()
          FOR UPDATE`,
         [tenantId],
       );
@@ -228,7 +251,20 @@ export class SessionsService {
          AND NOT EXISTS (
            SELECT 1 FROM access_grants g
            WHERE g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id AND g.status='ACTIVE'
-             AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
+             AND g.starts_at <= now()
+             AND (
+               g.ends_at IS NULL
+               OR g.ends_at > now()
+               OR g.ends_at + make_interval(secs => COALESCE((
+                 SELECT s2.grace_period_seconds
+                 FROM upesilipa_site_settings s2
+                 JOIN routers rr2 ON rr2.tenant_id=s2.tenant_id AND rr2.location_id=s2.location_id
+                 WHERE s2.tenant_id=g.tenant_id
+                   AND rr2.id=COALESCE(s.router_id,g.router_id)
+                   AND s2.enabled=true
+                 LIMIT 1
+               ),0)) > now()
+             )
              AND (g.router_id IS NULL OR g.router_id=s.router_id)
          )`,
       [tenantId],
@@ -300,7 +336,20 @@ export class SessionsService {
          SELECT 1 FROM sessions s
          JOIN access_grants g ON g.tenant_id=s.tenant_id AND g.customer_id=s.customer_id
          WHERE s.tenant_id=$1 AND s.id=$2 AND g.status='ACTIVE'
-           AND g.starts_at <= now() AND (g.ends_at IS NULL OR g.ends_at > now())
+           AND g.starts_at <= now()
+           AND (
+             g.ends_at IS NULL
+             OR g.ends_at > now()
+             OR g.ends_at + make_interval(secs => COALESCE((
+               SELECT s2.grace_period_seconds
+               FROM upesilipa_site_settings s2
+               JOIN routers rr2 ON rr2.tenant_id=s2.tenant_id AND rr2.location_id=s2.location_id
+               WHERE s2.tenant_id=g.tenant_id
+                 AND rr2.id=COALESCE(s.router_id,g.router_id)
+                 AND s2.enabled=true
+               LIMIT 1
+             ),0)) > now()
+           )
            AND (g.router_id IS NULL OR g.router_id=s.router_id)
        ) AS "hasActiveGrant"`,
       [tenantId, sessionId],
