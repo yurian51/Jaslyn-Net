@@ -12,7 +12,27 @@ export interface NetworkAdapterRegistration {
 @Injectable()
 export class NetworkAdapterRegistry {
   private readonly registrations: readonly NetworkAdapterRegistration[] = [
-    { protocol: 'MIKROTIK_REST', lifecycle: 'IMPLEMENTED', capabilities: ['health_monitoring', 'bandwidth_enforcement', 'disconnect_client'] },
+    { protocol: 'MIKROTIK_REST', lifecycle: 'IMPLEMENTED', capabilities: ['health_monitoring', 'bandwidth_enforcement', 'disconnect_client', 'client_sessions'] },
+    {
+      protocol: 'MERAKI_DASHBOARD_API',
+      lifecycle: 'IMPLEMENTED',
+      capabilities: ['bandwidth_enforcement', 'client_sessions', 'device_inventory'],
+    },
+    {
+      protocol: 'UNIFI_NETWORK_API',
+      lifecycle: 'IMPLEMENTED',
+      capabilities: ['client_sessions'],
+    },
+    {
+      protocol: 'OPENWRT_UBUS',
+      lifecycle: 'IMPLEMENTED',
+      capabilities: ['client_sessions'],
+    },
+    {
+      protocol: 'GENERIC_HTTP',
+      lifecycle: 'IMPLEMENTED',
+      capabilities: ['client_sessions'],
+    },
   ];
 
   list() { return this.registrations; }
