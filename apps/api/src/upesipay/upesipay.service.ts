@@ -76,6 +76,34 @@ export class UpesiPayService {
     });
   }
 
+  async payLink(tenantId: string, tag: string) {
+    const normalized = tag.trim();
+    if (!/^[A-Za-z0-9._-]{2,120}$/.test(normalized)) throw new ConflictException('Invalid UpesiPay PayLink tag');
+    return { url: `https://upesipay.com/p/${encodeURIComponent(normalized)}`, tag: normalized };
+  }
+
+  async capabilities() {
+    return {
+      provider: 'upesipay',
+      source: 'https://upesipay.com/docs',
+      discovered: [
+        'payment_channels', 'register_payment_channel', 'bank_paybills',
+        'mpesa_stk_push', 'merchant_link', 'paylink', 'payment_callback',
+        'wallet_balances', 'service_wallet_topup', 'wallet_withdraw_mobile',
+        'transaction_status', 'account_transactions', 'transaction_fees',
+      ],
+      implemented_in_jaslyn: [
+        'payment_channels', 'bank_paybills', 'merchant_link', 'service_wallet_topup',
+        'paylink', 'payment_callback_persistence',
+      ],
+      pending_native_contract_verification: [
+        'register_payment_channel', 'mpesa_stk_push', 'wallet_balances',
+        'wallet_withdraw_mobile', 'transaction_status', 'account_transactions',
+        'transaction_fees',
+      ],
+    };
+  }
+
   async merchantLink(tenantId: string) {
     const cfg = await this.getConfig(tenantId);
     const tag = cfg.customTag?.trim();
