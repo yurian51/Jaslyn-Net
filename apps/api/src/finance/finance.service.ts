@@ -1,11 +1,16 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { AuditService } from '../audit/audit.service';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CreateAdjustmentDto, CreateCommissionDto, CreateDisputeDto, CreateInvoiceDto, CreateInvoiceLineDto, CreateLedgerAccountDto, CreateRefundDto, CreateResellerDto, ReconcileDto, TaxRateDto } from './finance.dto';
 
 @Injectable()
 export class FinanceService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly audit: AuditService) {}
+
+  private async auditMutation(tenantId:string, action:string, resourceType:string, resourceId:string|undefined, userId:string|undefined, metadata:Record<string,unknown>={}) {
+    await this.audit.record(tenantId, action, resourceType, resourceId, metadata, { userId });
+  }
 
   private async nextInvoiceNumber(tenantId:string) {
     const r=await this.db.query('SELECT next_invoice_number($1) AS number',[tenantId]);
@@ -25,6 +30,7 @@ export class FinanceService {
     const subtotal=Math.round(quantity*unitPrice*1000000)/1000000, total=Math.round((subtotal+taxAmount)*1000000)/1000000;
     const line=await this.db.query(`INSERT INTO invoice_lines(tenant_id,invoice_id,description,quantity,unit_price,subtotal,tax_rate_id,tax_amount,total,currency) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[tenantId,invoiceId,input.description.trim(),quantity,unitPrice,subtotal,input.taxRateId??null,taxAmount,total,invoice.rows[0].currency]);
     await this.db.query(`UPDATE invoices SET subtotal=(SELECT COALESCE(SUM(subtotal),0) FROM invoice_lines WHERE tenant_id=$1 AND invoice_id=$2),tax_total=(SELECT COALESCE(SUM(tax_amount),0) FROM invoice_lines WHERE tenant_id=$1 AND invoice_id=$2),total=(SELECT COALESCE(SUM(total),0) FROM invoice_lines WHERE tenant_id=$1 AND invoice_id=$2),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,invoiceId]);
+    await this.auditMutation(tenantId,'ADD_LINE','invoice_line',line.rows[0].id,undefined,{invoiceId,subtotal,total,currency:invoice.rows[0].currency});
     return line.rows[0];
   }
 
@@ -45,6 +51,7 @@ export class FinanceService {
     const number=input.invoiceNumber?.trim() || await this.nextInvoiceNumber(tenantId);
     try {
       const r=await this.db.query(`INSERT INTO invoices(tenant_id,customer_id,purchase_id,invoice_number,status,currency,subtotal,tax_total,total,issued_at,due_at) VALUES($1,$2,$3,$4,'ISSUED',$5,$6,$7,$8,now(),$9) RETURNING *`,[tenantId,input.customerId,input.purchaseId??null,number,currency,input.subtotal,input.taxTotal,total,input.dueAt??null]);
+      await this.auditMutation(tenantId,'CREATE','invoice',r.rows[0].id,undefined,{invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency});
       return r.rows[0];
     } catch(e:any) {
       if(e?.code==='23505') throw new ConflictException('Invoice number or purchase invoice already exists');
@@ -61,6 +68,7 @@ export class FinanceService {
     if(!['ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE'].includes(type)) throw new ConflictException('Invalid ledger account type');
     try {
       const r=await this.db.query(`INSERT INTO financial_ledger_accounts(tenant_id,code,name,account_type,currency) VALUES($1,$2,$3,$4,$5) RETURNING id,code,name,account_type AS "accountType",currency,status`,[tenantId,input.code.trim().toUpperCase(),input.name.trim(),type,currency]);
+      await this.auditMutation(tenantId,'CREATE','ledger_account',r.rows[0].id,undefined,{code:r.rows[0].code,accountType:r.rows[0].accountType,currency:r.rows[0].currency});
       return r.rows[0];
     } catch(e:any) { if(e?.code==='23505') throw new ConflictException('Ledger account code already exists'); throw e; }
   }
@@ -77,7 +85,7 @@ export class FinanceService {
   async updateResellerStatus(tenantId:string,id:string,status:string) {
     const s=status.trim().toUpperCase(); if(!['ACTIVE','SUSPENDED','CLOSED'].includes(s)) throw new ConflictException('Invalid reseller status');
     const r=await this.db.query(`UPDATE resellers SET status=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING *`,[tenantId,id,s]);
-    if(!r.rowCount) throw new NotFoundException('Reseller not found'); return r.rows[0];
+    if(!r.rowCount) throw new NotFoundException('Reseller not found'); await this.auditMutation(tenantId,'STATUS_CHANGE','reseller',id,undefined,{status:s}); return r.rows[0];
   }
 
   async listCommissions(tenantId:string,resellerId?:string) {
@@ -94,11 +102,11 @@ export class FinanceService {
 
   async approveCommission(tenantId:string,commissionId:string) {
     const r=await this.db.query(`UPDATE commissions SET status='APPROVED',approved_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='ACCRUED' RETURNING *`,[tenantId,commissionId]);
-    if(!r.rowCount) throw new ConflictException('Commission is not in ACCRUED state'); return r.rows[0];
+    if(!r.rowCount) throw new ConflictException('Commission is not in ACCRUED state'); await this.auditMutation(tenantId,'APPROVE','commission',commissionId,undefined,{amount:r.rows[0].commission_amount,currency:r.rows[0].currency}); return r.rows[0];
   }
   async markCommissionPaid(tenantId:string,commissionId:string) {
     const r=await this.db.query(`UPDATE commissions SET status='PAID',paid_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='APPROVED' RETURNING *`,[tenantId,commissionId]);
-    if(!r.rowCount) throw new ConflictException('Commission must be APPROVED before settlement'); return r.rows[0];
+    if(!r.rowCount) throw new ConflictException('Commission must be APPROVED before settlement'); await this.auditMutation(tenantId,'MARK_PAID','commission',commissionId,undefined,{amount:r.rows[0].commission_amount,currency:r.rows[0].currency}); return r.rows[0];
   }
 
   async listRefunds(tenantId:string) { const r=await this.db.query(`SELECT rf.*,pay.provider,pay.provider_reference AS "paymentReference" FROM refunds rf JOIN payments pay ON pay.tenant_id=rf.tenant_id AND pay.id=rf.payment_id WHERE rf.tenant_id=$1 ORDER BY rf.created_at DESC LIMIT 500`,[tenantId]); return {data:r.rows}; }
@@ -109,21 +117,21 @@ export class FinanceService {
     const used=await this.db.query(`SELECT COALESCE(SUM(amount),0) AS total FROM refunds WHERE tenant_id=$1 AND payment_id=$2 AND status IN ('REQUESTED','APPROVED','PROCESSING','SUCCEEDED')`,[tenantId,input.paymentId]);
     if(Number(used.rows[0].total)+input.amount>Number(payment.amount)) throw new ConflictException('Refund exceeds settled payment amount');
     const r=await this.db.query(`INSERT INTO refunds(tenant_id,payment_id,amount,currency,reason) VALUES($1,$2,$3,$4,$5) RETURNING *`,[tenantId,input.paymentId,input.amount,payment.currency,input.reason.trim()]);
-    return r.rows[0];
+    await this.auditMutation(tenantId,'CREATE','refund',r.rows[0].id,undefined,{paymentId:input.paymentId,amount:input.amount,currency:payment.currency}); return r.rows[0];
   }
   async approveRefund(tenantId:string,id:string,userId?:string) {
     const r=await this.db.query(`UPDATE refunds SET status='APPROVED',approved_by=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='REQUESTED' RETURNING *`,[tenantId,id,userId??null]);
-    if(!r.rowCount) throw new ConflictException('Refund is not REQUESTED'); return r.rows[0];
+    if(!r.rowCount) throw new ConflictException('Refund is not REQUESTED'); await this.auditMutation(tenantId,'APPROVE','refund',id,userId,{amount:r.rows[0].amount,currency:r.rows[0].currency}); return r.rows[0];
   }
 
   async listAdjustments(tenantId:string) { const r=await this.db.query(`SELECT * FROM financial_adjustments WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]); return {data:r.rows}; }
   async createAdjustment(tenantId:string,input:CreateAdjustmentDto,userId?:string) {
     const d=input.direction.trim().toUpperCase(); if(!['DEBIT','CREDIT'].includes(d)) throw new ConflictException('Invalid adjustment direction');
-    const r=await this.db.query(`INSERT INTO financial_adjustments(tenant_id,customer_id,purchase_id,amount,currency,direction,reason,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING',$8) RETURNING *`,[tenantId,input.customerId??null,input.purchaseId??null,input.amount,input.currency.toUpperCase(),d,input.reason.trim(),userId??null]); return r.rows[0];
+    const r=await this.db.query(`INSERT INTO financial_adjustments(tenant_id,customer_id,purchase_id,amount,currency,direction,reason,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING',$8) RETURNING *`,[tenantId,input.customerId??null,input.purchaseId??null,input.amount,input.currency.toUpperCase(),d,input.reason.trim(),userId??null]); await this.auditMutation(tenantId,'CREATE','financial_adjustment',r.rows[0].id,userId,{amount:input.amount,currency:input.currency.toUpperCase(),direction:d}); return r.rows[0];
   }
   async approveAdjustment(tenantId:string,id:string,userId?:string) {
     const r=await this.db.query(`UPDATE financial_adjustments SET status='APPROVED',approved_by=$3,approved_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='PENDING' RETURNING *`,[tenantId,id,userId??null]);
-    if(!r.rowCount) throw new ConflictException('Adjustment is not PENDING'); return r.rows[0];
+    if(!r.rowCount) throw new ConflictException('Adjustment is not PENDING'); await this.auditMutation(tenantId,'APPROVE','financial_adjustment',id,userId,{amount:r.rows[0].amount,currency:r.rows[0].currency,direction:r.rows[0].direction}); return r.rows[0];
   }
 
   async listDisputes(tenantId:string) { const r=await this.db.query(`SELECT d.*,p.provider,p.provider_reference AS "paymentReference" FROM payment_disputes d JOIN payments p ON p.tenant_id=d.tenant_id AND p.id=d.payment_id WHERE d.tenant_id=$1 ORDER BY d.created_at DESC LIMIT 500`,[tenantId]); return {data:r.rows}; }
@@ -134,7 +142,7 @@ export class FinanceService {
   async resolveDispute(tenantId:string,id:string,status:string,resolution?:string) {
     const s=status.trim().toUpperCase(); if(!['WON','LOST','ACCEPTED','CLOSED'].includes(s)) throw new ConflictException('Invalid dispute resolution status');
     const r=await this.db.query(`UPDATE payment_disputes SET status=$3,resolution=$4,resolved_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status IN ('OPEN','UNDER_REVIEW') RETURNING *`,[tenantId,id,s,resolution??null]);
-    if(!r.rowCount) throw new ConflictException('Dispute is not open'); return r.rows[0];
+    if(!r.rowCount) throw new ConflictException('Dispute is not open'); await this.auditMutation(tenantId,'RESOLVE','payment_dispute',id,undefined,{status:s,resolution:resolution??null}); return r.rows[0];
   }
 
   async listTaxRates(tenantId:string) { const r=await this.db.query(`SELECT * FROM tax_rates WHERE tenant_id=$1 ORDER BY code`,[tenantId]); return {data:r.rows}; }
