@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS upesilipa_site_settings (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, location_id),
-  FOREIGN KEY (tenant_id, location_id) REFERENCES locations(tenant_id, id) ON DELETE CASCADE,
   CHECK (portal_theme IN ('MINIMAL','DARK','BOLD','COASTAL','MARKET')),
   CHECK (grace_period_seconds BETWEEN 0 AND 86400),
   CHECK (primary_color IS NULL OR primary_color ~ '^#[0-9A-Fa-f]{6}$'),
