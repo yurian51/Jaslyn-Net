@@ -81,7 +81,7 @@ export class FinanceService {
     catch(e:any){throw e;}
   }
 
-  async approveCommission(tenantId:id,commissionId:string) {
+  async approveCommission(tenantId:string,commissionId:string) {
     const r=await this.db.query(`UPDATE commissions SET status='APPROVED',approved_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='ACCRUED' RETURNING *`,[tenantId,commissionId]);
     if(!r.rowCount) throw new ConflictException('Commission is not in ACCRUED state'); return r.rows[0];
   }
