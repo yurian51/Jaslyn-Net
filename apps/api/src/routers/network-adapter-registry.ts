@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-export type AdapterLifecycle = 'IMPLEMENTED' | 'CATALOG_ONLY';
+export type AdapterLifecycle = 'NATIVE' | 'GENERIC' | 'RADIUS' | 'SNMP' | 'CATALOG_ONLY';
 
 export interface NetworkAdapterRegistration {
   protocol: string;
@@ -12,7 +12,7 @@ export interface NetworkAdapterRegistration {
 @Injectable()
 export class NetworkAdapterRegistry {
   private readonly registrations: readonly NetworkAdapterRegistration[] = [
-    { protocol: 'MIKROTIK_REST', lifecycle: 'IMPLEMENTED', capabilities: ['health_monitoring', 'bandwidth_enforcement', 'disconnect_client', 'client_sessions'] },
+    { protocol: 'MIKROTIK_REST', lifecycle: 'NATIVE', capabilities: ['health_monitoring', 'bandwidth_enforcement', 'disconnect_client', 'client_sessions'] },
     {
       protocol: 'MERAKI_DASHBOARD_API',
       lifecycle: 'IMPLEMENTED',
@@ -30,12 +30,13 @@ export class NetworkAdapterRegistry {
     },
     {
       protocol: 'GENERIC_HTTP',
-      lifecycle: 'IMPLEMENTED',
+      lifecycle: 'GENERIC',
       capabilities: ['client_sessions'],
     },
   ];
 
   list() { return this.registrations; }
   get(protocol: string) { return this.registrations.find((item) => item.protocol === protocol.trim().toUpperCase()); }
-  isImplemented(protocol: string) { return this.get(protocol)?.lifecycle === 'IMPLEMENTED'; }
+  isImplemented(protocol: string) { return this.get(protocol)?.lifecycle !== undefined && this.get(protocol)?.lifecycle !== 'CATALOG_ONLY'; }
+  supports(protocol: string, capability: string) { return this.get(protocol)?.capabilities.includes(capability) ?? false; }
 }
