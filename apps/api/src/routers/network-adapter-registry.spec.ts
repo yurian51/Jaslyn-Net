@@ -14,9 +14,11 @@ describe('NetworkAdapterRegistry', () => {
   it('normalizes protocol lookup and exposes capability truth', () => {
     const registry = new NetworkAdapterRegistry();
 
-    expect(registry.get('mikrotik_rest')?.lifecycle).toBe('IMPLEMENTED');
+    expect(registry.get('mikrotik_rest')?.lifecycle).toBe('NATIVE');
+    expect(registry.get('generic_http')?.lifecycle).toBe('GENERIC');
     expect(registry.supports('MERAKI_DASHBOARD_API', 'bandwidth_enforcement')).toBe(true);
     expect(registry.supports('MERAKI_DASHBOARD_API', 'disconnect_client')).toBe(false);
     expect(registry.supports('OMADA_CONTROLLER_API', 'client_sessions')).toBe(false);
+    expect(registry.supports('MIKROTIK_REST', 'disconnect_client')).toBe(true);
   });
 });
