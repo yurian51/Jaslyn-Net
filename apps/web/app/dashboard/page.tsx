@@ -1,5 +1,7 @@
 'use client';
 
+import './dashboard.css';
+
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
