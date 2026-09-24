@@ -13,6 +13,7 @@ import { OverviewModule } from './overview/overview.module';
 import { PackagesModule } from './packages/packages.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { RoutersModule } from './routers/routers.module';
 import { SalesModule } from './sales/sales.module';
 import { SessionsModule } from './sessions/sessions.module';
@@ -39,6 +40,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     PackagesModule,
     PurchasesModule,
     PaymentsModule,
+    PromotionsModule,
     RoutersModule,
     SessionsModule,
     SalesModule,
