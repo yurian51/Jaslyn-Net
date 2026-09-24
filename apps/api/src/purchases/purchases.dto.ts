@@ -10,6 +10,11 @@ export class CreatePurchaseDto {
   @IsOptional()
   @IsUUID()
   routerId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  promoCode?: string;
 }
 
 export class ConfirmPurchasePaymentDto {
