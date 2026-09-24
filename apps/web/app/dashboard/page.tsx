@@ -149,7 +149,9 @@ export default function DashboardPage() {
           <p className="context">Technical state, customer state and business state in one operator view.</p>
         </div>
         <div className="top-actions">
-          <span className={`data-state ${connection === 'offline' || connection === 'degraded' ? 'danger' : ''}`}><i /> {connection === 'offline' ? 'OFFLINE / LAST STATE' : connection === 'degraded' ? 'DEGRADED / LAST STATE' : loading ? 'REFRESHING' : connection === 'checking' ? 'CHECKING API' : 'LIVE API DATA'}{lastUpdatedAt ? ` · ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+          <a className="selector dashboard-action" href="/network">Network fabric</a>
+          <a className="selector dashboard-action" href="/sessions">Live sessions</a>
+          <span aria-live="polite" className={`data-state ${connection === 'offline' || connection === 'degraded' ? 'danger' : ''}`}><i /> {connection === 'offline' ? 'OFFLINE / LAST STATE' : connection === 'degraded' ? 'DEGRADED / LAST STATE' : loading ? 'REFRESHING' : connection === 'checking' ? 'CHECKING API' : 'LIVE API DATA'}{lastUpdatedAt ? ` · ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
           <button className="selector" type="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh telemetry'}</button>
         </div>
       </header>
@@ -164,7 +166,7 @@ export default function DashboardPage() {
       </section>
 
       <section className={`operations-strip ${attentionItems ? 'has-attention' : ''}`} aria-label="Operational attention summary">
-        <div className="operations-strip-label"><span className="operations-strip-dot" /> <strong>{attentionItems ? `${attentionItems} attention signal${attentionItems === 1 ? '' : 's'}` : 'No attention signals'}</strong><small>derived from live tenant telemetry</small></div>
+        <div className="operations-strip-label"><span className="operations-strip-dot" aria-hidden="true" /> <strong>{attentionItems ? `${attentionItems} attention signal${attentionItems === 1 ? '' : 's'}` : 'No attention signals'}</strong><small>derived from live tenant telemetry</small></div>
         <div className="operations-strip-items">
           <span><b>{network.offline}</b> offline routers</span>
           <span><b>{network.degraded}</b> degraded</span>
