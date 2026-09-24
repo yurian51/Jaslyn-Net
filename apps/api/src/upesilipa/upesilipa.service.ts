@@ -144,6 +144,30 @@ export class UpesiLipaService {
     return { site: location.rows[0], settings: result.rows[0] };
   }
 
+  async healthOverview(tenantId: string) {
+    const result = await this.db.query(
+      'SELECT l.id AS "locationId", l.name AS "locationName", count(r.id)::int AS routers, count(r.id) FILTER (WHERE r.status=\'ONLINE\')::int AS online, count(r.id) FILTER (WHERE r.status=\'OFFLINE\')::int AS offline, count(r.id) FILTER (WHERE r.status NOT IN (\'ONLINE\',\'OFFLINE\'))::int AS degraded FROM locations l LEFT JOIN routers r ON r.tenant_id=l.tenant_id AND r.location_id=l.id WHERE l.tenant_id=$1 GROUP BY l.id, l.name ORDER BY l.name',
+      [tenantId],
+    );
+
+    const sites = result.rows.map((site) => ({
+      ...site,
+      health: Number(site.routers) === 0 ? 'NO_DEVICES' : Number(site.offline) === Number(site.routers) ? 'OFFLINE' : Number(site.offline) > 0 || Number(site.degraded) > 0 ? 'DEGRADED' : 'HEALTHY',
+    }));
+
+    return {
+      summary: {
+        sites: sites.length,
+        healthy: sites.filter((site) => site.health === 'HEALTHY').length,
+        degraded: sites.filter((site) => site.health === 'DEGRADED').length,
+        offline: sites.filter((site) => site.health === 'OFFLINE').length,
+        noDevices: sites.filter((site) => site.health === 'NO_DEVICES').length,
+      },
+      sites,
+      source: 'jaslyn-live-database',
+    };
+  }
+
   async siteHealth(tenantId: string, locationId: string) {
     const location = await this.db.query(
       'SELECT id, name FROM locations WHERE tenant_id=$1 AND id=$2',
