@@ -26,6 +26,14 @@ describe('UpesiPayService', () => {
     });
   });
 
+  it('builds a PayLink URL without accepting unsafe tags', async () => {
+    await expect(service.payLink('tenant-1', 'INV-2026-001')).resolves.toEqual({
+      url: 'https://upesipay.com/p/INV-2026-001',
+      tag: 'INV-2026-001',
+    });
+    await expect(service.payLink('tenant-1', 'bad tag')).rejects.toThrow('Invalid UpesiPay PayLink tag');
+  });
+
   it('rejects callback payloads without a provider event identifier', async () => {
     await expect(service.recordCallback('tenant-1', { status: 'success' }))
       .rejects.toThrow('no usable event identifier');
