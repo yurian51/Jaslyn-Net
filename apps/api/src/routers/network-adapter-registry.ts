@@ -15,17 +15,17 @@ export class NetworkAdapterRegistry {
     { protocol: 'MIKROTIK_REST', lifecycle: 'NATIVE', capabilities: ['health_monitoring', 'bandwidth_enforcement', 'disconnect_client', 'client_sessions'] },
     {
       protocol: 'MERAKI_DASHBOARD_API',
-      lifecycle: 'IMPLEMENTED',
+      lifecycle: 'NATIVE',
       capabilities: ['bandwidth_enforcement', 'client_sessions', 'device_inventory'],
     },
     {
       protocol: 'UNIFI_NETWORK_API',
-      lifecycle: 'IMPLEMENTED',
+      lifecycle: 'NATIVE',
       capabilities: ['client_sessions'],
     },
     {
       protocol: 'OPENWRT_UBUS',
-      lifecycle: 'IMPLEMENTED',
+      lifecycle: 'NATIVE',
       capabilities: ['client_sessions'],
     },
     {
