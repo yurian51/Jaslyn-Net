@@ -79,7 +79,7 @@ export class FinanceService {
 
   async listResellers(tenantId:string) { const r=await this.db.query(`SELECT * FROM resellers WHERE tenant_id=$1 ORDER BY created_at DESC`,[tenantId]); return {data:r.rows}; }
   async createReseller(tenantId:string,input:CreateResellerDto) {
-    try { const r=await this.db.query(`INSERT INTO resellers(tenant_id,name,code,email,phone,commission_rate,settlement_currency) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,input.name.trim(),input.code.trim().toUpperCase(),input.email??null,input.phone??null,input.commissionRate??0,(input.settlementCurrency??'TZS').toUpperCase()]); return r.rows[0]; }
+    try { const r=await this.db.query(`INSERT INTO resellers(tenant_id,name,code,email,phone,commission_rate,settlement_currency) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,input.name.trim(),input.code.trim().toUpperCase(),input.email??null,input.phone??null,input.commissionRate??0,(input.settlementCurrency??'TZS').toUpperCase()]); await this.auditMutation(tenantId,'CREATE','reseller',r.rows[0].id,undefined,{code:r.rows[0].code,commissionRate:r.rows[0].commission_rate}); return r.rows[0]; }
     catch(e:any){if(e?.code==='23505') throw new ConflictException('Reseller code already exists'); throw e;}
   }
   async updateResellerStatus(tenantId:string,id:string,status:string) {
@@ -147,7 +147,7 @@ export class FinanceService {
 
   async listTaxRates(tenantId:string) { const r=await this.db.query(`SELECT * FROM tax_rates WHERE tenant_id=$1 ORDER BY code`,[tenantId]); return {data:r.rows}; }
   async createTaxRate(tenantId:string,input:TaxRateDto) {
-    try { const r=await this.db.query(`INSERT INTO tax_rates(tenant_id,code,name,rate,currency,country_code,is_inclusive) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,input.code.trim().toUpperCase(),input.name.trim(),input.rate,input.currency?.toUpperCase()??null,input.countryCode?.toUpperCase()??null,input.isInclusive??false]); return r.rows[0]; }
+    try { const r=await this.db.query(`INSERT INTO tax_rates(tenant_id,code,name,rate,currency,country_code,is_inclusive) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,input.code.trim().toUpperCase(),input.name.trim(),input.rate,input.currency?.toUpperCase()??null,input.countryCode?.toUpperCase()??null,input.isInclusive??false]); await this.auditMutation(tenantId,'CREATE','tax_rate',r.rows[0].id,undefined,{code:r.rows[0].code,rate:r.rows[0].rate,currency:r.rows[0].currency}); return r.rows[0]; }
     catch(e:any){if(e?.code==='23505') throw new ConflictException('Tax code already exists'); throw e;}
   }
 
