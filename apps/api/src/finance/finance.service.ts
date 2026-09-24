@@ -8,8 +8,8 @@ export class FinanceService {
   constructor(@Inject(PG_POOL) private readonly db: Pool) {}
 
   private async nextInvoiceNumber(tenantId:string) {
-    const r=await this.db.query(`SELECT COALESCE(MAX((regexp_match(invoice_number,'([0-9]+)$'))[1]::bigint),0)+1 AS n FROM invoices WHERE tenant_id=$1`,[tenantId]);
-    return `INV-${String(r.rows[0].n).padStart(8,'0')}`;
+    const r=await this.db.query('SELECT next_invoice_number($1) AS number',[tenantId]);
+    return r.rows[0].number as string;
   }
 
   async listInvoices(tenantId:string, customerId?:string) {
