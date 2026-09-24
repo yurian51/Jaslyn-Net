@@ -1,5 +1,7 @@
 'use client';
 
+import './promotions.css';
+
 import { FormEvent, useEffect, useState } from 'react';
 import { getAccessToken } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
