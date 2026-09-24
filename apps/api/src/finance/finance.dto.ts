@@ -61,3 +61,11 @@ export class TaxRateDto {
   @IsOptional() @IsString() countryCode?: string;
   @IsOptional() @IsBoolean() isInclusive?: boolean;
 }
+
+export class CreateInvoiceLineDto {
+  @IsString() @MinLength(2) description!: string;
+  @IsNumber() @Min(0.000001) quantity!: number;
+  @IsNumber() @Min(0) unitPrice!: number;
+  @IsNumber() @Min(0) taxAmount!: number;
+  @IsOptional() @IsUUID() taxRateId?: string;
+}
