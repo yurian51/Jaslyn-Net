@@ -41,7 +41,7 @@ export class FinanceService {
     return {...r.rows[0],lines:lines.rows};
   }
 
-  async createInvoice(tenantId:string,input:CreateInvoiceDto) {
+  async createInvoice(tenantId:string,input:CreateInvoiceDto,userId?:string) {
     const currency=input.currency.trim().toUpperCase();
     const total=Math.round((input.subtotal+input.taxTotal)*100)/100;
     if (input.purchaseId) {
@@ -51,7 +51,7 @@ export class FinanceService {
     const number=input.invoiceNumber?.trim() || await this.nextInvoiceNumber(tenantId);
     try {
       const r=await this.db.query(`INSERT INTO invoices(tenant_id,customer_id,purchase_id,invoice_number,status,currency,subtotal,tax_total,total,issued_at,due_at) VALUES($1,$2,$3,$4,'ISSUED',$5,$6,$7,$8,now(),$9) RETURNING *`,[tenantId,input.customerId,input.purchaseId??null,number,currency,input.subtotal,input.taxTotal,total,input.dueAt??null]);
-      await this.auditMutation(tenantId,'CREATE','invoice',r.rows[0].id,undefined,{invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency});
+      await this.auditMutation(tenantId,'CREATE','invoice',r.rows[0].id,userId,{invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency});
       return r.rows[0];
     } catch(e:any) {
       if(e?.code==='23505') throw new ConflictException('Invoice number or purchase invoice already exists');
@@ -117,7 +117,7 @@ export class FinanceService {
     if(!r.rowCount) throw new NotFoundException('Reseller or payment not found');
     const x=r.rows[0]; if(x.status!=='ACTIVE') throw new ConflictException('Reseller is not active'); if(x.paymentStatus!=='SUCCESS') throw new ConflictException('Only successful payments can accrue commission');
     const amount=Number(x.amount), rate=Number(x.commission_rate), commission=Math.round(amount*rate)/100;
-    try { const q=await this.db.query(`INSERT INTO commissions(tenant_id,reseller_id,purchase_id,payment_id,basis_amount,currency,rate,commission_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id,payment_id,reseller_id) DO UPDATE SET updated_at=now() RETURNING *`,[tenantId,input.resellerId,x.purchaseId,input.paymentId,amount,x.currency,rate,commission]); return q.rows[0]; }
+    try { const q=await this.db.query(`INSERT INTO commissions(tenant_id,reseller_id,purchase_id,payment_id,basis_amount,currency,rate,commission_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id,payment_id,reseller_id) DO UPDATE SET updated_at=now() RETURNING *`,[tenantId,input.resellerId,x.purchaseId,input.paymentId,amount,x.currency,rate,commission]); await this.auditMutation(tenantId,'ACCRUE','commission',q.rows[0].id,undefined,{resellerId:input.resellerId,paymentId:input.paymentId,amount:commission,currency:x.currency}); return q.rows[0]; }
     catch(e:any){throw e;}
   }
 
