@@ -59,6 +59,27 @@ export class FinanceService {
     }
   }
 
+  async markOverdueInvoices(tenantId:string) {
+    const r = await this.db.query(
+      `UPDATE invoices
+          SET status='OVERDUE', updated_at=now()
+        WHERE tenant_id=$1
+          AND status IN ('ISSUED','PARTIALLY_PAID')
+          AND due_at IS NOT NULL
+          AND due_at < now()
+        RETURNING id,invoice_number,customer_id,total,currency,status`,
+      [tenantId],
+    );
+    for (const invoice of r.rows) {
+      await this.auditMutation(tenantId,'MARK_OVERDUE','invoice',invoice.id,undefined,{
+        invoiceNumber: invoice.invoice_number,
+        total: invoice.total,
+        currency: invoice.currency,
+      });
+    }
+    return { updated: r.rowCount ?? 0, data: r.rows };
+  }
+
   async listLedgerAccounts(tenantId:string) {
     const r=await this.db.query(`SELECT id,code,name,account_type AS "accountType",currency,status,created_at AS "createdAt" FROM financial_ledger_accounts WHERE tenant_id=$1 ORDER BY code`,[tenantId]);
     return {data:r.rows};
