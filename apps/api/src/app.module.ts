@@ -20,6 +20,7 @@ import { SalesModule } from './sales/sales.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { VouchersModule } from './vouchers/vouchers.module';
 import { UpesiPayModule } from './upesipay/upesipay.module';
+import { UpesiLipaModule } from './upesilipa/upesilipa.module';
 import { TrafficModule } from './modules/traffic/traffic.module';
 import { IspOperationsModule } from './isp-operations/isp-operations.module';
 import { IpamModule } from './ipam/ipam.module';
@@ -49,6 +50,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     SalesModule,
     VouchersModule,
     UpesiPayModule,
+    UpesiLipaModule,
     TrafficModule,
     IspOperationsModule,
     IpamModule,
