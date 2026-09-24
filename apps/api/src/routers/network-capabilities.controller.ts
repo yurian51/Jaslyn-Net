@@ -11,14 +11,14 @@ export class NetworkCapabilitiesController {
   @Get()
   list() {
     return {
-      version: 2,
+      version: 3,
       generatedAt: new Date().toISOString(),
       adapters: this.adapters.list(),
       vendors: WORLDWIDE_NETWORK_CAPABILITIES.map((vendor) => ({
         ...vendor,
         protocols: vendor.protocols.map((protocol) => ({
           protocol,
-          lifecycle: this.adapters.isImplemented(protocol) ? 'IMPLEMENTED' : 'CATALOG_ONLY',
+          lifecycle: this.adapters.get(protocol)?.lifecycle ?? 'CATALOG_ONLY',
         })),
       })),
     };
