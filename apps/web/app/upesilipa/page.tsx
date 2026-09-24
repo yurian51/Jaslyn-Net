@@ -16,10 +16,12 @@ type Dashboard = {
 };
 
 type Capability = { hardware: Array<{ vendor: string; mode: string; protocol: string }>; gateways: string[] };
+type HealthOverview = { summary: { sites: number; healthy: number; degraded: number; offline: number; noDevices: number }; sites: Array<{ locationId: string; locationName: string; routers: number; online: number; offline: number; degraded: number; health: string }> };
 
 export default function UpesiLipaPage() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [capabilities, setCapabilities] = useState<Capability | null>(null);
+  const [health, setHealth] = useState<HealthOverview | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -30,12 +32,14 @@ export default function UpesiLipaPage() {
     setError('');
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [d, c] = await Promise.all([
+      const [d, c, h] = await Promise.all([
         apiFetch<Dashboard>('/upesilipa/dashboard', { headers }),
         apiFetch<Capability>('/upesilipa/capabilities', { headers }),
+        apiFetch<HealthOverview>('/upesilipa/health', { headers }),
       ]);
       setDashboard(d);
       setCapabilities(c);
+      setHealth(h);
     } catch (e: any) {
       setError(e?.message || 'UpesiLipa operator data could not be loaded.');
     } finally {
@@ -65,6 +69,19 @@ export default function UpesiLipaPage() {
         <article><small>Customers online</small><strong>{dashboard?.data.activeSessions || 0}</strong><span>active sessions</span></article>
         <article><small>Routers</small><strong>{dashboard?.data.routers.online || 0}/{dashboard?.data.routers.total || 0}</strong><span>{dashboard?.data.routers.degraded || 0} degraded</span></article>
         <article><small>Sites</small><strong>{dashboard?.data.locations.count || 0}</strong><span>canonical locations</span></article>
+      </section>
+
+      <section className="upesilipa-card wide">
+        <h2>Site health</h2>
+        <div className="upesilipa-list">
+          <span>Healthy <b>{health?.summary.healthy || 0}</b></span>
+          <span>Degraded <b>{health?.summary.degraded || 0}</b></span>
+          <span>Offline <b>{health?.summary.offline || 0}</b></span>
+          <span>No devices <b>{health?.summary.noDevices || 0}</b></span>
+        </div>
+        <div className="upesilipa-health-list">
+          {health?.sites.map(site => <div key={site.locationId}><strong>{site.locationName}</strong><span>{site.health}</span><small>{site.online}/{site.routers} routers online</small></div>)}
+        </div>
       </section>
 
       <section className="upesilipa-grid">
