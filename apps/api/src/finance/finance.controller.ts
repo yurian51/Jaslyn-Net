@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -18,5 +18,5 @@ export class FinanceController {
   @Post('ledger/accounts') @Roles('OWNER','ADMIN')
   createAccount(@Req() req:AuthenticatedRequest,@Body() dto:CreateLedgerAccountDto){return this.finance.createLedgerAccount(req.user!.tenantId,dto)}
   @Get('ledger/accounts/:id/balance') @Roles('OWNER','ADMIN','CASHIER')
-  balance(@Req() req:AuthenticatedRequest,@Query('id') id:string){return this.finance.ledgerAccountBalance(req.user!.tenantId,id)}
+  balance(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.finance.ledgerAccountBalance(req.user!.tenantId,id)}
 }
