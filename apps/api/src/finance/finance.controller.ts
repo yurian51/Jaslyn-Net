@@ -12,6 +12,7 @@ export class FinanceController {
  @Get('invoices/:id') @Roles('OWNER','ADMIN','CASHIER','AGENT') invoice(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.finance.getInvoice(r.user!.tenantId,id)}
  @Post('invoices/:id/lines') @Roles('OWNER','ADMIN','CASHIER') addInvoiceLine(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:CreateInvoiceLineDto){return this.finance.addInvoiceLine(r.user!.tenantId,id,d)}
  @Post('invoices') @Roles('OWNER','ADMIN','CASHIER') createInvoice(@Req() r:AuthenticatedRequest,@Body() d:CreateInvoiceDto){return this.finance.createInvoice(r.user!.tenantId,d)}
+ @Post('invoices/overdue/sweep') @Roles('OWNER','ADMIN') overdue(@Req() r:AuthenticatedRequest){return this.finance.markOverdueInvoices(r.user!.tenantId)}
  @Get('ledger/accounts') @Roles('OWNER','ADMIN','CASHIER') accounts(@Req() r:AuthenticatedRequest){return this.finance.listLedgerAccounts(r.user!.tenantId)}
  @Post('ledger/accounts') @Roles('OWNER','ADMIN') createAccount(@Req() r:AuthenticatedRequest,@Body() d:CreateLedgerAccountDto){return this.finance.createLedgerAccount(r.user!.tenantId,d)}
  @Get('ledger/accounts/:id/balance') @Roles('OWNER','ADMIN','CASHIER') balance(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.finance.ledgerAccountBalance(r.user!.tenantId,id)}
