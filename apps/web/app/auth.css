@@ -3,3 +3,75 @@
 @media(max-width:820px){.auth-page{padding:18px 13px;place-items:start}.auth-shell{padding-top:12px}.auth-brand-block{margin-bottom:35px}.auth-layout{display:flex;flex-direction:column;gap:28px;align-items:stretch}.auth-intro{max-width:none}.auth-intro h1{font-size:31px}.auth-intro>p{font-size:11px;line-height:1.65}.auth-capabilities{display:none}.auth-card{padding:20px;border-radius:11px}.auth-footer{margin-top:20px;flex-direction:column;gap:5px}}
 
 .legal-consent{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:8px!important;font-size:9px!important;line-height:1.5;color:#68778b}.legal-consent input{width:14px;height:14px;min-width:14px;margin-top:1px}.legal-consent a{color:#2458b8;font-weight:750;text-decoration:none}.legal-consent a:hover{text-decoration:underline}
+
+/* ============================================================
+   JASLYN NET AUTH EXPERIENCE
+   Dense, credible operator sign-in, not a generic SaaS form.
+   ============================================================ */
+.auth-page{
+  min-height:100vh;display:grid;place-items:stretch;padding:0;background:#071322;color:#132033;
+}
+.auth-shell{
+  width:100%;min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;
+  background:#071322;position:relative;overflow:hidden;
+}
+.auth-shell:before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.34;
+  background-image:linear-gradient(rgba(105,145,196,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(105,145,196,.08) 1px,transparent 1px);
+  background-size:52px 52px;
+}
+.auth-brand-block{
+  position:relative;z-index:2;width:min(1280px,100%);margin:auto;padding:30px 42px 12px;
+}
+.auth-brand-logo{width:230px;filter:brightness(0) invert(1);opacity:.96}
+.auth-layout{
+  position:relative;z-index:2;width:min(1280px,100%);margin:auto;padding:35px 42px 70px;
+  display:grid;grid-template-columns:minmax(0,1.15fr) 440px;gap:90px;align-items:center;
+}
+.auth-intro{max-width:650px}
+.auth-intro .auth-brand-mark{width:54px;height:54px;margin:0 0 27px;border-radius:12px;background:#edf3fb;padding:5px}
+.auth-kicker{color:#6f8cac;font-size:9px;letter-spacing:.19em}
+.auth-intro h1{
+  margin:17px 0 20px;color:#f4f8fd;font-size:clamp(48px,5vw,75px);line-height:.96;
+  letter-spacing:-.065em;font-weight:790;
+}
+.auth-intro>p{max-width:580px;color:#9bacc0;font-size:15px;line-height:1.75}
+.auth-capabilities{display:grid;grid-template-columns:1fr 1fr;gap:11px 30px;margin-top:32px}
+.auth-capabilities span{color:#bdc9d8;font-size:10px;font-weight:650}
+.auth-capabilities i{background:#4a8dff;box-shadow:0 0 0 4px rgba(74,141,255,.1)}
+.auth-card{
+  padding:30px;background:#fff;border:1px solid #d9e1eb;border-radius:14px;
+  box-shadow:0 28px 80px rgba(0,0,0,.28);
+}
+.auth-card-head>span{color:#6680a0;font-size:8px;letter-spacing:.18em}
+.auth-card h2{margin:8px 0 5px;font-size:27px;letter-spacing:-.04em;color:#0e1c2e}
+.auth-card-head p{margin:0 0 24px;color:#7b899b;font-size:10px}
+.auth-card label{margin-top:16px;color:#526176;font-size:9px}
+.auth-card input{
+  height:46px;margin-top:7px;padding:0 12px;border-radius:7px;border:1px solid #d5dee9;
+  background:#fbfcfe;color:#142033;font-size:11px;
+}
+.auth-card input:focus{border-color:#4b7fe4;box-shadow:0 0 0 3px rgba(47,111,237,.1);background:#fff}
+.auth-password button{top:8px;height:30px;color:#285cb8;font-size:8px}
+.auth-submit{
+  height:46px;margin-top:22px;border-radius:7px;background:#12335d;box-shadow:none;font-size:10px;
+}
+.auth-submit:hover{background:#0b2749}
+.auth-error{font-size:9px;padding:11px 12px}
+.auth-security{font-size:8px;color:#8290a1}
+.auth-footer{
+  position:relative;z-index:2;width:min(1280px,100%);margin:auto;padding:18px 42px 27px;
+  border-top:1px solid #1c2d42;color:#6f8198;font-size:8px;
+}
+.auth-footer a{color:#9ebcff}
+@media(max-width:900px){
+ .auth-layout{grid-template-columns:1fr;gap:35px;padding-top:20px}.auth-intro{max-width:700px}
+ .auth-intro h1{font-size:48px}.auth-card{max-width:520px}
+}
+@media(max-width:600px){
+ .auth-brand-block{padding:20px 18px 8px}.auth-brand-logo{width:190px}
+ .auth-layout{padding:28px 18px 45px;gap:28px}.auth-intro .auth-brand-mark{width:46px;height:46px;margin-bottom:20px}
+ .auth-intro h1{font-size:41px}.auth-intro>p{font-size:13px}.auth-capabilities{display:none}
+ .auth-card{padding:22px;border-radius:11px}.auth-card h2{font-size:24px}
+ .auth-footer{padding:16px 18px 22px;flex-direction:column;align-items:flex-start;gap:6px}
+}
