@@ -122,6 +122,15 @@ export class CommunicationService {
         [actor.tenantId,conversationId,actor.userId,body,input.replyToMessageId??null,input.idempotencyKey?.trim()||null,input.protected===true],
       );
       const id = result.rows[0].id as string;
+      await client.query(
+        `INSERT INTO message_deliveries (tenant_id,message_id,user_id,status)
+         SELECT $1,$2,cm.user_id,'SENT'
+           FROM conversation_members cm
+          WHERE cm.tenant_id=$1 AND cm.conversation_id=$3 AND cm.user_id IS NOT NULL
+            AND cm.user_id <> $4 AND cm.left_at IS NULL
+         ON CONFLICT (tenant_id,message_id,user_id) DO NOTHING`,
+        [actor.tenantId,id,conversationId,actor.userId],
+      );
       await client.query(`UPDATE conversations SET updated_at=now() WHERE tenant_id=$1 AND id=$2`,[actor.tenantId,conversationId]);
       await client.query('COMMIT');
       const message = await this.getMessage(actor,id);
@@ -162,6 +171,21 @@ export class CommunicationService {
       [actor.tenantId,conversationId,actor.userId,messageId??null],
     );
     await this.db.query(`UPDATE conversation_members SET last_read_message_id=$4 WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3`,[actor.tenantId,conversationId,actor.userId,messageId??null]);
+    if (messageId) {
+      await this.db.query(
+        `UPDATE message_deliveries md
+            SET status='READ', read_at=now(), delivered_at=COALESCE(delivered_at,now()), updated_at=now()
+           WHERE md.tenant_id=$1 AND md.user_id=$2
+             AND EXISTS (
+               SELECT 1 FROM messages m
+                WHERE m.tenant_id=md.tenant_id AND m.id=md.message_id
+                  AND m.conversation_id=$3 AND m.created_at <= (
+                    SELECT created_at FROM messages WHERE tenant_id=$1 AND id=$4
+                  )
+             )`,
+        [actor.tenantId,actor.userId,conversationId,messageId],
+      );
+    }
     this.realtime.publish({type:'message.read',tenantId:actor.tenantId,conversationId,data:{userId:actor.userId,messageId:messageId??null}});
     return {conversationId,messageId:messageId??null,read:true};
   }
