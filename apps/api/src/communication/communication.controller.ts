@@ -51,6 +51,12 @@ class BotExecuteDto {
   @IsOptional() @IsBoolean() confirm?: boolean;
 }
 
+class ScheduleMessageDto {
+  @IsString() @MinLength(1) @MaxLength(10000) body!: string;
+  @IsString() scheduledAt!: string;
+  @IsOptional() @IsString() @MaxLength(80) timezone?: string;
+}
+
 class SaveDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
@@ -140,9 +146,39 @@ export class CommunicationController {
     return this.communication.saveMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.note);
   }
 
+  @Post('conversations/:id/scheduled-messages')
+  schedule(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:ScheduleMessageDto) {
+    return this.communication.scheduleMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto);
+  }
+
+  @Get('scheduled-messages')
+  scheduled(@Req() req: AuthenticatedRequest,@Query('conversationId') conversationId?:string) {
+    return this.communication.listScheduledMessages({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},conversationId);
+  }
+
+  @Delete('scheduled-messages/:id')
+  cancelScheduled(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.cancelScheduledMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('saved-messages')
+  saved(@Req() req: AuthenticatedRequest) {
+    return this.communication.listSavedMessages({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Get('commands/history')
+  commandHistory(@Req() req: AuthenticatedRequest) {
+    return this.communication.listCommandHistory({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
   @Get('notifications')
   notifications(@Req() req: AuthenticatedRequest,@Query('unreadOnly') unreadOnly?:string) {
     return this.communication.listNotifications({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},unreadOnly==='true');
+  }
+
+  @Post('notifications/:id/read')
+  notificationRead(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.markNotificationRead({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
   }
 
   @Post('presence')
