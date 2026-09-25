@@ -37,7 +37,7 @@ export class CommunicationBotService {
     if (!bot.rowCount) throw new NotFoundException('Bot not found');
     if (!bot.rows[0].enabled) throw new ForbiddenException('Bot is disabled');
 
-    const commandName = normalized.split(' ')[0].replace(/^\\//, '').toLowerCase();
+    const commandName = normalized.split(' ')[0].replace(/^\/+/, '').toLowerCase();
     const configured = await this.db.query(
       `SELECT id,command,permission,requires_confirmation AS "requiresConfirmation"
          FROM bot_commands
