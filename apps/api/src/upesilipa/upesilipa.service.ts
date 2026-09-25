@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { UpdateUpesiLipaSiteDto } from './upesilipa.dto';
+import { UPESILIPA_GATEWAY_CATALOG } from './upesilipa.gateway.catalog';
 
 const HARDWARE = [
   { vendor: 'MikroTik', mode: 'NATIVE', protocol: 'MIKROTIK_REST' },
@@ -29,6 +30,10 @@ export class UpesiLipaService {
     private readonly audit: AuditService,
   ) {}
 
+  gatewayCatalog() {
+    return { data: UPESILIPA_GATEWAY_CATALOG, source: 'upesilipa-provider-catalog' };
+  }
+
   capabilities() {
     return {
       provider: 'upesilipa',
@@ -36,6 +41,7 @@ export class UpesiLipaService {
       model: 'wifi-billing-platform',
       paymentMethods: ['M-Pesa', 'Mixx by Yas', 'Airtel Money', 'HaloPesa'],
       gateways: GATEWAYS,
+      gatewayCatalog: UPESILIPA_GATEWAY_CATALOG,
       hardware: HARDWARE,
       implementedByJaslyn: [
         'custom_packages',

@@ -12,6 +12,15 @@ describe('UpesiLipaService', () => {
     expect(result.catalogOnlyHardware).toContain('Cambium');
   });
 
+  it('exposes gateway lifecycle without pretending catalogue entries are executable adapters', () => {
+    const service = new UpesiLipaService({} as never, {} as never);
+    const result = service.gatewayCatalog();
+
+    expect(result.data).toHaveLength(8);
+    expect(result.data.every((gateway) => gateway.lifecycle === 'CATALOG_ONLY')).toBe(true);
+    expect(result.data.map((gateway) => gateway.code)).toEqual(expect.arrayContaining(['palmpesa', 'pluspesa', 'fimipay', 'clickpesa', 'azampay', 'snippe', 'selcom', 'sonicpesa']));
+  });
+
   it('builds a live dashboard from tenant-isolated database aggregates', async () => {
     const query = jest.fn()
       .mockResolvedValueOnce({ rows: [{ count: 2 }] })

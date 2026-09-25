@@ -62,6 +62,8 @@ describe('SessionsService', () => {
     const result = await service.start('tenant-a', { customerId: 'customer-a', routerId: 'router-a', username: 'alice' });
     expect(result.id).toBe('session-a');
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("status='ACTIVE'"), ['tenant-a', 'customer-a', 'router-a']);
+    expect(clientQuery.mock.calls.find((call: any[]) => String(call[0]).includes('FROM access_grants'))?.[0]).toContain('upesilipa_site_settings');
+    expect(clientQuery.mock.calls.find((call: any[]) => String(call[0]).includes('FROM access_grants'))?.[0]).toContain('make_interval');
     expect(clientQuery).toHaveBeenCalledWith('COMMIT');
     expect(audit.record).toHaveBeenCalledWith('tenant-a', 'SESSION_STARTED', 'session', 'session-a', expect.any(Object), {});
   });
@@ -110,6 +112,20 @@ describe('SessionsService', () => {
     expect(result.updated).toBe(1);
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("status='STALE'"), ['tenant-a', 30]);
     expect(clientQuery).toHaveBeenCalledWith('COMMIT');
+  });
+
+  it('keeps grace-period logic tenant and site scoped in access reconciliation', async () => {
+    clientQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const result = await service.reconcileAccessState('tenant-a');
+
+    expect(result).toEqual({ expiredGrants: 0, sessions: [] });
+    expect(clientQuery.mock.calls[1][0]).toContain('upesilipa_site_settings');
+    expect(clientQuery.mock.calls[1][0]).toContain('make_interval');
   });
 
   it('expires grants and disconnects active sessions through the verified network control fabric', async () => {

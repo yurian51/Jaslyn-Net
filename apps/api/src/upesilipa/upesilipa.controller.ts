@@ -16,6 +16,9 @@ export class UpesiLipaController {
   @Get('dashboard')
   dashboard(@Req() req: AuthenticatedRequest) { return this.upesilipa.dashboard(req.user!.tenantId); }
 
+  @Get('gateways')
+  gateways() { return this.upesilipa.gatewayCatalog(); }
+
   @Get('health')
   healthOverview(@Req() req: AuthenticatedRequest) {
     return this.upesilipa.healthOverview(req.user!.tenantId);

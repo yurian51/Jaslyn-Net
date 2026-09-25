@@ -35,3 +35,15 @@ UpesiLipa advertises a broad hardware surface. Jaslyn marks unsupported native A
 ## Source
 
 Public product information: https://upesilipa.com/
+
+
+## Gateway lifecycle
+
+Jaslyn now exposes the eight payment gateways listed by UpesiLipa as an explicit provider catalog:
+PalmPesa, PlusPesa, FimiPay, ClickPesa, AzamPay, Snippe, Selcom, and SonicPesa.
+
+They are intentionally marked `CATALOG_ONLY`. A catalog entry is not treated as a working payment adapter until Jaslyn has a verified executable API contract, credentials model, webhook verification, idempotency handling, settlement/reconciliation path, and automated tests.
+
+## Grace-period enforcement
+
+The UpesiLipa-style site grace-period setting is now enforced by the canonical Jaslyn access/session reconciliation path. It is tenant- and site-scoped through the router's location. Expiry reconciliation waits until `ends_at + grace_period`, while session admission and active-grant verification use the same effective access window. This avoids a UI-only setting that has no operational effect.
