@@ -195,6 +195,31 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="landing-package-section" aria-labelledby="operating-model-title">
+        <div className="landing-section-inner">
+          <div className="landing-label">03A / OPERATING MODEL</div>
+          <div className="landing-section-head">
+            <h2 id="operating-model-title">From a service sale to a <span>network session.</span></h2>
+            <p>JASLYN NET keeps the commercial state, access policy and network state close together. The public site shows the operating model without inventing live customer or network numbers.</p>
+          </div>
+          <div className="landing-package-card">
+            <div className="landing-package-head">
+              <div><small>SERVICE CATALOG</small><h3>Choose the access path you operate</h3></div>
+              <span>CONFIGURATION-DRIVEN</span>
+            </div>
+            <div className="landing-package-options">
+              <a href="#modules" className="selected"><b>Hotspot</b><small>CAPTIVE PORTAL</small><em>Branded access, vouchers and customer onboarding.</em><strong>ACCESS POLICY →</strong></a>
+              <a href="#modules"><b>PPPoE</b><small>SUBSCRIBER ACCESS</small><em>Plans, subscriber state, sessions and service lifecycle.</em><strong>AAA / SESSION →</strong></a>
+              <a href="#modules"><b>Voucher</b><small>PREPAID ACCESS</small><em>Prepaid connectivity with controlled activation and expiry.</em><strong>ENTITLEMENT →</strong></a>
+            </div>
+            <div className="landing-package-pay">
+              <div><span>CONNECTED OPERATING CHAIN</span><b>Customer → Service → Payment event → Entitlement → Network session</b></div>
+              <Link href="/login">Open control plane ↗</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="landing-hardware">
         <div className="landing-section-inner">
           <div className="landing-label">04 / HARDWARE & AAA</div>
