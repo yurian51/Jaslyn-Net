@@ -305,6 +305,31 @@ export class CommunicationService {
     return {id:messageId,deleted:true};
   }
 
+  async pinMessage(actor: Actor, messageId: string) {
+    const message = await this.getMessage(actor, messageId);
+    if (!['OWNER','ADMIN'].includes(actor.role)) throw new BadRequestException('Pinning requires an authorized conversation operator');
+    await this.db.query(
+      `INSERT INTO pinned_messages (tenant_id,conversation_id,message_id,pinned_by_user_id)
+       VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id,conversation_id,message_id) DO NOTHING`,
+      [actor.tenantId,message.conversationId,message.id,actor.userId],
+    );
+    await this.audit.record(actor.tenantId,'MESSAGE_PINNED','message',message.id,{conversationId:message.conversationId},{userId:actor.userId});
+    this.realtime.publish({type:'message.pinned',tenantId:actor.tenantId,conversationId:message.conversationId,messageId:message.id,data:{messageId:message.id,pinned:true}});
+    return {messageId:message.id,pinned:true};
+  }
+
+  async unpinMessage(actor: Actor, messageId: string) {
+    const message = await this.getMessage(actor, messageId);
+    if (!['OWNER','ADMIN'].includes(actor.role)) throw new BadRequestException('Unpinning requires an authorized conversation operator');
+    await this.db.query(
+      `DELETE FROM pinned_messages WHERE tenant_id=$1 AND conversation_id=$2 AND message_id=$3`,
+      [actor.tenantId,message.conversationId,message.id],
+    );
+    await this.audit.record(actor.tenantId,'MESSAGE_UNPINNED','message',message.id,{conversationId:message.conversationId},{userId:actor.userId});
+    this.realtime.publish({type:'message.pinned',tenantId:actor.tenantId,conversationId:message.conversationId,messageId:message.id,data:{messageId:message.id,pinned:false}});
+    return {messageId:message.id,pinned:false};
+  }
+
   async forwardMessage(actor: Actor, messageId: string, targetConversationId: string) {
     const source=await this.getMessage(actor,messageId);
     await this.assertMember(actor,targetConversationId);
