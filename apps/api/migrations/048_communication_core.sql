@@ -149,7 +149,7 @@ CREATE INDEX IF NOT EXISTS user_presence_expiry_idx ON user_presence(expires_at)
 CREATE TABLE IF NOT EXISTS bots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name text NOT NULL, username text NOT NULL, description text, enabled boolean NOT NULL DEFAULT true, created_by_user_id uuid,
-  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE (tenant_id,username),
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE (tenant_id,id), UNIQUE (tenant_id,username),
   FOREIGN KEY (tenant_id,created_by_user_id) REFERENCES users(tenant_id,id) ON DELETE SET NULL
 );
 CREATE TABLE IF NOT EXISTS bot_commands (
