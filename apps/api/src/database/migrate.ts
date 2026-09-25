@@ -46,6 +46,7 @@ async function main() {
       if (applied.rowCount) continue;
 
       const sql = await readFile(join(migrationDir, file), 'utf8');
+      console.log(`Applying migration ${version}`);
       await client.query('BEGIN');
       try {
         await client.query(sql);
@@ -54,6 +55,7 @@ async function main() {
         console.log(`Applied migration ${version}`);
       } catch (error) {
         await client.query('ROLLBACK');
+        console.error(`Migration failed: ${version}`);
         throw error;
       }
     }
