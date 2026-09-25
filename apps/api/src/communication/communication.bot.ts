@@ -27,7 +27,7 @@ export class CommunicationBotService {
   }
 
   async execute(actor: Actor, botId: string, command: string, conversationId?: string, confirm = false) {
-    const normalized = command.trim().replace(/\\s+/g, ' ');
+    const normalized = command.trim().replace(/\s+/g, ' ');
     if (!normalized || normalized.length > 500) throw new BadRequestException('Bot command is required');
 
     const bot = await this.db.query(
