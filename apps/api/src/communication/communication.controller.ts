@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { CommunicationService } from './communication.service';
 import { CommunicationRealtime } from './communication.realtime';
+import { CommunicationCommandService } from './communication.command';
 
 class DirectConversationDto {
   @IsOptional() @IsUUID() userId?: string;
@@ -38,16 +39,16 @@ class ReadDto {
   @IsOptional() @IsUUID() messageId?: string;
 }
 
-class SaveDto {
+class CommandDto {\n  @IsString() @MinLength(1) @MaxLength(500) command!: string;\n  @IsOptional() @IsBoolean() confirm?: boolean;\n}\n\nclass SaveDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
 
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService) {}
 
-  @Get('conversations')
+  @Post('commands/execute')\n  command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {\n    return this.commands.execute({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.command,dto.confirm===true);\n  }\n\n  @Get('conversations')
   conversations(@Req() req: AuthenticatedRequest) {
     return this.communication.listConversations({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
   }
