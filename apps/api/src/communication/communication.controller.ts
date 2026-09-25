@@ -5,6 +5,7 @@ import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { CommunicationService } from './communication.service';
 import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationCommandService } from './communication.command';
+import { CommunicationBotService } from './communication.bot';
 
 class DirectConversationDto {
   @IsOptional() @IsUUID() userId?: string;
@@ -39,16 +40,37 @@ class ReadDto {
   @IsOptional() @IsUUID() messageId?: string;
 }
 
-class CommandDto {\n  @IsString() @MinLength(1) @MaxLength(500) command!: string;\n  @IsOptional() @IsBoolean() confirm?: boolean;\n}\n\nclass SaveDto {
+class CommandDto {
+  @IsString() @MinLength(1) @MaxLength(500) command!: string;
+  @IsOptional() @IsBoolean() confirm?: boolean;
+}
+
+class BotExecuteDto {
+  @IsString() @MinLength(1) @MaxLength(500) command!: string;
+  @IsOptional() @IsUUID() conversationId?: string;
+  @IsOptional() @IsBoolean() confirm?: boolean;
+}
+
+class SaveDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
 
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService) {}
 
-  @Post('commands/execute')\n  command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {\n    return this.commands.execute({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.command,dto.confirm===true);\n  }\n\n  @Get('conversations')
+  @Post('commands/execute')\n  command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {\n    return this.commands.execute({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.command,dto.confirm===true);\n  }\n\n  @Get('bots')
+  botsList(@Req() req: AuthenticatedRequest) {
+    return this.bots.listBots({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Post('bots/:id/execute')
+  botExecute(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:BotExecuteDto) {
+    return this.bots.execute({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.command,dto.conversationId,dto.confirm===true);
+  }
+
+  @Get('conversations')
   conversations(@Req() req: AuthenticatedRequest) {
     return this.communication.listConversations({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
   }
