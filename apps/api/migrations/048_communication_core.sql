@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS bot_commands (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   bot_id uuid NOT NULL, command text NOT NULL, description text, permission text NOT NULL,
   requires_confirmation boolean NOT NULL DEFAULT false, enabled boolean NOT NULL DEFAULT true,
-  UNIQUE (tenant_id,bot_id,command), FOREIGN KEY (tenant_id,bot_id) REFERENCES bots(tenant_id,id) ON DELETE CASCADE
+  UNIQUE (tenant_id,bot_id,command), UNIQUE (tenant_id,id), FOREIGN KEY (tenant_id,bot_id) REFERENCES bots(tenant_id,id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS bot_executions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
