@@ -1,0 +1,33 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+secrets/
+credentials/
+config/secrets/
+
+# Runtime / local data
+node_modules/
+dist/
+.next/
+coverage/
+*.log
+*.pid
+
+# Local databases / dumps
+*.sql
+*.dump
+*.sqlite
+*.sqlite3
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

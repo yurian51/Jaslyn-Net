@@ -123,7 +123,8 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     const statusType=map[status??0]; if(!statusType)return;
     const username=stringAttribute(packet,ATTR.USER_NAME)??null; const sessionId=stringAttribute(packet,ATTR.ACCT_SESSION_ID)??null;
     const binding = username ? await this.db.query(`SELECT correlation_id AS "correlationId" FROM customer_access_bindings WHERE tenant_id=$1 AND username=$2 LIMIT 1`,[tenantId,username]) : { rows: [] as Array<{ correlationId: string | null }> };
-    const correlationId = binding.rows[0]?.correlationId ?? null;
+    const packetFingerprint = packet.authenticator.toString('hex');
+    const correlationId = binding.rows[0]?.correlationId ?? `radius:${tenantId}:${nasId}:${packet.identifier}:${packetFingerprint}`;
     await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')}))),correlationId]); 
     const response=encodeResponse(RADIUS_CODES.ACCOUNTING_RESPONSE,packet.identifier,packet.authenticator,[],secret); this.accountingSocket?.send(response,0,response.length,nasPort,nasAddress);
   }

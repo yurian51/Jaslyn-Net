@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { SessionsService } from './sessions.service';
+import { RoutersService } from '../routers/routers.service';
+import { AuditService } from '../audit/audit.service';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 const MIN_INTERVAL_MS = 30_000;
@@ -20,6 +22,8 @@ export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly config: ConfigService,
     private readonly sessions: SessionsService,
+    private readonly routers: RoutersService,
+    private readonly audit: AuditService,
   ) {}
 
   onModuleInit() {
@@ -64,9 +68,13 @@ export class ReconciliationWorker implements OnModuleInit, OnModuleDestroy {
       );
       for (const tenant of tenants.rows) {
         try {
-          await this.sessions.reconcileAccessState(tenant.id);
+          const correlationId = `maintenance:${tenant.id}`;
+          await this.sessions.reconcileAccessState(tenant.id, { correlationId });
           await this.sessions.reconcileStale(tenant.id, this.staleMinutes());
-        } catch {
+          await this.routers.markOfflineStale(tenant.id, 5, { correlationId });
+        } catch (error: unknown) {
+          const reason = error instanceof Error ? error.message : String(error);
+          await this.audit.record(tenant.id, 'LIFECYCLE_MAINTENANCE_FAILED', 'tenant', tenant.id, { operation: 'reconciliation-worker', reason }, { correlationId: `maintenance:${tenant.id}` }).catch(() => undefined);
           // One tenant must not prevent reconciliation for every other tenant.
         }
       }

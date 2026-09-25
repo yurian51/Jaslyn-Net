@@ -120,6 +120,10 @@ export class PurchasesService {
   async confirmPayment(tenantId: string, purchaseId: string, input: ConfirmPurchasePaymentDto) {
     const client = await this.db.connect();
     const provider = input.provider.trim().toLowerCase();
+    // External providers must transition through their authenticated webhook/verification path.
+    if (provider !== 'manual') {
+      throw new ConflictException('External payment providers must be verified through their provider webhook');
+    }
     const providerReference = input.providerReference.trim();
     const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
     let correlationId = getCorrelationId() ?? null;
