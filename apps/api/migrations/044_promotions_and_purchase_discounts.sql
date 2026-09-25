@@ -29,6 +29,19 @@ CREATE TABLE IF NOT EXISTS promo_codes (
   CHECK (type <> 'PERCENTAGE' OR value <= 100)
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'promo_codes_tenant_id_id_uq'
+      AND conrelid = 'promo_codes'::regclass
+  ) THEN
+    ALTER TABLE promo_codes
+      ADD CONSTRAINT promo_codes_tenant_id_id_uq UNIQUE (tenant_id, id);
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS promo_redemptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
