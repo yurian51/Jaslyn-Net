@@ -23,7 +23,7 @@ export default function LoginPage() {
   }
   return (
     <main className="auth-page"><section className="auth-shell" aria-label="Jaslyn Net sign in">
-      <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-net-primary.svg" alt="JASLYN NET — Supreme Hybrid Network Operating Engine" /></div>
+      <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-net-wordmark.svg" alt="JASLYN NET — Supreme Hybrid Network Operating Engine" /></div>
       <div className="auth-layout">
         <div className="auth-intro"><img className="auth-brand-mark" src="/brand/jaslyn-net-mark.svg" alt="" aria-hidden="true" /><span className="auth-kicker">NETWORK OPERATIONS</span><h1>Run your network<br />from one control plane.</h1><p>Subscribers, sessions, devices, billing and network state connected in one operational workspace.</p><div className="auth-capabilities"><span><i /> Live network state</span><span><i /> Subscriber & billing control</span><span><i /> Audited operator actions</span></div></div>
         <form className="auth-card" onSubmit={submit} noValidate>
