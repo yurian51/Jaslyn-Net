@@ -221,6 +221,83 @@ export class CommunicationService {
     return {userId:actor.userId,status,expiresInSeconds:ttlSeconds};
   }
 
+
+  async editMessage(actor: Actor, messageId: string, body: string) {
+    const nextBody = body.trim();
+    if (!nextBody || nextBody.length > 10_000) throw new BadRequestException('Message body must contain 1-10000 characters');
+    const existing = await this.db.query(
+      `SELECT id,conversation_id AS "conversationId",sender_user_id AS "senderUserId",body,protected
+         FROM messages
+        WHERE tenant_id=$1 AND id=$2 AND deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM conversation_members cm WHERE cm.tenant_id=$1 AND cm.conversation_id=messages.conversation_id AND cm.user_id=$3 AND cm.left_at IS NULL)`,
+      [actor.tenantId, messageId, actor.userId],
+    );
+    if (!existing.rowCount) throw new NotFoundException('Message not found');
+    const message = existing.rows[0];
+    if (message.senderUserId !== actor.userId && !['OWNER','ADMIN'].includes(actor.role)) {
+      throw new BadRequestException('Only the sender or an authorized operator can edit this message');
+    }
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO message_edits (tenant_id,message_id,edited_by_user_id,previous_body) VALUES ($1,$2,$3,$4)`,
+        [actor.tenantId,messageId,actor.userId,message.body],
+      );
+      await client.query(
+        `UPDATE messages SET body=$3,edited_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+        [actor.tenantId,messageId,nextBody],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      throw error;
+    } finally { client.release(); }
+    const updated=await this.getMessage(actor,messageId);
+    await this.audit.record(actor.tenantId,'MESSAGE_EDITED','message',messageId,{conversationId:message.conversationId},{userId:actor.userId});
+    this.realtime.publish({type:'message.updated',tenantId:actor.tenantId,conversationId:message.conversationId,messageId,data:updated});
+    return updated;
+  }
+
+  async deleteMessage(actor: Actor, messageId: string) {
+    const existing = await this.db.query(
+      `SELECT id,conversation_id AS "conversationId",sender_user_id AS "senderUserId",protected
+         FROM messages
+        WHERE tenant_id=$1 AND id=$2 AND deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM conversation_members cm WHERE cm.tenant_id=$1 AND cm.conversation_id=messages.conversation_id AND cm.user_id=$3 AND cm.left_at IS NULL)`,
+      [actor.tenantId,messageId,actor.userId],
+    );
+    if (!existing.rowCount) throw new NotFoundException('Message not found');
+    const message=existing.rows[0];
+    if (message.senderUserId !== actor.userId && !['OWNER','ADMIN'].includes(actor.role)) {
+      throw new BadRequestException('Only the sender or an authorized operator can delete this message');
+    }
+    await this.db.query(
+      `UPDATE messages SET deleted_at=now(),deleted_by_user_id=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND deleted_at IS NULL`,
+      [actor.tenantId,messageId,actor.userId],
+    );
+    await this.audit.record(actor.tenantId,'MESSAGE_DELETED','message',messageId,{conversationId:message.conversationId},{userId:actor.userId});
+    this.realtime.publish({type:'message.deleted',tenantId:actor.tenantId,conversationId:message.conversationId,messageId,data:{messageId}});
+    return {id:messageId,deleted:true};
+  }
+
+  async forwardMessage(actor: Actor, messageId: string, targetConversationId: string) {
+    const source=await this.getMessage(actor,messageId);
+    await this.assertMember(actor,targetConversationId);
+    if (source.protected && !['OWNER','ADMIN'].includes(actor.role)) {
+      throw new BadRequestException('Protected messages cannot be forwarded by this role');
+    }
+    const result=await this.db.query(
+      `INSERT INTO messages (tenant_id,conversation_id,sender_user_id,message_type,body,forwarded_from_message_id,protected)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [actor.tenantId,targetConversationId,actor.userId,source.messageType,source.body,source.id,source.protected],
+    );
+    const forwarded=await this.getMessage(actor,result.rows[0].id);
+    await this.audit.record(actor.tenantId,'MESSAGE_FORWARDED','message',source.id,{targetConversationId,forwardedMessageId:forwarded.id},{userId:actor.userId});
+    this.realtime.publish({type:'message.created',tenantId:actor.tenantId,conversationId:targetConversationId,messageId:forwarded.id,data:forwarded});
+    return forwarded;
+  }
+
   private async assertMember(actor: Actor, conversationId: string) {
     const result=await this.db.query(`SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL`,[actor.tenantId,conversationId,actor.userId]);
     if(!result.rowCount) throw new NotFoundException('Conversation not found');

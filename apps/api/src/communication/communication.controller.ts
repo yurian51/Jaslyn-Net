@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { CommunicationService } from './communication.service';
 import { CommunicationRealtime } from './communication.realtime';
@@ -16,6 +16,14 @@ class SendMessageDto {
   @IsOptional() @IsString() @MaxLength(128) idempotencyKey?: string;
   @IsOptional() @IsUUID() replyToMessageId?: string;
   @IsOptional() @IsBoolean() protected?: boolean;
+}
+
+class EditMessageDto {
+  @IsString() @MinLength(1) @MaxLength(10000) body!: string;
+}
+
+class ForwardMessageDto {
+  @IsUUID() targetConversationId!: string;
 }
 
 class ReactionDto {
@@ -57,6 +65,21 @@ export class CommunicationController {
   @Post('conversations/:id/messages')
   send(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:SendMessageDto) {
     return this.communication.sendMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto);
+  }
+
+  @Patch('messages/:id')
+  edit(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:EditMessageDto) {
+    return this.communication.editMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.body);
+  }
+
+  @Delete('messages/:id')
+  delete(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.deleteMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Post('messages/:id/forward')
+  forward(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:ForwardMessageDto) {
+    return this.communication.forwardMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.targetConversationId);
   }
 
   @Post('messages/:id/reactions')
