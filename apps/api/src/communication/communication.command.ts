@@ -88,7 +88,7 @@ export class CommunicationCommandService {
     }
 
     await this.record(actor, normalized, 'SUCCESS', result, requestId);
-    return { status:'SUCCESS', command:normalized, requestId, result, timestamp:new Date().toISOString() };
+    return { status:'SUCCESS', command:normalized, requestId, actor:actor.userId, resource:result.router ?? result.customer ?? null, result, timestamp:new Date().toISOString() };
   }
 
   private async previewDangerous(actor: Actor, command: string) {
