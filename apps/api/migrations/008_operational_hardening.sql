@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id, actor_user_id) REFERENCES users(tenant_id, id) ON DELETE SET NULL
 );
+ALTER TABLE audit_logs
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 CREATE INDEX IF NOT EXISTS audit_logs_tenant_created_idx ON audit_logs (tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_logs_tenant_resource_idx ON audit_logs (tenant_id, resource_type, resource_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_logs_tenant_actor_idx ON audit_logs (tenant_id, actor_user_id, created_at DESC);
@@ -34,6 +36,9 @@ CREATE TABLE IF NOT EXISTS notification_outbox (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE notification_outbox
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 CREATE INDEX IF NOT EXISTS notification_outbox_pending_idx ON notification_outbox (status, available_at, created_at);
 CREATE INDEX IF NOT EXISTS notification_outbox_tenant_idx ON notification_outbox (tenant_id, created_at DESC);
 
