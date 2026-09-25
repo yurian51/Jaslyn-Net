@@ -232,6 +232,91 @@ export class CommunicationService {
     return {data:result.rows,count:result.rowCount??0};
   }
 
+  async scheduleMessage(actor: Actor, conversationId: string, input: { body: string; scheduledAt: string; timezone?: string; recurrence?: Record<string, unknown> | null }) {
+    await this.assertMember(actor, conversationId);
+    const body = input.body.trim();
+    if (!body || body.length > 10_000) throw new BadRequestException('Scheduled message body must contain 1-10000 characters');
+    const scheduledAt = new Date(input.scheduledAt);
+    if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
+      throw new BadRequestException('scheduledAt must be a valid future timestamp');
+    }
+    const result = await this.db.query(
+      `INSERT INTO scheduled_messages (tenant_id,conversation_id,created_by_user_id,body,scheduled_at,timezone,recurrence)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,conversation_id AS "conversationId",body,scheduled_at AS "scheduledAt",timezone,recurrence,status,created_at AS "createdAt"`,
+      [actor.tenantId, conversationId, actor.userId, body, scheduledAt.toISOString(), input.timezone?.trim() || 'Africa/Dar_es_Salaam', input.recurrence ?? null],
+    );
+    const item = result.rows[0];
+    await this.audit.record(actor.tenantId,'MESSAGE_SCHEDULED','scheduled_message',item.id,{conversationId,scheduledAt:item.scheduledAt},{userId:actor.userId});
+    return item;
+  }
+
+  async listScheduledMessages(actor: Actor, conversationId?: string) {
+    const params: unknown[] = [actor.tenantId, actor.userId];
+    const condition = conversationId ? ' AND sm.conversation_id=$3' : '';
+    if (conversationId) {
+      await this.assertMember(actor, conversationId);
+      params.push(conversationId);
+    }
+    const result = await this.db.query(
+      `SELECT sm.id,sm.conversation_id AS "conversationId",sm.body,sm.scheduled_at AS "scheduledAt",sm.timezone,sm.recurrence,sm.status,sm.sent_message_id AS "sentMessageId",sm.created_at AS "createdAt"
+         FROM scheduled_messages sm
+        WHERE sm.tenant_id=$1 AND sm.created_by_user_id=$2${condition}
+        ORDER BY sm.scheduled_at ASC
+        LIMIT 200`,
+      params,
+    );
+    return {data:result.rows,count:result.rowCount ?? 0};
+  }
+
+  async cancelScheduledMessage(actor: Actor, id: string) {
+    const result = await this.db.query(
+      `UPDATE scheduled_messages
+          SET status='CANCELED',updated_at=now()
+        WHERE tenant_id=$1 AND id=$2 AND created_by_user_id=$3 AND status='SCHEDULED'
+        RETURNING id,conversation_id AS "conversationId",status`,
+      [actor.tenantId,id,actor.userId],
+    );
+    if (!result.rowCount) throw new NotFoundException('Scheduled message not found or no longer cancellable');
+    await this.audit.record(actor.tenantId,'MESSAGE_SCHEDULE_CANCELED','scheduled_message',id,result.rows[0],{userId:actor.userId});
+    return result.rows[0];
+  }
+
+  async markNotificationRead(actor: Actor, id: string) {
+    const result = await this.db.query(
+      `UPDATE communication_notifications SET read_at=COALESCE(read_at,now())
+        WHERE tenant_id=$1 AND id=$2 AND user_id=$3
+        RETURNING id,read_at AS "readAt"`,
+      [actor.tenantId,id,actor.userId],
+    );
+    if (!result.rowCount) throw new NotFoundException('Notification not found');
+    this.realtime.publish({type:'notification.read',tenantId:actor.tenantId,data:{notificationId:id,userId:actor.userId}});
+    return {read:true,...result.rows[0]};
+  }
+
+  async listSavedMessages(actor: Actor) {
+    const result = await this.db.query(
+      `SELECT sm.id,sm.message_id AS "messageId",sm.note,sm.created_at AS "createdAt",
+              m.conversation_id AS "conversationId",m.body,m.created_at AS "messageCreatedAt"
+         FROM saved_messages sm
+         JOIN messages m ON m.tenant_id=sm.tenant_id AND m.id=sm.message_id
+        WHERE sm.tenant_id=$1 AND sm.user_id=$2
+        ORDER BY sm.created_at DESC LIMIT 200`,
+      [actor.tenantId,actor.userId],
+    );
+    return {data:result.rows,count:result.rowCount ?? 0};
+  }
+
+  async listCommandHistory(actor: Actor) {
+    const result = await this.db.query(
+      `SELECT id,command,status,result,error,request_id AS "requestId",created_at AS "createdAt",completed_at AS "completedAt"
+         FROM command_executions
+        WHERE tenant_id=$1 AND actor_user_id=$2
+        ORDER BY created_at DESC LIMIT 100`,
+      [actor.tenantId,actor.userId],
+    );
+    return {data:result.rows,count:result.rowCount ?? 0};
+  }
+
   async setPresence(actor: Actor, status: 'ONLINE'|'OFFLINE'|'AWAY'|'BUSY'|'INVISIBLE') {
     const ttlSeconds=status==='OFFLINE'?60:75;
     await this.db.query(
