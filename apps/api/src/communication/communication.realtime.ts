@@ -1,5 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
+import { randomUUID } from 'node:crypto';
+import { Inject } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
 import { PG_POOL } from '../database/database.module';
 
@@ -15,11 +17,11 @@ export type CommunicationEvent = {
 @Injectable()
 export class CommunicationRealtime implements OnModuleInit, OnModuleDestroy {
   private readonly emitter = new EventEmitter();
-  private readonly instanceId = crypto.randomUUID();
+  private readonly instanceId = randomUUID();
   private listener?: PoolClient;
   private readonly heartbeat = setInterval(() => this.emitter.emit('heartbeat'), 25_000);
 
-  constructor(private readonly db: Pool) {
+  constructor(@Inject(PG_POOL) private readonly db: Pool) {
     this.emitter.setMaxListeners(0);
   }
 
