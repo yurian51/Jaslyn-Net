@@ -100,6 +100,16 @@ export class CommunicationController {
     return this.communication.deleteMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
   }
 
+  @Post('messages/:id/pin')
+  pin(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.pinMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Delete('messages/:id/pin')
+  unpin(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.unpinMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
   @Post('messages/:id/forward')
   forward(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:ForwardMessageDto) {
     return this.communication.forwardMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.targetConversationId);
