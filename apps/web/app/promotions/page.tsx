@@ -11,7 +11,7 @@ type Promo={id:string;code:string;type:'PERCENTAGE'|'FIXED';value:number|string;
 export default function PromotionsPage(){
   const [rows,setRows]=useState<Promo[]>([]),[error,setError]=useState(''),[saving,setSaving]=useState(false);
   const [form,setForm]=useState({code:'',type:'PERCENTAGE',value:'10',expiresAt:'',usageLimitTotal:'',usageLimitPerCustomer:'',minAmount:'',maxDiscount:'',firstPaymentOnly:false});
-  const headers=()=>{const t=getAccessToken();return t?{Authorization:'Bearer '+t}:{}};
+  const headers=(): Record<string, string> => { const t = getAccessToken(); return t ? { Authorization: `Bearer ${t}` } : {}; };
   async function load(){try{const r=await apiFetch<{data:Promo[]}>('/promotions',{headers:headers()});setRows(r.data||[])}catch(e){setError(e instanceof Error?e.message:'Unable to load promotions')}}
   useEffect(()=>{void load()},[]);
   async function create(e:FormEvent){e.preventDefault();setSaving(true);setError('');try{await apiFetch('/promotions',{method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({code:form.code,type:form.type,value:Number(form.value),expiresAt:form.expiresAt||undefined,usageLimitTotal:form.usageLimitTotal?Number(form.usageLimitTotal):undefined,usageLimitPerCustomer:form.usageLimitPerCustomer?Number(form.usageLimitPerCustomer):undefined,minAmount:form.minAmount?Number(form.minAmount):undefined,maxDiscount:form.maxDiscount?Number(form.maxDiscount):undefined,firstPaymentOnly:form.firstPaymentOnly})});setForm({...form,code:''});await load()}catch(e){setError(e instanceof Error?e.message:'Unable to create promo code')}finally{setSaving(false)}}
