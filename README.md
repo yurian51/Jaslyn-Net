@@ -25,7 +25,7 @@ JASLYN NET is a standalone connectivity and network operations product. **JASLYN
 - Database: PostgreSQL
 - Cache/queues: Redis + BullMQ
 - AAA: FreeRADIUS
-- Network: MikroTik RouterOS v7
+- Network: vendor-neutral adapter fabric with MikroTik RouterOS v7 as the first executable native adapter
 - Secure router connectivity: WireGuard
 - Deployment: Docker + GitHub Actions
 
@@ -41,6 +41,8 @@ JASLYN NET is a standalone connectivity and network operations product. **JASLYN
 - Reports, alerts and audit logs
 - Captive portals and integrations
 - Network operations and router connectivity
+- Hybrid adapter registry with explicit executable vs catalogue-only capability state
+- Vendor-neutral RADIUS/AAA fallback for supported NAS/controller environments
 
 ## Security baseline
 
@@ -57,6 +59,7 @@ This repository is developed as a real production system, not a static demo. Fea
 ## Ecosystem
 
 JASLYN NET is one product in the wider JASLYN ecosystem. Other JASLYN products may exist independently, but their capabilities must not be represented as features of JASLYN NET unless they are explicitly implemented in this repository.
+
 
 ## Intellectual property and source control
 
