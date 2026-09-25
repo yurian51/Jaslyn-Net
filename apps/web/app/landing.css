@@ -31,3 +31,111 @@
   .landing *{scroll-behavior:auto!important}
   .landing-package-options a,.landing-hardware-grid article,.landing-pricing-grid article{transition:none}
 }
+
+/* ============================================================
+   JASLYN NET PUBLIC EXPERIENCE
+   Product-first ISP / NOC visual system
+   ============================================================ */
+.landing{
+  --ink:#0b1728;--navy:#071322;--navy2:#0c1d32;--blue:#2f6fed;--blue2:#78a8ff;
+  --muted:#64748b;--line:#dce4ee;--soft:#f4f7fa;--white:#fff;
+  min-height:100vh;background:#fff;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.landing-nav{
+  height:74px;max-width:1440px;padding:0 36px;border:0;
+}
+.landing-logo>span{width:38px;height:38px;border:1px solid #d9e2ed;background:#fff;border-radius:10px}
+.landing-logo b{font-size:14px;letter-spacing:.11em;color:#0d1b2e}
+.landing-links{gap:30px;color:#607086;font-size:12px;font-weight:650}
+.landing-links a:hover{color:#1e5fd0}
+.landing-actions{font-size:11px}
+.landing-signin{padding:10px 12px;color:#42536a}
+.landing-cta,.landing-primary{border-radius:7px;padding:11px 15px;background:#10233d!important;border-color:#10233d;font-size:10px;letter-spacing:.01em}
+.landing-hero{
+  max-width:none;padding:0;min-height:690px;display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:0;
+  background:#f6f8fb;border-top:1px solid #e4eaf1;
+}
+.landing-hero-copy{
+  max-width:760px;width:100%;padding:104px 7vw 105px 8vw;display:flex;flex-direction:column;justify-content:center;
+}
+.landing-eyebrow{color:#58708e;font-size:10px;letter-spacing:.16em}
+.landing-eyebrow i{width:7px;height:7px;background:#2f6fed}
+.landing-hero h1{
+  max-width:760px;margin:24px 0 22px;font-size:clamp(54px,5.4vw,88px);line-height:.94;letter-spacing:-.065em;font-weight:790;color:#08172a;
+}
+.landing-hero h1 em{color:#2d69d4}
+.landing-hero p{max-width:650px;margin:0;color:#5e6e82;font-size:16px;line-height:1.72}
+.landing-hero-actions{margin-top:32px;gap:10px}
+.landing-primary{min-height:48px;padding:0 18px;font-size:11px}
+.landing-secondary{min-height:48px;padding:0 17px;border-radius:7px;font-size:11px}
+.landing-trust{margin-top:27px;gap:12px;color:#718198;font-size:9px}
+.landing-product{
+  align-self:stretch;margin:42px 7vw 42px 0;border:1px solid #cfd9e5;border-radius:16px;
+  box-shadow:0 28px 70px rgba(10,28,52,.12);background:#fff;
+}
+.landing-window-bar{height:42px;padding:0 16px;font-size:8px;background:#fbfcfe}
+.landing-product-shell{grid-template-columns:190px 1fr;min-height:500px}
+.landing-product-shell aside{padding:22px 13px;background:#071524}
+.landing-side-brand{margin-bottom:28px}
+.landing-side-brand>span{width:31px;height:31px}
+.landing-side-brand b{font-size:10px}.landing-side-brand small{font-size:7px}
+.landing-side-label{font-size:7px;margin:17px 8px 7px}
+.landing-product-shell aside>span{padding:10px 8px;font-size:9px}
+.landing-product-shell aside>span.active{background:#142d4b;box-shadow:inset 3px 0 #6c9cff}
+.landing-product-main{padding:25px;background:#f4f7fa}
+.landing-preview-head h3{font-size:20px;margin:6px 0}.landing-preview-head small,.landing-preview-panel>small,.landing-preview-kpis small{font-size:7px}
+.landing-preview-head>span{font-size:7px;padding:6px 8px}
+.landing-preview-kpis{gap:9px;margin-top:18px}
+.landing-preview-kpis>div{padding:14px;border-radius:9px}
+.landing-preview-kpis strong{font-size:17px}.landing-preview-kpis em{font-size:7px}
+.landing-preview-grid{gap:10px;margin-top:10px}
+.landing-preview-panel{padding:15px;border-radius:9px}.landing-preview-panel h4{font-size:11px;margin:6px 0 14px}
+.landing-flow span{padding:8px 7px;font-size:7px}.landing-site-row{padding:9px 0;font-size:8px}
+.landing-preview-note{margin-top:12px;font-size:7px}
+.landing-section{max-width:1440px;padding:108px 52px;border-top:1px solid #e5ebf1}
+.landing-section-head{gap:70px;margin-top:20px}
+.landing-label{font-size:9px;letter-spacing:.15em}
+.landing-section h2,.landing-network h2,.landing-final h2{font-size:clamp(38px,4vw,61px);letter-spacing:-.055em}
+.landing-section-head p,.landing-network p{font-size:14px;line-height:1.75}
+.landing-pillar-grid{margin-top:56px}
+.landing-pillar-grid article{min-height:230px;padding:25px}
+.landing-pillar-grid h3{margin:62px 0 9px;font-size:18px}
+.landing-pillar-grid p,.landing-module-grid p{font-size:11px;line-height:1.7}
+.landing-workflow{max-width:none;padding-left:max(52px,calc((100vw - 1440px)/2 + 52px));padding-right:max(52px,calc((100vw - 1440px)/2 + 52px));background:#f2f5f8}
+.landing-workflow-line{gap:12px;margin-top:50px}
+.landing-step{min-height:190px;padding:24px;border-radius:10px}
+.landing-step>span{font-size:9px}.landing-step b{margin-top:45px;font-size:16px}.landing-step p{font-size:10px;line-height:1.65}
+.landing-network{padding:110px max(52px,calc((100vw - 1440px)/2 + 52px));gap:100px}
+.landing-checks{gap:9px;margin-top:26px}.landing-checks span{padding:13px;font-size:9px;border-radius:7px}
+.landing-package-section,.landing-hardware,.landing-pricing,.landing-why,.landing-faq,.landing-contact{padding-top:108px;padding-bottom:108px}
+.landing-section-inner{max-width:1440px;padding-left:52px;padding-right:52px}
+.landing-package-card{max-width:1050px;margin-top:50px;padding:22px;border-radius:15px}
+.landing-package-head h3{font-size:23px}.landing-package-options{gap:10px}
+.landing-package-options a{padding:20px;border-radius:10px}.landing-package-options b{font-size:16px}.landing-package-options small{font-size:8px}
+.landing-package-options em{font-size:9px;line-height:1.6;min-height:47px}.landing-package-options strong{font-size:8px}
+.landing-package-pay{padding:15px 16px}.landing-package-pay span{font-size:8px}.landing-package-pay b{font-size:10px}.landing-package-pay a{font-size:9px}
+.landing-hardware{background:#f1f4f7}.landing-hardware-grid{gap:10px;margin-top:50px}
+.landing-hardware-grid article{min-height:88px;padding:14px;border-radius:9px}.landing-hardware-grid h3{font-size:11px}.landing-hardware-grid p{font-size:8px}
+.landing-hardware-mark{width:39px;height:39px;flex-basis:39px;font-size:10px}
+.landing-proof{padding:62px 0}.landing-proof-grid{max-width:1336px;margin:auto}.landing-proof-grid article{min-height:205px;padding:23px}
+.landing-proof-grid strong{font-size:9px}.landing-proof-grid b{margin-top:48px;font-size:14px}.landing-proof-grid span{font-size:9px;line-height:1.65}
+.landing-module-grid{gap:10px;margin-top:50px}.landing-module-grid article{min-height:185px;padding:19px;border-radius:9px}.landing-module-grid h3{margin:36px 0 8px;font-size:16px}
+.landing-pricing{background:#f2f5f8}.landing-pricing-grid{gap:12px;margin-top:50px}.landing-pricing-grid article{min-height:410px;padding:26px;border-radius:11px}.landing-pricing-grid h3{font-size:25px}.landing-pricing-grid article>p{font-size:10px;line-height:1.65}.landing-pricing-grid article>div{margin:26px 0}.landing-pricing-grid article>div span{font-size:9px}
+.landing-why{background:#071524}.landing-why-grid{gap:90px;margin-top:22px}.landing-why h2{font-size:clamp(38px,4vw,60px)}.landing-why-grid>div>p{font-size:13px;line-height:1.75}.landing-why-list article{padding:16px}.landing-why-list h3{font-size:11px}.landing-why-list p{font-size:9px}
+.landing-faq{background:#081626}.landing-faq h2{font-size:clamp(38px,4vw,58px);margin-bottom:44px}.landing-faq-list summary{padding:23px 6px;font-size:12px}.landing-faq-list p{padding-bottom:24px;font-size:10px;line-height:1.75}
+.landing-contact{background:#f1f4f7}.landing-contact-card{padding:42px;border-radius:15px;gap:75px}.landing-contact-card h2{font-size:clamp(38px,4vw,57px)}.landing-contact-card>div>p{font-size:11px}.landing-contact-form label{font-size:9px}.landing-contact-form input,.landing-contact-form textarea{font-size:10px;padding:12px}
+.landing-footer{max-width:1440px;padding:30px 52px 38px}.landing-footer p{font-size:10px}.landing-footer small{font-size:9px}
+@media(max-width:1050px){.landing-hero{grid-template-columns:1fr}.landing-hero-copy{max-width:900px;padding:75px 52px}.landing-product{margin:0 52px 52px}.landing-section-head,.landing-network{grid-template-columns:1fr;gap:28px}.landing-pillar-grid,.landing-module-grid{grid-template-columns:repeat(2,1fr)}.landing-workflow-line{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:720px){
+ .landing-nav{height:66px;padding:0 14px}.landing-links,.landing-signin{display:none}.landing-cta{padding:10px 11px}
+ .landing-hero{min-height:0}.landing-hero-copy{padding:58px 18px 44px}.landing-hero h1{font-size:47px;line-height:.96;margin:20px 0}.landing-hero p{font-size:14px}.landing-hero-actions{flex-direction:column}.landing-primary,.landing-secondary{width:100%;justify-content:center}
+ .landing-product{margin:0 12px 25px;border-radius:12px}.landing-window-bar{padding:0 11px}.landing-product-shell{grid-template-columns:1fr;min-height:0}.landing-product-shell aside{display:none}.landing-product-main{padding:13px}.landing-preview-kpis,.landing-preview-grid,.landing-checks{grid-template-columns:1fr}.landing-preview-kpis>div{padding:12px}
+ .landing-section,.landing-final{padding:70px 18px}.landing-section-inner{padding:0 18px}.landing-section h2,.landing-network h2,.landing-final h2{font-size:37px}.landing-section-head{margin-top:15px}.landing-section-head p,.landing-network p{font-size:12px}
+ .landing-pillar-grid,.landing-module-grid,.landing-workflow-line{grid-template-columns:1fr}.landing-pillar-grid article{min-height:190px}.landing-pillar-grid h3{margin-top:45px}
+ .landing-workflow{padding:70px 18px}.landing-network{padding:70px 18px}.landing-network{gap:28px}
+ .landing-package-section,.landing-hardware,.landing-pricing,.landing-why,.landing-faq,.landing-contact{padding-top:70px;padding-bottom:70px}
+ .landing-package-card{margin-top:30px;padding:10px}.landing-package-head h3{font-size:19px}.landing-package-pay{align-items:stretch;flex-direction:column}.landing-package-pay a{text-align:center}
+ .landing-hardware-grid,.landing-proof-grid{grid-template-columns:1fr}.landing-proof-grid article{border-right:0;border-bottom:1px solid #23354d}.landing-proof-grid article:last-child{border-bottom:0}
+ .landing-pricing-grid{margin-top:30px;grid-template-columns:1fr}.landing-pricing-grid article{min-height:0}.landing-why-grid,.landing-contact-card{grid-template-columns:1fr;gap:30px}.landing-contact-card{padding:24px}
+ .landing-contact-actions{flex-direction:column}.landing-contact-actions a{text-align:center}.landing-footer{padding:25px 18px 30px;grid-template-columns:1fr;gap:8px}
+}
