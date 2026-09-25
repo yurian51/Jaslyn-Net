@@ -1,5 +1,6 @@
 BEGIN;
 
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS correlation_id text;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS correlation_id text;
 ALTER TABLE wifi_plan_purchases ADD COLUMN IF NOT EXISTS correlation_id text;
