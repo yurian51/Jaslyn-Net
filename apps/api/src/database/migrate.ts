@@ -30,11 +30,27 @@ function buildSsl(env: NodeJS.ProcessEnv): false | { rejectUnauthorized: boolean
 
 async function main() {
   const connectionString = buildConnectionString(process.env);
-  const client = new Client({ connectionString, ssl: buildSsl(process.env) });
+  const client = new Client({
+    connectionString,
+    ssl: buildSsl(process.env),
+    connectionTimeoutMillis: 15_000,
+    query_timeout: 60_000,
+  });
+
+  console.log('Migration runner: connecting to PostgreSQL');
   await client.connect();
+  console.log('Migration runner: PostgreSQL connection established');
+
+  let lockAcquired = false;
 
   try {
-    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+    const lockResult = await client.query('SELECT pg_try_advisory_lock($1) AS acquired', [MIGRATION_LOCK_KEY]);
+    lockAcquired = Boolean(lockResult.rows[0]?.acquired);
+    if (!lockAcquired) {
+      throw new Error('Migration lock is already held by another Jaslyn Net migration process');
+    }
+    console.log('Migration runner: migration lock acquired');
+
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
 
     const migrationDir = join(process.cwd(), 'migrations');
@@ -59,9 +75,14 @@ async function main() {
         throw error;
       }
     }
+
+    console.log('Migration runner: all migrations applied');
   } finally {
-    await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]).catch(() => undefined);
+    if (lockAcquired) {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]).catch(() => undefined);
+    }
     await client.end();
+    console.log('Migration runner: connection closed');
   }
 }
 
