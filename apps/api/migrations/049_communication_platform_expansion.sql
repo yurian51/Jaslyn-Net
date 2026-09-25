@@ -3,6 +3,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS message_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   message_id uuid NOT NULL,
   user_id uuid NOT NULL,
   status text NOT NULL DEFAULT 'SENT' CHECK (status IN ('SENDING','SENT','DELIVERED','READ','FAILED')),
@@ -19,6 +20,7 @@ CREATE INDEX IF NOT EXISTS message_deliveries_user_status_idx ON message_deliver
 CREATE TABLE IF NOT EXISTS pinned_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   conversation_id uuid NOT NULL,
   message_id uuid NOT NULL,
   pinned_by_user_id uuid NOT NULL,
@@ -32,6 +34,7 @@ CREATE TABLE IF NOT EXISTS pinned_messages (
 CREATE TABLE IF NOT EXISTS channel_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   channel_id uuid NOT NULL,
   user_id uuid NOT NULL,
   role text NOT NULL DEFAULT 'MEMBER' CHECK (role IN ('OWNER','ADMIN','MODERATOR','MEMBER','READ_ONLY')),
@@ -45,6 +48,7 @@ CREATE TABLE IF NOT EXISTS channel_members (
 CREATE TABLE IF NOT EXISTS communities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   name text NOT NULL,
   slug text NOT NULL,
   description text,
@@ -58,6 +62,7 @@ CREATE TABLE IF NOT EXISTS communities (
 CREATE TABLE IF NOT EXISTS community_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   community_id uuid NOT NULL,
   user_id uuid,
   customer_id uuid,
@@ -75,6 +80,7 @@ CREATE TABLE IF NOT EXISTS community_members (
 CREATE TABLE IF NOT EXISTS polls (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   conversation_id uuid NOT NULL,
   message_id uuid,
   question text NOT NULL,
@@ -93,6 +99,7 @@ CREATE TABLE IF NOT EXISTS polls (
 CREATE TABLE IF NOT EXISTS poll_options (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   poll_id uuid NOT NULL,
   label text NOT NULL,
   position integer NOT NULL,
@@ -103,6 +110,7 @@ CREATE TABLE IF NOT EXISTS poll_options (
 CREATE TABLE IF NOT EXISTS poll_votes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   poll_id uuid NOT NULL,
   option_id uuid NOT NULL,
   user_id uuid NOT NULL,
@@ -116,6 +124,7 @@ CREATE TABLE IF NOT EXISTS poll_votes (
 CREATE TABLE IF NOT EXISTS support_tickets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   ticket_number text NOT NULL,
   customer_id uuid,
   conversation_id uuid,
@@ -137,6 +146,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
 CREATE TABLE IF NOT EXISTS incident_conversations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   incident_id uuid NOT NULL,
   conversation_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -149,6 +159,7 @@ CREATE TABLE IF NOT EXISTS incident_conversations (
 CREATE TABLE IF NOT EXISTS automations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   name text NOT NULL,
   enabled boolean NOT NULL DEFAULT true,
   trigger_type text NOT NULL,
@@ -157,7 +168,6 @@ CREATE TABLE IF NOT EXISTS automations (
   created_by_user_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id,id),
   FOREIGN KEY (tenant_id,created_by_user_id) REFERENCES users(tenant_id,id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS automations_trigger_idx ON automations(tenant_id,trigger_type,enabled);
@@ -165,6 +175,7 @@ CREATE INDEX IF NOT EXISTS automations_trigger_idx ON automations(tenant_id,trig
 CREATE TABLE IF NOT EXISTS automation_executions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   automation_id uuid NOT NULL,
   event_id text,
   status text NOT NULL CHECK (status IN ('PENDING','SUCCESS','FAILED','SKIPPED')),
@@ -179,6 +190,7 @@ CREATE TABLE IF NOT EXISTS automation_executions (
 CREATE TABLE IF NOT EXISTS ai_conversations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   user_id uuid NOT NULL,
   title text,
   status text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','ARCHIVED')),
@@ -190,6 +202,7 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
 CREATE TABLE IF NOT EXISTS ai_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   ai_conversation_id uuid NOT NULL,
   role text NOT NULL CHECK (role IN ('USER','ASSISTANT','TOOL','SYSTEM')),
   content text NOT NULL,
@@ -203,6 +216,7 @@ CREATE INDEX IF NOT EXISTS ai_messages_conversation_created_idx ON ai_messages(t
 CREATE TABLE IF NOT EXISTS ai_executions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   ai_conversation_id uuid,
   actor_user_id uuid NOT NULL,
   tool_name text NOT NULL,
@@ -221,6 +235,7 @@ CREATE TABLE IF NOT EXISTS ai_executions (
 CREATE TABLE IF NOT EXISTS command_executions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   actor_user_id uuid NOT NULL,
   command text NOT NULL,
   scope jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -237,6 +252,7 @@ CREATE INDEX IF NOT EXISTS command_executions_actor_created_idx ON command_execu
 CREATE TABLE IF NOT EXISTS bot_permissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  UNIQUE (tenant_id,id),
   bot_id uuid NOT NULL,
   permission text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
