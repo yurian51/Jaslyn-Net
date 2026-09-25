@@ -26,5 +26,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @jaslyn-net/web verify:assets
       - run: pnpm --filter @jaslyn-net/web typecheck
       - run: pnpm --filter @jaslyn-net/web build
