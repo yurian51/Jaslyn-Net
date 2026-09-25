@@ -1,6 +1,14 @@
 BEGIN;
 
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE wifi_plan_purchases ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE payment_events ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE radius_events ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE radius_accounting_events ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS correlation_id text;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS correlation_id text;
 ALTER TABLE wifi_plan_purchases ADD COLUMN IF NOT EXISTS correlation_id text;
