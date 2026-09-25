@@ -103,9 +103,11 @@ export class CommunicationCommandService {
 
   private async record(actor:Actor, command:string, status:string, result:Record<string,unknown>, requestId:string) {
     await this.db.query(
-      'INSERT INTO command_executions (tenant_id,actor_user_id,command,status,result,request_id,completed_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
+      status === 'AWAITING_CONFIRMATION'
+      ? 'INSERT INTO command_executions (tenant_id,actor_user_id,command,status,result,request_id) VALUES ($1,$2,$3,$4,$5,$6)'
+      : 'INSERT INTO command_executions (tenant_id,actor_user_id,command,status,result,request_id,completed_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
       [actor.tenantId,actor.userId,command,status,JSON.stringify(result),requestId],
     );
-    await this.audit.record(actor.tenantId,'COMMAND_EXECUTED','command',requestId,{command,status,result},{userId:actor.userId,requestId});
+    await this.audit.record(actor.tenantId,status === 'AWAITING_CONFIRMATION' ? 'COMMAND_PREVIEWED' : 'COMMAND_EXECUTED','command',requestId,{command,status,result},{userId:actor.userId,requestId});
   }
 }
