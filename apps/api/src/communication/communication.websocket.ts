@@ -3,6 +3,9 @@ import { jwtVerify } from 'jose';
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { CommunicationRealtime, CommunicationEvent } from './communication.realtime';
+import { Inject } from '@nestjs/common';
+import { Pool } from 'pg';
+import { PG_POOL } from '../database/database.module';
 
 type SocketContext = { tenantId: string; userId: string; role: string };
 
@@ -11,7 +14,7 @@ export class CommunicationWebSocket implements OnModuleDestroy {
   private server?: WebSocketServer;
   private readonly sockets = new Map<WebSocket, SocketContext>();
 
-  constructor(private readonly realtime: CommunicationRealtime) {}
+  constructor(private readonly realtime: CommunicationRealtime, @Inject(PG_POOL) private readonly db: Pool) {}
 
   attach(httpServer: HttpServer, jwtSecret: string) {
     if (!jwtSecret || jwtSecret.length < 32) throw new Error('JWT_SECRET is required for communication WebSocket');
@@ -54,10 +57,19 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
   }
 
-  private broadcast(event: CommunicationEvent) {
+  private async broadcast(event: CommunicationEvent) {
     const payload = JSON.stringify(event);
     for (const [client, context] of this.sockets) {
       if (context.tenantId !== event.tenantId || client.readyState !== WebSocket.OPEN) continue;
+      if (event.conversationId) {
+        const membership = await this.db.query(
+          `SELECT 1 FROM conversation_members
+             WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL
+             LIMIT 1`,
+          [context.tenantId, event.conversationId, context.userId],
+        );
+        if (!membership.rowCount) continue;
+      }
       client.send(payload);
     }
   }
