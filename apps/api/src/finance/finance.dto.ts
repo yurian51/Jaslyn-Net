@@ -44,6 +44,7 @@ export class CreateDisputeDto {
   @IsUUID() paymentId!: string;
   @IsOptional() @IsString() providerCaseId?: string;
   @IsOptional() @IsNumber() @Min(0.000001) amount?: number;
+  @IsOptional() @IsString() currency?: string;
   @IsOptional() @IsString() reasonCode?: string;
   @IsOptional() @IsString() reason?: string;
 }
