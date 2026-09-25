@@ -25,6 +25,7 @@ import { TrafficModule } from './modules/traffic/traffic.module';
 import { IspOperationsModule } from './isp-operations/isp-operations.module';
 import { IpamModule } from './ipam/ipam.module';
 import { RadiusModule } from './radius/radius.module';
+import { CommunicationModule } from './communication/communication.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 
 @Module({
@@ -38,6 +39,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     FinanceModule,
     IncidentsModule,
     NotificationsModule,
+    CommunicationModule,
     OverviewModule,
     CustomersModule,
     BillingModule,
