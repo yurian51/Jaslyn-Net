@@ -60,7 +60,12 @@ class SaveDto {
 export class CommunicationController {
   constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService) {}
 
-  @Post('commands/execute')\n  command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {\n    return this.commands.execute({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.command,dto.confirm===true);\n  }\n\n  @Get('bots')
+  @Post('commands/execute')
+  command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {
+    return this.commands.execute({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.command,dto.confirm===true);
+  }
+
+  @Get('bots')
   botsList(@Req() req: AuthenticatedRequest) {
     return this.bots.listBots({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
   }
