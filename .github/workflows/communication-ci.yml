@@ -1,0 +1,32 @@
+name: Communication CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: communication-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-communication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.3
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm --filter @jaslyn-net/api typecheck
+      - run: pnpm --filter @jaslyn-net/api test -- --runInBand
+      - run: pnpm --filter @jaslyn-net/api build
