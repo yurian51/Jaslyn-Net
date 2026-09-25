@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS incident_conversations (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id,incident_id),
   UNIQUE (tenant_id,conversation_id),
-  FOREIGN KEY (tenant_id,incident_id) REFERENCES incidents(tenant_id,id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id,incident_id) REFERENCES incidents(id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id,conversation_id) REFERENCES conversations(tenant_id,id) ON DELETE CASCADE
 );
 
