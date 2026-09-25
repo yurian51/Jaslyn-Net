@@ -143,6 +143,8 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   FOREIGN KEY (tenant_id,assigned_to_user_id) REFERENCES users(tenant_id,id) ON DELETE SET NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS incidents_tenant_id_uq ON incidents(tenant_id,id);
+
 CREATE TABLE IF NOT EXISTS incident_conversations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
