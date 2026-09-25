@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { CommunicationCommandService } from './communication.command';
+import { CommunicationBotService } from './communication.bot';
 import { CommunicationController } from './communication.controller';
 import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationScheduler } from './communication.scheduler';
@@ -10,7 +11,7 @@ import { CommunicationWebSocket } from './communication.websocket';
 @Module({
   imports: [AuditModule],
   controllers: [CommunicationController],
-  providers: [CommunicationService, CommunicationCommandService, CommunicationRealtime, CommunicationScheduler, CommunicationWebSocket],
-  exports: [CommunicationService, CommunicationCommandService, CommunicationRealtime, CommunicationScheduler, CommunicationWebSocket],
+  providers: [CommunicationService, CommunicationCommandService, CommunicationBotService, CommunicationRealtime, CommunicationScheduler, CommunicationWebSocket],
+  exports: [CommunicationService, CommunicationCommandService, CommunicationBotService, CommunicationRealtime, CommunicationScheduler, CommunicationWebSocket],
 })
 export class CommunicationModule {}
