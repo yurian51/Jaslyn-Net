@@ -106,6 +106,15 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
     let jobs: any[] = [];
     try {
       await client.query('BEGIN');
+      await client.query(
+        `UPDATE commerce_renewal_reconciliations
+         SET status=CASE WHEN attempts>=8 THEN 'FAILED' ELSE 'PENDING' END,
+             next_attempt_at=CASE WHEN attempts>=8 THEN next_attempt_at ELSE now() END,
+             last_error=CASE WHEN attempts>=8 THEN 'Retry budget exhausted after stale reconciliation lock' ELSE last_error END,
+             updated_at=now()
+         WHERE status='PROCESSING'
+           AND updated_at < now() - interval '15 minutes'`
+      );
       const claimed = await client.query(
         `SELECT id,tenant_id AS "tenantId",renewal_schedule_id AS "renewalScheduleId",
                 execution_id AS "executionId",purchase_id AS "purchaseId",customer_id AS "customerId",
