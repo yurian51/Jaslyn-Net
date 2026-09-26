@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nest
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { ConfirmPurchasePaymentDto, CreatePurchaseDto } from './purchases.dto';
+import { ConfirmPurchasePaymentDto, CreatePurchaseDto, CreatePurchaseFromTierDto } from './purchases.dto';
 import { PurchasesService } from './purchases.service';
 
 @Controller('purchases')
@@ -18,6 +18,12 @@ export class PurchasesController {
   @Get(':id')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.purchases.get(req.user!.tenantId, id);
+  }
+
+  @Post('tiers/:tierCode')
+  @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT')
+  createFromTier(@Req() req: AuthenticatedRequest, @Param('tierCode') tierCode: string, @Body() dto: CreatePurchaseFromTierDto) {
+    return this.purchases.createFromTier(req.user!.tenantId, tierCode, dto);
   }
 
   @Post()
