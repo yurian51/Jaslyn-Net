@@ -378,12 +378,16 @@
   .jn-footer-end{align-items:flex-start!important}
 }
 @media(max-width:520px){
-  .jn-integration-grid article{min-height:76px;padding:10px;gap:8px}
-  .jn-integration-brand{width:34px;height:36px;flex-basis:34px}
-  .jn-integration-logo{width:28px;height:28px;max-width:28px;max-height:28px}
-  .jn-integration-brand .jn-integration-logo + .jn-integration-logo{width:14px;height:14px;max-width:14px;max-height:14px}
-  .jn-integration-grid h3{font-size:9px}
-  .jn-integration-grid p{font-size:6.5px}
+  .jn-integration-grid article{
+    min-height:70px;padding:9px 1px;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;
+  }
+  .jn-integration-grid article:nth-last-child(-n+3){border-bottom:1px solid #edf1f5}
+  .jn-integration-grid article:last-child{border-bottom:0}
+  .jn-integration-brand{width:34px!important;height:34px!important}
+  .jn-integration-logo{width:27px!important;height:27px!important;max-width:27px!important;max-height:27px!important}
+  .jn-integration-brand .jn-integration-logo + .jn-integration-logo{width:14px!important;height:14px!important;max-width:14px!important;max-height:14px!important}
+  .jn-integration-grid h3{font-size:9px!important}
+  .jn-integration-grid p{font-size:6.5px!important}
   .jn-integration-grid article>small{font-size:5px}
 }
 @media(max-width:390px){
@@ -413,12 +417,32 @@
   .jn-integration-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 }
 @media(max-width:720px){
-  .jn-integration-grid{grid-template-columns:1fr;gap:8px;margin-top:36px}
-  .jn-integration-grid article{min-height:78px}
+  .jn-integration-grid{grid-template-columns:1fr;gap:0;margin-top:36px}
+  .jn-integration-grid article{min-height:70px}
 }
 
-/* Final integration composition: logo, content, type. No logo frames or ghost watermarks. */
-.jn-integration-grid article{box-shadow:none}
+/* Final integration composition: floating marks, no card containers. */
+.jn-integration-grid article{
+  position:relative;min-height:78px;padding:12px 4px;
+  display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;
+  border:0;border-bottom:1px solid #edf1f5;border-radius:0;background:transparent;
+  box-shadow:none;
+}
+.jn-integration-grid article:nth-last-child(-n+3){border-bottom:0}
+.jn-integration-brand{
+  width:44px!important;height:44px!important;display:flex!important;align-items:center!important;justify-content:center!important;
+  border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.jn-integration-logo{
+  width:32px!important;height:32px!important;max-width:32px!important;max-height:32px!important;
+  object-fit:contain!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.jn-integration-copy{min-width:0}
+.jn-integration-grid h3{font-size:10px!important}
+.jn-integration-grid p{font-size:7px!important}
+.jn-integration-grid article>small{
+  margin-left:auto;padding:0;color:#8491a2;font-size:6px;font-weight:800;text-align:right;white-space:nowrap;
+}
 .jn-integration-brand picture,.jn-integration-brand img{background:transparent!important;border:0!important;box-shadow:none!important}
 @media(max-width:720px){
   .jn-integration-grid article{
