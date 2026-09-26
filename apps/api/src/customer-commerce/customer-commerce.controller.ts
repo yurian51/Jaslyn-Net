@@ -3,7 +3,7 @@ import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CustomerCommerceService } from './customer-commerce.service';
-import { BeneficiaryDto, LimitDto, NotificationPreferenceDto, ReferralDto, SavedPurchaseDto, SupportCaseDto, VerificationDto, WalletEntryDto } from './customer-commerce.dto';
+import { BeneficiaryDto, LimitDto, NotificationPreferenceDto, ReferralDto, RenewalScheduleDto, SavedPurchaseDto, SupportCaseDto, VerificationDto, WalletEntryDto } from './customer-commerce.dto';
 
 @Controller('commerce')
 @UseGuards(AuthGuard, RolesGuard)
@@ -16,6 +16,8 @@ export class CustomerCommerceController {
   @Post('customers/:customerId/beneficiaries') beneficiariesSave(@Req() req:AuthenticatedRequest,@Param('customerId') id:string,@Body() dto:BeneficiaryDto){return this.commerce.saveBeneficiary(req.user!.tenantId,id,dto);}
   @Get('customers/:customerId/saved-purchases') saved(@Req() req:AuthenticatedRequest,@Param('customerId') id:string){return this.commerce.listSavedPurchases(req.user!.tenantId,id);}
   @Post('customers/:customerId/saved-purchases') save(@Req() req:AuthenticatedRequest,@Param('customerId') id:string,@Body() dto:SavedPurchaseDto){return this.commerce.savePurchase(req.user!.tenantId,id,dto);}
+  @Get('customers/:customerId/renewals') renewals(@Req() req:AuthenticatedRequest,@Param('customerId') id:string){return this.commerce.listRenewals(req.user!.tenantId,id);}
+  @Put('customers/:customerId/renewals') setRenewal(@Req() req:AuthenticatedRequest,@Param('customerId') id:string,@Body() dto:RenewalScheduleDto){return this.commerce.setRenewal(req.user!.tenantId,id,dto);}
   @Post('customers/:customerId/referrals') referral(@Req() req:AuthenticatedRequest,@Param('customerId') id:string){return this.commerce.createReferral(req.user!.tenantId,id);}
   @Post('customers/:customerId/referrals/redeem') redeem(@Req() req:AuthenticatedRequest,@Param('customerId') id:string,@Body() dto:ReferralDto){return this.commerce.redeemReferral(req.user!.tenantId,id,dto);}
   @Get('customers/:customerId/limits') limits(@Req() req:AuthenticatedRequest,@Param('customerId') id:string){return this.commerce.getLimits(req.user!.tenantId,id);}
