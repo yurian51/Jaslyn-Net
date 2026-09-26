@@ -158,12 +158,12 @@ CREATE TABLE IF NOT EXISTS commerce_renewal_schedules (
   customer_id uuid NOT NULL,
   saved_purchase_id uuid NOT NULL,
   next_run_at timestamptz NOT NULL,
-  status text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','PAUSED','COMPLETED','FAILED','CANCELED')),
+  status text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','PAUSED','PROCESSING','COMPLETED','FAILED','CANCELED')),
   failure_count integer NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
-  last_run_at timestamptz,
+  last_run_at timestamptz,\n  claimed_at timestamptz,\n  execution_id uuid,\n  last_error text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, saved_purchase_id),
+  UNIQUE (tenant_id, saved_purchase_id),\n  UNIQUE (tenant_id, execution_id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id, saved_purchase_id) REFERENCES commerce_saved_purchases(tenant_id, id) ON DELETE CASCADE
 );
@@ -171,5 +171,5 @@ CREATE INDEX IF NOT EXISTS customer_wallet_entries_lookup_idx ON customer_wallet
 CREATE INDEX IF NOT EXISTS customer_beneficiaries_lookup_idx ON customer_beneficiaries (tenant_id, customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS commerce_saved_purchases_lookup_idx ON commerce_saved_purchases (tenant_id, customer_id, active);
 CREATE INDEX IF NOT EXISTS commerce_support_lookup_idx ON commerce_support_cases (tenant_id, customer_id, status, created_at DESC);
-CREATE INDEX IF NOT EXISTS commerce_renewal_due_idx ON commerce_renewal_schedules (tenant_id, status, next_run_at);
+CREATE INDEX IF NOT EXISTS commerce_renewal_due_idx ON commerce_renewal_schedules (tenant_id, status, next_run_at);\nCREATE INDEX IF NOT EXISTS commerce_renewal_claim_idx ON commerce_renewal_schedules (status, claimed_at);
 COMMIT;
