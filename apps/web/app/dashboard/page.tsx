@@ -170,7 +170,11 @@ export default function DashboardPage() {
           <a href="/sessions"><span>Sessions</span><small>Live connections</small></a>
           <a href="/customers"><span>Customers</span><small>Subscriber state</small></a>
           <a href="/payments"><span>Payments</span><small>Transactions &amp; status</small></a>
-          <a href="/dashboard/packages"><span>Packages</span><small>Jaslyn tiers &amp; access</small></a>
+          <a href="/purchases"><span>Purchases</span><small>Purchase &amp; access flow</small></a>
+          <a href="/customer-commerce"><span>Commerce</span><small>Wallet, rewards &amp; renewals</small></a>
+          <a href="/communication"><span>Communication</span><small>Messages &amp; commands</small></a>
+          <a href="/packages"><span>Packages</span><small>Plans &amp; products</small></a>
+          <a href="/dashboard/packages"><span>Jaslyn Tiers</span><small>Premium tier catalogue</small></a>
         </div>
         <button className="commandbar-refresh" type="button" onClick={() => void load()} disabled={loading}>
           <i />{loading ? 'Refreshing telemetry' : 'Refresh telemetry'}
@@ -271,7 +275,10 @@ export default function DashboardPage() {
           <a href="/sessions"><b>Sessions</b><span>Inspect active, stale and ended connections →</span></a>
           <a href="/network"><b>Network</b><span>Routers, gateways and management state →</span></a>
           <a href="/packages"><b>Plans &amp; Products</b><span>Access packages and catalogue operations →</span></a>
-          <a href="/purchases"><b>Purchases</b><span>Payment and purchase operations →</span></a>
+          <a href="/dashboard/packages"><b>Jaslyn Tiers</b><span>Eight premium package tiers and feature flags →</span></a>
+          <a href="/purchases"><b>Purchases</b><span>Payment, voucher and access operations →</span></a>
+          <a href="/customer-commerce"><b>Customer Commerce</b><span>Wallet, beneficiaries, saved purchases, rewards and renewals →</span></a>
+          <a href="/communication"><b>Communication</b><span>Telegram-style conversations, search and operator commands →</span></a>
           <a href="/audit"><b>Security &amp; Audit</b><span>Tenant-scoped operational event trail →</span></a>
         </div>
         <div className="overview-footer-metrics"><span><b>{bytes(traffic)}</b> observed traffic in returned sessions</span><span>Timezone: {data?.tenant?.timezone ?? 'tenant configured'}</span></div>
