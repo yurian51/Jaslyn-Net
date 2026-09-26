@@ -2,8 +2,8 @@
 
 import './packages.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch, ApiError } from '../../lib/api';
-import { getAccessToken } from '../../lib/auth';
+import { apiFetch, ApiError } from '../../../lib/api';
+import { getAccessToken } from '../../../lib/auth';
 
 type Tier = {
   code: string; name: string; rank: number; tagline: string; price: number; currency: string;
