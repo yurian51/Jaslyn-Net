@@ -19,6 +19,7 @@ import './network/network.css';
 import './access-network/access-network.css';
 import './fiber/fiber.css';
 import './isp/isp.css';
+import './purchases/purchases.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
