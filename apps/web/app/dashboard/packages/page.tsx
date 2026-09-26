@@ -64,22 +64,24 @@ export default function PackagesPage() {
       </header>
       {error && <div className="packages-error" role="alert">{error}</div>}
       <section className="tier-grid" aria-label="Jaslyn service tiers">
-        {(loading ? Array.from({length: 8}) : tiers).map((tier, index) => loading ? (
-          <article className="tier-card skeleton" key={index}><div /><div /><div /></article>
-        ) : (
-          <article className={`tier-card ${tier.featured ? 'featured' : ''} ${tier.configured ? 'configured' : 'unconfigured'}`} key={tier.code}>
-            <div className="tier-top"><span>0{tier.rank}</span>{tier.featured && <b>FEATURED</b>}</div>
-            <h2>{tier.name}</h2><p>{tier.tagline}</p>
-            <div className="tier-price">{money(tier.currency, tier.price)}<small>/ {duration(tier.durationSeconds)}</small></div>
-            <div className="tier-specs">
-              <span><b>{data(tier.dataLimitBytes)}</b><small>data allowance</small></span>
-              <span><b>{bits(tier.downloadBps)} / {bits(tier.uploadBps)}</b><small>down / up</small></span>
-              <span><b>{tier.devicesPerCode}</b><small>devices</small></span>
-            </div>
-            <div className="tier-flags">{Object.entries(tier.featureFlags).filter(([, enabled]) => enabled).slice(0, 7).map(([key]) => <span key={key}>{key}</span>)}</div>
-            <footer><span className={tier.configured ? 'state-live' : 'state-missing'}>{tier.configured ? 'Configured' : 'Not configured'}</span>{tier.configured ? <span>{tier.package?.showOnPortal ? 'Portal visible' : 'Hidden from portal'}</span> : <button type="button" onClick={() => void provision(tier.code)} disabled={busy === tier.code}>{busy === tier.code ? 'Provisioning…' : 'Provision tier'}</button>}</footer>
-          </article>
-        ))}
+        {loading
+          ? Array.from({ length: 8 }, (_, index) => (
+              <article className="tier-card skeleton" key={index}><div /><div /><div /></article>
+            ))
+          : tiers.map((tier) => (
+              <article className={`tier-card ${tier.featured ? 'featured' : ''} ${tier.configured ? 'configured' : 'unconfigured'}`} key={tier.code}>
+                <div className="tier-top"><span>0{tier.rank}</span>{tier.featured && <b>FEATURED</b>}</div>
+                <h2>{tier.name}</h2><p>{tier.tagline}</p>
+                <div className="tier-price">{money(tier.currency, tier.price)}<small>/ {duration(tier.durationSeconds)}</small></div>
+                <div className="tier-specs">
+                  <span><b>{data(tier.dataLimitBytes)}</b><small>data allowance</small></span>
+                  <span><b>{bits(tier.downloadBps)} / {bits(tier.uploadBps)}</b><small>down / up</small></span>
+                  <span><b>{tier.devicesPerCode}</b><small>devices</small></span>
+                </div>
+                <div className="tier-flags">{Object.entries(tier.featureFlags).filter(([, enabled]) => enabled).slice(0, 7).map(([key]) => <span key={key}>{key}</span>)}</div>
+                <footer><span className={tier.configured ? 'state-live' : 'state-missing'}>{tier.configured ? 'Configured' : 'Not configured'}</span>{tier.configured ? <span>{tier.package?.showOnPortal ? 'Portal visible' : 'Hidden from portal'}</span> : <button type="button" onClick={() => void provision(tier.code)} disabled={busy === tier.code}>{busy === tier.code ? 'Provisioning…' : 'Provision tier'}</button>}</footer>
+              </article>
+            ))}
       </section>
     </main>
   );
