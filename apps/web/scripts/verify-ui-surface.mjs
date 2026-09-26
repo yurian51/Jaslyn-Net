@@ -34,6 +34,7 @@ const required = [
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-track')],
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
   ['loading stylesheet', layout.includes("import './loading.css';")],
+  ['no superseded generated logo references', !landing.includes('jaslyn-official.svg') && !nav.includes('jaslyn-official.svg') && !chrome.includes('jaslyn-official.svg') && !login.includes('jaslyn-official.svg') && !register.includes('jaslyn-official.svg')],
 ];
 
 const assets = [
