@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 const toInt = ({ value }: { value: unknown }) => value === undefined || value === '' ? value : Number(value);
 const toBoolean = ({ value }: { value: unknown }) => value === undefined || value === '' ? value : value === true || value === 'true';
@@ -29,7 +29,7 @@ export class CreatePackageDto {
   @IsOptional() @IsString() @MaxLength(32) tierCode?: string;
   @IsOptional() @IsInt() @Min(1) @Max(100) tierRank?: number;
   @IsOptional() @IsString() @MaxLength(240) tagline?: string;
-  @IsOptional() featureFlags?: Record<string, boolean>;
+  @IsOptional() @IsObject() featureFlags?: Record<string, boolean>;
   @IsOptional() @IsBoolean() isFeatured?: boolean;
 }
 
