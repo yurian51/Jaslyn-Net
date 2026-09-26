@@ -213,36 +213,24 @@
 .jn-integrations{background:#fff!important;border-top:1px solid #e1e8ef!important;border-bottom:1px solid #e1e8ef!important}
 .jn-integration-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:48px}
 .jn-integration-grid article{
-  position:relative;isolation:isolate;overflow:hidden;min-height:86px;padding:13px 15px;
-  display:flex;align-items:center;gap:11px;border:1px solid #e1e8ef;border-radius:9px;background:#fbfcfe;
+  position:relative;min-height:86px;padding:13px 15px;
+  display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;
+  border:1px solid #e1e8ef;border-radius:9px;background:#fbfcfe;
 }
 .jn-integration-brand{
-  position:relative;z-index:2;width:42px;height:42px;flex:0 0 42px;
-  display:flex;align-items:center;justify-content:center;gap:3px;
+  width:42px;height:42px;display:flex;align-items:center;justify-content:center;gap:3px;
 }
-.jn-integration-brand::before{content:none}
 .jn-integration-logo{
-  width:34px;height:34px;max-width:34px;max-height:34px;object-fit:contain;display:block;flex:0 0 auto;
+  width:30px;height:30px;max-width:30px;max-height:30px;object-fit:contain;display:block;flex:0 0 auto;
   background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;
 }
 .jn-integration-brand .jn-integration-logo + .jn-integration-logo{
   width:19px;height:19px;max-width:19px;max-height:19px;
 }
-.jn-integration-watermark{
-  position:absolute;z-index:0;right:56px;top:50%;transform:translateY(-50%);
-  display:flex;align-items:center;justify-content:flex-end;gap:4px;pointer-events:none;opacity:.045;
-}
-.jn-integration-watermark-logo{
-  width:110px;height:40px;max-width:110px;max-height:40px;object-fit:contain;display:block;
-  filter:saturate(.65);
-}
-.jn-integration-watermark-logo + .jn-integration-watermark-logo{
-  width:60px;height:30px;max-width:60px;max-height:30px;
-}
-.jn-integration-copy{position:relative;z-index:2;min-width:0}
+.jn-integration-copy{min-width:0}
 .jn-integration-grid h3{margin:0;color:#273950;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jn-integration-grid p{margin:3px 0 0;color:#8997a8;font-size:7px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jn-integration-grid article>small{position:relative;z-index:2;margin-left:auto;color:#8491a2;font-size:6px;font-weight:800;text-align:right;white-space:nowrap}
+.jn-integration-grid article>small{margin-left:auto;color:#8491a2;font-size:6px;font-weight:800;text-align:right;white-space:nowrap}
 .jn-integration-note{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:15px;padding:12px 14px;border:1px solid #e0e7ef;border-radius:8px;background:#f8fafc;color:#8694a6;font-size:7px}
 .jn-integration-note span{margin-right:auto;letter-spacing:.12em;font-weight:800}
 .jn-integration-note b{color:#58708e}.jn-integration-note i{font-style:normal;color:#a1adbb}
@@ -377,9 +365,6 @@
   .jn-integration-grid article{min-height:82px;padding:11px 12px;gap:9px}
   .jn-integration-brand{width:38px;height:38px;flex-basis:38px}
   .jn-integration-logo{width:30px;height:30px;max-width:30px;max-height:30px}
-  .jn-integration-watermark{right:36px;opacity:.035}
-  .jn-integration-watermark-logo{width:82px;height:34px;max-width:82px;max-height:34px}
-  .jn-integration-watermark-logo + .jn-integration-watermark-logo{width:48px;height:26px;max-width:48px;max-height:26px}
   .jn-integration-grid article>small{font-size:5.5px}
   .jn-module-grid article{min-height:180px}
   .jn-operations-grid,.jn-faq-grid{grid-template-columns:1fr!important;gap:35px!important}
@@ -397,9 +382,6 @@
   .jn-integration-brand{width:34px;height:36px;flex-basis:34px}
   .jn-integration-logo{width:28px;height:28px;max-width:28px;max-height:28px}
   .jn-integration-brand .jn-integration-logo + .jn-integration-logo{width:14px;height:14px;max-width:14px;max-height:14px}
-  .jn-integration-watermark{right:24px;opacity:.028}
-  .jn-integration-watermark-logo{width:68px;height:30px;max-width:68px;max-height:30px}
-  .jn-integration-watermark-logo + .jn-integration-watermark-logo{width:40px;height:22px;max-width:40px;max-height:22px}
   .jn-integration-grid h3{font-size:9px}
   .jn-integration-grid p{font-size:6.5px}
   .jn-integration-grid article>small{font-size:5px}
@@ -433,4 +415,25 @@
 @media(max-width:720px){
   .jn-integration-grid{grid-template-columns:1fr;gap:8px;margin-top:36px}
   .jn-integration-grid article{min-height:78px}
+}
+
+/* Final integration composition: logo, content, type. No logo frames or ghost watermarks. */
+.jn-integration-grid article{box-shadow:none}
+.jn-integration-brand picture,.jn-integration-brand img{background:transparent!important;border:0!important;box-shadow:none!important}
+@media(max-width:720px){
+  .jn-integration-grid article{
+    min-height:72px;padding:10px 11px;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;
+  }
+  .jn-integration-brand{width:34px;height:34px;flex-basis:34px}
+  .jn-integration-logo{width:26px;height:26px;max-width:26px;max-height:26px}
+  .jn-integration-brand .jn-integration-logo + .jn-integration-logo{width:14px;height:14px;max-width:14px;max-height:14px}
+  .jn-integration-grid h3{font-size:9px}
+  .jn-integration-grid p{font-size:6.5px}
+  .jn-integration-grid article>small{font-size:5px}
+}
+@media(max-width:380px){
+  .jn-integration-grid article{grid-template-columns:31px minmax(0,1fr) auto;gap:7px;padding:9px}
+  .jn-integration-brand{width:31px;height:31px;flex-basis:31px}
+  .jn-integration-logo{width:23px;height:23px;max-width:23px;max-height:23px}
+  .jn-integration-grid h3{font-size:8.5px}
 }
