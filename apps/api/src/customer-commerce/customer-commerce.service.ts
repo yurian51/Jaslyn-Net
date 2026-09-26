@@ -25,7 +25,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listRenewals(tenantId:string,customerId:string) {
-    const r=await this.db.query(`SELECT r.id,r.saved_purchase_id AS "savedPurchaseId",r.next_run_at AS "nextRunAt",r.status,r.failure_count AS "failureCount",r.last_run_at AS "lastRunAt",s.label,s.package_id AS "packageId",s.auto_renew AS "autoRenew" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.tenant_id=$1 AND r.customer_id=$2 ORDER BY r.next_run_at`,[tenantId,customerId]);
+    const r=await this.db.query(`SELECT r.id,r.saved_purchase_id AS "savedPurchaseId",r.next_run_at AS "nextRunAt",r.status,r.failure_count AS "failureCount",r.last_run_at AS "lastRunAt",r.last_error AS "lastError",s.label,s.package_id AS "packageId",s.auto_renew AS "autoRenew" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.tenant_id=$1 AND r.customer_id=$2 ORDER BY r.next_run_at`,[tenantId,customerId]);
     return r.rows;
   }
 
