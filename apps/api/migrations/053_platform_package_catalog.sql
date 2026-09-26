@@ -117,6 +117,8 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  PERFORM pg_advisory_xact_lock(hashtext(tenant::text || ':' || resource_name));
+
   EXECUTE format('SELECT count(*)::int FROM %I WHERE tenant_id=$1',TG_TABLE_NAME)
     INTO current_count USING tenant;
 
