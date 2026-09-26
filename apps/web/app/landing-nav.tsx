@@ -5,10 +5,10 @@ import Link from 'next/link';
 
 const sectionLinks: ReadonlyArray<[string, string]> = [
   ['#platform', 'Platform'],
-  ['#workflow', 'How it works'],
-  ['#network', 'Network'],
-  ['#modules', 'Modules'],
-  ['#pricing', 'Commercial'],
+  ['#architecture', 'Architecture'],
+  ['#operations', 'Operations'],
+  ['#integrations', 'Integrations'],
+  ['#modules', 'Product'],
 ];
 
 export default function LandingNav() {
