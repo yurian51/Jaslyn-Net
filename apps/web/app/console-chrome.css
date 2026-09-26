@@ -694,3 +694,21 @@ html[data-jn-reduce-motion="true"] *,html[data-jn-reduce-motion="true"] *::befor
   .console-mobile-scan { right: 5px !important; }
   .console-mobile-header-menu { right: 8px; }
 }
+
+/* Brand marks float freely, matching shortcut/social icon conventions. */
+.console-chrome-mark{
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  width:38px!important;height:38px!important;padding:0!important;overflow:visible!important;
+  border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.console-chrome-mark img{
+  width:38px!important;height:38px!important;object-fit:contain!important;
+}
+@media(max-width:820px){
+  .console-mobile-brand>span{
+    width:42px!important;height:42px!important;flex-basis:42px!important;
+    overflow:visible!important;display:flex!important;align-items:center!important;justify-content:center!important;
+    border:0!important;border-radius:0!important;background:transparent!important;
+  }
+  .console-mobile-brand img{width:42px!important;height:42px!important;object-fit:contain!important}
+}
