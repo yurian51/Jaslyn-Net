@@ -12,6 +12,7 @@ const nav = read('apps/web/app/landing-nav.tsx');
 const chrome = read('apps/web/app/console-chrome.tsx');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
+const brandLogo = read('apps/web/app/brand-logo.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -23,20 +24,22 @@ const required = [
   ['mobile nav control', nav.includes('landing-menu-toggle')],
   ['integration logo markup', landing.includes('jn-integration-logo')],
   ['local integration logo source', landing.includes('/integrations/') && !landing.includes('https://cdn.simpleicons.org/')],
-  ['uploaded brand logo set', landing.includes('/ram-logo-scalable.svg') && landing.includes('/1000242339.png') && landing.includes('/capricon.png')],
+  ['uploaded brand logo set', brandLogo.includes('/ram-logo-scalable.svg') && brandLogo.includes('/1000242339.png') && brandLogo.includes('/capricon.png')],
 
   ['official vector logo reference', landing.includes('/ram-logo-scalable.svg')],
-  ['official raster fallback references', landing.includes('/1000242339.png') && landing.includes('/capricon.png')],
-  ['official logo in navigation', nav.includes('/ram-logo-scalable.svg')],
-  ['official logo in console chrome', chrome.includes('/ram-logo-scalable.svg')],
-  ['official logo in auth', login.includes('/ram-logo-scalable.svg') && register.includes('/ram-logo-scalable.svg')],
+  ['official raster fallback references', brandLogo.includes('/1000242339.png') && brandLogo.includes('/capricon.png')],
+  ['official logo in navigation', nav.includes("BrandLogo")],
+  ['official logo in console chrome', chrome.includes("BrandLogo")],
+  ['official logo in auth', login.includes("BrandLogo") && register.includes("BrandLogo")],
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-track')],
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
   ['loading stylesheet', layout.includes("import './loading.css';")],
 ];
 
 const assets = [
-  'apps/web/public/brand/jaslyn-official.svg',
+  'apps/web/public/ram-logo-scalable.svg',
+  'apps/web/public/1000242339.png',
+  'apps/web/public/capricon.png',
   'apps/web/public/brand/jaslyn-net-mark.svg',
   'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
@@ -87,4 +90,4 @@ if (login.includes('Supreme Hybrid Network Operating Engine')) {
   throw new Error('UI verification failed: stale public product title remains in landing source');
 }
 
-console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} brand assets, ${integrationLogoFiles.length} integration brand marks)`);
+console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} tracked brand assets, ${integrationLogoFiles.length} integration brand marks)`);
