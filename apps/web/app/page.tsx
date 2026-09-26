@@ -17,20 +17,20 @@ const operatingScenarios = [
 ];
 
 const integrations = [
-  { vendor: 'MikroTik', protocol: 'RouterOS REST + RADIUS', mode: 'Router / AAA', logos: ['mikrotik'] },
-  { vendor: 'Ubiquiti UniFi', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['ubiquiti'] },
-  { vendor: 'TP-Link Omada', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['tplink'] },
-  { vendor: 'Cambium Networks', protocol: 'cnMaestro + RADIUS', mode: 'Controller', logos: ['cambiumnetworks'] },
-  { vendor: 'Cisco Meraki', protocol: 'Dashboard API + RADIUS', mode: 'Cloud API', logos: ['meraki'] },
-  { vendor: 'Aruba Networks', protocol: 'Central API + RADIUS', mode: 'Cloud API', logos: ['arubanetworks'] },
-  { vendor: 'Grandstream', protocol: 'GWN API + RADIUS', mode: 'Controller', logos: ['grandstream'] },
-  { vendor: 'Ruijie / Reyee', protocol: 'Cloud API + RADIUS', mode: 'Cloud API', logos: ['ruijie'] },
-  { vendor: 'Ruckus Networks', protocol: 'SmartZone API + RADIUS', mode: 'Controller', logos: ['ruckuswireless'] },
-  { vendor: 'OpenWrt', protocol: 'ubus + RADIUS', mode: 'Gateway', logos: ['openwrt'] },
-  { vendor: 'Teltonika Networks', protocol: 'RMS API + RADIUS', mode: 'Gateway', logos: ['teltonika'] },
-  { vendor: 'Peplink', protocol: 'InControl API + RADIUS', mode: 'WAN', logos: ['peplink'] },
-  { vendor: 'pfSense / OPNsense', protocol: 'Gateway API + RADIUS', mode: 'Gateway', logos: ['pfsense', 'opnsense'] },
-  { vendor: 'FreeRADIUS', protocol: 'Vendor-neutral AAA', mode: 'AAA', logos: ['freeradius'] },
+  { vendor: 'MikroTik', protocol: 'RouterOS REST + RADIUS', mode: 'Router / AAA', logos: ['/integrations/mikrotik.svg'] },
+  { vendor: 'Ubiquiti UniFi', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['/integrations/ubiquiti.svg'] },
+  { vendor: 'TP-Link Omada', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['/integrations/tplink.svg'] },
+  { vendor: 'Cambium Networks', protocol: 'cnMaestro + RADIUS', mode: 'Controller', logos: ['/integrations/cambium-networks.svg'] },
+  { vendor: 'Cisco Meraki', protocol: 'Dashboard API + RADIUS', mode: 'Cloud API', logos: ['/integrations/meraki.svg'] },
+  { vendor: 'Aruba Networks', protocol: 'Central API + RADIUS', mode: 'Cloud API', logos: ['/integrations/aruba.svg'] },
+  { vendor: 'Grandstream', protocol: 'GWN API + RADIUS', mode: 'Controller', logos: ['/integrations/grandstream.svg'] },
+  { vendor: 'Ruijie / Reyee', protocol: 'Cloud API + RADIUS', mode: 'Cloud API', logos: ['/integrations/ruijie-reyee.svg'] },
+  { vendor: 'Ruckus Networks', protocol: 'SmartZone API + RADIUS', mode: 'Controller', logos: ['/integrations/ruckus.svg'] },
+  { vendor: 'OpenWrt', protocol: 'ubus + RADIUS', mode: 'Gateway', logos: ['/integrations/openwrt.svg'] },
+  { vendor: 'Teltonika Networks', protocol: 'RMS API + RADIUS', mode: 'Gateway', logos: ['/integrations/teltonika.svg'] },
+  { vendor: 'Peplink', protocol: 'InControl API + RADIUS', mode: 'WAN', logos: ['/integrations/peplink.svg'] },
+  { vendor: 'pfSense / OPNsense', protocol: 'Gateway API + RADIUS', mode: 'Gateway', logos: ['/integrations/pfsense.svg', '/integrations/opnsense.svg'] },
+  { vendor: 'FreeRADIUS', protocol: 'Vendor-neutral AAA', mode: 'AAA', logos: ['/integrations/freeradius.svg'] },
 ];
 
 const modules = [
@@ -277,11 +277,11 @@ export default function Home() {
             {integrations.map(({ vendor, protocol, mode, logos }) => (
               <article key={vendor}>
                 <div className="jn-integration-logo-box" aria-hidden="true">
-                  {logos.map((slug) => (
+                  {logos.map((src) => (
                     <img
-                      key={slug}
+                      key={src}
                       className="jn-integration-logo"
-                      src={`https://cdn.simpleicons.org/${slug}`}
+                      src={src}
                       alt=""
                       loading="lazy"
                       decoding="async"
