@@ -77,7 +77,7 @@
 .settings-profile-actions svg{width:18px;height:18px}
 
 .settings-search{
-  max-width:1120px;
+  max-width:1180px;
   margin:0 auto 18px;
   height:48px;
   display:flex;
@@ -111,7 +111,7 @@
 }
 
 .settings-body{
-  max-width:1120px;
+  max-width:1180px;
   margin:0 auto;
   display:grid;
   grid-template-columns:226px minmax(0,1fr);
@@ -138,11 +138,45 @@
 }
 .settings-side-nav small{
   display:block;
-  margin-top:4px;
+  margin-top:5px;
   color:#9aa5b2;
   font-size:11px;
   line-height:1.45;
 }
+.settings-side-links{
+  display:grid;
+  gap:2px;
+  margin-top:18px;
+}
+.settings-side-links a{
+  min-height:36px;
+  display:flex;
+  align-items:center;
+  padding:0 10px;
+  border-radius:8px;
+  color:#738298;
+  font-size:12px;
+  font-weight:620;
+  text-decoration:none;
+}
+.settings-side-links a:hover{
+  background:#e3eaf2;
+  color:#315f98;
+}
+.settings-empty{
+  min-height:180px;
+  padding:28px 22px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:7px;
+  border:1px solid #e0e6ed;
+  border-radius:10px;
+  background:#fff;
+  text-align:center;
+}
+.settings-empty strong{color:#30445e;font-size:15px}
+.settings-empty span{max-width:430px;color:#8a97a7;font-size:12px;line-height:1.5}
 
 .settings-content{min-width:0}
 .settings-group{
@@ -150,9 +184,9 @@
   scroll-margin-top:20px;
 }
 .settings-group-label{
-  padding:0 10px 5px;
+  padding:0 10px 7px;
   color:#8996a7;
-  font-size:7px;
+  font-size:10px;
   font-weight:800;
   letter-spacing:.13em;
   text-transform:uppercase;
@@ -201,7 +235,7 @@
   margin-top:4px;
   overflow:hidden;
   color:#8c98a7;
-  font-size:7px;
+  font-size:11px;
   line-height:1.45;
   text-overflow:ellipsis;
   white-space:nowrap;
