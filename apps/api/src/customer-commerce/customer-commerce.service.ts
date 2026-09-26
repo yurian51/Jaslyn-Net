@@ -208,29 +208,48 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
       } catch (error: any) {
         if (debited && purchaseId) {
           try {
-            const current = await this.purchases.get(row.tenantId,purchaseId);
-            if (current.status !== 'PAID' && current.accessStatus !== 'ACTIVE') {
-              await this.addWalletEntry(row.tenantId,row.customerId,{
-                entryType:'REFUND',
-                amount:Number((await this.db.query(
-                  `SELECT amount FROM customer_wallet_entries
-                   WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE'
-                   ORDER BY created_at DESC LIMIT 1`,
-                  [row.tenantId,purchaseId],
-                )).rows[0]?.amount ?? 0),
-                currency:String((await this.db.query(
-                  `SELECT currency FROM customer_wallet_entries
-                   WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE'
-                   ORDER BY created_at DESC LIMIT 1`,
-                  [row.tenantId,purchaseId],
-                )).rows[0]?.currency ?? 'TZS'),
-                idempotencyKey:`renewal-refund:${row.executionId}`,
-                referenceType:'WIFI_PLAN_PURCHASE',
-                referenceId:purchaseId,
-                description:'Automatic renewal compensation',
-              });
+            const state = await this.db.query(
+              `SELECT p.status,
+                      ag.status AS "accessStatus",
+                      we.amount,
+                      we.currency
+               FROM wifi_plan_purchases p
+               LEFT JOIN access_grants ag
+                 ON ag.tenant_id=p.tenant_id AND ag.purchase_id=p.id
+               LEFT JOIN LATERAL (
+                 SELECT amount,currency
+                 FROM customer_wallet_entries
+                 WHERE tenant_id=p.tenant_id
+                   AND reference_id=p.id
+                   AND entry_type='PURCHASE'
+                 ORDER BY created_at DESC
+                 LIMIT 1
+               ) we ON true
+               WHERE p.tenant_id=$1 AND p.id=$2`,
+              [row.tenantId,purchaseId],
+            );
+            const current = state.rows[0];
+            if (current && current.status !== 'PAID' && current.accessStatus !== 'ACTIVE') {
+              await this.purchases.confirmPayment(row.tenantId,purchaseId,{
+                provider:'manual',
+                providerReference:`wallet-renewal-failed:${row.executionId}`,
+                status:'FAILED',
+                idempotencyKey:`wallet-payment-failed:${row.executionId}`,
+              }).catch(()=>undefined);
+              const amount = Number(current.amount ?? 0);
+              if (amount > 0) {
+                await this.addWalletEntry(row.tenantId,row.customerId,{
+                  entryType:'REFUND',
+                  amount,
+                  currency:String(current.currency ?? 'TZS'),
+                  idempotencyKey:`renewal-refund:${row.executionId}`,
+                  referenceType:'WIFI_PLAN_PURCHASE',
+                  referenceId:purchaseId,
+                  description:'Automatic renewal compensation',
+                });
+              }
             }
-          } catch { /* Preserve the renewal failure state; compensation is retried by reconciliation. */ }
+          } catch { /* Preserve the renewal failure state; reconciliation can retry compensation. */ }
         }
         await this.db.query(
           `UPDATE commerce_renewal_schedules
