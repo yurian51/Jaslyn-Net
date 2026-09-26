@@ -4,7 +4,7 @@ import { PG_POOL } from '../database/database.module';
 import { PaymentsService } from '../payments/payments.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
-import { ConfirmPurchasePaymentDto, CreatePurchaseDto } from './purchases.dto';
+import { ConfirmPurchasePaymentDto, CreatePurchaseDto, CreatePurchaseFromTierDto } from './purchases.dto';
 import { getCorrelationId } from '../common/correlation-context';
 
 @Injectable()
@@ -103,6 +103,26 @@ export class PurchasesService {
     } finally {
       client.release();
     }
+  }
+
+  async createFromTier(tenantId: string, tierCode: string, input: CreatePurchaseFromTierDto) {
+    const normalizedTier = tierCode.trim().toUpperCase();
+    const packageResult = await this.db.query(
+      `SELECT id FROM packages
+       WHERE tenant_id=$1 AND tier_code=$2 AND is_active=true
+       ORDER BY is_featured DESC, created_at DESC
+       LIMIT 1`,
+      [tenantId, normalizedTier],
+    );
+    if (!packageResult.rowCount) {
+      throw new NotFoundException(`Active package for Jaslyn tier ${normalizedTier} is not configured`);
+    }
+    return this.create(tenantId, {
+      customerId: input.customerId,
+      packageId: packageResult.rows[0].id,
+      routerId: input.routerId,
+      promoCode: input.promoCode,
+    });
   }
 
   private async recordPromoRedemption(client: import('pg').PoolClient, tenantId: string, purchase: any, correlationId: string) {
