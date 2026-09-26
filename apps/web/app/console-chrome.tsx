@@ -8,9 +8,10 @@ import { apiFetch } from '../lib/api';
 import { ConsoleSkeleton } from './loading-skeleton';
 import BrandLogo from './brand-logo';
 
-type IconName = 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance' | 'upesilipa';
+type IconName = 'customerCommerce' | 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance' | 'upesilipa';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
+  ['Customer Commerce', 'customerCommerce', '/customer-commerce'],
   ['Account & Workspace', 'account', '/account'],
   ['Overview', 'overview', '/dashboard'],
   ['Customers', 'customers', '/customers'],
@@ -39,7 +40,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 
 const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
-  ['Commercial', ['/purchases', '/sales', '/payments', '/vouchers', '/packages', '/promotions', '/finance', '/upesilipa']],
+  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/promotions', '/finance', '/upesilipa']],
   ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
   ['Workspace', ['/account', '/settings']],
 ];
@@ -50,6 +51,7 @@ const isRouteActive = (pathname: string, href: string) => pathname === href || p
 
 function NavIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
+    customerCommerce: <><path d="M5 7h14v10H5z" /><path d="M8 11h8M8 14h5" /><circle cx="17" cy="7" r="2" /></>,
     account: <><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c.7-3.2 3.1-5 7.5-5s6.8 1.8 7.5 5" /></>,
     overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
     customers: <><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c.7-3.2 3.1-5 7.5-5s6.8 1.8 7.5 5" /></>,
