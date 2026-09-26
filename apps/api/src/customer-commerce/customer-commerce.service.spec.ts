@@ -32,6 +32,7 @@ describe('CustomerCommerceService renewal execution', () => {
           packageId: 'package-1',
           routerId: null,
           renewalDays: 30,
+          purchaseCustomerId: customerId,
           executionId: null,
         }],
       })
