@@ -4,10 +4,10 @@
   min-height:100vh;
   background:#f6f8fb;
   color:#152033;
-  padding:22px 28px 46px;
+  padding:28px 32px 64px;
 }
 .settings-telegram-hero{
-  max-width:1120px;
+  max-width:1180px;
   margin:0 auto 12px;
   min-height:86px;
   display:flex;
@@ -29,7 +29,7 @@
   place-items:center;
   border-radius:50%;
   overflow:hidden;
-  background:#e9f0fb;
+  background:transparent;
   color:#2c63ae;
   font-size:23px;
   font-weight:800;
@@ -41,7 +41,7 @@
   text-overflow:ellipsis;
   white-space:nowrap;
   color:#172841;
-  font-size:17px;
+  font-size:22px;
   font-weight:760;
   letter-spacing:-.02em;
 }
@@ -49,7 +49,7 @@
   display:block;
   margin-top:3px;
   color:#65758b;
-  font-size:10px;
+  font-size:12px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -58,7 +58,7 @@
   display:block;
   margin-top:4px;
   color:#99a4b2;
-  font-size:8px;
+  font-size:10px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -79,7 +79,7 @@
 .settings-search{
   max-width:1120px;
   margin:0 auto 18px;
-  height:43px;
+  height:48px;
   display:flex;
   align-items:center;
   gap:9px;
@@ -99,7 +99,7 @@
   outline:0;
   background:transparent;
   color:#27374f;
-  font-size:10px;
+  font-size:14px;
 }
 .settings-search input::placeholder{color:#9aa6b4}
 .settings-search>button{
@@ -114,8 +114,8 @@
   max-width:1120px;
   margin:0 auto;
   display:grid;
-  grid-template-columns:188px minmax(0,1fr);
-  gap:24px;
+  grid-template-columns:226px minmax(0,1fr);
+  gap:28px;
   align-items:start;
 }
 .settings-side-nav{
@@ -126,7 +126,7 @@
 .settings-side-nav span{
   display:block;
   color:#9aa5b2;
-  font-size:7px;
+  font-size:10px;
   font-weight:800;
   letter-spacing:.13em;
 }
@@ -134,13 +134,13 @@
   display:block;
   margin-top:4px;
   color:#31445e;
-  font-size:13px;
+  font-size:17px;
 }
 .settings-side-nav small{
   display:block;
   margin-top:4px;
   color:#9aa5b2;
-  font-size:7px;
+  font-size:11px;
   line-height:1.45;
 }
 
@@ -193,8 +193,8 @@
 .settings-row-copy strong{
   display:block;
   color:#2f4159;
-  font-size:9px;
-  font-weight:720;
+  font-size:14px;
+  font-weight:690;
 }
 .settings-row-copy small{
   display:block;
