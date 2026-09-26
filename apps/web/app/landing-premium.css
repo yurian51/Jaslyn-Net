@@ -211,10 +211,10 @@
 .jn-scenario-grid article>small{margin-top:auto;padding-top:18px;color:#6d7e93;font-size:7px;font-weight:780;letter-spacing:.07em}
 
 .jn-integrations{background:#fff!important;border-top:1px solid #e1e8ef!important;border-bottom:1px solid #e1e8ef!important}
-.jn-integration-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:56px}
+.jn-integration-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:48px}
 .jn-integration-grid article{
-  position:relative;isolation:isolate;overflow:hidden;min-height:92px;padding:13px 15px;
-  display:flex;align-items:center;gap:10px;border:1px solid #e1e8ef;border-radius:9px;background:#fbfcfe;
+  position:relative;isolation:isolate;overflow:hidden;min-height:86px;padding:13px 15px;
+  display:flex;align-items:center;gap:11px;border:1px solid #e1e8ef;border-radius:9px;background:#fbfcfe;
 }
 .jn-integration-brand{
   position:relative;z-index:2;width:42px;height:42px;flex:0 0 42px;
@@ -411,4 +411,26 @@
 }
 @media(prefers-reduced-motion:reduce){
   .jn-landing a{transition:none!important}
+}
+
+/* Unboxed identity system: marks sit directly on the surface like social shortcuts. */
+.jn-landing .landing-side-brand>span,
+.jn-landing .landing-side-brand picture{
+  width:36px!important;height:36px!important;display:flex!important;align-items:center!important;justify-content:center!important;
+  overflow:visible!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.jn-landing .landing-side-brand img{width:36px!important;height:36px!important;object-fit:contain!important}
+.jn-integration-brand,
+.jn-integration-logo,
+.jn-integration-brand .jn-integration-logo{
+  border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.jn-integration-brand .jn-integration-logo{filter:none!important}
+.jn-integration-watermark-logo{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+@media(max-width:1050px){
+  .jn-integration-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+}
+@media(max-width:720px){
+  .jn-integration-grid{grid-template-columns:1fr;gap:8px;margin-top:36px}
+  .jn-integration-grid article{min-height:78px}
 }
