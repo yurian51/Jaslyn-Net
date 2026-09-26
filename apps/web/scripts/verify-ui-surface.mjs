@@ -35,8 +35,8 @@ const required = [
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
   ['loading stylesheet', layout.includes("import './loading.css';")],
   ['no superseded generated logo references', !landing.includes('jaslyn-official.svg') && !nav.includes('jaslyn-official.svg') && !chrome.includes('jaslyn-official.svg') && !login.includes('jaslyn-official.svg') && !register.includes('jaslyn-official.svg')],
-  ['unboxed integration layout', landing.includes('jn-integration-brand') && landing.includes('jn-integration-watermark')],
-  ['unboxed identity styling', !read('apps/web/app/landing-premium.css').includes('jn-integration-logo-box')],
+  ['unboxed integration layout', landing.includes('jn-integration-brand') && !landing.includes('jn-integration-watermark')],
+  ['unboxed identity styling', !read('apps/web/app/landing-premium.css').includes('jn-integration-logo-box') && !read('apps/web/app/landing-premium.css').includes('jn-integration-watermark')],
   ['unboxed auth brand', !read('apps/web/app/auth.css').includes('.auth-brand-logo{border:1px')],
 
 ];
