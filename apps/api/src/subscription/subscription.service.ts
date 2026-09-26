@@ -48,7 +48,7 @@ export class SubscriptionService {
     const [customers, routers, sites, packages] = counts;
     const limits = subscription.limits ?? {};
     const usage = {
-      subscribers: { used: customers, limit: this.limit(limits.subscribers ?? limits.maxCustomers) },
+      subscribers: { used: customers, limit: this.limit(limits.subscribers ?? limits.maxCustomers ?? subscription.maxCustomers) },
       routers: { used: routers, limit: this.limit(limits.routers ?? subscription.maxRouters) },
       sites: { used: sites, limit: this.limit(limits.sites ?? subscription.maxSites) },
       packages: { used: packages, limit: this.limit(limits.packages) },
