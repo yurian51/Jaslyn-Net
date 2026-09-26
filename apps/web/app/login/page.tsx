@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
+import BrandLogo from '../brand-logo';
 
 type LoginResponse = { accessToken: string; expiresIn: number; user: { fullName: string; email: string; role: string }; tenant: { name: string; timezone: string; currency: string } };
 
@@ -23,7 +24,7 @@ export default function LoginPage() {
   }
   return (
     <main className="auth-page"><section className="auth-shell" aria-label="Jaslyn Net sign in">
-      <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-official.svg" alt="JASLYN NET official logo" /></div>
+      <div className="auth-brand-block"><BrandLogo className="auth-brand-logo" alt="JASLYN NET official logo" /></div>
       <div className="auth-layout">
         <div className="auth-intro"><span className="auth-kicker">NETWORK OPERATIONS</span><h1>Run your network<br />from one control plane.</h1><p>Subscribers, sessions, devices, billing and network state connected in one operational workspace.</p><div className="auth-capabilities"><span><i /> Live network state</span><span><i /> Subscriber & billing control</span><span><i /> Audited operator actions</span></div></div>
         <form className="auth-card" onSubmit={submit} noValidate>
