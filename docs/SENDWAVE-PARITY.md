@@ -12,6 +12,7 @@ Implemented customer-commerce capabilities:
 - phone/email/identity/device verification state
 - notification preferences
 - support cases linked to purchases/payments
+- wallet-backed automatic renewal scheduling with purchase-engine settlement
 - one authenticated customer commerce overview
 
 The canonical financial/access chain remains Payment -> Purchase -> Entitlement/Access Grant -> AAA/Network -> Session. The commerce layer orchestrates customer experience around those canonical modules and never treats an unverified external callback as settlement.
