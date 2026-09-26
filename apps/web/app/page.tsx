@@ -249,7 +249,7 @@ export default function Home() {
             <p>Rather than inventing public prices or pretending the commercial model is already fixed, JASLYN NET keeps plan and entitlement configuration separate from the network control plane.</p>
           </div>
           <div className="landing-pricing-grid">
-            <article><small>START</small><h3>Single operation</h3><p>Core customer, access, package and network workflows for an operator getting the control plane running.</p><div><span>✓ Customers & services</span><span>✓ Packages & vouchers</span><span>✓ Sessions & network</span></div><Link href="/login">Open console →</Link></article>
+            <article><small>START</small><h3>Single operation</h3><p>Core customer, access, package and network workflows for an operator getting the control plane running.</p><div><span>✓ Customers & services</span><span>✓ Packages & vouchers</span><span>✓ Sessions & network</span></div><Link href="/register">Create workspace →</Link></article>
             <article className="featured"><span className="landing-pricing-badge">OPERATIONS</span><small>SCALE</small><h3>Multi-location</h3><p>Operational workflows for teams managing more locations, devices, services and network state.</p><div><span>✓ Multi-location operations</span><span>✓ Billing & payment workflows</span><span>✓ Network controls</span></div><Link href="/login">Open console →</Link></article>
             <article><small>ENTERPRISE</small><h3>Infrastructure scale</h3><p>Architecture for larger deployments requiring deeper integrations, operational controls and deployment-specific commercial terms.</p><div><span>✓ Advanced integrations</span><span>✓ AAA / IPAM foundations</span><span>✓ Enterprise controls</span></div><Link href="mailto:support@jaslyn.net">Contact support →</Link></article>
           </div>
@@ -309,7 +309,7 @@ export default function Home() {
         <div className="landing-label">10 / START OPERATING</div>
         <h2>Your network is already complex.<br/><em>Your software should not be.</em></h2>
         <p>Move customers, access, payments and network operations into one source of operational truth.</p>
-        <Link href="/login" className="landing-primary">Open JASLYN NET Console ↗</Link>
+        <Link href="/register" className="landing-primary">Create JASLYN NET Workspace ↗</Link>
       </section>
 
       <footer className="landing-footer">
