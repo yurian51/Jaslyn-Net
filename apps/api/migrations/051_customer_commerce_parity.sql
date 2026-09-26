@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS customer_wallets (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, customer_id, currency),
+  UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS customer_wallet_entries (
