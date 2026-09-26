@@ -8,7 +8,7 @@ import { apiFetch } from '../lib/api';
 import { ConsoleSkeleton } from './loading-skeleton';
 import BrandLogo from './brand-logo';
 
-type IconName = 'customerCommerce' | 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance' | 'upesilipa';
+type IconName = 'customerCommerce' | 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance' | 'upesilipa' | 'subscription';
 
 const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Customer Commerce', 'customerCommerce', '/customer-commerce'],
@@ -27,6 +27,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Payments', 'payments', '/payments'],
   ['Vouchers', 'vouchers', '/vouchers'],
   ['Plans & Products', 'packages', '/packages'],
+  ['Platform Plans', 'subscription', '/subscription'],
   ['Promotions', 'promotions', '/promotions'],
   ['Finance', 'finance', '/finance'],
   ['UpesiLipa WiFi', 'upesilipa', '/upesilipa'],
@@ -40,7 +41,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 
 const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
-  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/promotions', '/finance', '/upesilipa']],
+  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/promotions', '/finance', '/upesilipa', '/subscription']],
   ['Operations', ['/isp', '/notifications', '/incidents', '/audit']],
   ['Workspace', ['/account', '/settings']],
 ];
@@ -73,6 +74,7 @@ function NavIcon({ name }: { name: IconName }) {
     audit: <><path d="M6 3h9l3 3v15H6V3Z" /><path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" /></>,
     promotions: <><path d="M4 7h16v10H4z" /><path d="m8 7 8 10M16 7 8 17" /></>,
     finance: <><path d="M4 7h16v10H4z" /><path d="M7 12h10M8 9h8M8 15h5" /></>,
+    subscription: <><path d="M12 3 20 7v5c0 4.5-3.2 7.4-8 9-4.8-1.6-8-4.5-8-9V7l8-4Z" /><path d="m9 12 2 2 4-4" /></>,
     upesilipa: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M8 7h8M8 11h5M8 15h8M10 18h4" /><circle cx="15.5" cy="11" r="1" fill="currentColor" stroke="none" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05-1.41 1.41-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V20h-2v-.32a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05-1.41-1.41.05-.05A1.8 1.8 0 0 0 9.2 15a1.8 1.8 0 0 0-1.65-1.09H7v-2h.32A1.8 1.8 0 0 0 8.97 10a1.8 1.8 0 0 0-.36-1.98l-.05-.05 1.41-1.41.05.05A1.8 1.8 0 0 0 12 6.25V6h2v.32A1.8 1.8 0 0 0 15.09 7.97a1.8 1.8 0 0 0 1.98-.36l.05-.05 1.41 1.41-.05.05A1.8 1.8 0 0 0 18.83 11H19v2h-.32A1.8 1.8 0 0 0 17.03 15Z" /></>,
   };
@@ -159,6 +161,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
             <Link href="/network" role="menuitem"><NavIcon name="network" /><span>Network</span></Link>
             <Link href="/notifications" role="menuitem"><NavIcon name="notifications" /><span>Notifications</span></Link>
             <Link href="/account" role="menuitem"><NavIcon name="account" /><span>Account & Workspace</span></Link>
+            <Link href="/subscription" role="menuitem"><NavIcon name="subscription" /><span>Platform Plans</span></Link>
             <Link href="/settings" role="menuitem"><NavIcon name="settings" /><span>Settings</span></Link>
           </div>
         )}
