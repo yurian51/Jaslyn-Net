@@ -53,7 +53,7 @@
 .console-skeleton-page{min-height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr);background:#f4f6f9;color:#172033}
 .console-skeleton-sidebar{min-height:100vh;padding:20px 14px;display:flex;flex-direction:column;gap:10px;background:#0b1424;border-right:1px solid #1b2a3e}
 .console-skeleton-brand{display:flex;align-items:center;gap:9px;padding:2px 7px 18px}
-.console-skeleton-brand img{width:34px;height:34px;display:block;object-fit:contain;border-radius:9px;background:#fff}
+.console-skeleton-brand img{width:42px;height:42px;display:block;object-fit:contain;border-radius:0;background:transparent}
 .skeleton{display:block;position:relative;overflow:hidden;border-radius:7px;background:linear-gradient(90deg,#e8edf3 0%,#f5f7fa 48%,#e8edf3 100%);background-size:220% 100%;animation:jn-skeleton-shimmer 1.35s ease-in-out infinite}
 .console-skeleton-sidebar .skeleton{background:linear-gradient(90deg,#132339 0%,#1a2b43 48%,#132339 100%);background-size:220% 100%}
 .skeleton-brand-title{width:96px;height:9px}.skeleton-workspace{height:38px;margin:0 3px 10px}
