@@ -170,6 +170,7 @@ export default function DashboardPage() {
           <a href="/sessions"><span>Sessions</span><small>Live connections</small></a>
           <a href="/customers"><span>Customers</span><small>Subscriber state</small></a>
           <a href="/payments"><span>Payments</span><small>Transactions &amp; status</small></a>
+          <a href="/dashboard/packages"><span>Packages</span><small>Jaslyn tiers &amp; access</small></a>
         </div>
         <button className="commandbar-refresh" type="button" onClick={() => void load()} disabled={loading}>
           <i />{loading ? 'Refreshing telemetry' : 'Refresh telemetry'}
