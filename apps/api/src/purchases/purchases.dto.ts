@@ -17,6 +17,20 @@ export class CreatePurchaseDto {
   promoCode?: string;
 }
 
+export class CreatePurchaseFromTierDto {
+  @IsUUID()
+  customerId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  routerId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  promoCode?: string;
+}
+
 export class ConfirmPurchasePaymentDto {
   @IsString()
   @MinLength(2)
