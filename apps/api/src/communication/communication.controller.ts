@@ -51,6 +51,37 @@ class BotExecuteDto {
   @IsOptional() @IsBoolean() confirm?: boolean;
 }
 
+class GroupConversationDto {
+  @IsString() @MinLength(1) @MaxLength(200) title!: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @IsOptional() @IsBoolean() isPrivate?: boolean;
+}
+class MemberDto {
+  @IsUUID() userId!: string;
+  @IsOptional() @IsIn(['ADMIN','MODERATOR','MEMBER','READ_ONLY']) role?: 'ADMIN'|'MODERATOR'|'MEMBER'|'READ_ONLY';
+}
+class ChannelDto {
+  @IsString() @MinLength(2) @MaxLength(80) slug!: string;
+  @IsString() @MinLength(1) @MaxLength(200) publicName!: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @IsOptional() @IsBoolean() isPublic?: boolean;
+}
+class SupportTicketDto {
+  @IsString() @MinLength(1) @MaxLength(160) subject!: string;
+  @IsString() @MinLength(1) @MaxLength(100) category!: string;
+  @IsOptional() @IsIn(['LOW','NORMAL','HIGH','CRITICAL']) priority?: 'LOW'|'NORMAL'|'HIGH'|'CRITICAL';
+  @IsOptional() @IsUUID() customerId?: string;
+}
+class MuteDto {
+  @IsOptional() @IsString() until?: string;
+}
+class NotificationPreferenceDto {
+  @IsOptional() @IsBoolean() inApp?: boolean;
+  @IsOptional() @IsBoolean() push?: boolean;
+  @IsOptional() @IsBoolean() email?: boolean;
+  @IsOptional() @IsBoolean() sms?: boolean;
+}
+
 class ScheduleMessageDto {
   @IsString() @MinLength(1) @MaxLength(10000) body!: string;
   @IsString() scheduledAt!: string;
@@ -84,6 +115,11 @@ export class CommunicationController {
   @Get('conversations')
   conversations(@Req() req: AuthenticatedRequest) {
     return this.communication.listConversations({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Post('conversations/group')
+  group(@Req() req: AuthenticatedRequest,@Body() dto:GroupConversationDto) {
+    return this.communication.createGroupConversation({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
   }
 
   @Post('conversations/direct')
@@ -129,6 +165,66 @@ export class CommunicationController {
   @Post('messages/:id/reactions')
   react(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:ReactionDto) {
     return this.communication.react({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.reaction);
+  }
+
+  @Get('conversations/:id/pins')
+  pins(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.listPinnedMessages({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Post('conversations/:id/members')
+  addMember(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:MemberDto) {
+    return this.communication.addMember({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.userId,dto.role);
+  }
+
+  @Delete('conversations/:id/members/:userId')
+  removeMember(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Param('userId') userId:string) {
+    return this.communication.removeMember({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,userId);
+  }
+
+  @Post('conversations/:id/archive')
+  archive(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.archiveConversation({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Delete('conversations/:id/archive')
+  unarchive(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.unarchiveConversation({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Post('conversations/:id/mute')
+  mute(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:MuteDto) {
+    return this.communication.muteConversation({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.until);
+  }
+
+  @Delete('conversations/:id/mute')
+  unmute(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.communication.unmuteConversation({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('channels')
+  channels(@Req() req: AuthenticatedRequest) {
+    return this.communication.listChannels({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Post('channels')
+  createChannel(@Req() req: AuthenticatedRequest,@Body() dto:ChannelDto) {
+    return this.communication.createChannel({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
+  }
+
+  @Post('support/tickets')
+  createSupportTicket(@Req() req: AuthenticatedRequest,@Body() dto:SupportTicketDto) {
+    return this.communication.createSupportTicket({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
+  }
+
+  @Get('notification-preferences')
+  notificationPreferences(@Req() req: AuthenticatedRequest) {
+    return this.communication.getNotificationPreferences({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Patch('notification-preferences/:category')
+  updateNotificationPreference(@Req() req: AuthenticatedRequest,@Param('category') category:string,@Body() dto:NotificationPreferenceDto) {
+    return this.communication.updateNotificationPreference({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},category,dto);
   }
 
   @Post('conversations/:id/read')
