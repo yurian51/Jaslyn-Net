@@ -17,20 +17,20 @@ const operatingScenarios = [
 ];
 
 const integrations = [
-  ['MikroTik', 'RouterOS REST + RADIUS', 'Router / AAA'],
-  ['Ubiquiti UniFi', 'Controller API + RADIUS', 'Controller'],
-  ['TP-Link Omada', 'Controller API + RADIUS', 'Controller'],
-  ['Cambium', 'cnMaestro + RADIUS', 'Controller'],
-  ['Cisco Meraki', 'Dashboard API + RADIUS', 'Cloud API'],
-  ['Aruba', 'Central API + RADIUS', 'Cloud API'],
-  ['Grandstream', 'GWN API + RADIUS', 'Controller'],
-  ['Ruijie / Reyee', 'Cloud API + RADIUS', 'Cloud API'],
-  ['Ruckus', 'SmartZone API + RADIUS', 'Controller'],
-  ['OpenWrt', 'ubus + RADIUS', 'Gateway'],
-  ['Teltonika', 'RMS API + RADIUS', 'Gateway'],
-  ['Peplink', 'InControl API + RADIUS', 'WAN'],
-  ['pfSense / OPNsense', 'Gateway API + RADIUS', 'Gateway'],
-  ['FreeRADIUS', 'Vendor-neutral AAA', 'AAA'],
+  { vendor: 'MikroTik', protocol: 'RouterOS REST + RADIUS', mode: 'Router / AAA', logos: ['mikrotik'] },
+  { vendor: 'Ubiquiti UniFi', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['ubiquiti'] },
+  { vendor: 'TP-Link Omada', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['tplink'] },
+  { vendor: 'Cambium Networks', protocol: 'cnMaestro + RADIUS', mode: 'Controller', logos: ['cambiumnetworks'] },
+  { vendor: 'Cisco Meraki', protocol: 'Dashboard API + RADIUS', mode: 'Cloud API', logos: ['meraki'] },
+  { vendor: 'Aruba Networks', protocol: 'Central API + RADIUS', mode: 'Cloud API', logos: ['arubanetworks'] },
+  { vendor: 'Grandstream', protocol: 'GWN API + RADIUS', mode: 'Controller', logos: ['grandstream'] },
+  { vendor: 'Ruijie / Reyee', protocol: 'Cloud API + RADIUS', mode: 'Cloud API', logos: ['ruijie'] },
+  { vendor: 'Ruckus Networks', protocol: 'SmartZone API + RADIUS', mode: 'Controller', logos: ['ruckuswireless'] },
+  { vendor: 'OpenWrt', protocol: 'ubus + RADIUS', mode: 'Gateway', logos: ['openwrt'] },
+  { vendor: 'Teltonika Networks', protocol: 'RMS API + RADIUS', mode: 'Gateway', logos: ['teltonika'] },
+  { vendor: 'Peplink', protocol: 'InControl API + RADIUS', mode: 'WAN', logos: ['peplink'] },
+  { vendor: 'pfSense / OPNsense', protocol: 'Gateway API + RADIUS', mode: 'Gateway', logos: ['pfsense', 'opnsense'] },
+  { vendor: 'FreeRADIUS', protocol: 'Vendor-neutral AAA', mode: 'AAA', logos: ['freeradius'] },
 ];
 
 const modules = [
@@ -274,10 +274,21 @@ export default function Home() {
           </div>
 
           <div className="jn-integration-grid">
-            {integrations.map(([vendor, protocol, mode]) => (
+            {integrations.map(({ vendor, protocol, mode, logos }) => (
               <article key={vendor}>
-                <span>{vendor.slice(0, 2).toUpperCase()}</span>
-                <div><h3>{vendor}</h3><p>{protocol}</p></div>
+                <div className="jn-integration-logo-box" aria-hidden="true">
+                  {logos.map((slug) => (
+                    <img
+                      key={slug}
+                      className="jn-integration-logo"
+                      src={`https://cdn.simpleicons.org/${slug}`}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ))}
+                </div>
+                <div className="jn-integration-copy"><h3>{vendor}</h3><p>{protocol}</p></div>
                 <small>{mode}</small>
               </article>
             ))}
