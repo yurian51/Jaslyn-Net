@@ -1,9 +1,11 @@
+import BrandLogo from './brand-logo';
+
 export function ConsoleSkeleton() {
   return (
     <main className="console-skeleton-page" aria-label="Loading JASLYN NET workspace" aria-busy="true">
       <aside className="console-skeleton-sidebar">
         <div className="console-skeleton-brand">
-          <img src="/brand/jaslyn-official.svg" alt="" />
+          <BrandLogo alt="" />
           <span className="skeleton skeleton-brand-title" />
         </div>
         <span className="skeleton skeleton-workspace" />
