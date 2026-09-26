@@ -195,10 +195,13 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
         SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",
                r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",
                s.router_id AS "routerId",s.renewal_days AS "renewalDays",
+               COALESCE(b.beneficiary_customer_id,r.customer_id) AS "purchaseCustomerId",
                r.execution_id AS "executionId",r.purchase_id AS "purchaseId"
         FROM commerce_renewal_schedules r
         JOIN commerce_saved_purchases s
           ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id
+        LEFT JOIN customer_beneficiaries b
+          ON b.tenant_id=s.tenant_id AND b.id=s.beneficiary_id
         WHERE r.status='ACTIVE'
           AND s.active=true
           AND s.auto_renew=true
@@ -253,7 +256,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
           }
         } else {
           purchase = await this.purchases.create(row.tenantId, {
-            customerId: row.customerId,
+            customerId: row.purchaseCustomerId ?? row.customerId,
             packageId: row.packageId,
             routerId: row.routerId,
           });
