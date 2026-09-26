@@ -82,3 +82,31 @@ describe('PurchasesService payment confirmation', () => {
     expect(client.release).toHaveBeenCalled();
   });
 });
+
+
+describe('PurchasesService tier selection', () => {
+  it('resolves an active tenant package by tier before creating a purchase', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ id: 'pkg-nexus' }] }) } as any;
+    const service = new PurchasesService(db, {} as any, {} as any);
+    const create = jest.spyOn(service, 'create').mockResolvedValue({ id: 'purchase-1' } as any);
+
+    const result = await service.createFromTier('tenant-1', 'nexus', { customerId: 'customer-1' });
+
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('tier_code=$2'), ['tenant-1', 'NEXUS']);
+    expect(create).toHaveBeenCalledWith('tenant-1', {
+      customerId: 'customer-1',
+      packageId: 'pkg-nexus',
+      routerId: undefined,
+      promoCode: undefined,
+    });
+    expect(result).toEqual({ id: 'purchase-1' });
+  });
+
+  it('does not silently provision a missing tier', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rowCount: 0, rows: [] }) } as any;
+    const service = new PurchasesService(db, {} as any, {} as any);
+
+    await expect(service.createFromTier('tenant-1', 'infinity', { customerId: 'customer-1' }))
+      .rejects.toThrow('Active package for Jaslyn tier INFINITY is not configured');
+  });
+});
