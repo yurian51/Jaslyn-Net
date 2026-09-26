@@ -16,6 +16,7 @@ import './settings/settings.css';
 import './account/account.css';
 import './notifications/notifications.css';
 import './network/network.css';
+import './access-network/access-network.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
