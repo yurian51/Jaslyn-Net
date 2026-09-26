@@ -10,6 +10,7 @@ export class ListPackagesQueryDto {
   @Transform(toInt) @IsOptional() @IsInt() @Min(1) @Max(100) limit = 25;
   @Transform(toBoolean) @IsOptional() @IsBoolean() activeOnly?: boolean;
   @Transform(toBoolean) @IsOptional() @IsBoolean() portalOnly?: boolean;
+  @IsOptional() @IsString() @MaxLength(32) tierCode?: string;
 }
 
 export class CreatePackageDto {
@@ -25,6 +26,17 @@ export class CreatePackageDto {
   @IsOptional() @IsBoolean() isFreeTrial?: boolean;
   @IsOptional() @IsIn(['ONCE_PER_PHONE','ONCE_PER_CUSTOMER','UNLIMITED']) freeTrialFrequency?: 'ONCE_PER_PHONE'|'ONCE_PER_CUSTOMER'|'UNLIMITED';
   @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional() @IsString() @MaxLength(32) tierCode?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(100) tierRank?: number;
+  @IsOptional() @IsString() @MaxLength(240) tagline?: string;
+  @IsOptional() featureFlags?: Record<string, boolean>;
+  @IsOptional() @IsBoolean() isFeatured?: boolean;
+}
+
+export class CreatePackageFromTierDto {
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) price?: number;
+  @IsOptional() @IsInt() @Min(1) durationSeconds?: number;
+  @IsOptional() @IsBoolean() showOnPortal?: boolean;
 }
 
 export class UpdatePackageDto {
@@ -40,4 +52,9 @@ export class UpdatePackageDto {
   @IsOptional() @IsBoolean() isFreeTrial?: boolean;
   @IsOptional() @IsIn(['ONCE_PER_PHONE','ONCE_PER_CUSTOMER','UNLIMITED']) freeTrialFrequency?: 'ONCE_PER_PHONE'|'ONCE_PER_CUSTOMER'|'UNLIMITED';
   @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional() @IsString() @MaxLength(32) tierCode?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(100) tierRank?: number;
+  @IsOptional() @IsString() @MaxLength(240) tagline?: string;
+  @IsOptional() featureFlags?: Record<string, boolean>;
+  @IsOptional() @IsBoolean() isFeatured?: boolean;
 }
