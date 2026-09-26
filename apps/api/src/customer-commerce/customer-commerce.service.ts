@@ -79,7 +79,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
 
   
   private async processDueRenewals() {
-    const due=await this.db.query(`SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",s.router_id AS "routerId",s.renewal_days AS "renewalDays",s.auto_renew AS "autoRenew" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.status='ACTIVE' AND s.active=true AND s.auto_renew=true AND r.next_run_at<=now() ORDER BY r.next_run_at LIMIT 20`);
+    const due=await this.db.query(`SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",s.router_id AS "routerId",s.renewal_days AS "renewalDays" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.status='ACTIVE' AND s.active=true AND s.auto_renew=true AND r.next_run_at<=now() ORDER BY r.next_run_at LIMIT 20`);
     for(const row of due.rows) {
       try {
         const wallet=await this.db.query(`SELECT id,balance,currency,status FROM customer_wallets WHERE tenant_id=$1 AND customer_id=$2 AND currency='TZS' FOR UPDATE`,[row.tenantId,row.customerId]);
@@ -101,7 +101,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
         } catch(e) { await this.db.query('ROLLBACK').catch(()=>undefined); throw e; }
         await this.purchases.confirmPayment(row.tenantId,purchase.id,{provider:'manual',providerReference:`wallet-renewal:${row.id}:${purchase.id}`,status:'SUCCESS',idempotencyKey:`wallet-payment:${purchase.id}`});
         await this.db.query(`UPDATE commerce_renewal_schedules SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),last_run_at=now(),failure_count=0,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id,Math.max(1,row.renewalDays||30)]);
-      } catch(error) {
+      } catch {
         await this.db.query(`UPDATE commerce_renewal_schedules SET failure_count=failure_count+1,status=CASE WHEN failure_count+1>=5 THEN 'FAILED' ELSE status END,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id]).catch(()=>undefined);
       }
     }
