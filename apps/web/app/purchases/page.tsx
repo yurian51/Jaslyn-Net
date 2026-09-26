@@ -40,6 +40,9 @@ type Purchase = {
   discountAmount?: number | string | null;
 };
 
+type PurchasePackage = { id:string; name:string; price:string|number; currency:string; durationSeconds:number; isActive:boolean; isFreeTrial?:boolean; devicesPerCode?:number };
+type PurchaseCustomer = { id:string; fullName:string; phone?:string|null; username?:string|null; isActive:boolean };
+type PurchaseRouter = { id:string; name:string; vendor?:string|null; status?:string|null; activeUsers?:number|null };
 type PaymentProvider = {
   code: string;
   name: string;
@@ -150,6 +153,17 @@ export default function PurchasesPage() {
   const [reference, setReference] = useState('');
   const [reason, setReason] = useState('');
   const [showProviderSubtitles, setShowProviderSubtitles] = useState(true);
+  const [packages, setPackages] = useState<PurchasePackage[]>([]);
+  const [customers, setCustomers] = useState<PurchaseCustomer[]>([]);
+  const [routers, setRouters] = useState<PurchaseRouter[]>([]);
+  const [flow, setFlow] = useState<'SELL' | 'REDEEM' | null>(null);
+  const [flowCustomer, setFlowCustomer] = useState('');
+  const [flowPackage, setFlowPackage] = useState('');
+  const [flowRouter, setFlowRouter] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [flowSaving, setFlowSaving] = useState(false);
+  const [flowMessage, setFlowMessage] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -163,9 +177,12 @@ export default function PurchasesPage() {
     setError('');
 
     try {
-      const [purchaseResponse, methodsResponse] = await Promise.all([
+      const [purchaseResponse, methodsResponse, packageResponse, customerResponse, routerResponse] = await Promise.all([
         apiFetch<{ data?: Purchase[] }>('/purchases', { headers: { Authorization: `Bearer ${token}` } }),
         apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch<{ data?: PurchasePackage[] }>('/packages?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch<{ data?: PurchaseCustomer[] }>('/customers?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch<{ data?: PurchaseRouter[] }>('/routers?limit=100', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       const purchaseRows = purchaseResponse.data ?? [];
@@ -174,9 +191,15 @@ export default function PurchasesPage() {
       const enabled = (methodsResponse.data ?? FALLBACK_PAYMENT_PROVIDERS).filter(item => item.enabled);
       const operational = enabled.length ? enabled : FALLBACK_PAYMENT_PROVIDERS;
       setProviders(operational);
+      setPackages((packageResponse.data ?? []).filter(item => item.isActive));
+      setCustomers((customerResponse.data ?? []).filter(item => item.isActive));
+      setRouters(routerResponse.data ?? []);
 
       setProvider(current => operational.some(item => item.code === current) ? current : operational[0]?.code ?? 'manual');
       setSelectedId(current => current || purchaseRows[0]?.id || '');
+      setFlowPackage(current => current || (packageResponse.data ?? []).find(item => item.isActive)?.id || '');
+      setFlowCustomer(current => current || (customerResponse.data ?? []).find(item => item.isActive)?.id || '');
+      setFlowRouter(current => current || (routerResponse.data ?? []).find(item => ['ONLINE','CONNECTED'].includes(upper(item.status)))?.id || '');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load purchase operations.');
     } finally {
@@ -254,6 +277,61 @@ export default function PurchasesPage() {
       cancelled = true;
     };
   }, [selected]);
+
+  async function createPurchase() {
+    if (!flowCustomer || !flowPackage) {
+      setError('Select an active customer and package before creating a purchase.');
+      return;
+    }
+    const token = getAccessToken();
+    if (!token) { setError('Sign in before creating a purchase.'); return; }
+    setFlowSaving(true); setError(''); setFlowMessage('');
+    try {
+      const result = await apiFetch<Purchase>('/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customerId: flowCustomer,
+          packageId: flowPackage,
+          routerId: flowRouter || undefined,
+          promoCode: promoCode.trim() || undefined,
+        }),
+      });
+      setSelectedId(result.id);
+      setFlowMessage('Purchase created. Settlement remains pending until a payment is verified.');
+      setPromoCode('');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to create the purchase.');
+    } finally { setFlowSaving(false); }
+  }
+
+  async function redeemVoucher() {
+    const code = voucherCode.trim().toUpperCase();
+    if (!flowCustomer || code.length < 2) {
+      setError('Select an active customer and enter a voucher code.');
+      return;
+    }
+    const token = getAccessToken();
+    if (!token) { setError('Sign in before redeeming a voucher.'); return; }
+    setFlowSaving(true); setError(''); setFlowMessage('');
+    try {
+      const result = await apiFetch<{ purchaseId:string; deviceLimit?:number }>(
+        `/vouchers/${encodeURIComponent(code)}/redeem`,
+        {
+          method:'POST',
+          headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+          body:JSON.stringify({customerId:flowCustomer,routerId:flowRouter||undefined}),
+        },
+      );
+      setSelectedId(result.purchaseId);
+      setFlowMessage(`Voucher redeemed and access activated for ${result.deviceLimit ?? 1} device(s).`);
+      setVoucherCode('');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to redeem the voucher.');
+    } finally { setFlowSaving(false); }
+  }
 
   async function settle(status: 'SUCCESS' | 'FAILED') {
     if (!selected) {
@@ -415,6 +493,77 @@ export default function PurchasesPage() {
           <i aria-hidden="true" />
           <div className={`chain-node ${activeBinding && upper(activeBinding.state) === 'ACTIVE' ? 'done' : ''}`}><span>03</span><strong>Access</strong><small>{accessState}</small></div>
         </div>
+      </section>
+
+
+      {flowMessage && (
+        <div className="flow-success" role="status">
+          <span aria-hidden="true">✓</span>
+          <div><strong>Commerce flow completed</strong><p>{flowMessage}</p></div>
+        </div>
+      )}
+
+      <section className="channel-hub">
+        <div className="channel-hub-head">
+          <div>
+            <span className="section-label">OMNI-CHANNEL ACCESS SALES</span>
+            <h2>Sell connectivity through one entitlement engine.</h2>
+            <p>Online payment, operator-assisted checkout and prepaid vouchers converge on the same package, policy and network-access model.</p>
+          </div>
+          <div className="channel-stat"><span>Live sales channels</span><strong>03</strong></div>
+        </div>
+        <div className="channel-tabs" role="tablist" aria-label="Sales channel">
+          <button type="button" className={flow === 'SELL' ? 'active' : ''} onClick={() => setFlow('SELL')}>Sell access</button>
+          <button type="button" className={flow === 'REDEEM' ? 'active' : ''} onClick={() => setFlow('REDEEM')}>Redeem voucher</button>
+          <a href="/packages">Plans & products</a>
+          <a href="/vouchers">Voucher desk</a>
+        </div>
+        {flow && (
+          <div className="channel-workspace">
+            <div className="channel-form">
+              <div className="channel-form-head">
+                <div><span className="section-label">{flow === 'SELL' ? 'ASSISTED CHECKOUT' : 'PREPAID REDEMPTION'}</span><h3>{flow === 'SELL' ? 'Create a customer purchase' : 'Redeem a prepaid code'}</h3></div>
+                <button type="button" onClick={() => setFlow(null)} aria-label="Close sales flow">×</button>
+              </div>
+              <label>Customer<select value={flowCustomer} onChange={e => setFlowCustomer(e.target.value)}>
+                <option value="">Select active customer</option>
+                {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.fullName}{customer.phone ? ` · ${customer.phone}` : ''}</option>)}
+              </select></label>
+              {flow === 'SELL' ? (
+                <>
+                  <label>Internet package<select value={flowPackage} onChange={e => setFlowPackage(e.target.value)}>
+                    <option value="">Select package</option>
+                    {packages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name} · {pkg.currency} {Number(pkg.price).toLocaleString()}{pkg.isFreeTrial ? ' · Free trial' : ''}</option>)}
+                  </select></label>
+                  <label>Router / site context<select value={flowRouter} onChange={e => setFlowRouter(e.target.value)}>
+                    <option value="">Automatic / unassigned</option>
+                    {routers.map(router => <option key={router.id} value={router.id}>{router.name}{router.vendor ? ` · ${router.vendor}` : ''}{router.status ? ` · ${router.status}` : ''}</option>)}
+                  </select></label>
+                  <label>Promotion code <span className="optional">optional</span><input value={promoCode} onChange={e => setPromoCode(e.target.value)} placeholder="Existing promotion code" /></label>
+                  <button type="button" className="flow-primary" disabled={flowSaving} onClick={() => void createPurchase()}>{flowSaving ? 'Creating…' : 'Create purchase'}</button>
+                  <small className="flow-note">Creates the canonical purchase. Payment settlement and access activation remain governed by the verified lifecycle.</small>
+                </>
+              ) : (
+                <>
+                  <label>Voucher code<input value={voucherCode} onChange={e => setVoucherCode(e.target.value)} onKeyDown={e => { if(e.key === 'Enter'){e.preventDefault();void redeemVoucher();} }} placeholder="Enter voucher code" autoCapitalize="characters" /></label>
+                  <label>Router / site context<select value={flowRouter} onChange={e => setFlowRouter(e.target.value)}>
+                    <option value="">Automatic / unassigned</option>
+                    {routers.map(router => <option key={router.id} value={router.id}>{router.name}{router.vendor ? ` · ${router.vendor}` : ''}</option>)}
+                  </select></label>
+                  <button type="button" className="flow-primary" disabled={flowSaving} onClick={() => void redeemVoucher()}>{flowSaving ? 'Redeeming…' : 'Redeem & activate'}</button>
+                  <small className="flow-note">Uses the existing voucher redemption path, including package policy, expiry and device allowance.</small>
+                </>
+              )}
+            </div>
+            <div className="channel-assurance">
+              <div className="assurance-primary"><span className="assurance-mark" aria-hidden="true">◎</span><div><strong>One access contract</strong><p>Every channel resolves into the same network entitlement: duration, quota, bandwidth, session controls and access binding.</p></div></div>
+              <div><span>Active packages</span><strong>{packages.length.toLocaleString()}</strong></div>
+              <div><span>Active customers</span><strong>{customers.length.toLocaleString()}</strong></div>
+              <div><span>Routers in fleet</span><strong>{routers.length.toLocaleString()}</strong></div>
+              <div><span>Enabled payment methods</span><strong>{providers.length.toLocaleString()}</strong></div>
+            </div>
+          </div>
+        )}
       </section>
 
       {error && (
