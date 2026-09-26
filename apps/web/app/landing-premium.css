@@ -213,18 +213,17 @@
   min-height:92px;padding:13px;display:flex;align-items:center;gap:10px;border:1px solid #e1e8ef;border-radius:9px;background:#fbfcfe
 }
 .jn-integration-logo-box{
-  width:42px;height:42px;flex:0 0 42px;display:flex;align-items:center;justify-content:center;gap:5px;
-  border:1px solid #e0e8f1;border-radius:10px;background:#fff;box-shadow:0 5px 12px rgba(15,32,54,.035);
+  width:36px;height:40px;flex:0 0 36px;display:flex;align-items:center;justify-content:center;gap:3px;
 }
 .jn-integration-logo{
-  width:25px;height:25px;object-fit:contain;display:block;flex:0 0 auto;
+  width:31px;height:31px;max-width:31px;max-height:31px;object-fit:contain;display:block;flex:0 0 auto;
 }
-.jn-integration-logo-box:has(.jn-integration-logo + .jn-integration-logo) .jn-integration-logo{
-  width:16px;height:16px;
+.jn-integration-logo-box .jn-integration-logo + .jn-integration-logo{
+  width:18px;height:18px;max-width:18px;max-height:18px;
 }
 .jn-integration-copy{min-width:0}
-.jn-integration-grid h3{margin:0;color:#273950;font-size:10px}
-.jn-integration-grid p{margin:3px 0 0;color:#8997a8;font-size:7px;line-height:1.4}
+.jn-integration-grid h3{margin:0;color:#273950;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jn-integration-grid p{margin:3px 0 0;color:#8997a8;font-size:7px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jn-integration-grid article>small{margin-left:auto;color:#8491a2;font-size:6px;font-weight:800;text-align:right;white-space:nowrap}
 .jn-integration-note{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:15px;padding:12px 14px;border:1px solid #e0e7ef;border-radius:8px;background:#f8fafc;color:#8694a6;font-size:7px}
 .jn-integration-note span{margin-right:auto;letter-spacing:.12em;font-weight:800}
@@ -357,7 +356,10 @@
   .jn-architecture-flow{gap:8px}
   .jn-architecture-step{min-height:128px}
   .jn-scenario-grid article{min-height:250px}
-  .jn-integration-grid article{min-height:82px}
+  .jn-integration-grid article{min-height:82px;padding:11px 12px;gap:9px}
+  .jn-integration-logo-box{width:34px;height:38px;flex-basis:34px}
+  .jn-integration-logo{width:29px;height:29px;max-width:29px;max-height:29px}
+  .jn-integration-grid article>small{font-size:5.5px}
   .jn-module-grid article{min-height:180px}
   .jn-operations-grid,.jn-faq-grid{grid-template-columns:1fr!important;gap:35px!important}
   .jn-operations-band .jn-section{padding-top:72px!important;padding-bottom:72px!important}
@@ -368,6 +370,15 @@
   .jn-footer{grid-template-columns:1fr!important;align-items:start!important;padding:26px 16px 32px!important}
   .jn-footer nav{justify-content:flex-start!important}
   .jn-footer-end{align-items:flex-start!important}
+}
+@media(max-width:520px){
+  .jn-integration-grid article{min-height:76px;padding:10px;gap:8px}
+  .jn-integration-logo-box{width:32px;height:36px;flex-basis:32px}
+  .jn-integration-logo{width:27px;height:27px;max-width:27px;max-height:27px}
+  .jn-integration-logo-box .jn-integration-logo + .jn-integration-logo{width:15px;height:15px;max-width:15px;max-height:15px}
+  .jn-integration-grid h3{font-size:9px}
+  .jn-integration-grid p{font-size:6.5px}
+  .jn-integration-grid article>small{font-size:5px}
 }
 @media(max-width:390px){
   .jn-hero h1{font-size:39px!important}
