@@ -437,3 +437,13 @@
   .jn-integration-logo{width:23px;height:23px;max-width:23px;max-height:23px}
   .jn-integration-grid h3{font-size:8.5px}
 }
+
+/* Product-preview brand mark follows the same unboxed identity rule. */
+.jn-preview-brand img{
+  width:34px!important;height:34px!important;display:block!important;object-fit:contain!important;
+  border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.jn-preview-brand>span:first-child{
+  width:34px!important;height:34px!important;display:flex!important;align-items:center!important;justify-content:center!important;
+  overflow:visible!important;border:0!important;border-radius:0!important;background:transparent!important;
+}
