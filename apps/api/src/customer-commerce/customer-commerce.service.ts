@@ -1,11 +1,17 @@
 import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Pool } from 'pg';
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { PurchasesService } from '../purchases/purchases.service';
 import { PG_POOL } from '../database/database.module';
-import { BeneficiaryDto, LimitDto, NotificationPreferenceDto, ReferralDto, SavedPurchaseDto, SupportCaseDto, VerificationDto, WalletEntryDto } from './customer-commerce.dto';
+import { BeneficiaryDto, LimitDto, NotificationPreferenceDto, ReferralDto, RenewalScheduleDto, SavedPurchaseDto, SupportCaseDto, VerificationDto, WalletEntryDto } from './customer-commerce.dto';
 
 @Injectable()
-export class CustomerCommerceService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
+  private renewalTimer?: NodeJS.Timeout;
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly purchases: PurchasesService) {}
+
+  onModuleInit() { this.renewalTimer = setInterval(() => void this.processDueRenewals(), 30_000); }
+  onModuleDestroy() { if (this.renewalTimer) clearInterval(this.renewalTimer); }
 
   async overview(tenantId:string, customerId:string) {
     const [wallet, recent, beneficiaries, saved, rewards, limits, verification, preferences, support] = await Promise.all([
@@ -19,8 +25,22 @@ export class CustomerCommerceService {
     return {wallet,recentPurchases:recent.rows,beneficiaries,savedPurchases:saved,rewards:rewards.rows,limits,verification,preferences,support};
   }
 
+  async listRenewals(tenantId:string,customerId:string) {
+    const r=await this.db.query(`SELECT r.id,r.saved_purchase_id AS "savedPurchaseId",r.next_run_at AS "nextRunAt",r.status,r.failure_count AS "failureCount",r.last_run_at AS "lastRunAt",s.label,s.package_id AS "packageId",s.auto_renew AS "autoRenew" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.tenant_id=$1 AND r.customer_id=$2 ORDER BY r.next_run_at`,[tenantId,customerId]);
+    return r.rows;
+  }
+
+  async setRenewal(tenantId:string,customerId:string,d:RenewalScheduleDto) {
+    const parsed=new Date(d.nextRunAt);
+    if(Number.isNaN(parsed.getTime())) throw new BadRequestException('Invalid nextRunAt');
+    const saved=await this.db.query(`SELECT id FROM commerce_saved_purchases WHERE tenant_id=$1 AND id=$2 AND customer_id=$3 AND active=true`,[tenantId,d.savedPurchaseId,customerId]);
+    if(!saved.rowCount) throw new NotFoundException('Saved purchase not found');
+    const r=await this.db.query(`INSERT INTO commerce_renewal_schedules (tenant_id,customer_id,saved_purchase_id,next_run_at,status) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (tenant_id,saved_purchase_id) DO UPDATE SET next_run_at=EXCLUDED.next_run_at,status=EXCLUDED.status,updated_at=now() RETURNING id,saved_purchase_id AS "savedPurchaseId",next_run_at AS "nextRunAt",status`,[tenantId,customerId,d.savedPurchaseId,parsed.toISOString(),d.status??'ACTIVE']);
+    return r.rows[0];
+  }
+
   async wallet(tenantId:string,customerId:string) {
-    const r=await this.db.query(`INSERT INTO customer_wallets (tenant_id,customer_id,currency) SELECT $1,$2,COALESCE((SELECT currency FROM tenants WHERE id=$1),'TZS') ON CONFLICT (tenant_id,customer_id,currency) DO UPDATE SET updated_at=now() RETURNING id,currency,balance,status`,[tenantId,customerId]);
+    const r=await this.db.query(`INSERT INTO customer_wallets (tenant_id,customer_id,currency) SELECT $1,$2,'TZS' ON CONFLICT (tenant_id,customer_id,currency) DO UPDATE SET updated_at=now() RETURNING id,currency,balance,status`,[tenantId,customerId]);
     if(!r.rowCount) throw new NotFoundException('Customer wallet unavailable');
     const e=await this.db.query(`SELECT id,entry_type AS "entryType",amount,currency,reference_type AS "referenceType",reference_id AS "referenceId",description,created_at AS "createdAt" FROM customer_wallet_entries WHERE tenant_id=$1 AND wallet_id=$2 ORDER BY created_at DESC LIMIT 50`,[tenantId,r.rows[0].id]);
     return {account:r.rows[0],entries:e.rows};
@@ -58,3 +78,33 @@ export class CustomerCommerceService {
   async createSupport(tenantId:string,customerId:string,d:SupportCaseDto){const r=await this.db.query(`INSERT INTO commerce_support_cases (tenant_id,customer_id,category,subject,description,priority,purchase_id,payment_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,status,priority,created_at AS "createdAt"`,[tenantId,customerId,d.category,d.subject,d.description,d.priority??'NORMAL',d.purchaseId??null,d.paymentId??null]);return r.rows[0];}
   async listSupport(tenantId:string,customerId:string){const r=await this.db.query(`SELECT id,category,subject,description,status,priority,purchase_id AS "purchaseId",payment_id AS "paymentId",created_at AS "createdAt",updated_at AS "updatedAt",resolved_at AS "resolvedAt" FROM commerce_support_cases WHERE tenant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 100`,[tenantId,customerId]);return r.rows;}
 }
+
+
+  private async processDueRenewals() {
+    const due=await this.db.query(`SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",s.router_id AS "routerId",s.renewal_days AS "renewalDays",s.auto_renew AS "autoRenew" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.status='ACTIVE' AND s.active=true AND s.auto_renew=true AND r.next_run_at<=now() ORDER BY r.next_run_at LIMIT 20`);
+    for(const row of due.rows) {
+      try {
+        const wallet=await this.db.query(`SELECT id,balance,currency,status FROM customer_wallets WHERE tenant_id=$1 AND customer_id=$2 AND currency='TZS' FOR UPDATE`,[row.tenantId,row.customerId]);
+        const plan=await this.db.query(`SELECT price,currency FROM packages WHERE tenant_id=$1 AND id=$2 AND is_active=true`,[row.tenantId,row.packageId]);
+        if(!wallet.rowCount || wallet.rows[0].status!=='ACTIVE' || !plan.rowCount) throw new Error('Renewal prerequisites unavailable');
+        const amount=Number(plan.rows[0].price);
+        if(wallet.rows[0].currency!==plan.rows[0].currency || Number(wallet.rows[0].balance)<amount) throw new Error('Insufficient wallet balance or currency mismatch');
+        const idem=`renewal:${row.id}:${new Date().toISOString().slice(0,10)}`;
+        const existing=await this.db.query(`SELECT id FROM customer_wallet_entries WHERE tenant_id=$1 AND idempotency_key=$2`,[row.tenantId,idem]);
+        if(existing.rowCount) { await this.db.query(`UPDATE commerce_renewal_schedules SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),last_run_at=now(),failure_count=0,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id,Math.max(1,row.renewalDays||30)]); continue; }
+        const purchase=await this.purchases.create(row.tenantId,{customerId:row.customerId,packageId:row.packageId,routerId:row.routerId});
+        await this.db.query('BEGIN');
+        try {
+          const locked=await this.db.query(`SELECT id,balance FROM customer_wallets WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3 FOR UPDATE`,[row.tenantId,row.customerId,plan.rows[0].currency]);
+          if(!locked.rowCount || Number(locked.rows[0].balance)<amount) throw new Error('Wallet balance changed before debit');
+          await this.db.query(`INSERT INTO customer_wallet_entries (tenant_id,wallet_id,entry_type,amount,currency,reference_type,reference_id,idempotency_key,description) VALUES ($1,$2,'PURCHASE',$3,$4,'WIFI_PLAN_PURCHASE',$5,$6,'Automatic renewal')`,[row.tenantId,locked.rows[0].id,amount,plan.rows[0].currency,purchase.id,idem]);
+          await this.db.query(`UPDATE customer_wallets SET balance=balance-$3,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,locked.rows[0].id,amount]);
+          await this.db.query('COMMIT');
+        } catch(e) { await this.db.query('ROLLBACK').catch(()=>undefined); throw e; }
+        await this.purchases.confirmPayment(row.tenantId,purchase.id,{provider:'manual',providerReference:`wallet-renewal:${row.id}:${purchase.id}`,status:'SUCCESS',idempotencyKey:`wallet-payment:${purchase.id}`});
+        await this.db.query(`UPDATE commerce_renewal_schedules SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),last_run_at=now(),failure_count=0,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id,Math.max(1,row.renewalDays||30)]);
+      } catch(error) {
+        await this.db.query(`UPDATE commerce_renewal_schedules SET failure_count=failure_count+1,status=CASE WHEN failure_count+1>=5 THEN 'FAILED' ELSE status END,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id]).catch(()=>undefined);
+      }
+    }
+  }
