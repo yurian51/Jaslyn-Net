@@ -432,6 +432,179 @@ export class CommunicationService {
     return forwarded;
   }
 
+  async createGroupConversation(actor: Actor, input: { title: string; description?: string; isPrivate?: boolean }) {
+    const title = input.title.trim();
+    if (!title) throw new BadRequestException('Group title is required');
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO conversations (tenant_id,kind,title,description,is_private,created_by_user_id)
+         VALUES ($1,'GROUP',$2,$3,$4,$5) RETURNING id`,
+        [actor.tenantId,title,input.description?.trim() || null,input.isPrivate !== false,actor.userId],
+      );
+      const id = result.rows[0].id as string;
+      await client.query(`INSERT INTO conversation_members (tenant_id,conversation_id,user_id,role) VALUES ($1,$2,$3,'OWNER')`,[actor.tenantId,id,actor.userId]);
+      await client.query('COMMIT');
+      await this.audit.record(actor.tenantId,'GROUP_CREATED','conversation',id,{title},{userId:actor.userId});
+      return this.getConversationSummary(actor,id);
+    } catch (error) { await client.query('ROLLBACK').catch(()=>undefined); throw error; }
+    finally { client.release(); }
+  }
+
+  private async assertConversationAdmin(actor: Actor, conversationId: string) {
+    const result = await this.db.query(
+      `SELECT cm.role,c.kind FROM conversation_members cm
+       JOIN conversations c ON c.tenant_id=cm.tenant_id AND c.id=cm.conversation_id
+       WHERE cm.tenant_id=$1 AND cm.conversation_id=$2 AND cm.user_id=$3 AND cm.left_at IS NULL LIMIT 1`,
+      [actor.tenantId,conversationId,actor.userId],
+    );
+    if (!result.rowCount) throw new NotFoundException('Conversation not found');
+    if (!['OWNER','ADMIN'].includes(result.rows[0].role)) throw new BadRequestException('Conversation administrator permission required');
+    if (!['GROUP','CHANNEL','SUPPORT','INCIDENT','NOC'].includes(result.rows[0].kind)) throw new BadRequestException('This conversation does not support member administration');
+    return result.rows[0];
+  }
+
+  async addMember(actor: Actor, conversationId: string, userId: string, role: 'ADMIN'|'MODERATOR'|'MEMBER'|'READ_ONLY' = 'MEMBER') {
+    await this.assertConversationAdmin(actor,conversationId);
+    const target = await this.db.query(`SELECT id,full_name AS "fullName" FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true`,[actor.tenantId,userId]);
+    if (!target.rowCount) throw new NotFoundException('User not found');
+    await this.db.query(
+      `INSERT INTO conversation_members (tenant_id,conversation_id,user_id,role) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (tenant_id,conversation_id,user_id) DO UPDATE SET role=EXCLUDED.role,left_at=NULL`,
+      [actor.tenantId,conversationId,userId,role],
+    );
+    this.realtime.publish({type:'conversation.member.added',tenantId:actor.tenantId,conversationId,data:{userId,role}});
+    return {conversationId,userId,fullName:target.rows[0].fullName,role};
+  }
+
+  async removeMember(actor: Actor, conversationId: string, userId: string) {
+    await this.assertConversationAdmin(actor,conversationId);
+    if (userId === actor.userId) throw new BadRequestException('Use leave workflow to remove yourself');
+    const result = await this.db.query(`UPDATE conversation_members SET left_at=now() WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL RETURNING user_id AS "userId"`,[actor.tenantId,conversationId,userId]);
+    if (!result.rowCount) throw new NotFoundException('Active member not found');
+    this.realtime.publish({type:'conversation.member.removed',tenantId:actor.tenantId,conversationId,data:{userId}});
+    return {conversationId,userId,removed:true};
+  }
+
+  async listPinnedMessages(actor: Actor, conversationId: string) {
+    await this.assertMember(actor,conversationId);
+    const result = await this.db.query(
+      `SELECT p.id,p.message_id AS "messageId",p.pinned_by_user_id AS "pinnedByUserId",p.created_at AS "createdAt",
+              m.body,m.created_at AS "messageCreatedAt",u.full_name AS "pinnedByName"
+       FROM pinned_messages p JOIN messages m ON m.tenant_id=p.tenant_id AND m.id=p.message_id
+       LEFT JOIN users u ON u.tenant_id=p.tenant_id AND u.id=p.pinned_by_user_id
+       WHERE p.tenant_id=$1 AND p.conversation_id=$2 ORDER BY p.created_at DESC LIMIT 100`,
+      [actor.tenantId,conversationId],
+    );
+    return {data:result.rows,count:result.rowCount ?? 0};
+  }
+
+  async archiveConversation(actor: Actor, conversationId: string) {
+    await this.assertMember(actor,conversationId);
+    await this.db.query(`UPDATE conversations SET archived_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[actor.tenantId,conversationId]);
+    this.realtime.publish({type:'conversation.archived',tenantId:actor.tenantId,conversationId,data:{archived:true,userId:actor.userId}});
+    return {conversationId,archived:true};
+  }
+
+  async unarchiveConversation(actor: Actor, conversationId: string) {
+    await this.assertMember(actor,conversationId);
+    await this.db.query(`UPDATE conversations SET archived_at=NULL,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[actor.tenantId,conversationId]);
+    this.realtime.publish({type:'conversation.archived',tenantId:actor.tenantId,conversationId,data:{archived:false,userId:actor.userId}});
+    return {conversationId,archived:false};
+  }
+
+  async muteConversation(actor: Actor, conversationId: string, until?: string) {
+    await this.assertMember(actor,conversationId);
+    let mutedUntil: string;
+    if (until) {
+      const parsed = new Date(until);
+      if (Number.isNaN(parsed.getTime()) || parsed.getTime() <= Date.now()) throw new BadRequestException('Mute expiry must be a future timestamp');
+      mutedUntil = parsed.toISOString();
+    } else mutedUntil = new Date(Date.now()+86400000).toISOString();
+    await this.db.query(`UPDATE conversation_members SET muted_until=$4 WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL`,[actor.tenantId,conversationId,actor.userId,mutedUntil]);
+    return {conversationId,mutedUntil};
+  }
+
+  async unmuteConversation(actor: Actor, conversationId: string) {
+    await this.assertMember(actor,conversationId);
+    await this.db.query(`UPDATE conversation_members SET muted_until=NULL WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL`,[actor.tenantId,conversationId,actor.userId]);
+    return {conversationId,muted:false};
+  }
+
+  async listChannels(actor: Actor) {
+    const result=await this.db.query(
+      `SELECT ch.id,ch.slug,ch.public_name AS "publicName",ch.description,ch.is_public AS "isPublic",
+              ch.conversation_id AS "conversationId",ch.created_at AS "createdAt",c.title,c.updated_at AS "updatedAt"
+       FROM channels ch JOIN conversations c ON c.tenant_id=ch.tenant_id AND c.id=ch.conversation_id
+       WHERE ch.tenant_id=$1 AND (ch.is_public=true OR EXISTS (
+         SELECT 1 FROM channel_members cm WHERE cm.tenant_id=ch.tenant_id AND cm.channel_id=ch.id AND cm.user_id=$2 AND cm.left_at IS NULL))
+       ORDER BY ch.public_name ASC`,
+      [actor.tenantId,actor.userId],
+    );
+    return {data:result.rows,count:result.rowCount ?? 0};
+  }
+
+  async createChannel(actor: Actor, input: { slug: string; publicName: string; description?: string; isPublic?: boolean }) {
+    if (!['OWNER','ADMIN'].includes(actor.role)) throw new BadRequestException('Channel administration permission required');
+    const slug=input.slug.trim().toLowerCase().replace(/[^a-z0-9-]+/g,'-').replace(/^-+|-+$/g,'');
+    const publicName=input.publicName.trim();
+    if(!slug || !publicName) throw new BadRequestException('Channel slug and name are required');
+    const client=await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const conversation=await client.query(`INSERT INTO conversations (tenant_id,kind,title,description,is_private,created_by_user_id) VALUES ($1,'CHANNEL',$2,$3,$4,$5) RETURNING id`,[actor.tenantId,publicName,input.description?.trim()||null,input.isPublic!==true,actor.userId]);
+      const conversationId=conversation.rows[0].id as string;
+      const channel=await client.query(`INSERT INTO channels (tenant_id,conversation_id,slug,public_name,description,is_public) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,slug,public_name AS "publicName",description,is_public AS "isPublic",conversation_id AS "conversationId"`,[actor.tenantId,conversationId,slug,publicName,input.description?.trim()||null,input.isPublic===true]);
+      await client.query(`INSERT INTO channel_members (tenant_id,channel_id,user_id,role) VALUES ($1,$2,$3,'OWNER') ON CONFLICT DO NOTHING`,[actor.tenantId,channel.rows[0].id,actor.userId]);
+      await client.query('COMMIT');
+      await this.audit.record(actor.tenantId,'CHANNEL_CREATED','channel',channel.rows[0].id,{slug,publicName},{userId:actor.userId});
+      return channel.rows[0];
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if((error as any)?.code==='23505') throw new ConflictException('Channel slug already exists');
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async createSupportTicket(actor: Actor, input: { subject: string; category: string; priority?: 'LOW'|'NORMAL'|'HIGH'|'CRITICAL'; customerId?: string }) {
+    const subject=input.subject.trim();
+    if(!subject) throw new BadRequestException('Support subject is required');
+    if(input.customerId) {
+      const customer=await this.db.query(`SELECT id FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true`,[actor.tenantId,input.customerId]);
+      if(!customer.rowCount) throw new NotFoundException('Customer not found');
+    }
+    const result=await this.db.query(
+      `INSERT INTO support_tickets (tenant_id,ticket_number,customer_id,category,priority,subject,created_by_user_id)
+       VALUES ($1,'SUP-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)),$2,$3,$4,$5,$6)
+       RETURNING id,ticket_number AS "ticketNumber",customer_id AS "customerId",category,priority,status,subject,created_at AS "createdAt"`,
+      [actor.tenantId,input.customerId??null,input.category.trim(),input.priority??'NORMAL',subject,actor.userId],
+    );
+    await this.audit.record(actor.tenantId,'SUPPORT_TICKET_CREATED','support_ticket',result.rows[0].id,result.rows[0],{userId:actor.userId});
+    return result.rows[0];
+  }
+
+  async getNotificationPreferences(actor: Actor) {
+    const result=await this.db.query(`SELECT category,in_app AS "inApp",push,email,sms,updated_at AS "updatedAt" FROM notification_preferences WHERE tenant_id=$1 AND user_id=$2 ORDER BY category`,[actor.tenantId,actor.userId]);
+    return {data:result.rows,count:result.rowCount ?? 0};
+  }
+
+  async updateNotificationPreference(actor: Actor, category: string, input: { inApp?: boolean; push?: boolean; email?: boolean; sms?: boolean }) {
+    const normalized=category.trim().toLowerCase();
+    if(!normalized || normalized.length>64) throw new BadRequestException('Notification category is required');
+    const existing=await this.db.query(`SELECT in_app AS "inApp",push,email,sms FROM notification_preferences WHERE tenant_id=$1 AND user_id=$2 AND category=$3 LIMIT 1`,[actor.tenantId,actor.userId,normalized]);
+    const current=existing.rows[0] ?? {inApp:true,push:true,email:true,sms:false};
+    const values={inApp:input.inApp??current.inApp,push:input.push??current.push,email:input.email??current.email,sms:input.sms??current.sms};
+    const result=await this.db.query(
+      `INSERT INTO notification_preferences (tenant_id,user_id,category,in_app,push,email,sms,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+       ON CONFLICT (tenant_id,user_id,category) DO UPDATE SET in_app=EXCLUDED.in_app,push=EXCLUDED.push,email=EXCLUDED.email,sms=EXCLUDED.sms,updated_at=now()
+       RETURNING category,in_app AS "inApp",push,email,sms,updated_at AS "updatedAt"`,
+      [actor.tenantId,actor.userId,normalized,values.inApp,values.push,values.email,values.sms],
+    );
+    this.realtime.publish({type:'notification.preference.updated',tenantId:actor.tenantId,data:{userId:actor.userId,category:normalized}});
+    return result.rows[0];
+  }
+
   private async assertMember(actor: Actor, conversationId: string) {
     const result=await this.db.query(`SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL`,[actor.tenantId,conversationId,actor.userId]);
     if(!result.rowCount) throw new NotFoundException('Conversation not found');
