@@ -12,6 +12,7 @@ import './landing.css';
 import './premium.css';
 import './landing-premium.css';
 import './loading.css';
+import './settings/settings.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
