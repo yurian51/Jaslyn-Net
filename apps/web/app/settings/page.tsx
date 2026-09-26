@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import BrandLogo from '../brand-logo';
 import { apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
@@ -106,11 +107,11 @@ function SettingRow({
   trailing,
   onClick,
 }: {
-  icon: React.ComponentProps<typeof Icon>['name'];
+  icon: ComponentProps<typeof Icon>['name'];
   title: string;
   description?: string;
   href?: string;
-  trailing?: React.ReactNode;
+  trailing?: ReactNode;
   onClick?: () => void;
 }) {
   const content = (
@@ -271,7 +272,7 @@ export default function SettingsPage() {
     <main className="settings-page">
       <header className="settings-telegram-hero">
         <div className="settings-profile">
-          <div className="settings-profile-avatar"><span>{displayName.slice(0, 1).toUpperCase()}</span></div>
+          <div className="settings-profile-avatar"><BrandLogo alt="" /></div>
           <div className="settings-profile-copy">
             <strong>{displayName}</strong>
             <span>{subtitle}</span>
