@@ -18,7 +18,7 @@ const required = [
   ['password strength UX', register.includes('passwordStrength')],
   ['mobile nav control', nav.includes('landing-menu-toggle')],
   ['integration logo markup', landing.includes('jn-integration-logo')],
-  ['integration logo source', landing.includes('https://cdn.simpleicons.org/'),
+  ['integration logo source', landing.includes('https://cdn.simpleicons.org/')],
 ];
 
 const assets = [
