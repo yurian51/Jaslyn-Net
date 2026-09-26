@@ -17,7 +17,7 @@ export class SavedPurchaseDto {
   @IsOptional() @IsInt() @Min(0) @Max(365) renewalDays?: number;
 }
 export class WalletEntryDto {
-  @IsIn(['TOPUP','REFUND','ADJUSTMENT','COMMISSION']) entryType!: string;
+  @IsIn(['TOPUP','REFUND','ADJUSTMENT','COMMISSION','PURCHASE','TRANSFER_OUT','TRANSFER_IN']) entryType!: string;
   @Min(0.01) amount!: number;
   @IsString() currency!: string;
   @IsString() idempotencyKey!: string;
