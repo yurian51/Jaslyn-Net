@@ -175,16 +175,14 @@ export default function PurchasesPage() {
       const operational = enabled.length ? enabled : FALLBACK_PAYMENT_PROVIDERS;
       setProviders(operational);
 
-      if (!operational.some(item => item.code === provider)) {
-        setProvider(operational[0]?.code ?? 'manual');
-      }
-      if (!selectedId && purchaseRows[0]?.id) setSelectedId(purchaseRows[0].id);
+      setProvider(current => operational.some(item => item.code === current) ? current : operational[0]?.code ?? 'manual');
+      setSelectedId(current => current || purchaseRows[0]?.id || '');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load purchase operations.');
     } finally {
       setLoading(false);
     }
-  }, [provider, selectedId]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -525,13 +523,15 @@ export default function PurchasesPage() {
                   <div><span>Session</span><strong>{duration(policy?.session?.sessionTimeoutSeconds)}</strong></div>
                 </div>
                 <div className="capability-row">
-                  {[
-                    ['Quota', policy?.capabilities?.quotaEnforcement],
-                    ['Bandwidth', policy?.capabilities?.bandwidthEnforcement],
-                    ['Timeout', policy?.capabilities?.sessionTimeout],
-                    ['Interim acct.', policy?.capabilities?.interimAccounting],
-                    ['CoA', policy?.capabilities?.coaCompatible],
-                  ].map(([name,enabled]) => <span key={name} className={enabled ? 'enabled' : ''}><i />{name}</span>)}
+                  {([
+                    ['Quota', Boolean(policy?.capabilities?.quotaEnforcement)],
+                    ['Bandwidth', Boolean(policy?.capabilities?.bandwidthEnforcement)],
+                    ['Timeout', Boolean(policy?.capabilities?.sessionTimeout)],
+                    ['Interim acct.', Boolean(policy?.capabilities?.interimAccounting)],
+                    ['CoA', Boolean(policy?.capabilities?.coaCompatible)],
+                  ] as Array<[string, boolean]>).map(([name, enabled]) => (
+                    <span key={name} className={enabled ? 'enabled' : ''}><i />{name}</span>
+                  ))}
                 </div>
               </section>
 
