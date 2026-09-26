@@ -56,7 +56,8 @@ describe('CustomerCommerceService renewal execution', () => {
       confirmPayment: jest.fn().mockResolvedValue({}),
     };
 
-    const service = new CustomerCommerceService(db as any, purchases as any);
+    const notifications = { enqueue: jest.fn() };
+    const service = new CustomerCommerceService(db as any, purchases as any, notifications as any);
     await (service as any).processDueRenewals();
 
     expect(client.query.mock.calls[2][0]).toContain('SKIP LOCKED');
@@ -84,7 +85,8 @@ describe('CustomerCommerceService renewal execution', () => {
       .mockResolvedValueOnce({});
 
     const purchases = {};
-    const service = new CustomerCommerceService(db as any, purchases as any);
+    const notifications = { enqueue: jest.fn() };
+    const service = new CustomerCommerceService(db as any, purchases as any, notifications as any);
 
     const result = await service.addWalletEntry(tenantId, customerId, {
       entryType: 'PURCHASE',
