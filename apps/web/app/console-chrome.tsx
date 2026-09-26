@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { apiFetch } from '../lib/api';
 import { ConsoleSkeleton } from './loading-skeleton';
+import BrandLogo from './brand-logo';
 
 type IconName = 'account' | 'overview' | 'customers' | 'sessions' | 'accessNetwork' | 'fiber' | 'network' | 'ipam' | 'loadBalancing' | 'isp' | 'purchases' | 'payments' | 'vouchers' | 'packages' | 'networkCommands' | 'notifications' | 'radius' | 'incidents' | 'audit' | 'settings' | 'promotions' | 'finance' | 'upesilipa';
 
@@ -123,7 +124,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
       {legalUpdate && <div className="console-legal-alert" role="status"><span><strong>Legal documents updated</strong><small>Review the current Terms and Privacy Notice before continuing.</small></span><Link href="/legal">Review legal center</Link></div>}
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
         <div className="console-chrome-brand">
-          <div className="console-chrome-mark"><img src="/brand/jaslyn-official.svg" alt="" /></div>
+          <div className="console-chrome-mark"><BrandLogo alt="" /></div>
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
