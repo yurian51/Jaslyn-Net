@@ -55,6 +55,6 @@ export class UpdatePackageDto {
   @IsOptional() @IsString() @MaxLength(32) tierCode?: string;
   @IsOptional() @IsInt() @Min(1) @Max(100) tierRank?: number;
   @IsOptional() @IsString() @MaxLength(240) tagline?: string;
-  @IsOptional() featureFlags?: Record<string, boolean>;
+  @IsOptional() @IsObject() featureFlags?: Record<string, boolean>;
   @IsOptional() @IsBoolean() isFeatured?: boolean;
 }
