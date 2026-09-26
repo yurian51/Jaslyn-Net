@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LandingNav from './landing-nav';
 
 const pillars = [
   ['01', 'Sell connectivity', 'Packages, vouchers, subscriptions and customer access share one commercial workflow.'],
@@ -112,23 +113,7 @@ function ProductPreview() {
 export default function Home() {
   return (
     <main className="landing">
-      <nav className="landing-nav">
-        <Link href="/" className="landing-logo" aria-label="JASLYN NET home">
-          <span><img src="/brand/jaslyn-net-mark.svg" alt="" /></span>
-          <b>JASLYN NET</b>
-        </Link>
-        <div className="landing-links">
-          <a href="#platform">Platform</a>
-          <a href="#workflow">How it works</a>
-          <a href="#network">Network</a>
-          <a href="#modules">Modules</a>
-          <a href="#pricing">Commercial</a>
-        </div>
-        <div className="landing-actions">
-          <Link href="/login" className="landing-signin">Sign in</Link>
-          <Link href="/login" className="landing-cta">Open console ↗</Link>
-        </div>
-      </nav>
+      <LandingNav />
 
       <section className="landing-hero">
         <div className="landing-hero-copy">
@@ -138,8 +123,8 @@ export default function Home() {
             JASLYN NET connects customers, services, payments, sessions, routers, RADIUS and locations in one operational system built for WiFi operators, WISPs, ISPs and managed networks.
           </p>
           <div className="landing-hero-actions">
-            <Link href="/login" className="landing-primary">Enter JASLYN NET →</Link>
-            <a href="#platform" className="landing-secondary">Explore the platform</a>
+            <Link href="/register" className="landing-primary">Get started →</Link>
+            <Link href="/login" className="landing-secondary">Sign in</Link>
           </div>
           <div className="landing-trust">
             <span>Customer lifecycle</span><i/><span>Network operations</span><i/><span>Payment-aware access</span>
