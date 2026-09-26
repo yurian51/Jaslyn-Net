@@ -75,3 +75,16 @@
  .auth-card{padding:22px;border-radius:11px}.auth-card h2{font-size:24px}
  .auth-footer{padding:16px 18px 22px;flex-direction:column;align-items:flex-start;gap:6px}
 }
+
+
+.field-error{margin:6px 0 0;color:#b3313d;font-size:9px;line-height:1.4}
+.auth-card input[aria-invalid="true"]{border-color:#d6626d;box-shadow:0 0 0 3px rgba(211,63,79,.08)}
+.password-strength{display:flex;align-items:center;gap:8px;margin-top:8px}
+.password-strength-bar{flex:1;height:4px;border-radius:3px;background:#e7ecf2;overflow:hidden}
+.password-strength-bar i{display:block;height:100%;border-radius:3px;transition:width .18s ease,background .18s ease}
+.password-strength-bar i.strength-1{background:#d6626d}
+.password-strength-bar i.strength-2{background:#d8a13a}
+.password-strength-bar i.strength-3{background:#3d9a63}
+.password-strength-bar i.strength-4{background:#1b9a68}
+.password-strength>span{color:#7b899b;font-size:8px;font-weight:700;white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.password-strength-bar i{transition:none}}
