@@ -135,14 +135,6 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
 
         const amount = Number(plan.rows[0].price);
         const currency = String(plan.rows[0].currency).toUpperCase();
-        const walletCheck = await this.db.query(
-          `SELECT id,balance,currency,status FROM customer_wallets
-           WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3`,
-          [row.tenantId,row.customerId,currency],
-        );
-        if (!walletCheck.rowCount || walletCheck.rows[0].status !== 'ACTIVE' || Number(walletCheck.rows[0].balance) < amount) {
-          throw new Error('Insufficient wallet balance or inactive wallet');
-        }
 
         let purchase;
         if (purchaseId) {
@@ -172,24 +164,35 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
           );
         }
 
-        const walletClient = await this.db.connect();
-        try {
-          await walletClient.query('BEGIN');
-          const locked = await walletClient.query(
+        const debitKey = `renewal-debit:${row.executionId}`;
+        const priorDebit = await this.db.query(
+          `SELECT id,amount,currency FROM customer_wallet_entries
+           WHERE tenant_id=$1 AND idempotency_key=$2`,
+          [row.tenantId,debitKey],
+        );
+        debited = Boolean(priorDebit.rowCount);
+
+        if (!priorDebit.rowCount) {
+          const walletCheck = await this.db.query(
             `SELECT id,balance,currency,status FROM customer_wallets
-             WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3 FOR UPDATE`,
+             WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3`,
             [row.tenantId,row.customerId,currency],
           );
-          if (!locked.rowCount || locked.rows[0].status !== 'ACTIVE' || Number(locked.rows[0].balance) < amount) {
-            throw new Error('Wallet balance changed before renewal debit');
+          if (!walletCheck.rowCount || walletCheck.rows[0].status !== 'ACTIVE' || Number(walletCheck.rows[0].balance) < amount) {
+            throw new Error('Insufficient wallet balance or inactive wallet');
           }
 
-          const debitKey = `renewal-debit:${row.executionId}`;
-          const existing = await walletClient.query(
-            `SELECT id FROM customer_wallet_entries WHERE tenant_id=$1 AND idempotency_key=$2`,
-            [row.tenantId,debitKey],
-          );
-          if (!existing.rowCount) {
+          const walletClient = await this.db.connect();
+          try {
+            await walletClient.query('BEGIN');
+            const locked = await walletClient.query(
+              `SELECT id,balance,currency,status FROM customer_wallets
+               WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3 FOR UPDATE`,
+              [row.tenantId,row.customerId,currency],
+            );
+            if (!locked.rowCount || locked.rows[0].status !== 'ACTIVE' || Number(locked.rows[0].balance) < amount) {
+              throw new Error('Wallet balance changed before renewal debit');
+            }
             await walletClient.query(
               `INSERT INTO customer_wallet_entries
                 (tenant_id,wallet_id,entry_type,amount,currency,reference_type,reference_id,idempotency_key,description)
@@ -201,14 +204,14 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
                WHERE tenant_id=$1 AND id=$2`,
               [row.tenantId,locked.rows[0].id,amount],
             );
+            await walletClient.query('COMMIT');
+            debited = true;
+          } catch (e) {
+            await walletClient.query('ROLLBACK').catch(()=>undefined);
+            throw e;
+          } finally {
+            walletClient.release();
           }
-          await walletClient.query('COMMIT');
-          debited = true;
-        } catch (e) {
-          await walletClient.query('ROLLBACK').catch(()=>undefined);
-          throw e;
-        } finally {
-          walletClient.release();
         }
 
         await this.purchases.confirmPayment(row.tenantId,purchase.id,{
