@@ -56,7 +56,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
       if(existing.rowCount){await client.query('COMMIT');return {reused:true,id:existing.rows[0].id};}
       const signed=['PURCHASE','TRANSFER_OUT'].includes(input.entryType) ? -Number(input.amount) : Number(input.amount);
       if(Number(w.rows[0].balance)+signed<0) throw new BadRequestException('Insufficient wallet balance');
-      const entry=await client.query(`INSERT INTO customer_wallet_entries (tenant_id,wallet_id,entry_type,amount,currency,idempotency_key,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[tenantId,w.rows[0].id,input.entryType,input.amount,input.currency.toUpperCase(),input.idempotencyKey,input.description??null]);
+      const entry=await client.query(`INSERT INTO customer_wallet_entries (tenant_id,wallet_id,entry_type,amount,currency,reference_type,reference_id,idempotency_key,description) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,[tenantId,w.rows[0].id,input.entryType,input.amount,input.currency.toUpperCase(),input.referenceType??null,input.referenceId??null,input.idempotencyKey,input.description??null]);
       await client.query(`UPDATE customer_wallets SET balance=balance+$3,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,w.rows[0].id,signed]);
       await client.query('COMMIT'); return {reused:false,id:entry.rows[0].id,balance:Number(w.rows[0].balance)+signed};
     } catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;} finally{client.release();}
@@ -213,11 +213,15 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
               await this.addWalletEntry(row.tenantId,row.customerId,{
                 entryType:'REFUND',
                 amount:Number((await this.db.query(
-                  `SELECT amount FROM customer_wallet_entries WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE' ORDER BY created_at DESC LIMIT 1`,
+                  `SELECT amount FROM customer_wallet_entries
+                   WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE'
+                   ORDER BY created_at DESC LIMIT 1`,
                   [row.tenantId,purchaseId],
                 )).rows[0]?.amount ?? 0),
                 currency:String((await this.db.query(
-                  `SELECT currency FROM customer_wallet_entries WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE' ORDER BY created_at DESC LIMIT 1`,
+                  `SELECT currency FROM customer_wallet_entries
+                   WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE'
+                   ORDER BY created_at DESC LIMIT 1`,
                   [row.tenantId,purchaseId],
                 )).rows[0]?.currency ?? 'TZS'),
                 idempotencyKey:`renewal-refund:${row.executionId}`,
