@@ -22,7 +22,7 @@ const required = [
   ['password strength UX', register.includes('passwordStrength')],
   ['mobile nav control', nav.includes('landing-menu-toggle')],
   ['integration logo markup', landing.includes('jn-integration-logo')],
-  ['integration logo source', landing.includes('https://cdn.simpleicons.org/')],
+  ['local integration logo source', landing.includes('/integrations/') && !landing.includes('https://cdn.simpleicons.org/')],
   ['official logo asset reference', landing.includes('/brand/jaslyn-official.svg')],
   ['official logo in navigation', nav.includes('/brand/jaslyn-official.svg')],
   ['official logo in console chrome', chrome.includes('/brand/jaslyn-official.svg')],
@@ -38,27 +38,31 @@ const assets = [
   'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
 
-const integrationLogoSlugs = [
-  'mikrotik',
-  'ubiquiti',
-  'tplink',
-  'cambiumnetworks',
-  'meraki',
-  'arubanetworks',
-  'grandstream',
-  'ruijie',
-  'ruckuswireless',
-  'openwrt',
-  'teltonika',
-  'peplink',
-  'pfsense',
-  'opnsense',
-  'freeradius',
+const integrationLogoFiles = [
+  'mikrotik.svg',
+  'ubiquiti.svg',
+  'tplink.svg',
+  'cambium-networks.svg',
+  'meraki.svg',
+  'aruba.svg',
+  'grandstream.svg',
+  'ruijie-reyee.svg',
+  'ruckus.svg',
+  'openwrt.svg',
+  'teltonika.svg',
+  'peplink.svg',
+  'pfsense.svg',
+  'opnsense.svg',
+  'freeradius.svg',
 ];
 
-for (const slug of integrationLogoSlugs) {
-  if (!landing.includes(`https://cdn.simpleicons.org/${slug}`)) {
-    throw new Error(`UI verification failed: missing integration logo slug ${slug}`);
+for (const file of integrationLogoFiles) {
+  if (!landing.includes(`/integrations/${file}`)) {
+    throw new Error(`UI verification failed: missing integration logo reference ${file}`);
+  }
+  const assetPath = path.join(root, 'apps/web/public/integrations', file);
+  if (!fs.existsSync(assetPath)) {
+    throw new Error(`UI verification failed: missing integration logo asset ${file}`);
   }
 }
 
@@ -73,4 +77,4 @@ if (login.includes('Supreme Hybrid Network Operating Engine')) {
   throw new Error('UI verification failed: stale public product title remains in landing source');
 }
 
-console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} brand assets, ${integrationLogoSlugs.length} integration brand marks)`);
+console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} brand assets, ${integrationLogoFiles.length} integration brand marks)`);
