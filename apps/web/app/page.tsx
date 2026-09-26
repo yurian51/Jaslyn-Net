@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import LandingNav from './landing-nav';
+import BrandLogo from './brand-logo';
 
 const operatingLayers = [
   ['01', 'Subscriber', 'Customers, service state, devices and the lifecycle behind every connection.'],
@@ -76,7 +77,7 @@ function ProductPreview() {
       <div className="jn-preview-body">
         <aside className="jn-preview-sidebar">
           <div className="jn-preview-brand">
-            <img src="/brand/jaslyn-official.svg" alt="" />
+            <BrandLogo alt="" />
             <span>JASLYN NET<small>OPERATIONS</small></span>
           </div>
           <small className="jn-preview-label">CONTROL PLANE</small>
@@ -399,7 +400,7 @@ export default function Home() {
       <footer className="jn-footer">
         <div>
           <Link href="/" className="jn-footer-brand">
-            <img src="/brand/jaslyn-net-mark.svg" alt="" />
+            <BrandLogo alt="" loading="lazy" />
             <b>JASLYN NET</b>
           </Link>
           <p>Connectivity operations, billing and network control in one system.</p>
