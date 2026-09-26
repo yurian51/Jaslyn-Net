@@ -76,7 +76,7 @@ function ProductPreview() {
       <div className="jn-preview-body">
         <aside className="jn-preview-sidebar">
           <div className="jn-preview-brand">
-            <img src="/brand/jaslyn-net-mark.svg" alt="" />
+            <img src="/brand/jaslyn-official.svg" alt="" />
             <span>JASLYN NET<small>OPERATIONS</small></span>
           </div>
           <small className="jn-preview-label">CONTROL PLANE</small>
