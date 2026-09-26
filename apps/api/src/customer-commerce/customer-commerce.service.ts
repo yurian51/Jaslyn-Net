@@ -35,7 +35,7 @@ export class CustomerCommerceService {
       if(w.rows[0].status!=='ACTIVE') throw new BadRequestException('Wallet is not active');
       const existing=await client.query(`SELECT id FROM customer_wallet_entries WHERE tenant_id=$1 AND idempotency_key=$2`,[tenantId,input.idempotencyKey]);
       if(existing.rowCount){await client.query('COMMIT');return {reused:true,id:existing.rows[0].id};}
-      const signed=Number(input.amount);
+      const signed=['PURCHASE','TRANSFER_OUT'].includes(input.entryType) ? -Number(input.amount) : Number(input.amount);
       if(Number(w.rows[0].balance)+signed<0) throw new BadRequestException('Insufficient wallet balance');
       const entry=await client.query(`INSERT INTO customer_wallet_entries (tenant_id,wallet_id,entry_type,amount,currency,idempotency_key,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[tenantId,w.rows[0].id,input.entryType,input.amount,input.currency.toUpperCase(),input.idempotencyKey,input.description??null]);
       await client.query(`UPDATE customer_wallets SET balance=balance+$3,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,w.rows[0].id,signed]);
