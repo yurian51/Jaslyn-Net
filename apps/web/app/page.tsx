@@ -277,7 +277,7 @@ export default function Home() {
           <div className="jn-integration-grid">
             {integrations.map(({ vendor, protocol, mode, logos }) => (
               <article key={vendor}>
-                <div className="jn-integration-logo-box" aria-hidden="true">
+                <div className="jn-integration-brand" aria-hidden="true">
                   {logos.map((src) => (
                     <img
                       key={src}
@@ -287,6 +287,11 @@ export default function Home() {
                       loading="lazy"
                       decoding="async"
                     />
+                  ))}
+                </div>
+                <div className="jn-integration-watermark" aria-hidden="true">
+                  {logos.map((src) => (
+                    <img key={src} className="jn-integration-watermark-logo" src={src} alt="" loading="lazy" decoding="async" />
                   ))}
                 </div>
                 <div className="jn-integration-copy"><h3>{vendor}</h3><p>{protocol}</p></div>
