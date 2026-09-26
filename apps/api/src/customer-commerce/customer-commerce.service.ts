@@ -1,15 +1,16 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PurchasesService } from '../purchases/purchases.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PG_POOL } from '../database/database.module';
 import { BeneficiaryDto, LimitDto, NotificationPreferenceDto, ReferralDto, RenewalScheduleDto, SavedPurchaseDto, SupportCaseDto, VerificationDto, WalletEntryDto } from './customer-commerce.dto';
 
 @Injectable()
 export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
   private renewalTimer?: NodeJS.Timeout;
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly purchases: PurchasesService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly purchases: PurchasesService, private readonly notifications: NotificationsService) {}
 
-  onModuleInit() { this.renewalTimer = setInterval(() => void this.processDueRenewals(), 30_000); void this.processDueRenewals(); }
+  onModuleInit() { this.renewalTimer = setInterval(() => { void this.processDueRenewals(); void this.reconcileRenewalCompensations(); }, 30_000); void this.processDueRenewals(); void this.reconcileRenewalCompensations(); }
   onModuleDestroy() { if (this.renewalTimer) clearInterval(this.renewalTimer); }
 
   async overview(tenantId:string, customerId:string) {
@@ -78,6 +79,96 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
   async listSupport(tenantId:string,customerId:string){const r=await this.db.query(`SELECT id,category,subject,description,status,priority,purchase_id AS "purchaseId",payment_id AS "paymentId",created_at AS "createdAt",updated_at AS "updatedAt",resolved_at AS "resolvedAt" FROM commerce_support_cases WHERE tenant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 100`,[tenantId,customerId]);return r.rows;}
 
   
+  private async notifyRenewal(tenantId: string, customerId: string, eventType: string, payload: Record<string, unknown>, dedupeKey: string) {
+    const customer = await this.db.query(
+      `SELECT c.phone,c.email,p.preferred_channel AS "preferredChannel",
+              p.transaction_alerts AS "transactionAlerts",p.access_alerts AS "accessAlerts"
+       FROM customers c
+       LEFT JOIN commerce_notification_preferences p
+         ON p.tenant_id=c.tenant_id AND p.customer_id=c.id
+       WHERE c.tenant_id=$1 AND c.id=$2`,
+      [tenantId, customerId],
+    );
+    const row = customer.rows[0];
+    if (!row) return;
+    const isAccess = eventType.includes('ACCESS');
+    const enabled = isAccess ? row.accessAlerts !== false : row.transactionAlerts !== false;
+    if (!enabled) return;
+    const channel = String(row.preferredChannel ?? 'SMS').toUpperCase();
+    const recipient = channel === 'EMAIL' ? row.email : channel === 'WEB' ? customerId : row.phone;
+    if (!recipient) return;
+    await this.notifications.enqueue(tenantId, channel as 'SMS' | 'EMAIL' | 'WHATSAPP' | 'WEBHOOK', recipient, eventType, payload, undefined, dedupeKey);
+  }
+
+  private async reconcileRenewalCompensations() {
+    const client = await this.db.connect();
+    let jobs: any[] = [];
+    try {
+      await client.query('BEGIN');
+      const claimed = await client.query(
+        `SELECT id,tenant_id AS "tenantId",renewal_schedule_id AS "renewalScheduleId",
+                execution_id AS "executionId",purchase_id AS "purchaseId",customer_id AS "customerId",
+                amount,currency
+         FROM commerce_renewal_reconciliations
+         WHERE status IN ('PENDING','FAILED')
+           AND next_attempt_at<=now()
+           AND attempts<8
+         ORDER BY next_attempt_at
+         LIMIT 20
+         FOR UPDATE SKIP LOCKED`,
+      );
+      for (const row of claimed.rows) {
+        await client.query(
+          `UPDATE commerce_renewal_reconciliations
+           SET status='PROCESSING',attempts=attempts+1,updated_at=now()
+           WHERE tenant_id=$1 AND id=$2`,
+          [row.tenantId, row.id],
+        );
+        jobs.push(row);
+      }
+      await client.query('COMMIT');
+    } catch {
+      await client.query('ROLLBACK').catch(() => undefined);
+      return;
+    } finally {
+      client.release();
+    }
+
+    for (const row of jobs) {
+      try {
+        await this.addWalletEntry(row.tenantId, row.customerId, {
+          entryType: 'REFUND',
+          amount: Number(row.amount),
+          currency: String(row.currency).toUpperCase(),
+          idempotencyKey: `renewal-refund:${row.executionId}`,
+          referenceType: 'WIFI_PLAN_PURCHASE',
+          referenceId: row.purchaseId,
+          description: 'Automatic renewal compensation reconciliation',
+        });
+        await this.db.query(
+          `UPDATE commerce_renewal_reconciliations
+           SET status='RESOLVED',resolved_at=now(),last_error=NULL,updated_at=now()
+           WHERE tenant_id=$1 AND id=$2`,
+          [row.tenantId, row.id],
+        );
+        await this.notifyRenewal(row.tenantId, row.customerId, 'RENEWAL_COMPENSATED', {
+          purchaseId: row.purchaseId,
+          amount: Number(row.amount),
+          currency: row.currency,
+        }, `renewal-compensated:${row.executionId}`).catch(() => undefined);
+      } catch (error: any) {
+        await this.db.query(
+          `UPDATE commerce_renewal_reconciliations
+           SET status=CASE WHEN attempts>=8 THEN 'FAILED' ELSE 'PENDING' END,
+               next_attempt_at=now()+make_interval(secs=>LEAST(3600,GREATEST(60,attempts*120))),
+               last_error=$3,updated_at=now()
+           WHERE tenant_id=$1 AND id=$2`,
+          [row.tenantId, row.id, String(error?.message ?? 'Compensation reconciliation failed').slice(0,500)],
+        ).catch(() => undefined);
+      }
+    }
+  }
+
   private async processDueRenewals() {
     const client = await this.db.connect();
     let due: any[] = [];
@@ -229,6 +320,12 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
            WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
           [row.tenantId,row.id,Math.max(1,row.renewalDays||30)],
         );
+        await this.notifyRenewal(row.tenantId, row.customerId, 'RENEWAL_ACCESS_ACTIVATED', {
+          purchaseId: purchase.id,
+          amount,
+          currency,
+          nextRunAt: new Date(Date.now() + Math.max(1, row.renewalDays || 30) * 86400000).toISOString(),
+        }, `renewal-success:${row.executionId}`).catch(() => undefined);
       } catch (error: any) {
         if (debited && purchaseId) {
           try {
@@ -261,16 +358,28 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
                 idempotencyKey:`wallet-payment-failed:${row.executionId}`,
               }).catch(()=>undefined);
               const amount = Number(current.amount ?? 0);
+              const currency = String(current.currency ?? 'TZS').toUpperCase();
               if (amount > 0) {
-                await this.addWalletEntry(row.tenantId,row.customerId,{
-                  entryType:'REFUND',
-                  amount,
-                  currency:String(current.currency ?? 'TZS'),
-                  idempotencyKey:`renewal-refund:${row.executionId}`,
-                  referenceType:'WIFI_PLAN_PURCHASE',
-                  referenceId:purchaseId,
-                  description:'Automatic renewal compensation',
-                });
+                try {
+                  await this.addWalletEntry(row.tenantId,row.customerId,{
+                    entryType:'REFUND',
+                    amount,
+                    currency,
+                    idempotencyKey:`renewal-refund:${row.executionId}`,
+                    referenceType:'WIFI_PLAN_PURCHASE',
+                    referenceId:purchaseId,
+                    description:'Automatic renewal compensation',
+                  });
+                } catch (compensationError: any) {
+                  await this.db.query(
+                    `INSERT INTO commerce_renewal_reconciliations
+                       (tenant_id,renewal_schedule_id,execution_id,purchase_id,customer_id,amount,currency,status,attempts,next_attempt_at,last_error)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,'PENDING',0,now(),$8)
+                     ON CONFLICT (tenant_id,execution_id) DO UPDATE
+                     SET status='PENDING',next_attempt_at=now(),last_error=EXCLUDED.last_error,updated_at=now()`,
+                    [row.tenantId,row.id,row.executionId,purchaseId,row.customerId,amount,currency,String(compensationError?.message ?? 'Compensation failed').slice(0,500)],
+                  );
+                }
               }
             }
           } catch { /* Preserve the renewal failure state; reconciliation can retry compensation. */ }
@@ -283,6 +392,11 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
            WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
           [row.tenantId,row.id,String(error?.message ?? 'Renewal failed').slice(0,500)],
         ).catch(()=>undefined);
+        await this.notifyRenewal(row.tenantId, row.customerId, 'RENEWAL_ACCESS_FAILED', {
+          purchaseId,
+          error: String(error?.message ?? 'Renewal failed').slice(0,300),
+          failureCount: 'tracked-by-schedule',
+        }, `renewal-failure:${row.executionId}`).catch(() => undefined);
       }
     }
   }\n}
