@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS customer_beneficiaries (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, customer_id, beneficiary_customer_id, phone),
+  UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id, beneficiary_customer_id) REFERENCES customers(tenant_id, id) ON DELETE SET NULL,
   FOREIGN KEY (tenant_id, package_id) REFERENCES packages(tenant_id, id) ON DELETE SET NULL,
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS commerce_saved_purchases (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, customer_id, label),
+  UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id, beneficiary_id) REFERENCES customer_beneficiaries(tenant_id, id) ON DELETE SET NULL,
   FOREIGN KEY (tenant_id, package_id) REFERENCES packages(tenant_id, id) ON DELETE RESTRICT,
@@ -170,6 +172,7 @@ CREATE TABLE IF NOT EXISTS commerce_renewal_schedules (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, saved_purchase_id),
   UNIQUE (tenant_id, execution_id),
+  UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id, saved_purchase_id) REFERENCES commerce_saved_purchases(tenant_id, id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id, purchase_id) REFERENCES wifi_plan_purchases(tenant_id, id) ON DELETE SET NULL
