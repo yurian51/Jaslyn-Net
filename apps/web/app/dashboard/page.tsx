@@ -34,6 +34,11 @@ const duration = (value?: string) => {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
 
+const percent = (value: number, total: number) => {
+  if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return null;
+  return Math.round((value / total) * 100);
+};
+
 export default function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,30 +144,57 @@ export default function DashboardPage() {
   const traffic = (data?.sessions ?? []).reduce((sum, session) => sum + (session.bytesIn ?? 0) + (session.bytesOut ?? 0), 0);
   const availability = data?.kpis?.networkAvailability;
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
+  const locations = data?.locations ?? [];
+  const tenantName = data?.tenant?.name ?? 'Tenant workspace';
 
   return (
     <main className="overview-page">
       <header className="overview-header">
-        <div>
+        <div className="overview-heading">
           <div className="eyebrow">JASLYN NET / CONTROL CENTER</div>
           <h1>Network operations overview</h1>
           <p className="context">Technical state, customer state and business state in one operator view.</p>
         </div>
-        <div className="top-actions">
-          <a className="selector dashboard-action" href="/network">Network fabric</a>
-          <a className="selector dashboard-action" href="/sessions">Live sessions</a>
-          <span aria-live="polite" className={`data-state ${connection === 'offline' || connection === 'degraded' ? 'danger' : ''}`}><i /> {connection === 'offline' ? 'OFFLINE / LAST STATE' : connection === 'degraded' ? 'DEGRADED / LAST STATE' : loading ? 'REFRESHING' : connection === 'checking' ? 'CHECKING API' : 'LIVE API DATA'}{lastUpdatedAt ? ` · ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-          <button className="selector" type="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh telemetry'}</button>
+        <div className="overview-operator-meta">
+          <span><b>{tenantName}</b><small>{data?.tenant?.timezone ?? 'Tenant timezone configured'}</small></span>
+          <span aria-live="polite" className={'data-state-inline ' + (connection === 'offline' || connection === 'degraded' ? 'danger' : '')}>
+            <i /> {connection === 'offline' ? 'Offline / last state' : connection === 'degraded' ? 'Degraded / last state' : loading ? 'Refreshing' : connection === 'checking' ? 'Checking API' : 'Live API data'}
+            {lastUpdatedAt ? ' · ' + lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+          </span>
         </div>
       </header>
 
+      <nav className="dashboard-commandbar" aria-label="Dashboard commands">
+        <div className="commandbar-primary">
+          <a href="/network"><span>Network</span><small>Fabric &amp; devices</small></a>
+          <a href="/sessions"><span>Sessions</span><small>Live connections</small></a>
+          <a href="/customers"><span>Customers</span><small>Subscriber state</small></a>
+          <a href="/payments"><span>Payments</span><small>Transactions &amp; status</small></a>
+        </div>
+        <button className="commandbar-refresh" type="button" onClick={() => void load()} disabled={loading}>
+          <i />{loading ? 'Refreshing telemetry' : 'Refresh telemetry'}
+        </button>
+      </nav>
+
       {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
 
-      <section className="kpi-grid overview-kpis" aria-label="Network and business KPIs">
-        <article className="kpi"><div className="kpi-label"><span>Monthly revenue</span><b>BILLING</b></div><strong>{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}</strong><div className="kpi-foot"><span>API</span><small>successful payment value</small></div></article>
-        <article className="kpi"><div className="kpi-label"><span>Active customers</span><b>CUSTOMERS</b></div><strong>{data ? n(data.kpis?.activeCustomers ?? 0) : '—'}</strong><div className="kpi-foot"><span>LIVE</span><small>tenant subscriber accounts</small></div></article>
-        <article className="kpi"><div className="kpi-label"><span>Online sessions</span><b>ACCESS</b></div><strong>{data ? n(data.kpis?.onlineSessions ?? 0) : '—'}</strong><div className="kpi-foot"><span>LIVE</span><small>current network connections</small></div></article>
-        <article className="kpi"><div className="kpi-label"><span>Network availability</span><b>FABRIC</b></div><strong>{availability == null ? '—' : `${availability}%`}</strong><div className="kpi-foot"><span>{network.offline ? 'ATTENTION' : 'STATUS'}</span><small>{network.online}/{network.totalRouters} routers online</small></div></article>
+      <section className="overview-kpis" aria-label="Network and business KPIs">
+        <article className="overview-kpi">
+          <div className="overview-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M6 11h12M8 15h8M10 19h4" /></svg></div>
+          <div><span className="kpi-label">Monthly revenue</span><strong>{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}</strong><small>Successful payment value</small></div>
+        </article>
+        <article className="overview-kpi">
+          <div className="overview-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" /><path d="M3.5 20c.6-3.3 2.5-5 5.5-5s4.9 1.7 5.5 5M16 10a2.5 2.5 0 1 0 0-5M16.5 15c2.3.2 3.8 1.7 4.3 5" /></svg></div>
+          <div><span className="kpi-label">Active customers</span><strong>{data ? n(data.kpis?.activeCustomers ?? 0) : '—'}</strong><small>Tenant subscriber accounts</small></div>
+        </article>
+        <article className="overview-kpi">
+          <div className="overview-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8a10 10 0 0 1 14 0M8 11a6 6 0 0 1 8 0M11 14a2 2 0 0 1 2 0M12 19h.01" /></svg></div>
+          <div><span className="kpi-label">Online sessions</span><strong>{data ? n(data.kpis?.onlineSessions ?? 0) : '—'}</strong><small>Current network connections</small></div>
+        </article>
+        <article className="overview-kpi">
+          <div className="overview-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 5.5v6.5l4 2.3" /></svg></div>
+          <div><span className="kpi-label">Network availability</span><strong>{availability == null ? '—' : availability + '%'}</strong><small>{network.online}/{network.totalRouters} routers online</small></div>
+        </article>
       </section>
 
       <section className={`operations-strip ${attentionItems ? 'has-attention' : ''}`} aria-label="Operational attention summary">
@@ -199,6 +231,35 @@ export default function DashboardPage() {
           <div className="panel-head"><div><div className="panel-kicker">SYSTEM INTEGRITY</div><h2>Operational truth</h2><p>Cross-domain consistency signals.</p></div><span className={`panel-badge ${integrityIssues ? 'badge-danger' : ''}`}>{data ? integrityIssues : '—'} ISSUES</span></div>
           <div className="truth-grid"><div><b>{operations.networkCommands.pending}</b><span>Commands pending</span></div><div><b>{operations.networkCommands.failed}</b><span>Commands failed</span></div><div><b>{operations.sessions.stale}</b><span>Stale sessions</span></div><div><b>{operations.sessions.accountingLagging}</b><span>Accounting lagging</span></div><div><b>{operations.access.expiredButActive}</b><span>Expired access active</span></div><div><b>{operations.access.expiring24h}</b><span>Expiring in 24h</span></div></div>
           {integrityIssues > 0 && <div className="notice"><strong>Operator attention required.</strong> {integrityIssues} consistency signal{integrityIssues === 1 ? '' : 's'} returned by the API.</div>}
+        </article>
+      </section>
+
+      <section className="overview-grid overview-tertiary">
+        <article className="panel overview-panel">
+          <div className="panel-head"><div><div className="panel-kicker">SITE FOOTPRINT</div><h2>Locations</h2><p>Tenant locations and their returned router/user state.</p></div><a className="panel-badge" href="/network">OPEN NETWORK →</a></div>
+          <div className="location-list">
+            {locations.length ? locations.slice(0, 8).map((location, index) => {
+              const routerTotal = location.routers ?? 0;
+              const routerOnline = location.onlineRouters ?? 0;
+              const health = percent(routerOnline, routerTotal);
+              return <div className="location-row" key={index}>
+                <span><i aria-hidden="true" /><strong>{location.name ?? 'Unnamed location'}</strong></span>
+                <span>{n(location.activeUsers ?? 0)} active users</span>
+                <span>{routerOnline}/{routerTotal} routers</span>
+                <b className={health == null ? 'neutral' : health >= 100 ? 'good' : health > 0 ? 'warn' : 'bad'}>{health == null ? '—' : health + '%'}</b>
+              </div>;
+            }) : <div className="overview-empty compact"><strong>No location records returned.</strong><span>Location telemetry will appear here when the API returns it.</span></div>}
+          </div>
+        </article>
+
+        <article className="panel overview-panel posture-panel">
+          <div className="panel-head"><div><div className="panel-kicker">ACCESS POSTURE</div><h2>Entitlement state</h2><p>Access validity signals returned by the API.</p></div><span className="panel-badge">{operations.access.expiring24h ? operations.access.expiring24h + ' EXPIRING' : 'STABLE'}</span></div>
+          <div className="posture-list">
+            <div><span>Valid active access</span><strong>{n(operations.access.activeValid)}</strong></div>
+            <div><span>Expired but still active</span><strong className={operations.access.expiredButActive ? 'bad-text' : ''}>{n(operations.access.expiredButActive)}</strong></div>
+            <div><span>Expiring within 24h</span><strong className={operations.access.expiring24h ? 'warn-text' : ''}>{n(operations.access.expiring24h)}</strong></div>
+            <div><span>Payment failures</span><strong className={data?.kpis?.paymentFailures ? 'bad-text' : ''}>{data ? n(data.kpis?.paymentFailures ?? 0) : '—'}</strong></div>
+          </div>
         </article>
       </section>
 
