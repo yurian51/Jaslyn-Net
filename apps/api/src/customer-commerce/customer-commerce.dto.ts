@@ -50,3 +50,8 @@ export class SupportCaseDto {
   @IsOptional() @IsUUID() paymentId?: string;
 }
 export class ReferralDto { @IsString() code!: string; }
+export class RenewalScheduleDto {
+  @IsUUID() savedPurchaseId!: string;
+  @IsString() nextRunAt!: string;
+  @IsIn(['ACTIVE','PAUSED']) status?: string;
+}
