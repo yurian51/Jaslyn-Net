@@ -10,6 +10,8 @@ const register = read('apps/web/app/register/page.tsx');
 const login = read('apps/web/app/login/page.tsx');
 const nav = read('apps/web/app/landing-nav.tsx');
 const chrome = read('apps/web/app/console-chrome.tsx');
+const dashboard = read('apps/web/app/dashboard/page.tsx');
+const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
@@ -31,7 +33,13 @@ const required = [
   ['official logo in navigation', nav.includes("BrandLogo")],
   ['official logo in console chrome', chrome.includes("BrandLogo")],
   ['official logo in auth', login.includes("BrandLogo") && register.includes("BrandLogo")],
-  ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-track')],
+  ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-progress')],
+  ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
+  ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
+  ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
+  ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
+  ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
+
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
   ['loading stylesheet', layout.includes("import './loading.css';")],
   ['no superseded generated logo references', !landing.includes('jaslyn-official.svg') && !nav.includes('jaslyn-official.svg') && !chrome.includes('jaslyn-official.svg') && !login.includes('jaslyn-official.svg') && !register.includes('jaslyn-official.svg')],
