@@ -79,31 +79,163 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
 
   
   private async processDueRenewals() {
-    const due=await this.db.query(`SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",s.router_id AS "routerId",s.renewal_days AS "renewalDays" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.status='ACTIVE' AND s.active=true AND s.auto_renew=true AND r.next_run_at<=now() ORDER BY r.next_run_at LIMIT 20`);
-    for(const row of due.rows) {
+    const client = await this.db.connect();
+    let due: any[] = [];
+    try {
+      await client.query('BEGIN');
+      await client.query(`
+        UPDATE commerce_renewal_schedules
+        SET status='ACTIVE', claimed_at=NULL, execution_id=NULL, updated_at=now()
+        WHERE status='PROCESSING'
+          AND claimed_at IS NOT NULL
+          AND claimed_at < now() - interval '10 minutes'
+      `);
+      const claimed = await client.query(`
+        SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",
+               r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",
+               s.router_id AS "routerId",s.renewal_days AS "renewalDays",
+               r.execution_id AS "executionId"
+        FROM commerce_renewal_schedules r
+        JOIN commerce_saved_purchases s
+          ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id
+        WHERE r.status='ACTIVE'
+          AND s.active=true
+          AND s.auto_renew=true
+          AND r.next_run_at<=now()
+        ORDER BY r.next_run_at
+        LIMIT 20
+        FOR UPDATE OF r SKIP LOCKED
+      `);
+      for (const row of claimed.rows) {
+        const claim = await client.query(`
+          UPDATE commerce_renewal_schedules
+          SET status='PROCESSING', claimed_at=now(), execution_id=gen_random_uuid(), updated_at=now()
+          WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE'
+          RETURNING execution_id AS "executionId"
+        `, [row.tenantId, row.id]);
+        if (claim.rowCount) due.push({...row, executionId: claim.rows[0].executionId});
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      return;
+    } finally {
+      client.release();
+    }
+
+    for (const row of due) {
+      let debited = false;
+      let purchaseId: string | null = null;
       try {
-        const wallet=await this.db.query(`SELECT id,balance,currency,status FROM customer_wallets WHERE tenant_id=$1 AND customer_id=$2 AND currency='TZS' FOR UPDATE`,[row.tenantId,row.customerId]);
-        const plan=await this.db.query(`SELECT price,currency FROM packages WHERE tenant_id=$1 AND id=$2 AND is_active=true`,[row.tenantId,row.packageId]);
-        if(!wallet.rowCount || wallet.rows[0].status!=='ACTIVE' || !plan.rowCount) throw new Error('Renewal prerequisites unavailable');
-        const amount=Number(plan.rows[0].price);
-        if(wallet.rows[0].currency!==plan.rows[0].currency || Number(wallet.rows[0].balance)<amount) throw new Error('Insufficient wallet balance or currency mismatch');
-        const idem=`renewal:${row.id}:${new Date().toISOString().slice(0,10)}`;
-        const existing=await this.db.query(`SELECT id FROM customer_wallet_entries WHERE tenant_id=$1 AND idempotency_key=$2`,[row.tenantId,idem]);
-        if(existing.rowCount) { await this.db.query(`UPDATE commerce_renewal_schedules SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),last_run_at=now(),failure_count=0,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id,Math.max(1,row.renewalDays||30)]); continue; }
-        const purchase=await this.purchases.create(row.tenantId,{customerId:row.customerId,packageId:row.packageId,routerId:row.routerId});
-        await this.db.query('BEGIN');
+        const plan = await this.db.query(
+          `SELECT price,currency FROM packages WHERE tenant_id=$1 AND id=$2 AND is_active=true`,
+          [row.tenantId,row.packageId],
+        );
+        if (!plan.rowCount) throw new Error('Renewal package unavailable');
+
+        const amount = Number(plan.rows[0].price);
+        const currency = String(plan.rows[0].currency).toUpperCase();
+        const walletCheck = await this.db.query(
+          `SELECT id,balance,currency,status FROM customer_wallets
+           WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3`,
+          [row.tenantId,row.customerId,currency],
+        );
+        if (!walletCheck.rowCount || walletCheck.rows[0].status !== 'ACTIVE' || Number(walletCheck.rows[0].balance) < amount) {
+          throw new Error('Insufficient wallet balance or inactive wallet');
+        }
+
+        const purchase = await this.purchases.create(row.tenantId, {
+          customerId: row.customerId,
+          packageId: row.packageId,
+          routerId: row.routerId,
+        });
+        purchaseId = purchase.id;
+
+        const walletClient = await this.db.connect();
         try {
-          const locked=await this.db.query(`SELECT id,balance FROM customer_wallets WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3 FOR UPDATE`,[row.tenantId,row.customerId,plan.rows[0].currency]);
-          if(!locked.rowCount || Number(locked.rows[0].balance)<amount) throw new Error('Wallet balance changed before debit');
-          await this.db.query(`INSERT INTO customer_wallet_entries (tenant_id,wallet_id,entry_type,amount,currency,reference_type,reference_id,idempotency_key,description) VALUES ($1,$2,'PURCHASE',$3,$4,'WIFI_PLAN_PURCHASE',$5,$6,'Automatic renewal')`,[row.tenantId,locked.rows[0].id,amount,plan.rows[0].currency,purchase.id,idem]);
-          await this.db.query(`UPDATE customer_wallets SET balance=balance-$3,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,locked.rows[0].id,amount]);
-          await this.db.query('COMMIT');
-        } catch(e) { await this.db.query('ROLLBACK').catch(()=>undefined); throw e; }
-        await this.purchases.confirmPayment(row.tenantId,purchase.id,{provider:'manual',providerReference:`wallet-renewal:${row.id}:${purchase.id}`,status:'SUCCESS',idempotencyKey:`wallet-payment:${purchase.id}`});
-        await this.db.query(`UPDATE commerce_renewal_schedules SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),last_run_at=now(),failure_count=0,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id,Math.max(1,row.renewalDays||30)]);
-      } catch {
-        await this.db.query(`UPDATE commerce_renewal_schedules SET failure_count=failure_count+1,status=CASE WHEN failure_count+1>=5 THEN 'FAILED' ELSE status END,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[row.tenantId,row.id]).catch(()=>undefined);
+          await walletClient.query('BEGIN');
+          const locked = await walletClient.query(
+            `SELECT id,balance,currency,status FROM customer_wallets
+             WHERE tenant_id=$1 AND customer_id=$2 AND currency=$3 FOR UPDATE`,
+            [row.tenantId,row.customerId,currency],
+          );
+          if (!locked.rowCount || locked.rows[0].status !== 'ACTIVE' || Number(locked.rows[0].balance) < amount) {
+            throw new Error('Wallet balance changed before renewal debit');
+          }
+
+          const debitKey = `renewal-debit:${row.executionId}`;
+          const existing = await walletClient.query(
+            `SELECT id FROM customer_wallet_entries WHERE tenant_id=$1 AND idempotency_key=$2`,
+            [row.tenantId,debitKey],
+          );
+          if (!existing.rowCount) {
+            await walletClient.query(
+              `INSERT INTO customer_wallet_entries
+                (tenant_id,wallet_id,entry_type,amount,currency,reference_type,reference_id,idempotency_key,description)
+               VALUES ($1,$2,'PURCHASE',$3,$4,'WIFI_PLAN_PURCHASE',$5,$6,'Automatic renewal')`,
+              [row.tenantId,locked.rows[0].id,amount,currency,purchase.id,debitKey],
+            );
+            await walletClient.query(
+              `UPDATE customer_wallets SET balance=balance-$3,updated_at=now()
+               WHERE tenant_id=$1 AND id=$2`,
+              [row.tenantId,locked.rows[0].id,amount],
+            );
+          }
+          await walletClient.query('COMMIT');
+          debited = true;
+        } catch (e) {
+          await walletClient.query('ROLLBACK').catch(()=>undefined);
+          throw e;
+        } finally {
+          walletClient.release();
+        }
+
+        await this.purchases.confirmPayment(row.tenantId,purchase.id,{
+          provider:'manual',
+          providerReference:`wallet-renewal:${row.executionId}`,
+          status:'SUCCESS',
+          idempotencyKey:`wallet-payment:${row.executionId}`,
+        });
+
+        await this.db.query(
+          `UPDATE commerce_renewal_schedules
+           SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),
+               last_run_at=now(),failure_count=0,status='ACTIVE',
+               claimed_at=NULL,execution_id=NULL,last_error=NULL,updated_at=now()
+           WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
+          [row.tenantId,row.id,Math.max(1,row.renewalDays||30)],
+        );
+      } catch (error: any) {
+        if (debited && purchaseId) {
+          try {
+            const current = await this.purchases.get(row.tenantId,purchaseId);
+            if (current.status !== 'PAID' && current.accessStatus !== 'ACTIVE') {
+              await this.addWalletEntry(row.tenantId,row.customerId,{
+                entryType:'REFUND',
+                amount:Number((await this.db.query(
+                  `SELECT amount FROM customer_wallet_entries WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE' ORDER BY created_at DESC LIMIT 1`,
+                  [row.tenantId,purchaseId],
+                )).rows[0]?.amount ?? 0),
+                currency:String((await this.db.query(
+                  `SELECT currency FROM customer_wallet_entries WHERE tenant_id=$1 AND reference_id=$2 AND entry_type='PURCHASE' ORDER BY created_at DESC LIMIT 1`,
+                  [row.tenantId,purchaseId],
+                )).rows[0]?.currency ?? 'TZS'),
+                idempotencyKey:`renewal-refund:${row.executionId}`,
+                referenceType:'WIFI_PLAN_PURCHASE',
+                referenceId:purchaseId,
+                description:'Automatic renewal compensation',
+              });
+            }
+          } catch { /* Preserve the renewal failure state; compensation is retried by reconciliation. */ }
+        }
+        await this.db.query(
+          `UPDATE commerce_renewal_schedules
+           SET failure_count=failure_count+1,
+               status=CASE WHEN failure_count+1>=5 THEN 'FAILED' ELSE 'ACTIVE' END,
+               claimed_at=NULL,execution_id=NULL,last_error=$3,updated_at=now()
+           WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
+          [row.tenantId,row.id,String(error?.message ?? 'Renewal failed').slice(0,500)],
+        ).catch(()=>undefined);
       }
     }
-  }
-}
+  }\n}
