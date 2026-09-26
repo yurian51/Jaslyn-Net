@@ -17,12 +17,38 @@ const required = [
   ['confirm password field', register.includes('confirmPassword')],
   ['password strength UX', register.includes('passwordStrength')],
   ['mobile nav control', nav.includes('landing-menu-toggle')],
+  ['integration logo markup', landing.includes('jn-integration-logo')],
+  ['integration logo source', landing.includes('https://cdn.simpleicons.org/'),
 ];
 
 const assets = [
   'apps/web/public/brand/jaslyn-net-mark.svg',
   'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
+
+const integrationLogoSlugs = [
+  'mikrotik',
+  'ubiquiti',
+  'tplink',
+  'cambiumnetworks',
+  'meraki',
+  'arubanetworks',
+  'grandstream',
+  'ruijie',
+  'ruckuswireless',
+  'openwrt',
+  'teltonika',
+  'peplink',
+  'pfsense',
+  'opnsense',
+  'freeradius',
+];
+
+for (const slug of integrationLogoSlugs) {
+  if (!landing.includes(`https://cdn.simpleicons.org/${slug}`)) {
+    throw new Error(`UI verification failed: missing integration logo slug ${slug}`);
+  }
+}
 
 for (const [label, ok] of required) {
   if (!ok) throw new Error(`UI verification failed: ${label}`);
@@ -35,4 +61,4 @@ if (landing.includes('Supreme Hybrid Network Operating Engine')) {
   throw new Error('UI verification failed: stale public product title remains in landing source');
 }
 
-console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} assets)`);
+console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} assets, ${integrationLogoSlugs.length} integration brand marks)`);
