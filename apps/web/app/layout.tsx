@@ -9,11 +9,12 @@ import './auth.css';
 import './legal/legal.css';
 import './console-system-ui.css';
 import './landing.css';
+import './premium.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
-  title: 'JASLYN NET | Supreme Hybrid Network Operating Engine',
-  description: 'JASLYN NET is a hybrid WiFi billing, AAA, captive portal, payment and network operations platform.',
+  title: 'JASLYN NET | Connectivity & ISP Operating System',
+  description: 'JASLYN NET connects customers, services, payments, sessions and network operations in one connectivity control plane.',
   icons: {
     icon: '/brand/Jaslyn net brand J (1).svg',
     apple: '/brand/Jaslyn net brand J (1).svg',
