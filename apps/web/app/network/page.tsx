@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
+import BrandLogo from '../brand-logo';
 
 type Router = {
   id: string;
@@ -46,9 +47,23 @@ const MANAGEMENT_PROTOCOLS = [
 ] as const;
 
 const INITIAL_FORM = {
-  name: '', vendor: '', model: '', ipAddress: '', macAddress: '', osVersion: '',
-  apiEndpoint: '', managementProtocol: 'MIKROTIK_REST', managementEnabled: true,
-  controllerEndpoint: '', username: '', password: '', apiKey: '', clientId: '', clientSecret: '', accessToken: '', refreshToken: '',
+  name: '',
+  vendor: '',
+  model: '',
+  ipAddress: '',
+  macAddress: '',
+  osVersion: '',
+  apiEndpoint: '',
+  managementProtocol: 'MIKROTIK_REST',
+  managementEnabled: true,
+  controllerEndpoint: '',
+  username: '',
+  password: '',
+  apiKey: '',
+  clientId: '',
+  clientSecret: '',
+  accessToken: '',
+  refreshToken: '',
 };
 
 type DeviceForm = typeof INITIAL_FORM;
@@ -59,27 +74,55 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? 'Invalid timestamp' : date.toLocaleString();
 }
 
+function Icon({ name }: { name: 'network' | 'plus' | 'refresh' | 'router' | 'users' | 'alert' | 'offline' | 'close' | 'search' }) {
+  const paths = {
+    network: <><rect x="4" y="4" width="16" height="12" rx="2" /><path d="M8 20h8M12 16v4M8 9h8M8 12h5" /></>,
+    plus: <><path d="M12 5v14M5 12h14" /></>,
+    refresh: <><path d="M20 11a8 8 0 0 0-14.8-4.1L4 9" /><path d="M4 5v4h4" /><path d="M4 13a8 8 0 0 0 14.8 4.1L20 15" /><path d="M20 19v-4h-4" /></>,
+    router: <><rect x="4" y="7" width="16" height="10" rx="2" /><path d="M8 11h.01M12 11h.01M16 11h.01M8 14h8" /></>,
+    users: <><circle cx="9" cy="8" r="3" /><path d="M3.8 19c.5-3.1 2.1-4.7 5.2-4.7s4.7 1.6 5.2 4.7" /><path d="M15 6.5a3 3 0 0 1 0 5.8M17.1 14.4c1.8.5 3 1.8 3.5 4.6" /></>,
+    alert: <><path d="m12 3 9 17H3L12 3Z" /><path d="M12 9v4M12 16h.01" /></>,
+    offline: <><path d="M4 4l16 16" /><path d="M6 9a9 9 0 0 1 8.6-2.1M9 13a5 5 0 0 1 3-1M14 16.5a2.4 2.4 0 0 1-4 1.7" /></>,
+    close: <path d="m7 7 10 10M17 7 7 17" />,
+    search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></>,
+  } as const;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
 export default function NetworkPage() {
   const [routers, setRouters] = useState<Router[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
   const [form, setForm] = useState<DeviceForm>(INITIAL_FORM);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) { setError('Authentication required.'); setLoading(false); return; }
-    setLoading(true); setError(null);
+    if (!token) {
+      setError('Authentication required.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
     try {
-      const response = await apiFetch<RouterResponse>('/routers', { headers: { Authorization: `Bearer ${token}` } });
+      const response = await apiFetch<RouterResponse>('/routers', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setRouters(Array.isArray(response.data) ? response.data : []);
     } catch (cause: unknown) {
       setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load network devices.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function setField<K extends keyof DeviceForm>(key: K, value: DeviceForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -88,24 +131,51 @@ export default function NetworkPage() {
   async function createDevice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = getAccessToken();
-    if (!token) { setError('Authentication required.'); return; }
-    if (!form.name.trim()) { setError('Device name is required.'); return; }
-    if (!form.vendor.trim()) { setError('Vendor is required so Jaslyn Net can select the correct management integration.'); return; }
-    setSaving(true); setError(null);
+
+    if (!token) {
+      setError('Authentication required.');
+      return;
+    }
+
+    if (!form.name.trim()) {
+      setError('Device name is required.');
+      return;
+    }
+
+    if (!form.vendor.trim()) {
+      setError('Vendor is required so Jaslyn Net can select the correct management integration.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
     const credentials = Object.fromEntries(
       Object.entries({
-        apiKey: form.apiKey, username: form.username, password: form.password,
-        clientId: form.clientId, clientSecret: form.clientSecret, accessToken: form.accessToken, refreshToken: form.refreshToken,
+        apiKey: form.apiKey,
+        username: form.username,
+        password: form.password,
+        clientId: form.clientId,
+        clientSecret: form.clientSecret,
+        accessToken: form.accessToken,
+        refreshToken: form.refreshToken,
       }).filter(([, value]) => value.trim()),
     );
+
     const body = {
-      name: form.name.trim(), vendor: form.vendor.trim(), model: form.model.trim() || undefined,
-      ipAddress: form.ipAddress.trim() || undefined, macAddress: form.macAddress.trim() || undefined,
-      osVersion: form.osVersion.trim() || undefined, apiEndpoint: form.apiEndpoint.trim() || undefined,
-      managementProtocol: form.managementProtocol || undefined, managementEnabled: form.managementEnabled,
+      name: form.name.trim(),
+      vendor: form.vendor.trim(),
+      model: form.model.trim() || undefined,
+      ipAddress: form.ipAddress.trim() || undefined,
+      macAddress: form.macAddress.trim() || undefined,
+      osVersion: form.osVersion.trim() || undefined,
+      apiEndpoint: form.apiEndpoint.trim() || undefined,
+      managementProtocol: form.managementProtocol || undefined,
+      managementEnabled: form.managementEnabled,
       controllerEndpoint: form.controllerEndpoint.trim() || undefined,
       ...(Object.keys(credentials).length ? { managementCredentials: credentials } : {}),
     };
+
     try {
       await apiFetch<Router>('/routers', {
         method: 'POST',
@@ -117,7 +187,9 @@ export default function NetworkPage() {
       await load();
     } catch (cause: unknown) {
       setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to register network device.');
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
   const online = routers.filter((router) => router.status === 'ONLINE').length;
@@ -125,104 +197,206 @@ export default function NetworkPage() {
   const offline = routers.filter((router) => router.status === 'OFFLINE').length;
   const users = routers.reduce((sum, router) => sum + Number(router.activeUsers ?? 0), 0);
 
+  const filteredRouters = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return routers;
+    return routers.filter((router) =>
+      `${router.name} ${router.vendor ?? ''} ${router.model ?? ''} ${router.ipAddress ?? ''} ${router.status ?? ''} ${router.managementProtocol ?? ''}`.toLowerCase().includes(normalized),
+    );
+  }, [query, routers]);
+
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><img src="/brand/file_000000006450821195473e1e14153e8a.svg" alt="" /></div><div><span>JASLYN NET</span><small>Network operations platform</small></div></div>
-        <div className="workspace-switch"><span className="workspace-dot"/> Global Workspace <span>⌄</span></div>
-        <nav className="nav"><p className="nav-section">OPERATIONS</p>
-          <a className="nav-item" href="/dashboard"><span className="nav-icon">⌂</span>Overview</a>
-          <a className="nav-item" href="/customers"><span className="nav-icon">◉</span>Customers</a>
-          <a className="nav-item" href="/sessions"><span className="nav-icon">◌</span>Sessions</a>
-          <a className="nav-item active" href="/network" aria-current="page"><span className="nav-icon">⌁</span>Network</a>
-          <a className="nav-item" href="/ipam"><span className="nav-icon">#</span>IPAM</a>
-          <a className="nav-item" href="/purchases"><span className="nav-icon">₮</span>Purchases</a>
-          <a className="nav-item" href="/packages"><span className="nav-icon">▣</span>Plans &amp; Products</a>
-          <a className="nav-item" href="/audit"><span className="nav-icon">◈</span>Security &amp; Audit</a>
-        </nav>
-        <div className="sidebar-status"><span className="pulse"/><div><strong>{error ? 'API unavailable' : 'Network monitor'}</strong><small>{error ?? `${routers.length} devices loaded`}</small></div></div>
-        <div className="profile"><div className="avatar"><img src="/brand/file_000000006450821195473e1e14153e8a.svg" alt="" /></div><div><strong>JASLYN NET</strong><small>Tenant workspace</small></div></div>
-      </aside>
-      <section className="content">
-        <header className="topbar"><div><div className="eyebrow">JASLYN NET / NETWORK</div><h1>Network operations</h1><p className="context">Register routers, gateways and managed network devices, then monitor their operational state.</p></div><div className="top-actions"><button className="selector primary-action" onClick={() => { setError(null); setShowCreate(true); }}>+ Add device</button><button className="selector" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh devices'}</button></div></header>
-        {error && <div className="error-banner" role="alert">{error}</div>}
+    <main className="network-page">
+      <header className="network-header">
+        <div className="network-title">
+          <div className="network-brand"><BrandLogo alt="JASLYN NET" /></div>
+          <div>
+            <span>JASLYN NET · NETWORK</span>
+            <h1>Network operations</h1>
+            <p>Manage routers, gateways and network infrastructure from one tenant-scoped control surface.</p>
+          </div>
+        </div>
+        <div className="network-actions">
+          <button className="network-button secondary" type="button" onClick={() => void load()} disabled={loading}>
+            <Icon name="refresh" />
+            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
+          <button className="network-button primary" type="button" onClick={() => { setError(null); setShowCreate(true); }}>
+            <Icon name="plus" />
+            <span>Add device</span>
+          </button>
+        </div>
+      </header>
 
-        {showCreate && <section className="panel device-provisioning" aria-label="Add network device">
-          <div className="panel-head"><div><div className="panel-kicker">DEVICE PROVISIONING</div><h2>Add network device</h2><p>Register the device in this tenant. Credentials are encrypted by the API and never returned to the browser.</p></div><button className="close-button" type="button" onClick={() => { setShowCreate(false); setError(null); }}>Close</button></div>
-          <div className="device-presets" aria-label="Device type presets">
-  <span>Quick setup</span>
-  <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'MikroTik Router', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST', apiEndpoint: '' })}>MikroTik</button>
-  <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Omada EAP', vendor: 'TP-Link Omada', managementProtocol: 'OMADA_CONTROLLER_API' })}>Omada EAP</button>
-  <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'RADIUS AP', vendor: 'RADIUS NAS', managementProtocol: 'RADIUS_NAS' })}>RADIUS AP</button>
-  <a href="/isp">My sites →</a>
-</div>
-<form className="device-form" onSubmit={createDevice}>
-            <div className="form-section"><div className="form-section-title">Identity</div><div className="form-grid">
-              <label>Device name *<input required maxLength={120} value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="Nduruma Core Router"/></label>
-              <label>Vendor *<input required maxLength={60} value={form.vendor} onChange={(e) => setField('vendor', e.target.value)} placeholder="MikroTik"/></label>
-              <label>Model<input maxLength={80} value={form.model} onChange={(e) => setField('model', e.target.value)} placeholder="CCR2004-1G-12S+2XS"/></label>
-              <label>IP address<input maxLength={45} value={form.ipAddress} onChange={(e) => setField('ipAddress', e.target.value)} placeholder="192.168.88.1"/></label>
-              <label>MAC address<input maxLength={64} value={form.macAddress} onChange={(e) => setField('macAddress', e.target.value)} placeholder="AA:BB:CC:DD:EE:FF"/></label>
-              <label>OS / firmware<input maxLength={80} value={form.osVersion} onChange={(e) => setField('osVersion', e.target.value)} placeholder="RouterOS 7"/></label>
-            </div></div>
-            <div className="form-section"><div className="form-section-title">Management</div><div className="form-grid">
-              <label>Management protocol<select value={form.managementProtocol} onChange={(e) => setField('managementProtocol', e.target.value)}>{MANAGEMENT_PROTOCOLS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>Device API endpoint<input type="url" maxLength={300} value={form.apiEndpoint} onChange={(e) => setField('apiEndpoint', e.target.value)} placeholder="https://192.168.88.1/rest"/></label>
-              <label>Controller endpoint<input type="url" maxLength={300} value={form.controllerEndpoint} onChange={(e) => setField('controllerEndpoint', e.target.value)} placeholder="https://controller.example.com"/></label>
-              <label className="toggle-label"><span>Management enabled</span><input type="checkbox" checked={form.managementEnabled} onChange={(e) => setField('managementEnabled', e.target.checked)}/></label>
-            </div></div>
-            <div className="form-section"><div className="form-section-title">Credentials <small>optional, encrypted at rest</small></div><div className="form-grid">
-              <label>Username<input autoComplete="off" maxLength={160} value={form.username} onChange={(e) => setField('username', e.target.value)} placeholder="admin"/></label>
-              <label>Password<input type="password" autoComplete="new-password" maxLength={500} value={form.password} onChange={(e) => setField('password', e.target.value)} placeholder="Device password"/></label>
-              <label>API key<input type="password" autoComplete="off" maxLength={500} value={form.apiKey} onChange={(e) => setField('apiKey', e.target.value)} placeholder="API key"/></label>
-              <label>Client ID<input autoComplete="off" maxLength={300} value={form.clientId} onChange={(e) => setField('clientId', e.target.value)} placeholder="Client ID"/></label>
-              <label>Client secret<input type="password" autoComplete="new-password" maxLength={500} value={form.clientSecret} onChange={(e) => setField('clientSecret', e.target.value)} placeholder="Client secret"/></label>
-              <label>Access token<input type="password" autoComplete="off" maxLength={2000} value={form.accessToken} onChange={(e) => setField('accessToken', e.target.value)} placeholder="Access token"/></label>
-              <label>Refresh token<input type="password" autoComplete="off" maxLength={2000} value={form.refreshToken} onChange={(e) => setField('refreshToken', e.target.value)} placeholder="Refresh token"/></label>
-            </div></div>
-            <div className="form-actions"><button type="button" className="secondary-button" onClick={() => { setShowCreate(false); setError(null); }}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? 'Registering…' : 'Register device'}</button></div>
-          </form>
-        </section>}
+      {error ? (
+        <div className="network-error" role="alert"><Icon name="alert" /><span>{error}</span></div>
+      ) : null}
 
-        <section className="kpi-grid">
-          <article className="kpi"><div className="kpi-label"><span>Registered devices</span></div><strong>{routers.length}</strong><div className="kpi-foot"><span>INVENTORY</span><small>tenant scoped</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Operational</span></div><strong>{online}</strong><div className="kpi-foot"><span>ONLINE</span><small>last reported state</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Attention</span></div><strong>{degraded}</strong><div className="kpi-foot"><span>DEGRADED</span><small>requires review</small></div></article>
-          <article className="kpi"><div className="kpi-label"><span>Connected users</span></div><strong>{users}</strong><div className="kpi-foot"><span>LIVE</span><small>reported by routers</small></div></article>
-        </section>
-        <section className="panel sessions-panel"><div className="panel-head"><div><div className="panel-kicker">DEVICE FLEET</div><h2>Network devices</h2><p>{offline} offline · management credentials are never displayed.</p></div><button className="secondary-button" type="button" onClick={() => setShowCreate(true)}>Add device</button></div>
-          <div className="table-wrap"><table><thead><tr><th>DEVICE</th><th>VENDOR / MODEL</th><th>ADDRESS</th><th>USERS</th><th>MANAGEMENT</th><th>LAST SEEN</th><th>STATUS</th></tr></thead><tbody>
-            {routers.map((router) => <tr key={router.id}><td><strong>{router.name}</strong><br/><small>{router.id}</small></td><td>{router.vendor ?? 'Unknown'}{router.model ? ` · ${router.model}` : ''}</td><td>{router.ipAddress ?? '—'}</td><td>{Number(router.activeUsers ?? 0)}</td><td>{router.managementEnabled === false ? 'Disabled' : router.managementProtocol ?? 'Unspecified'}{router.managementCredentialsConfigured ? ' · configured' : ''}</td><td>{formatDate(router.lastSeenAt)}</td><td><span className={`status ${(router.status ?? 'UNKNOWN').toLowerCase()}`}><i/>{router.status ?? 'UNKNOWN'}</span>{router.syncError && <small> {router.syncError}</small>}</td></tr>)}
-          </tbody></table>{!loading && !routers.length && <div className="empty-state"><strong>No network devices registered.</strong><span>Add your first router, gateway or managed device above.</span><button className="primary-button" type="button" onClick={() => setShowCreate(true)}>+ Register first device</button></div>}{loading && <div className="empty-state">Loading network inventory…</div>}</div>
-        </section>
-        <footer className="footer"><span>JASLYN NET · Network Operations</span><span>Authenticated tenant inventory</span></footer>
+      <section className="network-summary" aria-label="Network inventory summary">
+        <div className="network-summary-intro">
+          <span>NETWORK INVENTORY</span>
+          <strong>Current device posture</strong>
+          <small>Live state reported through the network API.</small>
+        </div>
+        <div className="network-stat-grid">
+          <article className="network-stat">
+            <div className="network-stat-icon"><Icon name="router" /></div>
+            <strong>{routers.length}</strong><span>Registered devices</span><small>tenant inventory</small>
+          </article>
+          <article className="network-stat online">
+            <div className="network-stat-icon"><Icon name="network" /></div>
+            <strong>{online}</strong><span>Operational</span><small>online state</small>
+          </article>
+          <article className="network-stat degraded">
+            <div className="network-stat-icon"><Icon name="alert" /></div>
+            <strong>{degraded}</strong><span>Attention</span><small>degraded state</small>
+          </article>
+          <article className="network-stat offline">
+            <div className="network-stat-icon"><Icon name="offline" /></div>
+            <strong>{offline}</strong><span>Offline</span><small>not reporting</small>
+          </article>
+          <article className="network-stat users">
+            <div className="network-stat-icon"><Icon name="users" /></div>
+            <strong>{users}</strong><span>Connected users</span><small>reported active users</small>
+          </article>
+        </div>
       </section>
-      <style jsx>{`
-        .primary-action{background:#172033!important;color:#fff!important;border-color:#172033!important}
-        .device-presets{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:12px 0;padding:10px;border:1px solid #e8ebf0;border-radius:8px;background:#f8fafc}.device-presets span{font-size:8px;font-weight:800;color:#7d899a;margin-right:2px}.device-presets button,.device-presets a{border:1px solid #dfe4eb;background:#fff;border-radius:6px;padding:7px 9px;font-size:8px;color:#334155;text-decoration:none}.device-presets button:hover,.device-presets a:hover{border-color:#b9c7da;background:#f2f6fb}.device-provisioning{margin-bottom:12px}
-        .device-provisioning .panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
-        .device-provisioning h2{font-size:18px;margin:6px 0 4px}
-        .device-provisioning p{margin:0;color:#7d899a;font-size:10px;max-width:700px}
-        .close-button,.secondary-button{border:1px solid #dfe4eb;background:#fff;border-radius:7px;padding:8px 11px;font-size:9px;font-weight:700;color:#4f5c70;cursor:pointer}
-        .device-form{margin-top:20px}
-        .form-section{border-top:1px solid #edf0f4;padding:16px 0 2px}
-        .form-section-title{font-size:9px;font-weight:800;letter-spacing:.08em;color:#263247;text-transform:uppercase;margin-bottom:12px}
-        .form-section-title small{font-size:8px;letter-spacing:0;text-transform:none;color:#8a95a4;font-weight:500;margin-left:6px}
-        .form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-        .form-grid label{font-size:8px;font-weight:750;color:#69768a}
-        .form-grid input,.form-grid select{display:block;width:100%;height:37px;margin-top:5px;border:1px solid #dfe4eb;border-radius:7px;padding:0 10px;outline:0;background:#fff;font-size:9px;color:#172033}
-        .form-grid input:focus,.form-grid select:focus{border-color:#7b91df;box-shadow:0 0 0 3px rgba(79,112,220,.08)}
-        .toggle-label{display:flex;align-items:center;justify-content:space-between;border:1px solid #e4e8ee;border-radius:7px;padding:9px 11px;height:37px;margin-top:20px}
-        .toggle-label input{width:15px;height:15px;margin:0}
-        .form-actions{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #edf0f4;margin-top:16px;padding-top:14px}
-        .primary-button{height:37px;padding:0 15px;border:0;border-radius:7px;background:#4f70dc;color:#fff;font-size:9px;font-weight:800;cursor:pointer}
-        .primary-button:disabled{opacity:.55;cursor:not-allowed}
-        .empty-state{display:flex;flex-direction:column;align-items:center;gap:8px;padding:55px 20px;color:#8a95a4;font-size:10px;text-align:center}
-        .empty-state strong{font-size:13px;color:#4d5a6f}
-        .empty-state .primary-button{margin-top:4px}
-        @media(max-width:900px){.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:620px){.device-provisioning .panel-head{flex-direction:column}.form-grid{grid-template-columns:1fr}.top-actions{flex-wrap:wrap}.top-actions .selector{flex:1}.form-actions{position:sticky;bottom:76px;background:#fff;padding-bottom:4px;z-index:4}}
-      `}</style>
+
+      {showCreate ? (
+        <section className="network-provisioning" aria-label="Add network device">
+          <div className="network-provisioning-head">
+            <div>
+              <span>DEVICE PROVISIONING</span>
+              <h2>Register a network device</h2>
+              <p>Credentials are sent to the authenticated API and are never displayed back by this page.</p>
+            </div>
+            <button className="network-icon-button" type="button" onClick={() => { setShowCreate(false); setError(null); }} aria-label="Close device registration">
+              <Icon name="close" />
+            </button>
+          </div>
+
+          <div className="network-presets">
+            <span>Quick setup</span>
+            <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'MikroTik Router', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST' })}>MikroTik</button>
+            <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Omada EAP', vendor: 'TP-Link Omada', managementProtocol: 'OMADA_CONTROLLER_API' })}>Omada</button>
+            <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'RADIUS NAS', vendor: 'RADIUS NAS', managementProtocol: 'RADIUS_NAS' })}>RADIUS NAS</button>
+          </div>
+
+          <form className="network-form" onSubmit={createDevice}>
+            <div className="network-form-section">
+              <div className="network-form-heading"><strong>Identity</strong><span>Basic inventory information</span></div>
+              <div className="network-form-grid three">
+                <label>Device name *<input required maxLength={120} value={form.name} onChange={(event) => setField('name', event.target.value)} placeholder="Nduruma Core Router" /></label>
+                <label>Vendor *<input required maxLength={60} value={form.vendor} onChange={(event) => setField('vendor', event.target.value)} placeholder="MikroTik" /></label>
+                <label>Model<input maxLength={80} value={form.model} onChange={(event) => setField('model', event.target.value)} placeholder="CCR2004-1G-12S+2XS" /></label>
+                <label>IP address<input maxLength={45} value={form.ipAddress} onChange={(event) => setField('ipAddress', event.target.value)} placeholder="192.168.88.1" /></label>
+                <label>MAC address<input maxLength={64} value={form.macAddress} onChange={(event) => setField('macAddress', event.target.value)} placeholder="AA:BB:CC:DD:EE:FF" /></label>
+                <label>OS / firmware<input maxLength={80} value={form.osVersion} onChange={(event) => setField('osVersion', event.target.value)} placeholder="RouterOS 7" /></label>
+              </div>
+            </div>
+
+            <div className="network-form-section">
+              <div className="network-form-heading"><strong>Management</strong><span>How Jaslyn Net communicates with the device</span></div>
+              <div className="network-form-grid three">
+                <label>Management protocol<select value={form.managementProtocol} onChange={(event) => setField('managementProtocol', event.target.value)}>{MANAGEMENT_PROTOCOLS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <label>Device API endpoint<input type="url" maxLength={300} value={form.apiEndpoint} onChange={(event) => setField('apiEndpoint', event.target.value)} placeholder="https://192.168.88.1/rest" /></label>
+                <label>Controller endpoint<input type="url" maxLength={300} value={form.controllerEndpoint} onChange={(event) => setField('controllerEndpoint', event.target.value)} placeholder="https://controller.example.com" /></label>
+                <label className="network-toggle-field"><span>Management enabled</span><input type="checkbox" checked={form.managementEnabled} onChange={(event) => setField('managementEnabled', event.target.checked)} /></label>
+              </div>
+            </div>
+
+            <div className="network-form-section">
+              <div className="network-form-heading"><strong>Credentials</strong><span>Optional · encrypted at rest by the API</span></div>
+              <div className="network-form-grid three">
+                <label>Username<input autoComplete="off" maxLength={160} value={form.username} onChange={(event) => setField('username', event.target.value)} placeholder="admin" /></label>
+                <label>Password<input type="password" autoComplete="new-password" maxLength={500} value={form.password} onChange={(event) => setField('password', event.target.value)} placeholder="Device password" /></label>
+                <label>API key<input type="password" autoComplete="off" maxLength={500} value={form.apiKey} onChange={(event) => setField('apiKey', event.target.value)} placeholder="API key" /></label>
+                <label>Client ID<input autoComplete="off" maxLength={300} value={form.clientId} onChange={(event) => setField('clientId', event.target.value)} placeholder="Client ID" /></label>
+                <label>Client secret<input type="password" autoComplete="new-password" maxLength={500} value={form.clientSecret} onChange={(event) => setField('clientSecret', event.target.value)} placeholder="Client secret" /></label>
+                <label>Access token<input type="password" autoComplete="off" maxLength={2000} value={form.accessToken} onChange={(event) => setField('accessToken', event.target.value)} placeholder="Access token" /></label>
+                <label>Refresh token<input type="password" autoComplete="off" maxLength={2000} value={form.refreshToken} onChange={(event) => setField('refreshToken', event.target.value)} placeholder="Refresh token" /></label>
+              </div>
+            </div>
+
+            <div className="network-form-actions">
+              <button type="button" className="network-button secondary" onClick={() => { setShowCreate(false); setError(null); }}>Cancel</button>
+              <button type="submit" className="network-button primary" disabled={saving}>
+                <Icon name="plus" />
+                <span>{saving ? 'Registering…' : 'Register device'}</span>
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+
+      <section className="network-surface">
+        <div className="network-surface-head">
+          <div>
+            <span>DEVICE FLEET</span>
+            <h2>Network devices</h2>
+            <p>{offline} offline · management credentials remain hidden.</p>
+          </div>
+          <label className="network-search">
+            <Icon name="search" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search devices" aria-label="Search devices" />
+            {query ? <button type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button> : null}
+          </label>
+        </div>
+
+        <div className="network-table-wrap">
+          <table className="network-table">
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Vendor / model</th>
+                <th>Address</th>
+                <th>Users</th>
+                <th>Management</th>
+                <th>Last seen</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRouters.map((router) => (
+                <tr key={router.id}>
+                  <td><strong>{router.name}</strong><small>{router.id}</small></td>
+                  <td>{router.vendor ?? 'Unknown'}{router.model ? ` · ${router.model}` : ''}</td>
+                  <td>{router.ipAddress ?? '—'}</td>
+                  <td>{Number(router.activeUsers ?? 0)}</td>
+                  <td>{router.managementEnabled === false ? 'Disabled' : router.managementProtocol ?? 'Unspecified'}{router.managementCredentialsConfigured ? ' · configured' : ''}</td>
+                  <td>{formatDate(router.lastSeenAt)}</td>
+                  <td>
+                    <span className={`network-status ${(router.status ?? 'UNKNOWN').toLowerCase()}`}><i />{router.status ?? 'UNKNOWN'}</span>
+                    {router.syncError ? <small className="network-sync-error">{router.syncError}</small> : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {!loading && !filteredRouters.length ? (
+            <div className="network-empty">
+              <div className="network-empty-icon"><Icon name="router" /></div>
+              <strong>{query ? 'No matching devices' : 'No network devices registered'}</strong>
+              <span>{query ? 'Try a broader search term.' : 'Register your first router, gateway or managed network device.'}</span>
+              {!query ? <button className="network-button primary" type="button" onClick={() => setShowCreate(true)}><Icon name="plus" /><span>Register first device</span></button> : null}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div className="network-empty">
+              <div className="network-empty-icon"><Icon name="refresh" /></div>
+              <strong>Loading network inventory…</strong>
+              <span>Reading current device state.</span>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <footer className="network-footer">
+        <span>JASLYN NET · Network Operations</span>
+        <span>Authenticated tenant inventory</span>
+      </footer>
     </main>
   );
 }
