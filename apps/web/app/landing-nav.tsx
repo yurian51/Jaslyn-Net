@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import BrandLogo from './brand-logo';
 
 const sectionLinks: ReadonlyArray<[string, string]> = [
   ['#platform', 'Platform'],
@@ -31,7 +32,7 @@ export default function LandingNav() {
   return (
     <nav className="landing-nav">
       <Link href="/" className="landing-logo" aria-label="JASLYN NET home" onClick={() => setOpen(false)}>
-        <span><img src="/brand/jaslyn-official.svg" alt="" /></span>
+        <span><BrandLogo alt="" /></span>
         <b>JASLYN NET</b>
       </Link>
       <div className="landing-links">
