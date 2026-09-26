@@ -23,10 +23,13 @@ const required = [
   ['mobile nav control', nav.includes('landing-menu-toggle')],
   ['integration logo markup', landing.includes('jn-integration-logo')],
   ['local integration logo source', landing.includes('/integrations/') && !landing.includes('https://cdn.simpleicons.org/')],
-  ['official logo asset reference', landing.includes('/brand/jaslyn-official.svg')],
-  ['official logo in navigation', nav.includes('/brand/jaslyn-official.svg')],
-  ['official logo in console chrome', chrome.includes('/brand/jaslyn-official.svg')],
-  ['official logo in auth', login.includes('/brand/jaslyn-official.svg') && register.includes('/brand/jaslyn-official.svg')],
+  ['uploaded brand logo set', landing.includes('/ram-logo-scalable.svg') && landing.includes('/1000242339.png') && landing.includes('/capricon.png')],
+
+  ['official vector logo reference', landing.includes('/ram-logo-scalable.svg')],
+  ['official raster fallback references', landing.includes('/1000242339.png') && landing.includes('/capricon.png')],
+  ['official logo in navigation', nav.includes('/ram-logo-scalable.svg')],
+  ['official logo in console chrome', chrome.includes('/ram-logo-scalable.svg')],
+  ['official logo in auth', login.includes('/ram-logo-scalable.svg') && register.includes('/ram-logo-scalable.svg')],
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-track')],
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
   ['loading stylesheet', layout.includes("import './loading.css';")],
@@ -37,6 +40,13 @@ const assets = [
   'apps/web/public/brand/jaslyn-net-mark.svg',
   'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
+
+const uploadedBrandFiles = ['ram-logo-scalable.svg','1000242339.png','capricon.png'];
+
+for (const file of uploadedBrandFiles) {
+  const assetPath = path.join(root, 'apps/web/public', file);
+  if (!fs.existsSync(assetPath)) throw new Error(`UI verification failed: missing uploaded brand asset ${file}`);
+}
 
 const integrationLogoFiles = [
   'mikrotik.svg',
