@@ -5,7 +5,7 @@ describe('PurchasesService payment confirmation', () => {
   it('rejects direct confirmation for external providers', async () => {
     const db = { connect: jest.fn() } as any;
     const payments = { assertMethodCanSettle: jest.fn().mockResolvedValue({ code: 'mpesa' }) } as any;
-    const service = new PurchasesService(db, payments);
+    const service = new PurchasesService(db, payments, {} as any);
 
     await expect(service.confirmPayment('tenant-1', 'purchase-1', {
       provider: 'mpesa',
@@ -66,7 +66,7 @@ describe('PurchasesService payment confirmation', () => {
 
     const config = { get: jest.fn() } as any;
     const payments = new PaymentsService(db, config);
-    const service = new PurchasesService(db, payments);
+    const service = new PurchasesService(db, payments, {} as any);
 
     const result = await service.confirmPayment(tenantId, purchaseId, {
       provider: 'manual',
