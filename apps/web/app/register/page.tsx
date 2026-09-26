@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
+import BrandLogo from '../brand-logo';
 
 type RegisterResponse = { accessToken: string; user: { fullName: string; email: string; role: string }; tenant: { name: string } };
 
@@ -70,7 +71,7 @@ export default function RegisterPage() {
   return (
     <main className="auth-page">
       <section className="auth-shell" aria-label="Create Jaslyn Net workspace">
-        <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-official.svg" alt="JASLYN NET official logo" /></div>
+        <div className="auth-brand-block"><BrandLogo className="auth-brand-logo" alt="JASLYN NET official logo" /></div>
         <div className="auth-layout">
           <div className="auth-intro"><span className="auth-kicker">NEW OPERATIONS WORKSPACE</span><h1>Put your network<br />under one control plane.</h1><p>Create a tenant workspace for subscribers, packages, network devices, sessions, billing and operations.</p><div className="auth-capabilities"><span><i /> Tenant-isolated operations</span><span><i /> Network and billing control</span><span><i /> Secure operator identity</span></div></div>
           <form className="auth-card" onSubmit={submit} noValidate>
