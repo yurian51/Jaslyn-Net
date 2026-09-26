@@ -26,41 +26,18 @@ import { IspOperationsModule } from './isp-operations/isp-operations.module';
 import { IpamModule } from './ipam/ipam.module';
 import { RadiusModule } from './radius/radius.module';
 import { CommunicationModule } from './communication/communication.module';
+import { CustomerCommerceModule } from './customer-commerce/customer-commerce.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    DatabaseModule,
-    AccountModule,
-    AuditModule,
-    AuthModule,
-    HealthModule,
-    FinanceModule,
-    IncidentsModule,
-    NotificationsModule,
-    CommunicationModule,
-    OverviewModule,
-    CustomersModule,
-    BillingModule,
-    PackagesModule,
-    PurchasesModule,
-    PaymentsModule,
-    PromotionsModule,
-    RoutersModule,
-    SessionsModule,
-    SalesModule,
-    VouchersModule,
-    UpesiPayModule,
-    UpesiLipaModule,
-    TrafficModule,
-    IspOperationsModule,
-    IpamModule,
-    RadiusModule,
+    ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, AccountModule, AuditModule, AuthModule,
+    HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
+    CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
+    RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule, UpesiLipaModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule,
   ],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
-  }
+  configure(consumer: MiddlewareConsumer) { consumer.apply(RequestIdMiddleware).forRoutes('*'); }
 }
