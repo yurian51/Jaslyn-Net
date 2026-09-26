@@ -412,4 +412,5 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
         }, `renewal-failure:${row.executionId}`).catch(() => undefined);
       }
     }
-  }\n}
+  }
+}
