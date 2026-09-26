@@ -7,7 +7,11 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const layout = read('apps/web/app/layout.tsx');
 const landing = read('apps/web/app/page.tsx');
 const register = read('apps/web/app/register/page.tsx');
+const login = read('apps/web/app/login/page.tsx');
 const nav = read('apps/web/app/landing-nav.tsx');
+const chrome = read('apps/web/app/console-chrome.tsx');
+const routeLoading = read('apps/web/app/loading.tsx');
+const skeleton = read('apps/web/app/loading-skeleton.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -19,9 +23,17 @@ const required = [
   ['mobile nav control', nav.includes('landing-menu-toggle')],
   ['integration logo markup', landing.includes('jn-integration-logo')],
   ['integration logo source', landing.includes('https://cdn.simpleicons.org/')],
+  ['official logo asset reference', landing.includes('/brand/jaslyn-official.svg')],
+  ['official logo in navigation', nav.includes('/brand/jaslyn-official.svg')],
+  ['official logo in console chrome', chrome.includes('/brand/jaslyn-official.svg')],
+  ['official logo in auth', login.includes('/brand/jaslyn-official.svg') && register.includes('/brand/jaslyn-official.svg')],
+  ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-track')],
+  ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
+  ['loading stylesheet', layout.includes("import './loading.css';")],
 ];
 
 const assets = [
+  'apps/web/public/brand/jaslyn-official.svg',
   'apps/web/public/brand/jaslyn-net-mark.svg',
   'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
@@ -57,8 +69,8 @@ for (const asset of assets) {
   if (!fs.existsSync(path.join(root, asset))) throw new Error(`UI verification failed: missing asset ${asset}`);
 }
 
-if (landing.includes('Supreme Hybrid Network Operating Engine')) {
+if (login.includes('Supreme Hybrid Network Operating Engine')) {
   throw new Error('UI verification failed: stale public product title remains in landing source');
 }
 
-console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} assets, ${integrationLogoSlugs.length} integration brand marks)`);
+console.log(`JASLYN NET UI verification passed (${required.length} assertions, ${assets.length} brand assets, ${integrationLogoSlugs.length} integration brand marks)`);
