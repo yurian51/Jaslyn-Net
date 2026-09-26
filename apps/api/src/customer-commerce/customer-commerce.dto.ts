@@ -21,7 +21,9 @@ export class WalletEntryDto {
   @Min(0.01) amount!: number;
   @IsString() currency!: string;
   @IsString() idempotencyKey!: string;
-  @IsOptional() @IsString() description?: string;\n  @IsOptional() @IsString() referenceType?: string;\n  @IsOptional() @IsUUID() referenceId?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() referenceType?: string;
+  @IsOptional() @IsUUID() referenceId?: string;
 }
 export class LimitDto {
   @IsOptional() dailyAmount?: number;
