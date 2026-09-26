@@ -1,11 +1,27 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
 
 type RegisterResponse = { accessToken: string; user: { fullName: string; email: string; role: string }; tenant: { name: string } };
+
+type FieldErrors = Partial<Record<'businessName' | 'fullName' | 'email' | 'password' | 'confirmPassword', string>>;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function passwordStrength(password: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
+  if (!password) return { score: 0, label: '' };
+  let score = 0;
+  if (password.length >= 12) score += 1;
+  if (password.length >= 16) score += 1;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1;
+  if (/[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password)) score += 1;
+  const labels = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'] as const;
+  const clamped = Math.min(score, 4) as 0 | 1 | 2 | 3 | 4;
+  return { score: clamped, label: password.length < 12 ? 'Too short' : labels[clamped] };
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -13,15 +29,33 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false); const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => { if (getAccessToken()) router.replace('/dashboard'); }, [router]);
 
+  const strength = useMemo(() => passwordStrength(password), [password]);
+
+  function validate(): FieldErrors {
+    const errors: FieldErrors = {};
+    if (businessName.trim().length < 2) errors.businessName = 'Enter your business or network name.';
+    if (fullName.trim().length < 2) errors.fullName = 'Enter your full name.';
+    if (!EMAIL_PATTERN.test(email.trim())) errors.email = 'Enter a valid email address.';
+    if (password.length < 12) errors.password = 'Password must be at least 12 characters.';
+    if (confirmPassword !== password) errors.confirmPassword = 'Passwords do not match.';
+    return errors;
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     setBusy(true); setError('');
     try {
       const result = await apiFetch<RegisterResponse>('/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessName: businessName.trim(), fullName: fullName.trim(), email: email.trim(), password, acceptTerms, acceptPrivacy }) });
@@ -36,16 +70,49 @@ export default function RegisterPage() {
   return (
     <main className="auth-page">
       <section className="auth-shell" aria-label="Create Jaslyn Net workspace">
-        <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-net-wordmark.svg" alt="JASLYN NET — Supreme Hybrid Network Operating Engine" /></div>
+        <div className="auth-brand-block"><img className="auth-brand-logo" src="/brand/jaslyn-net-wordmark.svg" alt="JASLYN NET — Connectivity & ISP Operating System" /></div>
         <div className="auth-layout">
           <div className="auth-intro"><span className="auth-kicker">NEW OPERATIONS WORKSPACE</span><h1>Put your network<br />under one control plane.</h1><p>Create a tenant workspace for subscribers, packages, network devices, sessions, billing and operations.</p><div className="auth-capabilities"><span><i /> Tenant-isolated operations</span><span><i /> Network and billing control</span><span><i /> Secure operator identity</span></div></div>
           <form className="auth-card" onSubmit={submit} noValidate>
             <div className="auth-card-head"><span>WORKSPACE SETUP</span><h2>Create workspace</h2><p>Your first account becomes the workspace owner.</p></div>
             {error && <div className="auth-error" role="alert">{error}</div>}
-            <label>Business / network name<input required minLength={2} maxLength={160} value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Example ISP" /></label>
-            <label>Your full name<input required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Network administrator" /></label>
-            <label>Email address<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@example.com" /></label>
-            <label>Password<div className="auth-password"><input type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 12 characters" /><button type="button" onClick={() => setShowPassword(v => !v)}>{showPassword ? 'Hide' : 'Show'}</button></div></label>
+            <label htmlFor="reg-business">Business / network name
+              <input id="reg-business" required minLength={2} maxLength={160} value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Example ISP" aria-invalid={!!fieldErrors.businessName} aria-describedby={fieldErrors.businessName ? 'reg-business-error' : undefined} />
+            </label>
+            {fieldErrors.businessName && <p className="field-error" id="reg-business-error" role="alert">{fieldErrors.businessName}</p>}
+
+            <label htmlFor="reg-fullname">Your full name
+              <input id="reg-fullname" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Network administrator" aria-invalid={!!fieldErrors.fullName} aria-describedby={fieldErrors.fullName ? 'reg-fullname-error' : undefined} />
+            </label>
+            {fieldErrors.fullName && <p className="field-error" id="reg-fullname-error" role="alert">{fieldErrors.fullName}</p>}
+
+            <label htmlFor="reg-email">Email address
+              <input id="reg-email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@example.com" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'reg-email-error' : undefined} />
+            </label>
+            {fieldErrors.email && <p className="field-error" id="reg-email-error" role="alert">{fieldErrors.email}</p>}
+
+            <label htmlFor="reg-password">Password
+              <div className="auth-password">
+                <input id="reg-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 12 characters" aria-invalid={!!fieldErrors.password} aria-describedby="reg-password-strength" />
+                <button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
+              </div>
+            </label>
+            {password.length > 0 && (
+              <div className="password-strength" id="reg-password-strength" aria-live="polite">
+                <div className="password-strength-bar"><i className={`strength-${strength.score}`} style={{ width: `${strength.score * 25}%` }} /></div>
+                <span>{strength.label}</span>
+              </div>
+            )}
+            {fieldErrors.password && <p className="field-error" role="alert">{fieldErrors.password}</p>}
+
+            <label htmlFor="reg-confirm-password">Confirm password
+              <div className="auth-password">
+                <input id="reg-confirm-password" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" aria-invalid={!!fieldErrors.confirmPassword} aria-describedby={fieldErrors.confirmPassword ? 'reg-confirm-error' : undefined} />
+                <button type="button" onClick={() => setShowConfirmPassword(v => !v)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
+              </div>
+            </label>
+            {fieldErrors.confirmPassword && <p className="field-error" id="reg-confirm-error" role="alert">{fieldErrors.confirmPassword}</p>}
+
             <label className="legal-consent"><input type="checkbox" required checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} /><span>I agree to the <a href="/legal/terms" target="_blank" rel="noreferrer">Terms of Use</a>.</span></label>
             <label className="legal-consent"><input type="checkbox" required checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} /><span>I acknowledge the <a href="/legal/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>.</span></label>
             <button className="auth-submit" disabled={busy || !acceptTerms || !acceptPrivacy}>{busy ? 'Creating workspace…' : 'Create Jaslyn Net workspace'}</button>
