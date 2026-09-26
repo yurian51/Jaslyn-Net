@@ -18,6 +18,7 @@ import { PromotionsModule } from './promotions/promotions.module';
 import { RoutersModule } from './routers/routers.module';
 import { SalesModule } from './sales/sales.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 import { VouchersModule } from './vouchers/vouchers.module';
 import { UpesiPayModule } from './upesipay/upesipay.module';
 import { UpesiLipaModule } from './upesilipa/upesilipa.module';
@@ -34,7 +35,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, AccountModule, AuditModule, AuthModule,
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
-    RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule, UpesiLipaModule,
+    RoutersModule, SessionsModule, SubscriptionModule, SalesModule, VouchersModule, UpesiPayModule, UpesiLipaModule,
     TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule,
   ],
 })
