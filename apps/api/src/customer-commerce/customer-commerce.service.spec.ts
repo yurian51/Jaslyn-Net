@@ -18,6 +18,8 @@ describe('CustomerCommerceService renewal execution', () => {
 
   it('claims due renewals with SKIP LOCKED and a unique execution id', async () => {
     const { db, client } = makeDb();
+    const walletClient = { query: jest.fn(), release: jest.fn() };
+    db.connect.mockResolvedValueOnce(client).mockResolvedValueOnce(walletClient);
     client.query
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({})
@@ -34,6 +36,13 @@ describe('CustomerCommerceService renewal execution', () => {
         }],
       })
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ executionId: 'execution-1' }] })
+      .mockResolvedValueOnce({});
+    walletClient.query
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'wallet-1', balance: '20000', currency: 'TZS', status: 'ACTIVE' }] })
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 'entry-1' }] })
+      .mockResolvedValueOnce({})
       .mockResolvedValueOnce({});
 
     db.query
