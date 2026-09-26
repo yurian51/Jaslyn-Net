@@ -47,6 +47,7 @@ describe('CustomerCommerceService renewal execution', () => {
 
     db.query
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ price: '10000', currency: 'TZS' }] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'wallet-1', balance: '20000', currency: 'TZS', status: 'ACTIVE' }] })
       .mockResolvedValueOnce({});
 
