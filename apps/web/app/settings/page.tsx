@@ -208,12 +208,14 @@ export default function SettingsPage() {
 
   const sections = useMemo(() => [
     {
+      id: 'account',
       title: 'Account',
       rows: [
         { icon: 'account' as const, title: 'Account & Workspace', description: 'Identity, team access and workspace controls', href: '/account' },
       ],
     },
     {
+      id: 'connectivity',
       title: 'Connectivity',
       rows: [
         { icon: 'network' as const, title: 'Network & Devices', description: 'Routers, access network, IPAM and WAN', href: '/network' },
@@ -222,6 +224,7 @@ export default function SettingsPage() {
       ],
     },
     {
+      id: 'business',
       title: 'Business',
       rows: [
         { icon: 'payments' as const, title: 'Payments & Billing', description: 'Transactions, packages, vouchers and finance', href: '/payments' },
@@ -229,6 +232,7 @@ export default function SettingsPage() {
       ],
     },
     {
+      id: 'security',
       title: 'Privacy & Security',
       rows: [
         { icon: 'privacy' as const, title: 'Security & Audit', description: 'Audit activity and security controls', href: '/audit' },
@@ -236,14 +240,16 @@ export default function SettingsPage() {
       ],
     },
     {
+      id: 'appearance',
       title: 'Appearance',
       rows: [
-        { icon: 'display' as const, title: 'Interface density', description: preferences.density === 'compact' ? 'Compact' : 'Comfortable', href: '#display' },
-        { icon: 'appearance' as const, title: 'Reading scale', description: preferences.fontScale === 'large' ? 'Large' : 'Normal', href: '#accessibility' },
+        { icon: 'display' as const, title: 'Interface density', description: preferences.density === 'compact' ? 'Compact' : 'Comfortable', href: '#interface' },
+        { icon: 'appearance' as const, title: 'Reading scale', description: preferences.fontScale === 'large' ? 'Large' : 'Normal', href: '#interface' },
         { icon: 'language' as const, title: 'Language', description: 'English • interface language', href: '#language' },
       ],
     },
     {
+      id: 'developer',
       title: 'Developer',
       rows: [
         { icon: 'developer' as const, title: 'Network Commands', description: 'Operational command fabric', href: '/network-commands' },
@@ -251,6 +257,7 @@ export default function SettingsPage() {
       ],
     },
     {
+      id: 'help',
       title: 'Help',
       rows: [
         { icon: 'support' as const, title: 'Support', description: 'Open the account support workflow', href: '/account#support' },
@@ -292,10 +299,18 @@ export default function SettingsPage() {
       </div>
 
       <div className="settings-body">
-        <aside className="settings-side-nav">
+        <aside className="settings-side-nav" aria-label="Settings sections">
           <span>JASLYN NET</span>
           <b>Settings</b>
           <small>Workspace control center</small>
+          <nav className="settings-side-links">
+            {sections.map(section => (
+              <a href={`#${section.id}`} key={section.id}>{section.title}</a>
+            ))}
+            <a href="#interface">Interface preferences</a>
+            <a href="#language">Language</a>
+            <a href="#workspace-context">Workspace context</a>
+          </nav>
         </aside>
 
         <div className="settings-content">
@@ -318,7 +333,7 @@ export default function SettingsPage() {
 
           {!query ? (
             <>
-              <section className="settings-group" id="display">
+              <section className="settings-group" id="interface">
                 <div className="settings-group-label">Interface preferences</div>
                 <div className="settings-group-surface">
                   <div className="settings-row-link settings-row-button settings-static-row">
@@ -356,7 +371,7 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="settings-group">
+              <section className="settings-group" id="workspace-context">
                 <div className="settings-group-label">Workspace context</div>
                 <div className="settings-context-strip">
                   <div><span>Subscription</span><strong>{account?.subscription?.plan || 'Workspace plan'}</strong></div>
@@ -370,6 +385,11 @@ export default function SettingsPage() {
                 <p>Only local interface preferences are reset. Network, payment, customer and account data remain unchanged.</p>
               </section>
             </>
+          ) : visibleSections.length === 0 ? (
+            <div className="settings-empty">
+              <strong>No settings found</strong>
+              <span>Try a broader search term such as account, network, payments or security.</span>
+            </div>
           ) : null}
         </div>
       </div>
