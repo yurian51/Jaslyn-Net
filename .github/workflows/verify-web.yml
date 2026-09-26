@@ -1,6 +1,7 @@
 name: Verify web
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -23,8 +24,9 @@ jobs:
           version: 10.12.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.3
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @jaslyn-net/web verify:assets
+      - run: pnpm --filter @jaslyn-net/web verify:ui
       - run: pnpm --filter @jaslyn-net/web typecheck
       - run: pnpm --filter @jaslyn-net/web build
