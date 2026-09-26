@@ -46,6 +46,33 @@ export class PackagesService {
     };
   }
 
+  getTierCatalogEntry(tierCode: string) {
+    const tier = getJaslynTier(tierCode);
+    if (!tier) throw new NotFoundException(`Unknown Jaslyn tier: ${tierCode}`);
+    return { data: tier };
+  }
+
+  async tierAvailability(tenantId: string) {
+    const result = await this.db.query(
+      `SELECT tier_code AS "tierCode", id, name, price, currency, duration_seconds AS "durationSeconds",
+              data_limit_bytes AS "dataLimitBytes", download_bps AS "downloadBps", upload_bps AS "uploadBps",
+              devices_per_code AS "devicesPerCode", show_on_portal AS "showOnPortal", is_active AS "isActive",
+              is_featured AS "isFeatured"
+       FROM packages
+       WHERE tenant_id=$1 AND tier_code IS NOT NULL
+       ORDER BY COALESCE(tier_rank,999), price ASC`,
+      [tenantId],
+    );
+    const configured = new Map(result.rows.map((row) => [String(row.tierCode).toUpperCase(), row]));
+    return {
+      data: JASLYN_TIER_CATALOG.map((tier) => ({
+        ...tier,
+        configured: configured.has(tier.code),
+        package: configured.get(tier.code) ?? null,
+      })),
+    };
+  }
+
   async list(tenantId: string, query: ListPackagesQueryDto = new ListPackagesQueryDto()) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 25));
