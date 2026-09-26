@@ -139,3 +139,23 @@
  .landing-pricing-grid{margin-top:30px;grid-template-columns:1fr}.landing-pricing-grid article{min-height:0}.landing-why-grid,.landing-contact-card{grid-template-columns:1fr;gap:30px}.landing-contact-card{padding:24px}
  .landing-contact-actions{flex-direction:column}.landing-contact-actions a{text-align:center}.landing-footer{padding:25px 18px 30px;grid-template-columns:1fr;gap:8px}
 }
+
+
+/* Responsive landing navigation */
+.landing-menu-toggle{display:none;width:36px;height:36px;flex:0 0 36px;align-items:center;justify-content:center;border:1px solid #d9e2ed;border-radius:8px;background:#fff;padding:0;cursor:pointer}
+.landing-menu-toggle span{position:relative;width:15px;height:1.5px;background:#0d1b2e;display:block;transition:background .15s ease}
+.landing-menu-toggle span::before,.landing-menu-toggle span::after{content:"";position:absolute;left:0;width:15px;height:1.5px;background:#0d1b2e;transition:transform .15s ease,top .15s ease}
+.landing-menu-toggle span::before{top:-5px}
+.landing-menu-toggle span::after{top:5px}
+.landing-menu-toggle[aria-expanded="true"] span{background:transparent}
+.landing-menu-toggle[aria-expanded="true"] span::before{top:0;transform:rotate(45deg)}
+.landing-menu-toggle[aria-expanded="true"] span::after{top:0;transform:rotate(-45deg)}
+.landing-mobile-menu{position:fixed;left:0;right:0;bottom:0;top:66px;z-index:30;background:#071322;color:#fff;padding:22px 18px;overflow-y:auto;display:flex;flex-direction:column}
+.landing-mobile-menu-links{display:flex;flex-direction:column}
+.landing-mobile-menu-links a{padding:16px 4px;border-bottom:1px solid #1c2c42;color:#eaf0f8;font-size:15px;font-weight:650}
+.landing-mobile-menu-actions{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+.landing-mobile-menu-actions a{padding:14px;border-radius:8px;text-align:center;font-size:13px;font-weight:750}
+.landing-mobile-menu-actions a:first-child{border:1px solid #2c3f59;color:#dfe6ee}
+.landing-mobile-menu-actions a:last-child{background:#2f6fed;color:#fff}
+@media(max-width:720px){.landing-menu-toggle{display:inline-flex}}
+@media(prefers-reduced-motion:reduce){.landing-menu-toggle span,.landing-menu-toggle span::before,.landing-menu-toggle span::after{transition:none}}
