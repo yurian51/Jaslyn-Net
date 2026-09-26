@@ -10,6 +10,7 @@ import './legal/legal.css';
 import './console-system-ui.css';
 import './landing.css';
 import './premium.css';
+import './landing-premium.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
