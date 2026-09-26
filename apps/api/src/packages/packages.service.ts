@@ -46,12 +46,6 @@ export class PackagesService {
     };
   }
 
-  getTierCatalogEntry(tierCode: string) {
-    const tier = getJaslynTier(tierCode);
-    if (!tier) throw new NotFoundException(`Unknown Jaslyn tier: ${tierCode}`);
-    return { data: tier };
-  }
-
   async tierAvailability(tenantId: string) {
     const result = await this.db.query(
       `SELECT tier_code AS "tierCode", id, name, price, currency, duration_seconds AS "durationSeconds",
