@@ -13,6 +13,16 @@ export class PackagesController {
   @Get('tiers/catalog')
   tiersCatalog() { return this.packages.listTierCatalog(); }
 
+  @Get('tiers/availability')
+  tierAvailability(@Req() req: AuthenticatedRequest) {
+    return this.packages.tierAvailability(req.user!.tenantId);
+  }
+
+  @Get('tiers/:tierCode')
+  tierCatalogEntry(@Param('tierCode') tierCode: string) {
+    return this.packages.getTierCatalogEntry(tierCode);
+  }
+
   @Get()
   list(@Req() req: AuthenticatedRequest, @Query() query: ListPackagesQueryDto) {
     return this.packages.list(req.user!.tenantId, query);
