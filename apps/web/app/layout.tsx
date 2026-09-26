@@ -11,14 +11,15 @@ import './console-system-ui.css';
 import './landing.css';
 import './premium.css';
 import './landing-premium.css';
+import './loading.css';
 import ConsoleChrome from './console-chrome';
 
 export const metadata: Metadata = {
   title: 'JASLYN NET | Connectivity & ISP Operating System',
   description: 'JASLYN NET connects customers, services, payments, sessions and network operations in one connectivity control plane.',
   icons: {
-    icon: '/brand/Jaslyn net brand J (1).svg',
-    apple: '/brand/Jaslyn net brand J (1).svg',
+    icon: '/brand/jaslyn-official.svg',
+    apple: '/brand/jaslyn-official.svg',
   },
 };
 
