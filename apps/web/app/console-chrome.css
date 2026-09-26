@@ -712,3 +712,12 @@ html[data-jn-reduce-motion="true"] *,html[data-jn-reduce-motion="true"] *::befor
   }
   .console-mobile-brand img{width:42px!important;height:42px!important;object-fit:contain!important}
 }
+
+/* No framed company mark or avatar treatment for the JASLYN identity. */
+.console-chrome-user > strong{
+  width:38px!important;height:38px!important;flex:0 0 38px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  overflow:visible!important;border:0!important;border-radius:0!important;background:transparent!important;
+  box-shadow:none!important;
+}
+.console-chrome-user > strong img{width:38px!important;height:38px!important;object-fit:contain!important}
