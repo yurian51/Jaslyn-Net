@@ -26,6 +26,7 @@ function money(plan:Plan) {
   if (plan.pricingMode==='CUSTOM') return 'Custom';
   return `${plan.currency} ${Number(plan.price).toLocaleString()}`;
 }
+function nullableLimit(v:unknown):number|null { if(v===null || v===undefined || v==='') return null; const n=Number(v); return Number.isFinite(n)?n:null; }
 function limit(v:number|null){ return v===null?'Unlimited':v.toLocaleString(); }
 
 export default function SubscriptionPage(){
@@ -47,9 +48,9 @@ export default function SubscriptionPage(){
       <div className="plan-top"><div><span className="plan-code">{plan.code}</span><h2>{plan.name}</h2></div>{current?.code===plan.code&&<b className="current-badge">CURRENT</b>}</div>
       <p className="plan-description">{plan.description}</p><div className="plan-price">{money(plan)}{plan.pricingMode!=='CUSTOM'&&<small> / {plan.billingInterval.toLowerCase()}</small>}</div>
       <div className="plan-capacity">
-        <span><b>{limit(Number(plan.limits.subscribers ?? plan.maxCustomers ?? null))}</b> subscribers</span>
-        <span><b>{limit(Number(plan.limits.routers ?? plan.maxRouters ?? null))}</b> routers</span>
-        <span><b>{limit(Number(plan.limits.sites ?? plan.maxSites ?? null))}</b> sites</span>
+        <span><b>{limit(nullableLimit(plan.limits.subscribers ?? plan.maxCustomers))}</b> subscribers</span>
+        <span><b>{limit(nullableLimit(plan.limits.routers ?? plan.maxRouters))}</b> routers</span>
+        <span><b>{limit(nullableLimit(plan.limits.sites ?? plan.maxSites))}</b> sites</span>
       </div>
       <ul>{Object.entries(plan.features).filter(([,enabled])=>enabled).map(([key])=><li key={key}>✓ {labels[key]??key.replaceAll('_',' ')}</li>)}</ul>
       <button disabled={current?.code===plan.code} onClick={()=>window.location.href='/account'}>{current?.code===plan.code?'Active plan':plan.pricingMode==='CUSTOM'?'Contact billing':'Request upgrade'}</button>
