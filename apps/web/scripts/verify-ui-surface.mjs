@@ -38,6 +38,8 @@ const required = [
   ['unboxed integration layout', landing.includes('jn-integration-brand') && !landing.includes('jn-integration-watermark')],
   ['unboxed identity styling', !read('apps/web/app/landing-premium.css').includes('jn-integration-logo-box') && !read('apps/web/app/landing-premium.css').includes('jn-integration-watermark')],
   ['unboxed auth brand', !read('apps/web/app/auth.css').includes('.auth-brand-logo{border:1px')],
+  ['unboxed product-preview brand', !read('apps/web/app/landing-premium.css').includes('.jn-preview-brand img{width:29px')],
+
 
 ];
 
