@@ -13,15 +13,15 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() { if (this.renewalTimer) clearInterval(this.renewalTimer); }
 
   async overview(tenantId:string, customerId:string) {
-    const [wallet, recent, beneficiaries, saved, rewards, limits, verification, preferences, support] = await Promise.all([
+    const [wallet, recent, beneficiaries, saved, rewards, limits, verification, preferences, support, renewals] = await Promise.all([
       this.wallet(tenantId, customerId),
-      this.db.query(`SELECT p.id,p.status,p.price,p.currency,p.starts_at AS "startsAt",p.ends_at AS "endsAt",k.name AS "packageName" FROM wifi_plan_purchases p JOIN packages k ON k.tenant_id=p.tenant_id AND k.id=p.package_id WHERE p.tenant_id=$1 AND p.customer_id=$2 ORDER BY p.created_at DESC LIMIT 20`,[tenantId,customerId]),
+      this.db.query(`SELECT p.id,p.status,p.price,p.currency,p.starts_at AS "startsAt",p.ends_at AS "endsAt",k.name AS "packageName",ag.status AS "accessStatus" FROM wifi_plan_purchases p JOIN packages k ON k.tenant_id=p.tenant_id AND k.id=p.package_id LEFT JOIN access_grants ag ON ag.tenant_id=p.tenant_id AND ag.purchase_id=p.id WHERE p.tenant_id=$1 AND p.customer_id=$2 ORDER BY p.created_at DESC LIMIT 20`,[tenantId,customerId]),
       this.listBeneficiaries(tenantId,customerId), this.listSavedPurchases(tenantId,customerId),
       this.db.query(`SELECT id,reward_type AS "rewardType",points,amount,currency,status,expires_at AS "expiresAt",created_at AS "createdAt" FROM commerce_rewards WHERE tenant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 50`,[tenantId,customerId]),
       this.getLimits(tenantId,customerId), this.listVerifications(tenantId,customerId), this.getPreferences(tenantId,customerId),
-      this.listSupport(tenantId,customerId)
+      this.listSupport(tenantId,customerId), this.listRenewals(tenantId,customerId)
     ]);
-    return {wallet,recentPurchases:recent.rows,beneficiaries,savedPurchases:saved,rewards:rewards.rows,limits,verification,preferences,support};
+    return {wallet,recentPurchases:recent.rows,beneficiaries,savedPurchases:saved,rewards:rewards.rows,limits,verification,preferences,support,renewals};
   }
 
   async listRenewals(tenantId:string,customerId:string) {
