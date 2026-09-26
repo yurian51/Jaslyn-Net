@@ -94,8 +94,9 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
     const isAccess = eventType.includes('ACCESS');
     const enabled = isAccess ? row.accessAlerts !== false : row.transactionAlerts !== false;
     if (!enabled) return;
-    const channel = String(row.preferredChannel ?? 'SMS').toUpperCase();
-    const recipient = channel === 'EMAIL' ? row.email : channel === 'WEB' ? customerId : row.phone;
+    const preferredChannel = String(row.preferredChannel ?? 'SMS').toUpperCase();
+    const channel = preferredChannel === 'WEB' ? 'WEBHOOK' : preferredChannel;
+    const recipient = channel === 'EMAIL' ? row.email : channel === 'WEBHOOK' ? customerId : row.phone;
     if (!recipient) return;
     await this.notifications.enqueue(tenantId, channel as 'SMS' | 'EMAIL' | 'WHATSAPP' | 'WEBHOOK', recipient, eventType, payload, undefined, dedupeKey);
   }
