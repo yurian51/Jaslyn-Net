@@ -85,7 +85,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
       await client.query('BEGIN');
       await client.query(`
         UPDATE commerce_renewal_schedules
-        SET status='ACTIVE', claimed_at=NULL, execution_id=NULL, updated_at=now()
+        SET status='ACTIVE', claimed_at=NULL, updated_at=now()
         WHERE status='PROCESSING'
           AND claimed_at IS NOT NULL
           AND claimed_at < now() - interval '10 minutes'
@@ -94,7 +94,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
         SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",
                r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",
                s.router_id AS "routerId",s.renewal_days AS "renewalDays",
-               r.execution_id AS "executionId"
+               r.execution_id AS "executionId",r.purchase_id AS "purchaseId"
         FROM commerce_renewal_schedules r
         JOIN commerce_saved_purchases s
           ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id
@@ -109,7 +109,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
       for (const row of claimed.rows) {
         const claim = await client.query(`
           UPDATE commerce_renewal_schedules
-          SET status='PROCESSING', claimed_at=now(), execution_id=gen_random_uuid(), updated_at=now()
+          SET status='PROCESSING', claimed_at=now(), execution_id=COALESCE(execution_id,gen_random_uuid()), updated_at=now()
           WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE'
           RETURNING execution_id AS "executionId"
         `, [row.tenantId, row.id]);
@@ -125,7 +125,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
 
     for (const row of due) {
       let debited = false;
-      let purchaseId: string | null = null;
+      let purchaseId: string | null = row.purchaseId ?? null;
       try {
         const plan = await this.db.query(
           `SELECT price,currency FROM packages WHERE tenant_id=$1 AND id=$2 AND is_active=true`,
@@ -144,12 +144,33 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
           throw new Error('Insufficient wallet balance or inactive wallet');
         }
 
-        const purchase = await this.purchases.create(row.tenantId, {
-          customerId: row.customerId,
-          packageId: row.packageId,
-          routerId: row.routerId,
-        });
-        purchaseId = purchase.id;
+        let purchase;
+        if (purchaseId) {
+          purchase = await this.purchases.get(row.tenantId,purchaseId);
+          if (purchase.status === 'PAID' || purchase.accessStatus === 'ACTIVE') {
+            await this.db.query(
+              `UPDATE commerce_renewal_schedules
+               SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),
+                   last_run_at=now(),failure_count=0,status='ACTIVE',
+                   claimed_at=NULL,execution_id=NULL,purchase_id=NULL,last_error=NULL,updated_at=now()
+               WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
+              [row.tenantId,row.id,Math.max(1,row.renewalDays||30)],
+            );
+            continue;
+          }
+        } else {
+          purchase = await this.purchases.create(row.tenantId, {
+            customerId: row.customerId,
+            packageId: row.packageId,
+            routerId: row.routerId,
+          });
+          purchaseId = purchase.id;
+          await this.db.query(
+            `UPDATE commerce_renewal_schedules SET purchase_id=$3,updated_at=now()
+             WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
+            [row.tenantId,row.id,purchaseId],
+          );
+        }
 
         const walletClient = await this.db.connect();
         try {
@@ -201,7 +222,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
           `UPDATE commerce_renewal_schedules
            SET next_run_at=now()+make_interval(days=>GREATEST(1,$3)),
                last_run_at=now(),failure_count=0,status='ACTIVE',
-               claimed_at=NULL,execution_id=NULL,last_error=NULL,updated_at=now()
+               claimed_at=NULL,execution_id=NULL,purchase_id=NULL,last_error=NULL,updated_at=now()
            WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
           [row.tenantId,row.id,Math.max(1,row.renewalDays||30)],
         );
@@ -255,7 +276,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
           `UPDATE commerce_renewal_schedules
            SET failure_count=failure_count+1,
                status=CASE WHEN failure_count+1>=5 THEN 'FAILED' ELSE 'ACTIVE' END,
-               claimed_at=NULL,execution_id=NULL,last_error=$3,updated_at=now()
+               claimed_at=NULL,last_error=$3,updated_at=now()
            WHERE tenant_id=$1 AND id=$2 AND status='PROCESSING'`,
           [row.tenantId,row.id,String(error?.message ?? 'Renewal failed').slice(0,500)],
         ).catch(()=>undefined);
