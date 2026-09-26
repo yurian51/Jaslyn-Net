@@ -289,11 +289,6 @@ export default function Home() {
                     />
                   ))}
                 </div>
-                <div className="jn-integration-watermark" aria-hidden="true">
-                  {logos.map((src) => (
-                    <img key={src} className="jn-integration-watermark-logo" src={src} alt="" loading="lazy" decoding="async" />
-                  ))}
-                </div>
                 <div className="jn-integration-copy"><h3>{vendor}</h3><p>{protocol}</p></div>
                 <small>{mode}</small>
               </article>
