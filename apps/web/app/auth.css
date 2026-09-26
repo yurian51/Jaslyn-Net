@@ -88,3 +88,8 @@
 .password-strength-bar i.strength-4{background:#1b9a68}
 .password-strength>span{color:#7b899b;font-size:8px;font-weight:700;white-space:nowrap}
 @media(prefers-reduced-motion:reduce){.password-strength-bar i{transition:none}}
+
+/* Official brand mark is presented directly, without a tile frame. */
+.auth-brand-logo{
+  border:0!important;border-radius:0!important;background:transparent!important;padding:0!important;box-shadow:none!important;
+}
