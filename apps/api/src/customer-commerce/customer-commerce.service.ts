@@ -1,6 +1,5 @@
-import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
-import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PurchasesService } from '../purchases/purchases.service';
 import { PG_POOL } from '../database/database.module';
 import { BeneficiaryDto, LimitDto, NotificationPreferenceDto, ReferralDto, RenewalScheduleDto, SavedPurchaseDto, SupportCaseDto, VerificationDto, WalletEntryDto } from './customer-commerce.dto';
@@ -10,7 +9,7 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
   private renewalTimer?: NodeJS.Timeout;
   constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly purchases: PurchasesService) {}
 
-  onModuleInit() { this.renewalTimer = setInterval(() => void this.processDueRenewals(), 30_000); }
+  onModuleInit() { this.renewalTimer = setInterval(() => void this.processDueRenewals(), 30_000); void this.processDueRenewals(); }
   onModuleDestroy() { if (this.renewalTimer) clearInterval(this.renewalTimer); }
 
   async overview(tenantId:string, customerId:string) {
@@ -77,9 +76,8 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
   async setPreferences(tenantId:string,customerId:string,d:NotificationPreferenceDto){const c=await this.getPreferences(tenantId,customerId);const r=await this.db.query(`UPDATE commerce_notification_preferences SET transaction_alerts=COALESCE($3,transaction_alerts),access_alerts=COALESCE($4,access_alerts),promotion_alerts=COALESCE($5,promotion_alerts),security_alerts=COALESCE($6,security_alerts),preferred_channel=COALESCE($7,preferred_channel),updated_at=now() WHERE tenant_id=$1 AND customer_id=$2 RETURNING transaction_alerts AS "transactionAlerts",access_alerts AS "accessAlerts",promotion_alerts AS "promotionAlerts",security_alerts AS "securityAlerts",preferred_channel AS "preferredChannel"`,[tenantId,customerId,d.transactionAlerts??null,d.accessAlerts??null,d.promotionAlerts??null,d.securityAlerts??null,d.preferredChannel??null]);return r.rows[0]??c;}
   async createSupport(tenantId:string,customerId:string,d:SupportCaseDto){const r=await this.db.query(`INSERT INTO commerce_support_cases (tenant_id,customer_id,category,subject,description,priority,purchase_id,payment_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,status,priority,created_at AS "createdAt"`,[tenantId,customerId,d.category,d.subject,d.description,d.priority??'NORMAL',d.purchaseId??null,d.paymentId??null]);return r.rows[0];}
   async listSupport(tenantId:string,customerId:string){const r=await this.db.query(`SELECT id,category,subject,description,status,priority,purchase_id AS "purchaseId",payment_id AS "paymentId",created_at AS "createdAt",updated_at AS "updatedAt",resolved_at AS "resolvedAt" FROM commerce_support_cases WHERE tenant_id=$1 AND customer_id=$2 ORDER BY created_at DESC LIMIT 100`,[tenantId,customerId]);return r.rows;}
-}
 
-
+  
   private async processDueRenewals() {
     const due=await this.db.query(`SELECT r.id,r.tenant_id AS "tenantId",r.customer_id AS "customerId",r.saved_purchase_id AS "savedPurchaseId",s.package_id AS "packageId",s.router_id AS "routerId",s.renewal_days AS "renewalDays",s.auto_renew AS "autoRenew" FROM commerce_renewal_schedules r JOIN commerce_saved_purchases s ON s.tenant_id=r.tenant_id AND s.id=r.saved_purchase_id WHERE r.status='ACTIVE' AND s.active=true AND s.auto_renew=true AND r.next_run_at<=now() ORDER BY r.next_run_at LIMIT 20`);
     for(const row of due.rows) {
@@ -108,3 +106,4 @@ export class CustomerCommerceService implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
+}
