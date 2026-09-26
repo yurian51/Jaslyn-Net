@@ -18,8 +18,8 @@ export const metadata: Metadata = {
   title: 'JASLYN NET | Connectivity & ISP Operating System',
   description: 'JASLYN NET connects customers, services, payments, sessions and network operations in one connectivity control plane.',
   icons: {
-    icon: '/brand/jaslyn-official.svg',
-    apple: '/brand/jaslyn-official.svg',
+    icon: '/ram-logo-scalable.svg',
+    apple: '/ram-logo-scalable.svg',
   },
 };
 
