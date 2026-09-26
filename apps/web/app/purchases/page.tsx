@@ -5,6 +5,21 @@ import BrandLogo from '../brand-logo';
 import { apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
+type NetworkPolicy = {
+  version?: number;
+  validity?: { durationSeconds?: number };
+  quota?: { dataLimitBytes?: number | null };
+  bandwidth?: { downloadBps?: number | null; uploadBps?: number | null };
+  session?: { sessionTimeoutSeconds?: number; interimUpdateSeconds?: number };
+  capabilities?: {
+    quotaEnforcement?: boolean;
+    bandwidthEnforcement?: boolean;
+    sessionTimeout?: boolean;
+    interimAccounting?: boolean;
+    coaCompatible?: boolean;
+  };
+};
+
 type Purchase = {
   id: string;
   customerId: string;
@@ -20,6 +35,9 @@ type Purchase = {
   startsAt?: string | null;
   endsAt?: string | null;
   createdAt: string;
+  updatedAt?: string | null;
+  networkPolicy?: NetworkPolicy | null;
+  discountAmount?: number | string | null;
 };
 
 type PaymentProvider = {
@@ -29,14 +47,34 @@ type PaymentProvider = {
   logoUrl?: string;
   fallback: string;
   tone: string;
-  category: string;
-  countries: string[];
-  currencies: string[];
-  directIntegration: boolean;
-  webhookSupported: boolean;
-  reconciliationSupported: boolean;
   configured: boolean;
   enabled: boolean;
+};
+
+type AccessBinding = {
+  id: string;
+  customerId: string;
+  routerId?: string | null;
+  packageId?: string | null;
+  username: string;
+  accessType: string;
+  state: string;
+  externalReference?: string | null;
+  activatedAt?: string | null;
+  suspendedAt?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+type AccessEvent = {
+  id: string;
+  previousState?: string | null;
+  newState: string;
+  reason?: string | null;
+  source?: string | null;
+  paymentId?: string | null;
+  createdAt: string;
 };
 
 const FALLBACK_PAYMENT_PROVIDERS: PaymentProvider[] = [
@@ -46,50 +84,71 @@ const FALLBACK_PAYMENT_PROVIDERS: PaymentProvider[] = [
     subtitle: 'JASLYN NET operations',
     fallback: '',
     tone: 'jaslyn',
-    category: 'MANUAL',
-    countries: ['TZ'],
-    currencies: ['TZS'],
-    directIntegration: true,
-    webhookSupported: false,
-    reconciliationSupported: true,
     configured: true,
     enabled: true,
   },
 ];
 
 const upper = (value: string | null | undefined) => String(value ?? '').toUpperCase();
-const statusLabel = (value: string) =>
+const label = (value: string) =>
   value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
 
 const date = (value?: string | null) => {
   if (!value) return '—';
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
+  return Number.isNaN(parsed.getTime())
+    ? '—'
+    : new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
 };
 
-const money = (value: number | string, currency = 'TZS') => `${currency} ${Number(value || 0).toLocaleString()}`;
+const money = (value: number | string, currency = 'TZS') =>
+  `${currency} ${Number(value || 0).toLocaleString()}`;
+
+const bandwidth = (bps?: number | null) => {
+  if (!bps) return 'Unlimited';
+  const mbps = Number(bps) / 1_000_000;
+  return mbps >= 1 ? `${mbps % 1 === 0 ? mbps.toFixed(0) : mbps.toFixed(1)} Mbps` : `${Math.round(Number(bps) / 1000)} Kbps`;
+};
+
+const quota = (bytes?: number | null) => {
+  if (!bytes) return 'Unlimited';
+  const gb = Number(bytes) / 1_000_000_000;
+  return `${gb >= 1 ? gb.toFixed(gb % 1 === 0 ? 0 : 1) + ' GB' : Math.round(Number(bytes) / 1_000_000) + ' MB'}`;
+};
+
+const duration = (seconds?: number | null) => {
+  if (!seconds) return '—';
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  return `${Math.max(1, Math.round(seconds / 60))}m`;
+};
 
 function ProviderLogo({ provider }: { provider: PaymentProvider }) {
-  if (provider.code === 'manual' && !provider.logoUrl) return <BrandLogo alt="" loading="lazy" />;
-  return provider.logoUrl ? (
+  return provider.code === 'manual' && !provider.logoUrl ? (
+    <BrandLogo alt="" loading="lazy" />
+  ) : provider.logoUrl ? (
     <img src={provider.logoUrl} alt="" loading="lazy" />
   ) : (
-    <span className="provider-letter" aria-hidden="true">{provider.fallback || provider.name.slice(0, 1)}</span>
+    <span aria-hidden="true">{provider.fallback || provider.name.slice(0, 1)}</span>
   );
 }
 
 export default function PurchasesPage() {
   const [rows, setRows] = useState<Purchase[]>([]);
   const [providers, setProviders] = useState<PaymentProvider[]>(FALLBACK_PAYMENT_PROVIDERS);
+  const [selectedId, setSelectedId] = useState('');
+  const [accessBindings, setAccessBindings] = useState<AccessBinding[]>([]);
+  const [accessEvents, setAccessEvents] = useState<AccessEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [selectedId, setSelectedId] = useState('');
   const [provider, setProvider] = useState('manual');
   const [reference, setReference] = useState('');
+  const [reason, setReason] = useState('');
   const [showProviderSubtitles, setShowProviderSubtitles] = useState(true);
 
   const load = useCallback(async () => {
@@ -105,25 +164,27 @@ export default function PurchasesPage() {
 
     try {
       const [purchaseResponse, methodsResponse] = await Promise.all([
-        apiFetch<{ data?: Purchase[] }>('/purchases', {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiFetch<{ data?: Purchase[] }>('/purchases', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
-      setRows(purchaseResponse.data ?? []);
+      const purchaseRows = purchaseResponse.data ?? [];
+      setRows(purchaseRows);
+
       const enabled = (methodsResponse.data ?? FALLBACK_PAYMENT_PROVIDERS).filter(item => item.enabled);
       const operational = enabled.length ? enabled : FALLBACK_PAYMENT_PROVIDERS;
       setProviders(operational);
-      if (!operational.some(item => item.code === provider)) setProvider(operational[0].code);
+
+      if (!operational.some(item => item.code === provider)) {
+        setProvider(operational[0]?.code ?? 'manual');
+      }
+      if (!selectedId && purchaseRows[0]?.id) setSelectedId(purchaseRows[0].id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load purchase operations.');
     } finally {
       setLoading(false);
     }
-  }, [provider]);
+  }, [provider, selectedId]);
 
   useEffect(() => {
     void load();
@@ -141,8 +202,63 @@ export default function PurchasesPage() {
     }
   }, []);
 
+  const selected = useMemo(() => rows.find(row => row.id === selectedId) ?? null, [rows, selectedId]);
+
+  useEffect(() => {
+    if (!selected) {
+      setAccessBindings([]);
+      setAccessEvents([]);
+      return;
+    }
+
+    const token = getAccessToken();
+    if (!token) return;
+
+    let cancelled = false;
+    setDetailLoading(true);
+
+    void (async () => {
+      try {
+        const response = await apiFetch<{ data?: AccessBinding[] }>(
+          `/isp/access-bindings?search=${encodeURIComponent(selected.customerName)}&limit=100`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const matches = (response.data ?? []).filter(binding =>
+          binding.customerId === selected.customerId &&
+          (!binding.packageId || !selected.packageId || binding.packageId === selected.packageId),
+        );
+
+        if (cancelled) return;
+        setAccessBindings(matches);
+
+        const target = matches[0];
+        if (target) {
+          const events = await apiFetch<AccessEvent[]>(
+            `/isp/access-bindings/${target.id}/events`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (!cancelled) setAccessEvents(events ?? []);
+        } else {
+          setAccessEvents([]);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setAccessBindings([]);
+          setAccessEvents([]);
+          setError(cause instanceof Error ? cause.message : 'Unable to load access context.');
+        }
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
   async function settle(status: 'SUCCESS' | 'FAILED') {
-    if (!selectedId) {
+    if (!selected) {
       setError('Select a purchase from the ledger first.');
       return;
     }
@@ -150,9 +266,8 @@ export default function PurchasesPage() {
       setError('Enter the provider reference before settling this purchase.');
       return;
     }
-
-    const selectedMethod = providers.find(item => item.code === provider);
-    if (!selectedMethod?.enabled) {
+    const method = providers.find(item => item.code === provider);
+    if (!method?.enabled) {
       setError('The selected payment method is not enabled for this organization.');
       return;
     }
@@ -167,20 +282,16 @@ export default function PurchasesPage() {
     setError('');
 
     try {
-      await apiFetch(`/purchases/${selectedId}/confirm-payment`, {
+      await apiFetch(`/purchases/${selected.id}/confirm-payment`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           provider,
           providerReference: reference.trim(),
           status,
-          idempotencyKey: `ops:${selectedId}:${reference.trim()}`,
+          idempotencyKey: `ops:${selected.id}:${reference.trim()}`,
         }),
       });
-
       setReference('');
       await load();
     } catch (cause) {
@@ -190,9 +301,50 @@ export default function PurchasesPage() {
     }
   }
 
-  const selected = rows.find(row => row.id === selectedId) ?? null;
-  const selectedProvider =
-    providers.find(item => item.code === provider) ?? providers[0] ?? FALLBACK_PAYMENT_PROVIDERS[0];
+  async function changeAccessState(nextState: 'ACTIVE' | 'SUSPENDED') {
+    const binding = accessBindings[0];
+    if (!binding) {
+      setError('No customer access binding is linked to this purchase.');
+      return;
+    }
+
+    const trimmedReason = reason.trim();
+    if (trimmedReason.length < 2) {
+      setError('Enter a reason before changing access state.');
+      return;
+    }
+
+    const token = getAccessToken();
+    if (!token) {
+      setError('Sign in before changing access state.');
+      return;
+    }
+
+    setAccessSaving(true);
+    setError('');
+
+    try {
+      await apiFetch(`/isp/access-bindings/${binding.id}/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          state: nextState,
+          reason: trimmedReason,
+        }),
+      });
+      setReason('');
+      await load();
+      const refreshed = await apiFetch<{ data?: AccessBinding[] }>(
+        `/isp/access-bindings?search=${encodeURIComponent(selected?.customerName ?? '')}&limit=100`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setAccessBindings((refreshed.data ?? []).filter(item => item.customerId === selected?.customerId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to change access state.');
+    } finally {
+      setAccessSaving(false);
+    }
+  }
 
   const filteredRows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -201,36 +353,39 @@ export default function PurchasesPage() {
         !needle ||
         [row.customerName, row.customerId, row.packageName, row.id, row.currency, row.provider ?? '']
           .some(value => String(value).toLowerCase().includes(needle));
-      const matchesStatus = statusFilter === 'ALL' || upper(row.status) === statusFilter;
-      return matchesQuery && matchesStatus;
+      return matchesQuery && (statusFilter === 'ALL' || upper(row.status) === statusFilter);
     });
   }, [query, rows, statusFilter]);
 
   const metrics = useMemo(() => {
-    const paid = rows.filter(row => ['PAID', 'SUCCESS'].includes(upper(row.status)));
+    const successful = rows.filter(row => ['PAID', 'SUCCESS', 'ACTIVE'].includes(upper(row.status)));
     const pending = rows.filter(row => upper(row.status).includes('PENDING'));
     const failed = rows.filter(row => ['FAILED', 'CANCELED', 'CANCELLED'].includes(upper(row.status)));
-    const active = rows.filter(row => upper(row.accessStatus) === 'ACTIVE' || upper(row.status) === 'ACTIVE');
-    const currencies = Array.from(new Set(paid.map(row => row.currency).filter(Boolean)));
-    const value = paid.reduce((sum, row) => sum + Number(row.price || 0), 0);
+    const activeAccess = rows.filter(row => upper(row.accessStatus) === 'ACTIVE' || upper(row.status) === 'ACTIVE');
+    const value = successful.reduce((sum, row) => sum + Number(row.price || 0), 0);
+    const currencies = Array.from(new Set(successful.map(row => row.currency).filter(Boolean)));
     return {
       total: rows.length,
-      paid: paid.length,
+      successful: successful.length,
       pending: pending.length,
       failed: failed.length,
-      active: active.length,
+      activeAccess: activeAccess.length,
       value,
       currency: currencies.length === 1 ? currencies[0] : '',
       currencies: currencies.length,
     };
   }, [rows]);
 
-  const accessText = (row: Purchase) => {
-    if (row.accessStatus) return statusLabel(row.accessStatus);
-    if (upper(row.status) === 'ACTIVE') return 'Active';
-    if (row.endsAt && new Date(row.endsAt).getTime() > Date.now()) return 'Granted';
-    return 'Not active';
-  };
+  const activeBinding = accessBindings[0] ?? null;
+  const policy = selected?.networkPolicy ?? null;
+  const paymentState = selected ? label(selected.status) : '—';
+  const accessState = selected
+    ? selected.accessStatus
+      ? label(selected.accessStatus)
+      : activeBinding
+        ? label(activeBinding.state)
+        : 'Not linked'
+    : '—';
 
   return (
     <main className="purchase-page">
@@ -238,66 +393,45 @@ export default function PurchasesPage() {
         <div className="purchase-title-group">
           <BrandLogo alt="JASLYN NET" />
           <div>
-            <div className="eyebrow">COMMERCIAL OPERATIONS</div>
+            <div className="eyebrow">HYBRID COMMERCIAL CONTROL PLANE</div>
             <h1>Purchases & Access</h1>
-            <p>One place to trace the purchase, confirm settlement and verify the resulting network access.</p>
+            <p>Commercial entitlement, payment settlement and network access in one operational surface.</p>
           </div>
         </div>
-        <button className="refresh-button" type="button" onClick={() => void load()} disabled={loading}>
+        <button className="refresh-button" type="button" onClick={() => void load()} disabled={loading || saving || accessSaving}>
           <span aria-hidden="true">↻</span>
           {loading ? 'Refreshing' : 'Refresh'}
         </button>
       </header>
 
-      <section className="purchase-overview">
-        <div className="overview-copy">
-          <span className="section-label">OPERATIONS LEDGER</span>
-          <strong>{metrics.total.toLocaleString()} purchase records</strong>
-          <p>Payment state and access state stay visible together so an operator can see what happened before changing anything.</p>
+      <section className="hybrid-hero">
+        <div className="hybrid-hero-copy">
+          <span className="section-label">HYBRID ENTITLEMENT FABRIC</span>
+          <h2>Money becomes access only through a verified state transition.</h2>
+          <p>Trace the exact chain from customer purchase to payment, entitlement policy and network binding. One screen, one operational truth.</p>
         </div>
-        <div className="overview-facts">
-          <div><span>Enabled methods</span><strong>{providers.length}</strong></div>
-          <div><span>Open settlement queue</span><strong>{metrics.pending}</strong></div>
-          <div><span>Active access</span><strong>{metrics.active}</strong></div>
+        <div className="hybrid-chain" aria-label="Purchase to network lifecycle">
+          <div className="chain-node done"><span>01</span><strong>Purchase</strong><small>Commercial record</small></div>
+          <i aria-hidden="true" />
+          <div className={`chain-node ${selected && ['PAID','SUCCESS','ACTIVE'].includes(upper(selected.status)) ? 'done' : 'current'}`}><span>02</span><strong>Payment</strong><small>{paymentState}</small></div>
+          <i aria-hidden="true" />
+          <div className={`chain-node ${activeBinding && upper(activeBinding.state) === 'ACTIVE' ? 'done' : ''}`}><span>03</span><strong>Access</strong><small>{accessState}</small></div>
         </div>
       </section>
 
       {error && (
         <div className="operation-error" role="alert">
           <span aria-hidden="true">!</span>
-          <div>
-            <strong>Action not completed</strong>
-            <p>{error}</p>
-          </div>
+          <div><strong>Operation not completed</strong><p>{error}</p></div>
         </div>
       )}
 
       <section className="purchase-stats" aria-label="Purchase metrics">
-        <article>
-          <span>Total purchases</span>
-          <strong>{metrics.total.toLocaleString()}</strong>
-          <small>all records returned</small>
-        </article>
-        <article>
-          <span>Paid</span>
-          <strong>{metrics.paid.toLocaleString()}</strong>
-          <small>settled successfully</small>
-        </article>
-        <article>
-          <span>Pending</span>
-          <strong>{metrics.pending.toLocaleString()}</strong>
-          <small>awaiting settlement</small>
-        </article>
-        <article>
-          <span>Failed / canceled</span>
-          <strong>{metrics.failed.toLocaleString()}</strong>
-          <small>not active from payment state</small>
-        </article>
-        <article className="stat-value">
-          <span>Paid value</span>
-          <strong>{metrics.currency ? money(metrics.value, metrics.currency) : metrics.currencies > 1 ? `${metrics.currencies} currencies` : '—'}</strong>
-          <small>paid and successful records</small>
-        </article>
+        <article><span>Total</span><strong>{metrics.total.toLocaleString()}</strong><small>purchase records</small></article>
+        <article><span>Successful</span><strong>{metrics.successful.toLocaleString()}</strong><small>paid or active</small></article>
+        <article><span>Pending</span><strong>{metrics.pending.toLocaleString()}</strong><small>awaiting settlement</small></article>
+        <article><span>Active access</span><strong>{metrics.activeAccess.toLocaleString()}</strong><small>entitlements currently active</small></article>
+        <article className="stat-value"><span>Settled value</span><strong>{metrics.currency ? money(metrics.value, metrics.currency) : metrics.currencies > 1 ? `${metrics.currencies} currencies` : '—'}</strong><small>successful records</small></article>
       </section>
 
       <section className="purchase-workspace">
@@ -305,8 +439,8 @@ export default function PurchasesPage() {
           <div className="surface-header">
             <div>
               <span className="section-label">PURCHASE LEDGER</span>
-              <h2>Customer transactions</h2>
-              <p>Select a row to inspect its lifecycle and settlement context.</p>
+              <h2>Commercial transactions</h2>
+              <p>Click a purchase to open its settlement and access context.</p>
             </div>
             <span className="surface-count">{filteredRows.length} shown</span>
           </div>
@@ -314,231 +448,151 @@ export default function PurchasesPage() {
           <div className="ledger-controls">
             <label className="search-field">
               <span aria-hidden="true">⌕</span>
-              <input
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                placeholder="Search customer, package, transaction or provider"
-                aria-label="Search purchases"
-              />
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Customer, package, transaction or provider" aria-label="Search purchases" />
             </label>
             <div className="status-tabs" role="tablist" aria-label="Purchase status">
-              {[
-                ['ALL', 'All'],
-                ['PENDING_PAYMENT', 'Pending'],
-                ['PAID', 'Paid'],
-                ['ACTIVE', 'Active'],
-                ['FAILED', 'Failed'],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={statusFilter === value}
-                  className={statusFilter === value ? 'active' : ''}
-                  onClick={() => setStatusFilter(value)}
-                >
-                  {label}
-                </button>
+              {[['ALL','All'],['PENDING_PAYMENT','Pending'],['PAID','Paid'],['ACTIVE','Active'],['FAILED','Failed']].map(([value,text]) => (
+                <button key={value} type="button" role="tab" aria-selected={statusFilter === value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}>{text}</button>
               ))}
             </div>
-            <button
-              className="clear-button"
-              type="button"
-              onClick={() => {
-                setQuery('');
-                setStatusFilter('ALL');
-              }}
-              disabled={!query && statusFilter === 'ALL'}
-            >
-              Clear
-            </button>
+            <button className="clear-button" type="button" onClick={() => { setQuery(''); setStatusFilter('ALL'); }} disabled={!query && statusFilter === 'ALL'}>Clear</button>
           </div>
 
           {loading ? (
-            <div className="ledger-state">Loading purchase records…</div>
+            <div className="ledger-state">Loading purchase ledger…</div>
           ) : rows.length === 0 ? (
-            <div className="ledger-state empty">
-              <strong>No purchases yet</strong>
-              <p>New customer purchases will appear here.</p>
-              <a href="/packages">Open Plans & Products</a>
-            </div>
+            <div className="ledger-state empty"><strong>No purchases yet</strong><p>New customer purchases will appear here.</p><a href="/packages">Open Plans & Products</a></div>
           ) : filteredRows.length === 0 ? (
-            <div className="ledger-state empty">
-              <strong>No matching records</strong>
-              <p>Clear the current search or status filter.</p>
-              <button type="button" onClick={() => { setQuery(''); setStatusFilter('ALL'); }}>Clear filters</button>
-            </div>
+            <div className="ledger-state empty"><strong>No matching purchases</strong><p>Clear the search or status filter.</p><button type="button" onClick={() => { setQuery(''); setStatusFilter('ALL'); }}>Clear filters</button></div>
           ) : (
-            <div className="purchase-table-wrap">
-              <table className="purchase-table">
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>Service</th>
-                    <th>Amount</th>
-                    <th>Payment</th>
-                    <th>Access</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map(row => (
-                    <tr
-                      key={row.id}
-                      className={selectedId === row.id ? 'selected' : ''}
-                      onClick={() => setSelectedId(row.id)}
-                      tabIndex={0}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setSelectedId(row.id);
-                        }
-                      }}
-                    >
-                      <td>
-                        <strong>{row.customerName}</strong>
-                        <small>{row.customerId.slice(0, 12)}…</small>
-                      </td>
-                      <td>
-                        <strong>{row.packageName}</strong>
-                        <small>{row.provider ? statusLabel(row.provider) : 'Provider not recorded'}</small>
-                      </td>
-                      <td><strong>{money(Number(row.price), row.currency)}</strong></td>
-                      <td><span className={`status status-${upper(row.status).toLowerCase()}`}>{statusLabel(row.status)}</span></td>
-                      <td><span className={`access access-${upper(row.accessStatus ?? '').toLowerCase()}`}><i />{accessText(row)}</span></td>
-                      <td>{date(row.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="purchase-table-wrap">
+                <table className="purchase-table">
+                  <thead><tr><th>Customer</th><th>Service</th><th>Amount</th><th>Payment</th><th>Access</th><th>Created</th></tr></thead>
+                  <tbody>
+                    {filteredRows.map(row => {
+                      const access = row.accessStatus ? label(row.accessStatus) : row.endsAt && new Date(row.endsAt).getTime() > Date.now() ? 'Granted' : 'Not active';
+                      return (
+                        <tr key={row.id} className={selectedId === row.id ? 'selected' : ''} onClick={() => setSelectedId(row.id)} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedId(row.id); } }}>
+                          <td><strong>{row.customerName}</strong><small>{row.customerId.slice(0, 12)}…</small></td>
+                          <td><strong>{row.packageName}</strong><small>{row.provider ? label(row.provider) : 'Provider not recorded'}</small></td>
+                          <td><strong>{money(Number(row.price), row.currency)}</strong></td>
+                          <td><span className={`status status-${upper(row.status).toLowerCase()}`}>{label(row.status)}</span></td>
+                          <td><span className={`access access-${upper(row.accessStatus ?? '').toLowerCase()}`}><i />{access}</span></td>
+                          <td>{date(row.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               <div className="mobile-list">
                 {filteredRows.map(row => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    className="mobile-purchase"
-                    onClick={() => setSelectedId(row.id)}
-                  >
-                    <span aria-hidden="true">▱</span>
-                    <span className="mobile-purchase-copy">
-                      <strong>{row.packageName}</strong>
-                      <small>{row.customerName} · {money(Number(row.price), row.currency)}</small>
-                    </span>
-                    <span className={`status status-${upper(row.status).toLowerCase()}`}>{statusLabel(row.status)}</span>
+                  <button key={row.id} type="button" className="mobile-purchase" onClick={() => setSelectedId(row.id)}>
+                    <span className="mobile-purchase-mark" aria-hidden="true">▱</span>
+                    <span className="mobile-purchase-copy"><strong>{row.packageName}</strong><small>{row.customerName} · {money(Number(row.price), row.currency)}</small></span>
+                    <span className={`status status-${upper(row.status).toLowerCase()}`}>{label(row.status)}</span>
                   </button>
                 ))}
               </div>
+            </>
           )}
         </article>
 
         <aside className="settlement-surface">
           <div className="surface-header compact">
-            <div>
-              <span className="section-label">SETTLEMENT WORKSPACE</span>
-              <h2>{selected ? 'Selected purchase' : 'Select a purchase'}</h2>
-              <p>{selected ? `${selected.customerName} · ${selected.packageName}` : 'Choose a ledger row before changing payment state.'}</p>
-            </div>
+            <span className="section-label">HYBRID ACCESS WORKSPACE</span>
+            <h2>{selected ? selected.customerName : 'Select a purchase'}</h2>
+            <p>{selected ? `${selected.packageName} · ${selected.id}` : 'Select a transaction to inspect settlement and access.'}</p>
           </div>
 
-          {selected ? (
+          {!selected ? (
+            <div className="selection-empty"><div className="selection-line" /><strong>Nothing selected</strong><p>The right workspace stays contextual. Select a purchase from the ledger.</p></div>
+          ) : (
             <>
-              <div className="purchase-identity">
-                <div>
-                  <span>Purchase ID</span>
-                  <strong>{selected.id}</strong>
+              <div className="record-header">
+                <div><span>Purchase state</span><strong>{paymentState}</strong></div>
+                <div><span>Access state</span><strong>{accessState}</strong></div>
+                <div><span>Amount</span><strong>{money(Number(selected.price), selected.currency)}</strong></div>
+              </div>
+
+              <section className="entitlement-card">
+                <div className="card-head"><div><span className="section-label">NETWORK ENTITLEMENT</span><h3>Compiled policy</h3></div><span className="policy-version">v{policy?.version ?? '—'}</span></div>
+                <div className="policy-grid">
+                  <div><span>Download</span><strong>{bandwidth(policy?.bandwidth?.downloadBps)}</strong></div>
+                  <div><span>Upload</span><strong>{bandwidth(policy?.bandwidth?.uploadBps)}</strong></div>
+                  <div><span>Quota</span><strong>{quota(policy?.quota?.dataLimitBytes)}</strong></div>
+                  <div><span>Session</span><strong>{duration(policy?.session?.sessionTimeoutSeconds)}</strong></div>
                 </div>
-                <span className={`status status-${upper(selected.status).toLowerCase()}`}>{statusLabel(selected.status)}</span>
-              </div>
-
-              <div className="amount-band">
-                <span>Purchase amount</span>
-                <strong>{money(Number(selected.price), selected.currency)}</strong>
-              </div>
-
-              <div className="lifecycle">
-                <div className="lifecycle-step done"><span>01</span><div><strong>Purchase created</strong><small>{date(selected.createdAt)}</small></div></div>
-                <div className={`lifecycle-step ${['PAID','SUCCESS','ACTIVE'].includes(upper(selected.status)) ? 'done' : 'current'}`}><span>02</span><div><strong>Payment settled</strong><small>{selected.provider ? statusLabel(selected.provider) : 'Provider not recorded'}</small></div></div>
-                <div className={`lifecycle-step ${upper(selected.accessStatus) === 'ACTIVE' || upper(selected.status) === 'ACTIVE' ? 'done' : ''}`}><span>03</span><div><strong>Network access</strong><small>{accessText(selected)}{selected.endsAt ? ` · until ${date(selected.endsAt)}` : ''}</small></div></div>
-              </div>
-
-              <div className="provider-section">
-                <div className="field-heading">
-                  <span>Payment method</span>
-                  <small>Enabled methods only</small>
+                <div className="capability-row">
+                  {[
+                    ['Quota', policy?.capabilities?.quotaEnforcement],
+                    ['Bandwidth', policy?.capabilities?.bandwidthEnforcement],
+                    ['Timeout', policy?.capabilities?.sessionTimeout],
+                    ['Interim acct.', policy?.capabilities?.interimAccounting],
+                    ['CoA', policy?.capabilities?.coaCompatible],
+                  ].map(([name,enabled]) => <span key={name} className={enabled ? 'enabled' : ''}><i />{name}</span>)}
                 </div>
+              </section>
+
+              <section className="access-card">
+                <div className="card-head"><div><span className="section-label">NETWORK BINDING</span><h3>{detailLoading ? 'Resolving access…' : activeBinding ? activeBinding.username : 'No binding linked'}</h3></div><span className={`binding-state binding-${upper(activeBinding?.state).toLowerCase()}`}>{activeBinding ? label(activeBinding.state) : 'Unlinked'}</span></div>
+                {activeBinding ? (
+                  <>
+                    <div className="binding-grid">
+                      <div><span>Access type</span><strong>{label(activeBinding.accessType)}</strong></div>
+                      <div><span>Router</span><strong>{activeBinding.routerId || selected.routerId || 'Not assigned'}</strong></div>
+                      <div><span>Activated</span><strong>{date(activeBinding.activatedAt)}</strong></div>
+                      <div><span>Expires</span><strong>{date(activeBinding.expiresAt || selected.endsAt)}</strong></div>
+                    </div>
+                    <div className="state-control">
+                      <label>Reason for state change<input value={reason} onChange={event => setReason(event.target.value)} placeholder="e.g. payment confirmed, customer requested suspension" disabled={accessSaving} /></label>
+                      <div className="state-actions">
+                        <button type="button" className="suspend-action" disabled={accessSaving || upper(activeBinding.state) === 'SUSPENDED'} onClick={() => void changeAccessState('SUSPENDED')}>{accessSaving ? 'Saving…' : 'Suspend access'}</button>
+                        <button type="button" className="resume-action" disabled={accessSaving || upper(activeBinding.state) === 'ACTIVE'} onClick={() => void changeAccessState('ACTIVE')}>Resume access</button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="card-empty">This purchase does not currently resolve to a customer access binding through the access service.</p>
+                )}
+              </section>
+
+              <section className="settlement-card">
+                <div className="card-head"><div><span className="section-label">PAYMENT SETTLEMENT</span><h3>Verified operator action</h3></div><span className="control-state">{providers.length} methods</span></div>
                 <div className="provider-list" role="radiogroup" aria-label="Payment method">
                   {providers.map(item => (
-                    <button
-                      key={item.code}
-                      type="button"
-                      role="radio"
-                      aria-checked={provider === item.code}
-                      className={`provider-row ${provider === item.code ? 'active' : ''}`}
-                      onClick={() => setProvider(item.code)}
-                      disabled={saving}
-                    >
+                    <button key={item.code} type="button" role="radio" aria-checked={provider === item.code} className={`provider-row ${provider === item.code ? 'active' : ''}`} onClick={() => setProvider(item.code)} disabled={saving}>
                       <span className={`provider-mark ${item.tone}`}><ProviderLogo provider={item} /></span>
-                      <span className="provider-copy">
-                        <strong>{item.name}</strong>
-                        <small>{showProviderSubtitles ? item.subtitle : 'Configured'}</small>
-                      </span>
+                      <span className="provider-copy"><strong>{item.name}</strong><small>{showProviderSubtitles ? item.subtitle : 'Configured'}</small></span>
                       {provider === item.code && <span className="provider-selected">Selected</span>}
                     </button>
                   ))}
                 </div>
-              </div>
+                <label className="reference-field"><span>Provider reference</span><input value={reference} onChange={event => setReference(event.target.value)} placeholder="Transaction reference" disabled={saving} /></label>
+                <div className="settlement-actions"><button type="button" className="secondary-action" disabled={saving} onClick={() => void settle('FAILED')}>Mark failed</button><button type="button" className="primary-action" disabled={saving} onClick={() => void settle('SUCCESS')}>{saving ? 'Saving…' : 'Confirm paid'}</button></div>
+                <div className="settlement-note"><strong>Verification boundary</strong><span>External payment providers must complete authenticated webhook verification. Manual settlement is the operator path.</span></div>
+              </section>
 
-              <label className="reference-field">
-                <span>Provider reference</span>
-                <input
-                  value={reference}
-                  onChange={event => setReference(event.target.value)}
-                  placeholder="e.g. transaction reference"
-                  minLength={2}
-                  maxLength={160}
-                  disabled={saving}
-                />
-              </label>
+              <section className="event-card">
+                <div className="card-head"><div><span className="section-label">ACCESS AUDIT</span><h3>State history</h3></div><span className="control-state">{accessEvents.length} events</span></div>
+                {accessEvents.length ? (
+                  <div className="event-list">
+                    {accessEvents.slice(0,6).map(event => <div className="event-row" key={event.id}><span className="event-dot" /><div><strong>{label(event.newState)}</strong><small>{event.reason || 'No reason recorded'} · {date(event.createdAt)}</small></div></div>)}
+                  </div>
+                ) : <p className="card-empty">No access state events were returned for the linked binding.</p>}
+              </section>
 
-              <div className="settlement-actions">
-                <button type="button" className="secondary-action" disabled={saving} onClick={() => void settle('FAILED')}>
-                  Mark failed
-                </button>
-                <button type="button" className="primary-action" disabled={saving} onClick={() => void settle('SUCCESS')}>
-                  {saving ? 'Saving…' : 'Confirm paid'}
-                </button>
-              </div>
-
-              <div className="settlement-note">
-                <strong>Settlement guard</strong>
-                <span>Manual settlement is the operator path. External providers must complete their authenticated webhook verification flow.</span>
+              <div className="selection-meta">
+                <span>Created {date(selected.createdAt)}</span>
+                <span>Updated {date(selected.updatedAt)}</span>
+                <a href={`/customers?customerId=${selected.customerId}`}>Open customer</a>
+                <a href="/packages">Plans & Products</a>
               </div>
             </>
-          ) : (
-            <div className="selection-empty">
-              <div className="selection-line" />
-              <strong>Nothing selected</strong>
-              <p>Click any purchase in the ledger to inspect it here. No payment state is changed until you explicitly confirm it.</p>
-            </div>
           )}
         </aside>
       </section>
-
-      {selected && (
-        <section className="detail-strip">
-          <div>
-            <span className="section-label">SELECTED RECORD</span>
-            <strong>{selected.customerName}</strong>
-            <p>{selected.packageName} · {selected.id}</p>
-          </div>
-          <div><span>Router</span><strong>{selected.routerId || 'Not assigned'}</strong></div>
-          <div><span>Starts</span><strong>{date(selected.startsAt)}</strong></div>
-          <div><span>Expires</span><strong>{date(selected.endsAt)}</strong></div>
-          <div><span>Access</span><strong>{accessText(selected)}</strong></div>
-          <button type="button" onClick={() => setSelectedId('')}>Close selection</button>
-        </section>
-      )}
     </main>
   );
 }
