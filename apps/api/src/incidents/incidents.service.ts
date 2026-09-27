@@ -215,4 +215,24 @@ export class IncidentsService {
     await this.audit.record(tenantId, 'INCIDENT_RESOLVED', 'incident', id, { resolution: resolution.trim() }, context);
     return this.get(tenantId, id);
   }
+  async assign(tenantId: string, id: string, assigneeUserId: string | null, context: AuditContext = {}) {
+    if (assigneeUserId) {
+      const user = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true', [tenantId, assigneeUserId]);
+      if (!user.rowCount) throw new NotFoundException('Active assignee not found in tenant');
+    }
+    const result = await this.db.query('UPDATE incidents SET assignee_user_id=$3, updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING id', [tenantId, id, assigneeUserId]);
+    if (!result.rowCount) throw new NotFoundException('Incident not found');
+    await this.audit.record(tenantId, assigneeUserId ? 'INCIDENT_ASSIGNED' : 'INCIDENT_UNASSIGNED', 'incident', id, { assigneeUserId }, context);
+    return this.get(tenantId, id);
+  }
+
+  async auditTrail(tenantId: string, id: string, limit = 100) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 500);
+    const result = await this.db.query(
+      "SELECT a.id,a.action,a.actor_user_id AS \"actorUserId\",u.full_name AS \"actorName\",a.request_id AS \"requestId\",a.correlation_id AS \"correlationId\",a.metadata,a.created_at AS \"createdAt\" FROM audit_logs a LEFT JOIN users u ON u.tenant_id=a.tenant_id AND u.id=a.actor_user_id WHERE a.tenant_id=$1 AND a.resource_type='incident' AND a.resource_id=$2 ORDER BY a.created_at ASC LIMIT $3",
+      [tenantId, id, safeLimit],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
 }
