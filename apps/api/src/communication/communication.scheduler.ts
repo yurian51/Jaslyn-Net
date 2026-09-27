@@ -2,6 +2,7 @@ import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { CommunicationService } from './communication.service';
+import { CommunicationSuperAppService } from './communication.superapp';
 
 @Injectable()
 export class CommunicationScheduler implements OnModuleInit, OnModuleDestroy {
@@ -11,11 +12,13 @@ export class CommunicationScheduler implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly communication: CommunicationService,
+    private readonly superApp: CommunicationSuperAppService,
   ) {}
 
   onModuleInit() {
     this.timer = setInterval(() => void this.process(), 15_000);
     void this.process();
+    void this.superApp.processExpired();
   }
 
   onModuleDestroy() {
@@ -25,6 +28,7 @@ export class CommunicationScheduler implements OnModuleInit, OnModuleDestroy {
   private async process() {
     if (this.running) return;
     this.running = true;
+    await this.superApp.processExpired().catch(() => undefined);
     const client = await this.db.connect();
     let lockAcquired = false;
     try {
