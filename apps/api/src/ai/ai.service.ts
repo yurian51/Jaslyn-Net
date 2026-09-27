@@ -105,7 +105,8 @@ export class AiService {
     return {...result.rows[0],actions:actions.rows};
   }
 
-  async approve(userId:string,tenantId:string,actionId:string) {
+  async approve(userId:string,tenantId:string,actionId:string,role:string) {
+    if(!['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN','BILLING_ADMIN'].includes(role)) throw new ForbiddenException('Insufficient role for AI action approval');
     const result=await this.db.query('UPDATE ai_actions SET status=\'APPROVED\',approved_by=$3,approved_at=now() WHERE tenant_id=$1 AND id=$2 AND status=\'PENDING\' RETURNING id,run_id AS "runId",tool_key AS "toolKey",status',[tenantId,actionId,userId]);
     if(!result.rowCount) throw new NotFoundException('Pending AI action not found');
     await this.audit.record(tenantId,'AI_ACTION_APPROVED','ai_action',actionId,{runId:result.rows[0].runId,toolKey:result.rows[0].toolKey},{userId});
