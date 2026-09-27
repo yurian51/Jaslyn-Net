@@ -27,6 +27,7 @@ import { IpamModule } from './ipam/ipam.module';
 import { RadiusModule } from './radius/radius.module';
 import { CommunicationModule } from './communication/communication.module';
 import { CustomerCommerceModule } from './customer-commerce/customer-commerce.module';
+import { AiModule } from './ai/ai.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 
 @Module({
@@ -35,7 +36,7 @@ import { RequestIdMiddleware } from './common/request-id.middleware';
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule, UpesiLipaModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule,
   ],
 })
 export class AppModule implements NestModule {

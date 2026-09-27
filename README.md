@@ -16,7 +16,7 @@ JASLYN NET unifies WiFi/ISP billing, customers, locations, routers, HotSpot, vou
 - **Category:** Connectivity & ISP Operating System
 - **Tagline:** Connect. Control. Grow.
 
-JASLYN NET is a standalone connectivity and network operations product. **JASLYN and JASLYN NET are distinct products and JASLYN NET does not embed an AI assistant or AI operating layer.**
+JASLYN NET is a standalone connectivity and network operations product. **JASLYN NET is an AI-native connectivity operating system. Its AI operating layer is part of the same control plane and is constrained by tenant scope, RBAC, risk policies, approvals, audit trails and verification.**
 
 ## Architecture
 
@@ -38,10 +38,13 @@ JASLYN NET is a standalone connectivity and network operations product. **JASLYN
 - Hotspots, routers, RADIUS and live sessions
 - Payments, transactions and reconciliation
 - Agents and reseller operations
-- Reports, alerts and audit logs
+- Reports, alerts, audit logs and AI agent runs
+- AI agent orchestration, specialist agents, skills, dynamic tool registry and policy-controlled autonomy
+- Evidence-first incident investigation, payment reconciliation and network operations planning
 - Captive portals and integrations
 - Network operations and router connectivity
 - Hybrid adapter registry with explicit executable vs catalogue-only capability state
+- AI operating layer over the universal command fabric, with approval-gated state-changing actions
 - Vendor-neutral RADIUS/AAA fallback for supported NAS/controller environments
 
 ## Security baseline
