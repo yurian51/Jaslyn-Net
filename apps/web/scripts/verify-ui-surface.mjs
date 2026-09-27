@@ -12,6 +12,8 @@ const nav = read('apps/web/app/landing-nav.tsx');
 const chrome = read('apps/web/app/console-chrome.tsx');
 const dashboard = read('apps/web/app/dashboard/page.tsx');
 const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
+const network = read('apps/web/app/network/page.tsx');
+const sessions = read('apps/web/app/sessions/page.tsx');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
@@ -41,6 +43,8 @@ const required = [
   ['NOC real state guardrails', dashboard.includes('current schema does not report those values') && dashboard.includes('does not manufacture them')],
   ['incident assignment/audit', read('apps/web/app/incidents/page.tsx').includes('/assign') && read('apps/web/app/incidents/page.tsx').includes('/audit-trail')],
   ['command evidence controls', read('apps/web/app/network-commands/page.tsx').includes('Risk level') && read('apps/web/app/network-commands/page.tsx').includes('Authorization') && read('apps/web/app/network-commands/page.tsx').includes('Confirmation')],
+  ['device operational detail', network.includes('/overview/command-center') && network.includes('RECENT COMMANDS') && network.includes('RECENT INCIDENTS')],
+  ['session disconnect action', sessions.includes('/sessions/\\${id}/end') && sessions.includes('Disconnect session')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
   ['operator shell health', chrome.includes('/health/ready') && chrome.includes('console-system-health')],
   ['workspace context', chrome.includes('console-chrome-workspace') && chrome.includes('/account')],
