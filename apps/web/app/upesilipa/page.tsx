@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import './upesilipa.css';
@@ -15,12 +16,12 @@ type Dashboard = {
   };
 };
 
-type Capability = { hardware: Array<{ vendor: string; mode: string; protocol: string }>; gateways: string[] };
-type HealthOverview = { summary: { sites: number; healthy: number; degraded: number; offline: number; noDevices: number }; sites: Array<{ locationId: string; locationName: string; routers: number; online: number; offline: number; degraded: number; health: string }> };
+type HealthOverview = {
+  summary: { sites: number; healthy: number; degraded: number; offline: number; noDevices: number };
+};
 
-export default function UpesiLipaPage() {
+export default function JaslynWifiOperationsPage() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [capabilities, setCapabilities] = useState<Capability | null>(null);
   const [health, setHealth] = useState<HealthOverview | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -32,81 +33,92 @@ export default function UpesiLipaPage() {
     setError('');
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [d, c, h] = await Promise.all([
+      const [d, h] = await Promise.all([
         apiFetch<Dashboard>('/upesilipa/dashboard', { headers }),
-        apiFetch<Capability>('/upesilipa/capabilities', { headers }),
         apiFetch<HealthOverview>('/upesilipa/health', { headers }),
       ]);
       setDashboard(d);
-      setCapabilities(c);
       setHealth(h);
-    } catch (e: any) {
-      setError(e?.message || 'UpesiLipa operator data could not be loaded.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Jaslyn Net WiFi operations could not be loaded.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
-  const money = (value: string | number) => new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(Number(value || 0));
+  const money = (value: string | number) =>
+    new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(Number(value || 0));
+
+  const actions = [
+    ['/network', 'Network', 'Routers, sites, gateways and device health'],
+    ['/sessions', 'Sessions', 'Live subscriber connections and accounting'],
+    ['/customers', 'Customers', 'Subscriber accounts and service state'],
+    ['/packages', 'Plans & Products', 'WiFi packages, speed and access policy'],
+    ['/vouchers', 'Vouchers', 'Voucher inventory, batches and redemption'],
+    ['/payments', 'Payments', 'Transactions, verification and reconciliation'],
+    ['/purchases', 'Purchases & Access', 'Purchase lifecycle and entitlement'],
+    ['/communication', 'Communication', 'Customer messages and operator commands'],
+  ] as const;
 
   return (
-    <main className="upesilipa-page">
-      <header className="upesilipa-head">
+    <main className="jaslyn-wifi-page">
+      <header className="jaslyn-wifi-head">
         <div>
-          <span className="upesilipa-kicker">WIFI OPERATOR CONTROL</span>
-          <h1>UpesiLipa Operations</h1>
-          <p>Live hotspot billing, sites, sessions, vouchers and network health using Jaslyn Net's canonical data.</p>
+          <span className="jaslyn-wifi-kicker">JASLYN NET · WIFI OPERATIONS</span>
+          <h1>WiFi Operations</h1>
+          <p>One Jaslyn Net control surface for WiFi operations. Each capability stays in its canonical module instead of creating a second system.</p>
         </div>
-        <button onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+        <button onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
       </header>
 
-      {error && <div className="upesilipa-error">{error}</div>}
+      {error && <div className="jaslyn-wifi-error" role="alert">{error}</div>}
 
-      <section className="upesilipa-stats">
-        <article><small>Today sales</small><strong>{money(dashboard?.data.todaySales.amount || 0)}</strong><span>{dashboard?.data.todaySales.count || 0} paid purchases</span></article>
-        <article><small>Customers online</small><strong>{dashboard?.data.activeSessions || 0}</strong><span>active sessions</span></article>
-        <article><small>Routers</small><strong>{dashboard?.data.routers.online || 0}/{dashboard?.data.routers.total || 0}</strong><span>{dashboard?.data.routers.degraded || 0} degraded</span></article>
-        <article><small>Sites</small><strong>{dashboard?.data.locations.count || 0}</strong><span>canonical locations</span></article>
+      <section className="jaslyn-wifi-stats" aria-label="WiFi operational summary">
+        <article><small>Today sales</small><strong>{money(dashboard?.data.todaySales.amount || 0)}</strong><span>{dashboard?.data.todaySales.count || 0} purchases</span></article>
+        <article><small>Active sessions</small><strong>{dashboard?.data.activeSessions || 0}</strong><span>live connections</span></article>
+        <article><small>Routers online</small><strong>{dashboard?.data.routers.online || 0}/{dashboard?.data.routers.total || 0}</strong><span>{dashboard?.data.routers.degraded || 0} degraded</span></article>
+        <article><small>Sites</small><strong>{dashboard?.data.locations.count || 0}</strong><span>tenant locations</span></article>
       </section>
 
-      <section className="upesilipa-card wide">
-        <h2>Site health</h2>
-        <div className="upesilipa-list">
-          <span>Healthy <b>{health?.summary.healthy || 0}</b></span>
-          <span>Degraded <b>{health?.summary.degraded || 0}</b></span>
-          <span>Offline <b>{health?.summary.offline || 0}</b></span>
-          <span>No devices <b>{health?.summary.noDevices || 0}</b></span>
+      <section className="jaslyn-wifi-card">
+        <div className="jaslyn-wifi-card-head">
+          <div><span className="jaslyn-wifi-kicker">NETWORK HEALTH</span><h2>Operational health</h2></div>
+          <Link href="/network">Open Network →</Link>
         </div>
-        <div className="upesilipa-health-list">
-          {health?.sites.map(site => <div key={site.locationId}><strong>{site.locationName}</strong><span>{site.health}</span><small>{site.online}/{site.routers} routers online</small></div>)}
+        <div className="jaslyn-wifi-health">
+          <span><b>{health?.summary.healthy || 0}</b> Healthy</span>
+          <span><b>{health?.summary.degraded || 0}</b> Degraded</span>
+          <span><b>{health?.summary.offline || 0}</b> Offline</span>
+          <span><b>{health?.summary.noDevices || 0}</b> No devices</span>
         </div>
       </section>
 
-      <section className="upesilipa-grid">
-        <article className="upesilipa-card">
-          <h2>Voucher inventory</h2>
-          <div className="upesilipa-list">
-            <span>Unused <b>{dashboard?.data.vouchers.unused || 0}</b></span>
-            <span>Used <b>{dashboard?.data.vouchers.used || 0}</b></span>
-            <span>Expired <b>{dashboard?.data.vouchers.expired || 0}</b></span>
-            <span>Total <b>{dashboard?.data.vouchers.total || 0}</b></span>
-          </div>
-        </article>
+      <section className="jaslyn-wifi-card">
+        <div className="jaslyn-wifi-card-head">
+          <div><span className="jaslyn-wifi-kicker">CANONICAL CONTROL SURFACES</span><h2>Operate WiFi from the right Jaslyn Net module</h2></div>
+        </div>
+        <div className="jaslyn-wifi-actions">
+          {actions.map(([href, title, description]) => (
+            <Link href={href} key={href}>
+              <strong>{title}</strong>
+              <span>{description}</span>
+              <b>Open →</b>
+            </Link>
+          ))}
+        </div>
+      </section>
 
-        <article className="upesilipa-card">
-          <h2>Payment gateways</h2>
-          <div className="upesilipa-chips">{capabilities?.gateways.map(g => <span key={g}>{g}</span>)}</div>
-          <small>Gateway names are catalogue references. They are not treated as connected until a real provider configuration exists.</small>
-        </article>
-
-        <article className="upesilipa-card wide">
-          <h2>Hardware integration boundary</h2>
-          <div className="upesilipa-hardware">{capabilities?.hardware.map(item => (
-            <div key={item.vendor}><strong>{item.vendor}</strong><span className={item.mode === 'NATIVE' ? 'native' : item.mode === 'RADIUS' ? 'radius' : 'catalog'}>{item.mode}</span><small>{item.protocol}</small></div>
-          ))}</div>
-        </article>
+      <section className="jaslyn-wifi-card">
+        <div className="jaslyn-wifi-card-head">
+          <div><span className="jaslyn-wifi-kicker">BOUNDARY RULE</span><h2>Jaslyn Net is the product</h2></div>
+        </div>
+        <p className="jaslyn-wifi-note">
+          This surface does not present a separate WiFi brand, payment brand, hardware brand, or parallel dashboard.
+          Provider integrations remain adapters underneath Jaslyn Net, while customers, sessions, packages, payments,
+          vouchers and network commands remain owned by their canonical Jaslyn Net modules.
+        </p>
       </section>
     </main>
   );
