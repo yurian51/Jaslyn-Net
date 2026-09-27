@@ -38,6 +38,7 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     this.server.on('connection', (client: WebSocket, _request: IncomingMessage, context: SocketContext) => {
       this.sockets.set(client, context);
       this.lastPong.set(client, Date.now());
+      void this.markDelivered(context);
       client.send(JSON.stringify({ type: 'connected', data: { userId: context.userId }, createdAt: new Date().toISOString() }));
       client.on('pong', () => this.lastPong.set(client, Date.now()));
       client.on('message', (raw) => void this.handleClientEvent(client, context, raw.toString()));
@@ -83,6 +84,23 @@ export class CommunicationWebSocket implements OnModuleDestroy {
         if (!membership.rowCount) continue;
       }
       client.send(payload);
+    }
+  }
+
+  private async markDelivered(context: SocketContext) {
+    const result = await this.db.query(
+      `UPDATE message_deliveries SET status='DELIVERED', delivered_at=COALESCE(delivered_at,now()), updated_at=now()
+         WHERE tenant_id=$1 AND user_id=$2 AND status='SENT'
+         RETURNING message_id AS "messageId"`,
+      [context.tenantId, context.userId],
+    ).catch(() => ({ rows: [] } as any));
+    for (const row of result.rows ?? []) {
+      this.realtime.publish({
+        type: 'message.delivered',
+        tenantId: context.tenantId,
+        messageId: row.messageId,
+        data: { userId: context.userId, messageId: row.messageId },
+      });
     }
   }
 
