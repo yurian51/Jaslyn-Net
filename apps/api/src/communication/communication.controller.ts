@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import type { Response } from 'express';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { CommunicationService } from './communication.service';
 import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
+import { CommunicationAttachmentService } from './communication.attachments';
+import { CommunicationAiService } from './communication.ai';
 import { CommunicationPlatformService } from './communication.platform';
 
 class DirectConversationDto {
@@ -19,6 +21,7 @@ class SendMessageDto {
   @IsOptional() @IsString() @MaxLength(128) idempotencyKey?: string;
   @IsOptional() @IsUUID() replyToMessageId?: string;
   @IsOptional() @IsBoolean() protected?: boolean;
+  @IsOptional() @IsIn(['TEXT','VOICE','FILE']) messageType?: 'TEXT'|'VOICE'|'FILE';
 }
 
 class EditMessageDto {
@@ -116,6 +119,19 @@ class PollDto {
 class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
+class AiChatDto {
+  @IsString() @MinLength(1) @MaxLength(8000) message!: string;
+  @IsOptional() @IsUUID() conversationId?: string;
+}
+
+class AttachmentUploadDto {
+  @IsString() @MaxLength(180) fileName!: string;
+  @IsString() @MaxLength(120) mimeType!: string;
+  @IsInt() @Min(1) @Max(50 * 1024 * 1024) sizeBytes!: number;
+  @IsOptional() @IsInt() @Min(0) @Max(24 * 60 * 60 * 1000) durationMs?: number;
+  @IsOptional() metadata?: Record<string, unknown>;
+}
+
 class CommunicationNotificationDto {
   @IsUUID() userId!: string;
   @IsString() @MinLength(1) @MaxLength(64) type!: string;
@@ -128,7 +144,12 @@ class CommunicationNotificationDto {
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly attachments: CommunicationAttachmentService, private readonly ai: CommunicationAiService) {}
+
+  @Post('ai/chat')
+  aiChat(@Req() req: AuthenticatedRequest,@Body() dto:AiChatDto) {
+    return this.ai.chat({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
+  }
 
   @Post('commands/execute')
   command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {
@@ -193,6 +214,26 @@ export class CommunicationController {
   @Post('messages/:id/forward')
   forward(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:ForwardMessageDto) {
     return this.communication.forwardMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.targetConversationId);
+  }
+
+  @Post('messages/:id/attachments')
+  createAttachmentUpload(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:AttachmentUploadDto) {
+    return this.attachments.createUpload({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto);
+  }
+
+  @Post('attachments/:id/complete')
+  completeAttachmentUpload(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.attachments.completeUpload({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('attachments/:id/download')
+  downloadAttachment(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.attachments.getDownloadUrl({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('messages/:id/attachments')
+  listAttachments(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.attachments.listMessageAttachments({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
   }
 
   @Post('messages/:id/reactions')

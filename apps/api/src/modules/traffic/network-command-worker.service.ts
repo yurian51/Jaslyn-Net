@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../../database/database.module';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
+import { MikrotikRestAdapter } from '../../routers/mikrotik-rest.adapter';
 import { TrafficEnforcementService } from './enforcement.service';
 import { BandwidthEnforcementCommand, NetworkDisconnectCommand } from './enforcement.adapter';
 import { NetworkCommandService } from './network-command.service';
@@ -37,6 +38,7 @@ export class NetworkCommandWorkerService implements OnModuleInit, OnModuleDestro
     private readonly credentials: SecureNetworkCredentials,
     private readonly commands: NetworkCommandService,
     private readonly enforcement: TrafficEnforcementService,
+    private readonly mikrotik: MikrotikRestAdapter,
   ) {}
 
   onModuleInit() {
@@ -79,6 +81,19 @@ export class NetworkCommandWorkerService implements OnModuleInit, OnModuleDestro
     if (!protocol) throw new Error(`Unsupported network command provider: ${command.provider ?? 'missing'}`);
     const router = command.routerId ? await this.getRouter(command.tenantId, command.routerId) : undefined;
     const credentials = router?.managementCredentialsEncrypted ? this.credentials.decrypt(router.managementCredentialsEncrypted) : undefined;
+
+    if (command.commandType === 'ROUTER_RESTART') {
+      if (protocol !== 'MIKROTIK_REST') throw new Error(`Verified router restart is not supported for ${protocol}`);
+      if (!router?.apiEndpoint || !credentials) throw new Error('Router restart requires a configured management endpoint and encrypted credentials');
+      const result = await this.mikrotik.restart(router.apiEndpoint, credentials);
+      if (!result.verified) {
+        await this.commands.markFailed(command.tenantId, [command.id], result);
+        return;
+      }
+      await this.commands.markExecuted(command.tenantId, [command.id], result);
+      await this.commands.markVerified(command.tenantId, command.id, result);
+      return;
+    }
 
     if (command.commandType === 'BANDWIDTH_ENFORCEMENT') {
       const request = this.bandwidthCommand(command.request, router, protocol);

@@ -99,7 +99,7 @@ export class CommunicationService {
     finally { client.release(); }
   }
 
-  async sendMessage(actor: Actor, conversationId: string, input: { body: string; idempotencyKey?: string; replyToMessageId?: string; protected?: boolean }) {
+  async sendMessage(actor: Actor, conversationId: string, input: { body: string; idempotencyKey?: string; replyToMessageId?: string; protected?: boolean; messageType?: 'TEXT'|'VOICE'|'FILE' }) {
     await this.assertMember(actor, conversationId);
     const body = input.body.trim();
     if (!body || body.length > 10_000) throw new BadRequestException('Message body must contain 1-10000 characters');
@@ -603,6 +603,10 @@ export class CommunicationService {
     );
     this.realtime.publish({type:'notification.preference.updated',tenantId:actor.tenantId,data:{userId:actor.userId,category:normalized}});
     return result.rows[0];
+  }
+
+  async assertMessageAccess(actor: Actor, messageId: string) {
+    return this.getMessage(actor, messageId);
   }
 
   private async assertMember(actor: Actor, conversationId: string) {

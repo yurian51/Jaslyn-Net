@@ -17,6 +17,7 @@ import { NetworkCommandWorkerService } from './network-command-worker.service';
 import { LoadBalancingController } from './load-balancing.controller';
 import { LoadBalancingService } from './load-balancing.service';
 import { LoadBalancingEngine } from './load-balancing.engine';
+import { MikrotikRestAdapter } from '../../routers/mikrotik-rest.adapter';
 
 @Module({
   imports: [AuditModule],
@@ -26,6 +27,7 @@ import { LoadBalancingEngine } from './load-balancing.engine';
     FairnessService,
     TrafficSamplesService,
     NetworkCommandService,
+    MikrotikRestAdapter,
     MikroTikTrafficEnforcementAdapter,
     MerakiTrafficEnforcementAdapter,
     NetworkDeviceAdapterRegistry,
@@ -48,6 +50,6 @@ import { LoadBalancingEngine } from './load-balancing.engine';
     LoadBalancingEngine,
     LoadBalancingService,
   ],
-  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService, LoadBalancingService],
+  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService, MikrotikRestAdapter, LoadBalancingService],
 })
 export class TrafficModule {}
