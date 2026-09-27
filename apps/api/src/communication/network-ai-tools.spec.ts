@@ -33,6 +33,12 @@ describe('NetworkAiToolsService adversarial controls', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  it('denies a role that lacks the specific tool permission', async () => {
+    await expect(service.execute({ userId:'u1', tenantId:'tenant-a', role:'SUPPORT_AGENT' }, call('get_device',{deviceId:'d1'})))
+      .rejects.toThrow('Missing AI tool permission: network.devices.read');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('keeps reads tenant-scoped and does not leak a cross-tenant device', async () => {
     db.query.mockResolvedValueOnce({ rowCount:0, rows:[] });
     const result = await service.execute(operator, call('get_device',{deviceId:'device-from-b'}));
@@ -68,11 +74,30 @@ describe('NetworkAiToolsService adversarial controls', () => {
     expect(commands.execute).not.toHaveBeenCalled();
   });
 
+  it('reuses the existing command correlation for a repeated command instead of duplicating execution', async () => {
+    commands.execute
+      .mockResolvedValueOnce({ status:'QUEUED', queued:true, commandId:'cmd-1' })
+      .mockResolvedValueOnce({ status:'QUEUED', queued:true, commandId:'cmd-1', reused:true });
+    const first = await service.execute(operator, call('execute_network_command',{action:'terminate_session',sessionId:'s1',confirmationId:'tool-1'},'tool-1'));
+    const second = await service.execute(operator, call('execute_network_command',{action:'terminate_session',sessionId:'s1',confirmationId:'tool-1'},'tool-1'));
+    expect(first.data).toEqual(expect.objectContaining({ commandId:'cmd-1' }));
+    expect(second.data).toEqual(expect.objectContaining({ reused:true }));
+    expect(commands.execute).toHaveBeenCalledTimes(2);
+    expect(commands.execute).toHaveBeenNthCalledWith(1,operator,'terminate session s1',true,'tool-1');
+    expect(commands.execute).toHaveBeenNthCalledWith(2,operator,'terminate session s1',true,'tool-1');
+  });
+
   it('uses the existing command fabric and refuses a partial/unverified result', async () => {
     commands.execute.mockResolvedValueOnce({ status:'PARTIAL', commandId:'cmd-1' });
     await expect(service.execute(operator, call('execute_network_command',{action:'terminate_session',sessionId:'s1',confirmationId:'tool-1'})))
       .rejects.toThrow('Network command did not enter the verified command queue');
     expect(commands.execute).toHaveBeenCalledWith(operator,'terminate session s1',true,'tool-1');
+  });
+
+  it('rejects a replayed confirmation token that does not match the claimed execution id', async () => {
+    await expect(service.execute(operator, call('execute_network_command',{action:'terminate_session',sessionId:'s1',confirmationId:'old-execution'},'new-execution')))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(commands.execute).not.toHaveBeenCalled();
   });
 
   it('does not claim success when the provider/command fabric fails', async () => {
