@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@12.7.0 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/api build
+    buildCommand: corepack enable && corepack prepare pnpm@12.7.0 --activate && pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && pnpm --filter @jaslyn-net/api build
     startCommand: pnpm --filter @jaslyn-net/api migrate && pnpm --filter @jaslyn-net/api start
     healthCheckPath: /api/v1/health/ready
     envVars:
@@ -35,7 +35,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@12.7.0 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/web build
+    buildCommand: corepack enable && corepack prepare pnpm@12.7.0 --activate && pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && pnpm --filter @jaslyn-net/web build
     startCommand: pnpm --filter @jaslyn-net/web start
     envVars:
       - key: NODE_VERSION
