@@ -11,4 +11,9 @@ export class OverviewController {
   getOverview(@Req() request: AuthenticatedRequest) {
     return this.overview.getOverview(request.user!.tenantId);
   }
+
+  @Get('command-center')
+  getCommandCenter(@Req() request: AuthenticatedRequest) {
+    return this.overview.getCommandCenter(request.user!.tenantId);
+  }
 }
