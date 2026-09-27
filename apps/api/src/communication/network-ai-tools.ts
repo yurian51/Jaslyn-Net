@@ -15,6 +15,15 @@ export type NetworkToolName =
   | 'execute_network_command' | 'acknowledge_incident' | 'create_incident'
   | 'get_billing_status' | 'get_payment_status' | 'get_entitlement_status';
 
+export interface NetworkDeviceOutput { id:string; name:string; vendor?:string; model?:string; status:string; ipAddress?:string; macAddress?:string; activeUsers?:number; lastSeenAt?:string; managementProtocol?:string; managementEnabled?:boolean; syncError?:string | null; updatedAt?:string; }
+export interface NetworkHealthOutput { devices:{total:number;online:number;degraded:number;offline:number}; activeSessions:number; activeIncidents:number; queuedCommands:number; }
+export interface ToolCollectionOutput<T=Record<string,unknown>> { count:number; data:T[]; }
+export interface ToolUnavailableOutput { dataAvailable:false; message:string; source?:string; }
+export interface NetworkToolError { code:'FORBIDDEN'|'BAD_REQUEST'|'TIMEOUT'|'PROVIDER_OR_DATA_ERROR'|'CONFLICT'; message:string; retryable:boolean; }
+export type NetworkToolData = NetworkDeviceOutput | ToolCollectionOutput | ToolUnavailableOutput | NetworkHealthOutput | Record<string,unknown>;
+export type NetworkToolOutput = { ok:true; verified:boolean; tool:NetworkToolName; tenantId:string; data?:NetworkToolData; risk:CommandRisk; requiresConfirmation?:boolean; commandId?:string }
+  | { ok:false; verified:false; tool:NetworkToolName; tenantId:string; risk:CommandRisk; error:NetworkToolError };
+
 type ToolContract = {
   name: NetworkToolName;
   description: string;
@@ -31,15 +40,22 @@ type ToolResult = {
   verified: boolean;
   tool: NetworkToolName;
   tenantId: string;
-  data?: unknown;
-  error?: { code: string; message: string; retryable: boolean };
+  data?: NetworkToolData;
+  error?: NetworkToolError;
   risk: CommandRisk;
   requiresConfirmation?: boolean;
   commandId?: string;
 };
 
 const OPERATOR_ROLES = new Set(['OWNER', 'ADMIN', 'NETWORK_ADMIN', 'NOC_ENGINEER']);
-const READ_ROLES = new Set(['OWNER', 'ADMIN', 'NETWORK_ADMIN', 'NOC_ENGINEER', 'BILLING_ADMIN', 'SUPPORT_AGENT']);
+const PERMISSIONS_BY_ROLE: Record<string, Set<string>> = {
+  OWNER:new Set(['*']),
+  ADMIN:new Set(['*']),
+  NETWORK_ADMIN:new Set(['network.devices.read','network.health.read','network.interfaces.read','sessions.read','subscribers.read','incidents.read','incidents.acknowledge','incidents.create','network.telemetry.read','audit.read','network.commands.preview','network.commands.execute','entitlements.read']),
+  NOC_ENGINEER:new Set(['network.devices.read','network.health.read','network.interfaces.read','sessions.read','subscribers.read','incidents.read','incidents.acknowledge','incidents.create','network.telemetry.read','audit.read','network.commands.preview','network.commands.execute','entitlements.read']),
+  BILLING_ADMIN:new Set(['subscribers.read','incidents.read','billing.read','payments.read','entitlements.read','audit.read']),
+  SUPPORT_AGENT:new Set(['subscribers.read','sessions.read','incidents.read','billing.read','payments.read','entitlements.read','audit.read']),
+};
 const TOOL_TIMEOUT_MS = 8_000;
 
 @Injectable()
@@ -116,12 +132,10 @@ export class NetworkAiToolsService {
 
   private assertActor(actor: NetworkOperatorActor, contract: ToolContract) {
     if (!actor?.userId || !actor.tenantId || !actor.role) throw new ForbiddenException('Authenticated tenant operator context required');
-    if (!READ_ROLES.has(actor.role)) throw new ForbiddenException('AI network tool permission denied');
-    if (contract.permission.startsWith('network.commands') && !OPERATOR_ROLES.has(actor.role)) throw new ForbiddenException('Network command permission denied');
-    if (contract.permission === 'audit.read' && !OPERATOR_ROLES.has(actor.role) && actor.role !== 'SUPPORT_AGENT') throw new ForbiddenException('Audit permission denied');
-    if (contract.permission.startsWith('billing') && !['OWNER','ADMIN','BILLING_ADMIN','SUPPORT_AGENT'].includes(actor.role)) throw new ForbiddenException('Billing permission denied');
-    if (contract.permission.startsWith('payments') && !['OWNER','ADMIN','BILLING_ADMIN','SUPPORT_AGENT'].includes(actor.role)) throw new ForbiddenException('Payment permission denied');
-    if (contract.permission.startsWith('entitlements') && !['OWNER','ADMIN','BILLING_ADMIN','SUPPORT_AGENT','NETWORK_ADMIN','NOC_ENGINEER'].includes(actor.role)) throw new ForbiddenException('Entitlement permission denied');
+    const permissions = PERMISSIONS_BY_ROLE[actor.role];
+    if (!permissions || (!permissions.has('*') && !permissions.has(contract.permission))) {
+      throw new ForbiddenException(`Missing AI tool permission: ${contract.permission}`);
+    }
     if (contract.risk === 'MODERATE_RISK' && !OPERATOR_ROLES.has(actor.role)) throw new ForbiddenException('Incident creation permission denied');
   }
 
@@ -185,7 +199,7 @@ export class NetworkAiToolsService {
   private async executeCommand(actor: NetworkOperatorActor, call: ToolCall) {
     const action = this.string(call.input,'action');
     const risk = this.riskForAction(action);
-    if (risk !== 'DESTRUCTIVE') throw new ForbiddenException('Only explicitly authorized destructive commands may use execute_network_command');
+    if (!['HIGH_RISK','DESTRUCTIVE'].includes(risk)) throw new ForbiddenException('Only high-risk or destructive actions may use execute_network_command');
     const confirmationId = this.string(call.input,'confirmationId');
     if (confirmationId !== call.id) throw new ForbiddenException('Confirmation does not match this command execution');
     const command = this.commandFromInput(call.input);
