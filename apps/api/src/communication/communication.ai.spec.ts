@@ -6,7 +6,17 @@ describe('CommunicationAiService', () => {
   const audit = { record: jest.fn() } as any;
   const communication = { sendMessage: jest.fn(), scheduleMessage: jest.fn() } as any;
   const commands = { execute: jest.fn() } as any;
-  const networkTools = { listTools: jest.fn(() => []), execute: jest.fn(), preview: jest.fn() } as any;
+  const networkTools = {
+    listTools: jest.fn(() => [{
+      name:'execute_network_command',
+      description:'controlled',
+      permission:'network.commands.execute',
+      requiresConfirmation:true,
+      inputSchema:{type:'object',properties:{action:{type:'string'},confirmationId:{type:'string'}},required:['action','confirmationId']},
+    }]),
+    execute: jest.fn(),
+    preview: jest.fn(),
+  } as any;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -94,6 +104,15 @@ describe('CommunicationAiService', () => {
 
     expect(commands.execute).not.toHaveBeenCalled();
     expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes controlled network commands through the typed tool service and preserves confirmation', async () => {
+    const service = new CommunicationAiService(db, config, audit, communication, commands, networkTools);
+    const tools = service.listTools();
+    const network = tools.find((tool:any) => tool.name === 'execute_network_command');
+    expect(network?.requiresConfirmation).toBe(true);
+    expect(network?.permission).toBe('network.commands.execute');
+    expect(network?.inputSchema.required).toContain('confirmationId');
   });
 
   it('returns the declared tool contract without hiding confirmation requirements', async () => {
