@@ -225,6 +225,9 @@ export class CommunicationPlatformService {
   }
 
   async createNotification(actor: Actor, input: { userId: string; type: string; title: string; body?: string; resourceType?: string; resourceId?: string }) {
+    if (!['OWNER','ADMIN','SUPER_ADMIN','SUPPORT_AGENT','NOC_ENGINEER','BILLING_ADMIN','NETWORK_ADMIN'].includes(actor.role)) {
+      throw new BadRequestException('Notification creation requires an authorized operator role');
+    }
     const target = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true',[actor.tenantId,input.userId]);
     if (!target.rowCount) throw new NotFoundException('Notification recipient not found');
     const result = await this.db.query(
