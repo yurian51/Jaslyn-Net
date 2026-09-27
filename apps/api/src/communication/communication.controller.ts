@@ -6,6 +6,7 @@ import { CommunicationService } from './communication.service';
 import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
+import { CommunicationAttachmentService } from './communication.attachments';
 import { CommunicationPlatformService } from './communication.platform';
 
 class DirectConversationDto {
@@ -116,6 +117,14 @@ class PollDto {
 class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
+class AttachmentUploadDto {
+  @IsString() @MaxLength(180) fileName!: string;
+  @IsString() @MaxLength(120) mimeType!: string;
+  @IsInt() @Min(1) @Max(50 * 1024 * 1024) sizeBytes!: number;
+  @IsOptional() @IsInt() @Min(0) @Max(24 * 60 * 60 * 1000) durationMs?: number;
+  @IsOptional() metadata?: Record<string, unknown>;
+}
+
 class CommunicationNotificationDto {
   @IsUUID() userId!: string;
   @IsString() @MinLength(1) @MaxLength(64) type!: string;
@@ -128,7 +137,7 @@ class CommunicationNotificationDto {
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly attachments: CommunicationAttachmentService) {}
 
   @Post('commands/execute')
   command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {
@@ -193,6 +202,26 @@ export class CommunicationController {
   @Post('messages/:id/forward')
   forward(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:ForwardMessageDto) {
     return this.communication.forwardMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.targetConversationId);
+  }
+
+  @Post('messages/:id/attachments')
+  createAttachmentUpload(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:AttachmentUploadDto) {
+    return this.attachments.createUpload({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto);
+  }
+
+  @Post('attachments/:id/complete')
+  completeAttachmentUpload(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.attachments.completeUpload({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('attachments/:id/download')
+  downloadAttachment(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.attachments.getDownloadUrl({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('messages/:id/attachments')
+  listAttachments(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.attachments.listMessageAttachments({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
   }
 
   @Post('messages/:id/reactions')
