@@ -18,7 +18,6 @@ export class CommunicationScheduler implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     this.timer = setInterval(() => void this.process(), 15_000);
     void this.process();
-    void this.superApp.processExpired();
   }
 
   onModuleDestroy() {
