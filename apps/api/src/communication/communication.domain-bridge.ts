@@ -35,7 +35,7 @@ export class CommunicationDomainBridge implements OnModuleInit {
   }
 
   private async handle(event: DomainEvent) {
-    const targets = this.resolveTargets(event);
+    const targets = await this.resolveTargets(event);
     if (!targets.length) return;
 
     const title = this.titleFor(event);
@@ -68,7 +68,7 @@ export class CommunicationDomainBridge implements OnModuleInit {
     });
   }
 
-  private resolveTargets(event: DomainEvent) {
+  private async resolveTargets(event: DomainEvent) {
     const payload = event.payload ?? {};
     const direct = Array.isArray(payload.targetUserIds)
       ? payload.targetUserIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
