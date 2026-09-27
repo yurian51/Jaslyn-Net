@@ -2,7 +2,7 @@
   "name": "jaslyn-net",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@10.12.4",
+  "packageManager": "pnpm@12.6.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @jaslyn-net/api --filter @jaslyn-net/web dev",
     "build": "pnpm --filter @jaslyn-net/api build && pnpm --filter @jaslyn-net/web build",
@@ -12,9 +12,9 @@
     "start": "sh -c 'pnpm --filter @jaslyn-net/api start & exec pnpm --filter @jaslyn-net/web start'"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.21.0"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   }
 }
