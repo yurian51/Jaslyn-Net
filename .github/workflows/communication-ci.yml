@@ -21,12 +21,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.12.4
+          version: 12.7.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.23.3
+          node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @jaslyn-net/api typecheck
       - run: pnpm --filter @jaslyn-net/api test -- --runInBand
       - run: pnpm --filter @jaslyn-net/api build
+      - run: pnpm --filter @jaslyn-net/web typecheck
+      - run: pnpm --filter @jaslyn-net/web build
