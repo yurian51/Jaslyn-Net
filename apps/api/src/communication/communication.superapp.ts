@@ -1,4 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { createHmac } from 'node:crypto';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -238,7 +239,16 @@ export class CommunicationSuperAppService {
     );
     if (!app.rowCount) throw new ForbiddenException('Install the mini app before opening it');
     await this.db.query('UPDATE mini_app_installs SET last_opened_at=now() WHERE tenant_id=$1 AND mini_app_id=$2 AND user_id=$3',[actor.tenantId,miniAppId,actor.userId]);
-    return { ...app.rows[0], launchContext:{tenantId:actor.tenantId,userId:actor.userId,issuedAt:new Date().toISOString()} };
+    const secret = process.env.JASLYN_MINI_APP_SECRET?.trim();
+    if (!secret) throw new InternalServerErrorException('Mini app signing secret is not configured');
+    const issuedAt = Math.floor(Date.now()/1000);
+    const expiresAt = issuedAt + 300;
+    const payload = { v:1, tenantId:actor.tenantId, userId:actor.userId, miniAppId:app.rows[0].id, slug:app.rows[0].slug, permissions:app.rows[0].permissions ?? [], iat:issuedAt, exp:expiresAt };
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = createHmac('sha256',secret).update(encodedPayload).digest('base64url');
+    const launchToken = `${encodedPayload}.${signature}`;
+    await this.audit.record(actor.tenantId,'MINI_APP_OPENED','mini_app',miniAppId,{slug:app.rows[0].slug,expiresAt},{userId:actor.userId});
+    return { ...app.rows[0], launchContext:{token:launchToken,expiresAt:new Date(expiresAt*1000).toISOString(),tenantId:actor.tenantId,userId:actor.userId,miniAppId:app.rows[0].id,permissions:app.rows[0].permissions ?? []} };
   }
 
   async processExpired() {
