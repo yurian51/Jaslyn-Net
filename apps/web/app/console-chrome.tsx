@@ -109,6 +109,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const [legalUpdate, setLegalUpdate] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [commandIndex, setCommandIndex] = useState(0);
   const mobilePrimaryHrefs = ['/dashboard', '/customers', '/sessions', '/network'];
   const moreActive = nav.some(([, , href]) => !mobilePrimaryHrefs.includes(href) && href !== '/settings' && isRouteActive(pathname, href));
 
@@ -120,8 +121,26 @@ function OperationsChrome({ children }: { children: ReactNode }) {
         event.preventDefault();
         setCommandOpen(true);
         setCommandQuery('');
+        setCommandIndex(0);
       }
-      if (event.key === 'Escape') setCommandOpen(false);
+      if (!commandOpen) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setCommandOpen(false);
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setCommandIndex((index) => commandResults.length ? (index + 1) % commandResults.length : 0);
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setCommandIndex((index) => commandResults.length ? (index - 1 + commandResults.length) % commandResults.length : 0);
+      }
+      if (event.key === 'Enter' && commandResults[commandIndex]) {
+        event.preventDefault();
+        router.push(commandResults[commandIndex][2]);
+        setCommandOpen(false);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -138,6 +157,8 @@ function OperationsChrome({ children }: { children: ReactNode }) {
     if (!query) return nav.slice(0, 10);
     return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
   }, [commandQuery]);
+
+  useEffect(() => { setCommandIndex(0); }, [commandQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,7 +193,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
             </label>
             <div className="console-command-results">
               {commandResults.length ? commandResults.map(([label, icon, href]) => (
-                <Link key={href} href={href} onClick={() => setCommandOpen(false)} className={isRouteActive(pathname, href) ? 'active' : ''}>
+                <Link key={href} href={href} onClick={() => setCommandOpen(false)} className={isRouteActive(pathname, href) ? 'active' : ''} aria-selected={commandResults[commandIndex]?.[2] === href}>
                   <span><NavIcon name={icon} /></span>
                   <div><strong>{label}</strong><small>{href}</small></div>
                   <b>↵</b>
@@ -190,7 +211,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
-        <button className="console-command-trigger" type="button" onClick={() => { setCommandOpen(true); setCommandQuery(''); }}>
+        <button className="console-command-trigger" type="button" onClick={() => { setCommandOpen(true); setCommandQuery(''); setCommandIndex(0); }}>
           <span>⌕</span><b>Search workspace</b><kbd>⌘K</kbd>
         </button>
         <div className="console-chrome-section">CONTROL PLANE</div>
