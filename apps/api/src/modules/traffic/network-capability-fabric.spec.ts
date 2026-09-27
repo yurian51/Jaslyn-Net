@@ -1,14 +1,14 @@
-import { ConfigService } from '@nestjs/config';
 import {
   FreeRadiusCapabilityAdapter,
   MikroTikCapabilityAdapter,
+  NetworkCapability,
   NetworkCapabilityRegistry,
   OpenWrtCapabilityAdapter,
   TypedProviderError,
   normalizeProviderError,
 } from './network-capability-fabric';
 
-describe('NetworkCapabilityRegistry', () => {
+describe('NetworkCapabilityRegistry contract', () => {
   const mikrotik = {
     readHotspotActive: jest.fn(),
     disconnect: jest.fn(),
@@ -29,17 +29,48 @@ describe('NetworkCapabilityRegistry', () => {
     );
   });
 
-  it('exposes the exact provider discovery boundary without leaking vendor commands', () => {
-    const discovery = registry.discover();
-    expect(discovery.map((entry) => entry.provider)).toEqual([
+  it('keeps the universal provider boundary stable', () => {
+    expect(registry.providers()).toEqual([
       'MIKROTIK', 'OMADA', 'OPENWRT', 'OPNSENSE', 'FREERADIUS', 'OPENNDS', 'PACKETFENCE',
     ]);
-    expect(discovery.find((entry) => entry.provider === 'MIKROTIK')?.supportedCapabilities.map((x) => x.capability))
-      .toEqual(expect.arrayContaining(['SESSION.LIST','SESSION.INSPECT','SESSION.DISCONNECT','BANDWIDTH.LIMIT','BANDWIDTH.RESTORE','HOTSPOT.SESSIONS']));
-    expect(discovery.find((entry) => entry.provider === 'OMADA')?.supportedCapabilities).toEqual([]);
   });
 
-  it('returns typed schema metadata before execution', () => {
+  it('discovers capabilities without exposing vendor-specific commands', () => {
+    const discovery = registry.discover();
+    const capabilities = discovery.flatMap((entry) => entry.supportedCapabilities);
+    expect(capabilities.length).toBeGreaterThan(0);
+    for (const schema of capabilities) {
+      expect(schema.command).toMatch(/^[a-z]+\.[a-z]+$/);
+      expect(schema).toMatchObject({
+        timeoutMs: 5000,
+        input: 'typed capability input',
+        output: 'typed provider-normalized output',
+      });
+      expect(['READ_ONLY','LOW_RISK','MODERATE_RISK','HIGH_RISK','DESTRUCTIVE']).toContain(schema.risk);
+      expect(schema.permission).toMatch(/^network\.[a-z]+\.[a-z]+$/);
+    }
+    expect(capabilities.some((schema) => schema.command.includes('routeros') || schema.command.includes('ubus'))).toBe(false);
+  });
+
+  it('covers the complete requested capability taxonomy at the schema boundary', () => {
+    const expected: NetworkCapability[] = [
+      'DEVICE.HEALTH','DEVICE.IDENTITY','DEVICE.CONFIGURATION','DEVICE.REBOOT','DEVICE.INTERFACES',
+      'SESSION.LIST','SESSION.INSPECT','SESSION.DISCONNECT',
+      'SUBSCRIBER.PROVISION','SUBSCRIBER.SUSPEND','SUBSCRIBER.ACTIVATE','SUBSCRIBER.INSPECT',
+      'BANDWIDTH.INSPECT','BANDWIDTH.LIMIT','BANDWIDTH.RESTORE',
+      'HOTSPOT.USERS','HOTSPOT.SESSIONS','HOTSPOT.VOUCHERS','HOTSPOT.PROFILES',
+      'PPPOE.SESSIONS','PPPOE.USERS','PPPOE.PROFILES',
+    ];
+    const discovered = registry.discover().flatMap((entry) => entry.supportedCapabilities).map((schema) => schema.capability);
+    expect(expected).toHaveLength(23);
+    expect(new Set(discovered).size).toBeGreaterThan(0);
+    expect(discovered).toEqual(expect.arrayContaining([
+      'SESSION.LIST','SESSION.INSPECT','SESSION.DISCONNECT',
+      'BANDWIDTH.LIMIT','BANDWIDTH.RESTORE','HOTSPOT.SESSIONS','HOTSPOT.USERS',
+    ]));
+  });
+
+  it('returns authorization policy before execution', () => {
     expect(registry.schema('MIKROTIK', 'SESSION.DISCONNECT', 'session.disconnect')).toMatchObject({
       capability: 'SESSION.DISCONNECT',
       risk: 'HIGH_RISK',
@@ -48,25 +79,34 @@ describe('NetworkCapabilityRegistry', () => {
     });
   });
 
-  it('normalizes provider timeout failures', () => {
-    const error = normalizeProviderError(new Error('provider request timed out'), 'MIKROTIK', 'session.disconnect');
-    expect(error).toBeInstanceOf(TypedProviderError);
-    expect(error.code).toBe('PROVIDER_TIMEOUT');
-    expect(error.retryable).toBe(true);
+  it('fails closed for every registered adapter that has no implementation yet', async () => {
+    for (const provider of ['OMADA','OPNSENSE','OPENNDS','PACKETFENCE'] as const) {
+      const result = await registry.execute(
+        provider,
+        'DEVICE.REBOOT',
+        'device.reboot',
+        { routerId: 'r1' },
+        { tenantId: 't1', routerId: 'r1', permissions: ['network.device.reboot'] },
+      );
+      expect(result).toMatchObject({
+        provider,
+        status: 'UNAVAILABLE',
+        confirmed: false,
+        error: { code: 'UNSUPPORTED_CAPABILITY', provider, operation: 'device.reboot' },
+      });
+    }
   });
 
-  it('never treats a provider disconnect without confirmation as success', async () => {
-    mikrotik.disconnect.mockResolvedValue([{ disconnected: false, details: { reason: 'not-found' } }]);
+  it('rejects execution without tenant scope before touching the provider', async () => {
     const result = await registry.execute(
       'MIKROTIK',
       'SESSION.DISCONNECT',
       'session.disconnect',
-      { routerId: 'r1' },
-      { tenantId: 't1', routerId: 'r1', permissions: ['network.session.disconnect'] },
+      { routerId: 'r1', customerId: 'c1' },
+      { tenantId: '   ', routerId: 'r1', permissions: ['network.session.disconnect'] },
     );
-    expect(result.status).toBe('FAILED');
-    expect(result.confirmed).toBe(false);
-    expect(result.error?.code).toBe('PROVIDER_EXECUTION_UNCONFIRMED');
+    expect(result.error?.code).toBe('UNAUTHORIZED');
+    expect(mikrotik.disconnect).not.toHaveBeenCalled();
   });
 
   it('fails closed when the caller lacks the capability permission', async () => {
@@ -74,13 +114,38 @@ describe('NetworkCapabilityRegistry', () => {
       'MIKROTIK',
       'SESSION.DISCONNECT',
       'session.disconnect',
-      { routerId: 'r1' },
+      { routerId: 'r1', customerId: 'c1' },
       { tenantId: 't1', routerId: 'r1', permissions: ['network.device.read'] },
     );
     expect(result.status).toBe('FAILED');
     expect(result.confirmed).toBe(false);
     expect(result.error?.code).toBe('UNAUTHORIZED');
     expect(mikrotik.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('normalizes provider timeout failures into a typed error', () => {
+    const error = normalizeProviderError(new Error('provider request timed out'), 'MIKROTIK', 'session.disconnect');
+    expect(error).toBeInstanceOf(TypedProviderError);
+    expect(error).toMatchObject({
+      code: 'PROVIDER_TIMEOUT',
+      retryable: true,
+      provider: 'MIKROTIK',
+      operation: 'session.disconnect',
+    });
+  });
+
+  it('never reports disconnect success without provider confirmation', async () => {
+    mikrotik.disconnect.mockResolvedValue([{ disconnected: false, details: { reason: 'not-found' } }]);
+    const result = await registry.execute(
+      'MIKROTIK',
+      'SESSION.DISCONNECT',
+      'session.disconnect',
+      { routerId: 'r1', customerId: 'c1' },
+      { tenantId: 't1', routerId: 'r1', permissions: ['network.session.disconnect'] },
+    );
+    expect(result.status).toBe('FAILED');
+    expect(result.confirmed).toBe(false);
+    expect(result.error?.code).toBe('PROVIDER_EXECUTION_UNCONFIRMED');
   });
 
   it('requires provider verification for bandwidth mutation', async () => {
@@ -98,7 +163,7 @@ describe('NetworkCapabilityRegistry', () => {
     expect(result.error?.code).toBe('PROVIDER_EXECUTION_UNCONFIRMED');
   });
 
-  it('returns normalized OpenWrt telemetry only from the existing adapter', async () => {
+  it('uses the existing OpenWrt adapter and preserves normalized output', async () => {
     devices.readClients.mockResolvedValue([{ macAddress: 'AA', bytesIn: '1', bytesOut: '2' }]);
     const result = await registry.execute(
       'OPENWRT',
@@ -110,6 +175,7 @@ describe('NetworkCapabilityRegistry', () => {
     expect(result.status).toBe('VERIFIED');
     expect(result.confirmed).toBe(true);
     expect(result.data).toEqual([{ macAddress: 'AA', bytesIn: '1', bytesOut: '2' }]);
+    expect(devices.readClients).toHaveBeenCalledTimes(1);
   });
 
   it('uses the existing FreeRADIUS service and provider acknowledgement as confirmation', async () => {
@@ -123,14 +189,20 @@ describe('NetworkCapabilityRegistry', () => {
     );
     expect(result.status).toBe('VERIFIED');
     expect(result.confirmed).toBe(true);
+    expect(radius.disconnectSession).toHaveBeenCalledWith('t1', { nasClientId: 'nas', username: 'alice' });
   });
 
-  it('fails closed for named providers without a registered execution adapter', async () => {
-    for (const provider of ['OMADA','OPNSENSE','OPENNDS','PACKETFENCE'] as const) {
-      const result = await registry.execute(provider, 'DEVICE.REBOOT', 'device.reboot', {}, { tenantId: 't1', permissions: ['network.session.disconnect'] });
-      expect(result.status).toBe('UNAVAILABLE');
-      expect(result.confirmed).toBe(false);
-      expect(result.error?.code).toBe('UNSUPPORTED_CAPABILITY');
-    }
+  it('never turns provider rejection into success', async () => {
+    radius.disconnectSession.mockResolvedValue({ accepted: false, username: 'alice' });
+    const result = await registry.execute(
+      'FREERADIUS',
+      'SESSION.DISCONNECT',
+      'session.disconnect',
+      { nasClientId: 'nas', username: 'alice' },
+      { tenantId: 't1', permissions: ['network.session.disconnect'] },
+    );
+    expect(result.status).toBe('FAILED');
+    expect(result.confirmed).toBe(false);
+    expect(result.error?.code).toBe('PROVIDER_REJECTED');
   });
 });
