@@ -23,13 +23,13 @@ export class CommunicationCommandService {
     const requestId = randomUUID();
 
     const dangerous = /^(restart router|suspend subscriber|refund payment|terminate session|disable account|delete message|delete user)\b/i.test(normalized);
+    if (dangerous && !OPERATOR_ROLES.has(actor.role)) {
+      throw new ForbiddenException('Operator confirmation permission required');
+    }
     if (dangerous && !confirm) {
       const preview = await this.previewDangerous(actor, normalized);
       await this.record(actor, normalized, 'AWAITING_CONFIRMATION', preview, requestId);
       return { status:'AWAITING_CONFIRMATION', command:normalized, requestId, preview };
-    }
-    if (dangerous && !OPERATOR_ROLES.has(actor.role)) {
-      throw new ForbiddenException('Operator confirmation permission required');
     }
 
     const parts = normalized.split(' ');
