@@ -18,6 +18,33 @@ export type NetworkProvider =
 
 export type NetworkCapabilityRisk = 'READ_ONLY' | 'LOW_RISK' | 'MODERATE_RISK' | 'HIGH_RISK' | 'DESTRUCTIVE';
 
+export type CapabilityInputMap = {
+  'DEVICE.HEALTH': { routerId?: string };
+  'DEVICE.IDENTITY': { routerId?: string };
+  'DEVICE.CONFIGURATION': { routerId?: string; configuration?: Record<string, unknown> };
+  'DEVICE.REBOOT': { routerId?: string; reason?: string };
+  'DEVICE.INTERFACES': { routerId?: string };
+  'SESSION.LIST': { routerId?: string; endpoint?: string };
+  'SESSION.INSPECT': { routerId?: string; sessionId?: string; username?: string };
+  'SESSION.DISCONNECT': NetworkDisconnectCommand;
+  'SUBSCRIBER.PROVISION': { routerId?: string; customerId: string; profile?: string };
+  'SUBSCRIBER.SUSPEND': { routerId?: string; customerId: string; reason?: string };
+  'SUBSCRIBER.ACTIVATE': { routerId?: string; customerId: string };
+  'SUBSCRIBER.INSPECT': { routerId?: string; customerId: string };
+  'BANDWIDTH.INSPECT': { routerId?: string; customerId?: string; sessionId?: string };
+  'BANDWIDTH.LIMIT': BandwidthEnforcementCommand[];
+  'BANDWIDTH.RESTORE': BandwidthEnforcementCommand[];
+  'HOTSPOT.USERS': { routerId?: string; endpoint?: string };
+  'HOTSPOT.SESSIONS': { routerId?: string; endpoint?: string };
+  'HOTSPOT.VOUCHERS': { routerId?: string; profile?: string };
+  'HOTSPOT.PROFILES': { routerId?: string };
+  'PPPOE.SESSIONS': { routerId?: string; endpoint?: string };
+  'PPPOE.USERS': { routerId?: string; username?: string };
+  'PPPOE.PROFILES': { routerId?: string };
+};
+
+export type CapabilityInput<C extends NetworkCapability> = CapabilityInputMap[C];
+
 export interface CapabilityCommandSchema<I = unknown, O = unknown> {
   capability: NetworkCapability;
   command: string;
@@ -105,7 +132,12 @@ export function normalizeProviderError(
 export interface NetworkCapabilityAdapter {
   readonly provider: NetworkProvider;
   discover(): CapabilityCommandSchema[];
-  execute<T = unknown>(
+  execute<C extends NetworkCapability, T = unknown>(
+    capability: C,
+    command: string,
+    input: CapabilityInput<C>,
+    context: CapabilityContext,
+  ): Promise<ProviderExecutionResult<T>>;
     capability: NetworkCapability,
     command: string,
     input: unknown,
@@ -170,7 +202,7 @@ export class MikroTikCapabilityAdapter implements NetworkCapabilityAdapter {
   discover(): CapabilityCommandSchema[] {
     return schemas.filter((s) => ['SESSION.LIST','SESSION.INSPECT','SESSION.DISCONNECT','BANDWIDTH.LIMIT','BANDWIDTH.RESTORE','HOTSPOT.SESSIONS'].includes(s.capability));
   }
-  async execute<T = unknown>(capability: NetworkCapability, command: string, input: unknown, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
+  async execute<C extends NetworkCapability, T = unknown>(capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     try {
       if (capability === 'HOTSPOT.SESSIONS' || capability === 'SESSION.LIST') {
         const value = await this.traffic.readHotspotActive(String((input as { endpoint?: string }).endpoint ?? ''), context.credentials);
@@ -210,7 +242,7 @@ export class OpenWrtCapabilityAdapter implements NetworkCapabilityAdapter {
   discover(): CapabilityCommandSchema[] {
     return schemas.filter((s) => s.capability === 'HOTSPOT.SESSIONS' || s.capability === 'HOTSPOT.USERS');
   }
-  async execute<T = unknown>(capability: NetworkCapability, command: string, input: unknown, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
+  async execute<C extends NetworkCapability, T = unknown>(capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     try {
       if (!['HOTSPOT.SESSIONS','HOTSPOT.USERS'].includes(capability)) return new StaticUnsupportedAdapter(this.provider).execute<T>(capability, command, input, context);
       const connection = { routerId: context.routerId ?? 'unknown', protocol: 'OPENWRT_UBUS' as const, endpoint: (input as { endpoint?: string }).endpoint, credentials: context.credentials };
@@ -231,7 +263,7 @@ export class FreeRadiusCapabilityAdapter implements NetworkCapabilityAdapter {
   discover(): CapabilityCommandSchema[] {
     return schemas.filter((s) => s.capability === 'SESSION.DISCONNECT');
   }
-  async execute<T = unknown>(capability: NetworkCapability, command: string, input: unknown, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
+  async execute<C extends NetworkCapability, T = unknown>(capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     try {
       if (capability !== 'SESSION.DISCONNECT') return new StaticUnsupportedAdapter(this.provider).execute<T>(capability, command, input, context);
       const data = await this.radius.disconnectSession(context.tenantId, input as never);
@@ -264,6 +296,12 @@ export class NetworkCapabilityRegistry {
 
   register(adapter: NetworkCapabilityAdapter): void { this.adapters.set(adapter.provider, adapter); }
 
+  providers(): NetworkProvider[] { return [...this.knownProviders]; }
+
+  supportedCapabilities(provider: NetworkProvider): NetworkCapability[] {
+    return this.adapters.get(provider)?.discover().map((schema) => schema.capability) ?? [];
+  }
+
   discover(provider?: NetworkProvider) {
     const providers = provider ? [provider] : this.knownProviders;
     return providers.map((name) => {
@@ -276,7 +314,7 @@ export class NetworkCapabilityRegistry {
     return this.adapters.get(provider)?.discover().find((schema) => schema.capability === capability && schema.command === command);
   }
 
-  async execute<T = unknown>(provider: NetworkProvider, capability: NetworkCapability, command: string, input: unknown, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
+  async execute<C extends NetworkCapability, T = unknown>(provider: NetworkProvider, capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     const schema = this.schema(provider, capability, command);
     if (!schema) return new StaticUnsupportedAdapter(provider).execute<T>(capability, command, input, context);
     if (!context.tenantId.trim()) {
@@ -287,6 +325,6 @@ export class NetworkCapabilityRegistry {
       const error = new TypedProviderError('UNAUTHORIZED', `Permission ${schema.permission} is required for ${command}`, false, provider, command);
       return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
     }
-    return this.adapters.get(provider)!.execute<T>(capability, command, input, context);
+    return this.adapters.get(provider)!.execute<C, T>(capability, command, input, context);
   }
 }
