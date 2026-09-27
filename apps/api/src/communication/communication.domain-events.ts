@@ -22,6 +22,7 @@ type StoredEvent = DomainEvent & { attempts: number };
 @Injectable()
 export class CommunicationDomainEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly emitter = new EventEmitter();
+  private listener?: PoolClient;
   private readonly channel = 'jaslyn_domain_events';
   private readonly interval = setInterval(() => void this.drain(), 2_000);
 
@@ -42,7 +43,7 @@ export class CommunicationDomainEventsService implements OnModuleInit, OnModuleD
     await client.query(`LISTEN ${this.channel}`);
     this.emitter.on('event', () => void this.drain());
     await this.drain();
-    (this as { listener?: PoolClient }).listener = client;
+    this.listener = client;
   }
 
   async enqueue(input: DomainEventInput, client?: Pick<Pool | PoolClient, 'query'>) {
@@ -150,10 +151,10 @@ export class CommunicationDomainEventsService implements OnModuleInit, OnModuleD
   async onModuleDestroy() {
     clearInterval(this.interval);
     this.emitter.removeAllListeners();
-    const listener = (this as { listener?: PoolClient }).listener;
-    if (listener) {
-      await listener.query(`UNLISTEN ${this.channel}`).catch(() => undefined);
-      listener.release();
+    if (this.listener) {
+      await this.listener.query(`UNLISTEN ${this.channel}`).catch(() => undefined);
+      this.listener.release();
+      this.listener = undefined;
     }
   }
 
