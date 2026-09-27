@@ -182,7 +182,6 @@ export class OverviewService {
       })),
     };
   }
-}
 
   async getCommandCenter(tenantId: string) {
     const [tenant, health, devices, sessions, incidents, commands, authFailures, paymentFailures, providerFailures, criticalEvents] = await Promise.all([
