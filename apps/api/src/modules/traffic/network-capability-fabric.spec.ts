@@ -69,6 +69,20 @@ describe('NetworkCapabilityRegistry', () => {
     expect(result.error?.code).toBe('PROVIDER_EXECUTION_UNCONFIRMED');
   });
 
+  it('fails closed when the caller lacks the capability permission', async () => {
+    const result = await registry.execute(
+      'MIKROTIK',
+      'SESSION.DISCONNECT',
+      'session.disconnect',
+      { routerId: 'r1' },
+      { tenantId: 't1', routerId: 'r1', permissions: ['network.device.read'] },
+    );
+    expect(result.status).toBe('FAILED');
+    expect(result.confirmed).toBe(false);
+    expect(result.error?.code).toBe('UNAUTHORIZED');
+    expect(mikrotik.disconnect).not.toHaveBeenCalled();
+  });
+
   it('requires provider verification for bandwidth mutation', async () => {
     mikrotik.apply.mockResolvedValue(undefined);
     mikrotik.verify.mockResolvedValue([{ verified: false, details: { reason: 'mismatch' } }]);
@@ -77,7 +91,7 @@ describe('NetworkCapabilityRegistry', () => {
       'BANDWIDTH.LIMIT',
       'bandwidth.limit',
       [{ routerId: 'r1', customerId: 'c1', maxDownloadMbps: 10, maxUploadMbps: 5, priority: 1 }],
-      { tenantId: 't1', routerId: 'r1' },
+      { tenantId: 't1', routerId: 'r1', permissions: ['network.bandwidth.write'] },
     );
     expect(result.status).toBe('FAILED');
     expect(result.confirmed).toBe(false);
