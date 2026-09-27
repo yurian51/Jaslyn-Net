@@ -72,10 +72,10 @@ export class CommunicationAttachmentService {
     const key = `tenants/${actor.tenantId}/messages/${messageId}/${attachmentId}/${fileName}`;
     await this.db.query(
       `INSERT INTO message_attachments
-       (tenant_id,message_id,storage_key,original_name,mime_type,size_bytes,duration_ms,metadata,scan_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,'PENDING')
+       (id,tenant_id,message_id,storage_key,original_name,mime_type,size_bytes,duration_ms,metadata,scan_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,'PENDING')
        RETURNING id,original_name AS "originalName",mime_type AS "mimeType",size_bytes AS "sizeBytes",duration_ms AS "durationMs",scan_status AS "scanStatus"`,
-      [actor.tenantId,messageId,key,fileName,mimeType,input.sizeBytes,input.durationMs ?? null,JSON.stringify(input.metadata ?? {})],
+      [attachmentId,actor.tenantId,messageId,key,fileName,mimeType,input.sizeBytes,input.durationMs ?? null,JSON.stringify(input.metadata ?? {})],
     );
 
     const uploadUrl = await getSignedUrl(this.client, new PutObjectCommand({
