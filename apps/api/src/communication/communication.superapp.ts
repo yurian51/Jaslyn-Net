@@ -249,6 +249,14 @@ export class CommunicationSuperAppService {
         RETURNING m.tenant_id AS "tenantId",m.id,m.conversation_id AS "conversationId"`,
     );
     for (const row of result.rows) this.realtime.publish({type:'message.expired',tenantId:row.tenantId,conversationId:row.conversationId,messageId:row.id,data:{expired:true}});
+    const expiredPins = await this.db.query(
+      `DELETE FROM pinned_messages WHERE expires_at IS NOT NULL AND expires_at<=now()
+       RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",message_id AS "messageId"`,
+    );
+    for (const row of expiredPins.rows) {
+      this.realtime.publish({type:'message.pinned',tenantId:row.tenantId,conversationId:row.conversationId,messageId:row.messageId,data:{messageId:row.messageId,pinned:false,expired:true}});
+    }
+
     await this.db.query('DELETE FROM stories WHERE expires_at<=now()');
     const live = await this.db.query(
       `UPDATE conversation_events SET status='LIVE',updated_at=now()
