@@ -176,22 +176,33 @@ export class AiService {
   }
 
   private async tryModelPlan(task:string,context:Record<string,unknown>):Promise<AiPlan|null> {
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),15000);
     const key=this.config.get<string>('ANTHROPIC_API_KEY')?.trim();
     if(!key) return null;
     const model=this.config.get<string>('ANTHROPIC_MODEL','claude-sonnet-4-5');
-    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify({
-      model,max_tokens:1800,system:'You are the JASLYN NET operations planner. Return ONLY valid JSON matching {summary:string,steps:[{title,agent,capability,toolKey,risk,requiresApproval,verify}],stopConditions:string[]}. Use only the supplied tool keys. Never invent tools. HIGH and CRITICAL require approval.',
-      messages:[{role:'user',content:JSON.stringify({task,context,tools:this.tools('')})}],
-    })});
-    try {\n      if(!response.ok) throw new Error(`Anthropic planning failed: ${response.status}`);
-    const payload=await response.json() as {content?:Array<{text?:string}>};
-    const raw=payload.content?.find(x=>x.text)?.text?.trim();
-    if(!raw) return null;
-    const parsed=JSON.parse(raw) as AiPlan;
-    this.validatePlan(parsed);
-    return parsed;
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),15000);
+    try {
+      const response=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+        body:JSON.stringify({
+          model,
+          max_tokens:1800,
+          system:'You are the JASLYN NET operations planner. Return ONLY valid JSON matching {summary:string,steps:[{title,agent,capability,toolKey,risk,requiresApproval,verify}],stopConditions:string[]}. Use only the supplied tool keys. Never invent tools. HIGH and CRITICAL require approval.',
+          messages:[{role:'user',content:JSON.stringify({task,context,tools:this.tools('')})}],
+        }),
+        signal:controller.signal,
+      });
+      if(!response.ok) throw new Error(`Anthropic planning failed: ${response.status}`);
+      const payload=await response.json() as {content?:Array<{text?:string}>};
+      const raw=payload.content?.find(x=>x.text)?.text?.trim();
+      if(!raw) return null;
+      const parsed=JSON.parse(raw) as AiPlan;
+      this.validatePlan(parsed);
+      return parsed;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private validatePlan(plan:AiPlan) {
