@@ -220,6 +220,7 @@ export class OverviewService {
       devices: devices.rows.map((row) => ({
         ...row,
         telemetry: { uptime: null, cpu: null, memory: null, interfaces: null, bandwidth: null, latency: null, packetLoss: null, source: 'NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL' },
+        reachability: row.status === 'ONLINE' || row.status === 'DEGRADED',
         activeSessions: sessions.rows.filter((s) => s.routerId === row.id && s.status === 'ACTIVE').length,
         recentCommands: commands.rows.filter((c) => c.routerId === row.id).slice(0, 10),
         recentIncidents: activeIncidents.filter((i) => i.rootResourceId === row.id).slice(0, 10),
