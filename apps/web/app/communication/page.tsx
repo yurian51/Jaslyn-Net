@@ -176,6 +176,7 @@ export default function CommunicationPage(){
       {commandResult&&<div className="commandResult" role="status">{commandResult}</div>}{commandPreview&&<div className="commandPreview"><strong>Confirmation required</strong><div style={{marginTop:5}}>{commandPreview.warning||'This operation changes service state.'}</div><div className="commandPreviewActions"><button className="confirmBtn" onClick={()=>void runCommand(true)} disabled={commandBusy}>Confirm execution</button><button className="cancelBtn" onClick={cancelCommandPreview}>Cancel</button></div></div>}
       <div className="composer"><textarea value={draft} onChange={e=>onDraftChange(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send()}}} placeholder="Write a message…" /><button className="send" disabled={sending||!draft.trim()} onClick={()=>void send()}>{sending?'Sending…':'Send'}</button></div>
     </>}
+    </>}
     </section>
   </main>;
 }
