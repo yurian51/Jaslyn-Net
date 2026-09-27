@@ -62,7 +62,7 @@ describe('NetworkCapabilityRegistry', () => {
       'SESSION.DISCONNECT',
       'session.disconnect',
       { routerId: 'r1' },
-      { tenantId: 't1', routerId: 'r1' },
+      { tenantId: 't1', routerId: 'r1', permissions: ['network.session.disconnect'] },
     );
     expect(result.status).toBe('FAILED');
     expect(result.confirmed).toBe(false);
@@ -91,7 +91,7 @@ describe('NetworkCapabilityRegistry', () => {
       'HOTSPOT.SESSIONS',
       'hotspot.sessions',
       { endpoint: 'https://router.example/ubus' },
-      { tenantId: 't1', routerId: 'r1', credentials: { username: 'root', password: 'secret' } },
+      { tenantId: 't1', routerId: 'r1', credentials: { username: 'root', password: 'secret' }, permissions: ['network.hotspot.read'] },
     );
     expect(result.status).toBe('VERIFIED');
     expect(result.confirmed).toBe(true);
@@ -105,7 +105,7 @@ describe('NetworkCapabilityRegistry', () => {
       'SESSION.DISCONNECT',
       'session.disconnect',
       { nasClientId: 'nas', username: 'alice' },
-      { tenantId: 't1' },
+      { tenantId: 't1', permissions: ['network.session.disconnect'] },
     );
     expect(result.status).toBe('VERIFIED');
     expect(result.confirmed).toBe(true);
@@ -113,7 +113,7 @@ describe('NetworkCapabilityRegistry', () => {
 
   it('fails closed for named providers without a registered execution adapter', async () => {
     for (const provider of ['OMADA','OPNSENSE','OPENNDS','PACKETFENCE'] as const) {
-      const result = await registry.execute(provider, 'DEVICE.REBOOT', 'device.reboot', {}, { tenantId: 't1' });
+      const result = await registry.execute(provider, 'DEVICE.REBOOT', 'device.reboot', {}, { tenantId: 't1', permissions: ['network.session.disconnect'] });
       expect(result.status).toBe('UNAVAILABLE');
       expect(result.confirmed).toBe(false);
       expect(result.error?.code).toBe('UNSUPPORTED_CAPABILITY');
