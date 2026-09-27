@@ -44,4 +44,62 @@ describe('CommunicationService', () => {
       .rejects.toThrow('Message body must contain 1-10000 characters');
     expect(db.query).not.toHaveBeenCalled();
   });
+  it('verifies a signed mini-app launch context and enforces app binding', async () => {
+    process.env.JASLYN_MINI_APP_SECRET = 'test-secret-012345678901234567890123';
+    const { createHmac } = await import('node:crypto');
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const payload = {
+      v: 1,
+      tenantId: 't1',
+      userId: 'u1',
+      miniAppId: 'app1',
+      slug: 'billing',
+      permissions: ['payments.read'],
+      iat: issuedAt,
+      exp: issuedAt + 300,
+    };
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = createHmac('sha256', process.env.JASLYN_MINI_APP_SECRET).update(encoded).digest('base64url');
+    const db = {
+      query: jest.fn().mockResolvedValue({
+        rowCount: 1,
+        rows: [{ id:'app1', slug:'billing', enabled:true, permissions:['payments.read'] }],
+      }),
+      connect: jest.fn(),
+    };
+    const audit = { record: jest.fn() };
+    const realtime = { publish: jest.fn() };
+    const service = new CommunicationService(db as never, audit as never, realtime as never);
+    const superApp = new (await import('./communication.superapp')).CommunicationSuperAppService(db as never, audit as never, realtime as never);
+
+    await expect(superApp.verifyMiniAppLaunch(
+      {userId:'u1',tenantId:'t1',role:'ADMIN'},
+      encoded + '.' + signature,
+      'app1',
+    )).resolves.toMatchObject({valid:true,miniAppId:'app1',slug:'billing'});
+
+    await expect(superApp.verifyMiniAppLaunch(
+      {userId:'u1',tenantId:'t1',role:'ADMIN'},
+      encoded + '.' + signature,
+      'other-app',
+    )).rejects.toThrow('does not match this mini app');
+
+    void service;
+    delete process.env.JASLYN_MINI_APP_SECRET;
+  });
+
+  it('rejects a tampered mini-app launch signature', async () => {
+    process.env.JASLYN_MINI_APP_SECRET = 'test-secret-012345678901234567890123';
+    const superApp = new (await import('./communication.superapp')).CommunicationSuperAppService(
+      { query: jest.fn(), connect: jest.fn() } as never,
+      { record: jest.fn() } as never,
+      { publish: jest.fn() } as never,
+    );
+    await expect(superApp.verifyMiniAppLaunch(
+      {userId:'u1',tenantId:'t1',role:'ADMIN'},
+      'eyJ2IjoxfQ.invalid-signature',
+    )).rejects.toThrow('Invalid mini app launch signature');
+    delete process.env.JASLYN_MINI_APP_SECRET;
+  });
+
 });
