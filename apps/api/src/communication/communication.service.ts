@@ -605,6 +605,10 @@ export class CommunicationService {
     return result.rows[0];
   }
 
+  async assertMessageAccess(actor: Actor, messageId: string) {
+    return this.getMessage(actor, messageId);
+  }
+
   private async assertMember(actor: Actor, conversationId: string) {
     const result=await this.db.query(`SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL`,[actor.tenantId,conversationId,actor.userId]);
     if(!result.rowCount) throw new NotFoundException('Conversation not found');
