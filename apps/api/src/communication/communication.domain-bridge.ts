@@ -95,7 +95,13 @@ export class CommunicationDomainBridge implements OnModuleInit {
         `UPDATE ai_executions
             SET status='SUCCESS',verified_at=now(),completed_at=now(),
                 output=COALESCE(output,'{}'::jsonb) || $3::jsonb,updated_at=now()
-          WHERE tenant_id=$1 AND network_command_id=$2 AND status='EXECUTING'
+          WHERE tenant_id=$1 AND status='EXECUTING'
+            AND (network_command_id=$2 OR (network_command_id IS NULL AND EXISTS (
+              SELECT 1 FROM network_commands nc
+               WHERE nc.tenant_id=ai_executions.tenant_id
+                 AND nc.id=$2
+                 AND nc.request->>'requestId'=ai_executions.id::text
+            )))
           RETURNING id`,
         [event.tenantId,commandId,JSON.stringify({networkCommandStatus:'VERIFIED',verification:event.payload?.verification ?? {}})],
       );
