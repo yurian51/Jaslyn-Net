@@ -7,11 +7,28 @@ import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationScheduler } from './communication.scheduler';
 import { CommunicationService } from './communication.service';
 import { CommunicationWebSocket } from './communication.websocket';
+import { CommunicationPlatformService } from './communication.platform';
 
 @Module({
   imports: [AuditModule],
   controllers: [CommunicationController],
-  providers: [CommunicationService, CommunicationCommandService, CommunicationBotService, CommunicationRealtime, CommunicationScheduler, CommunicationWebSocket],
-  exports: [CommunicationService, CommunicationCommandService, CommunicationBotService, CommunicationRealtime, CommunicationScheduler, CommunicationWebSocket],
+  providers: [
+    CommunicationService,
+    CommunicationPlatformService,
+    CommunicationCommandService,
+    CommunicationBotService,
+    CommunicationRealtime,
+    CommunicationScheduler,
+    CommunicationWebSocket,
+  ],
+  exports: [
+    CommunicationService,
+    CommunicationPlatformService,
+    CommunicationCommandService,
+    CommunicationBotService,
+    CommunicationRealtime,
+    CommunicationScheduler,
+    CommunicationWebSocket,
+  ],
 })
 export class CommunicationModule {}
