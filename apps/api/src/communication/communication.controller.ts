@@ -130,6 +130,7 @@ class MessageExpiryDto { @IsString() expiresAt!: string; }
 class PinMessageDto { @IsOptional() @IsIn(['24H','7D','30D','FOREVER']) duration?: '24H'|'7D'|'30D'|'FOREVER'; }
 class EventDto { @IsString() @MinLength(1) @MaxLength(200) title!: string; @IsOptional() @IsString() @MaxLength(4000) description?: string; @IsString() startsAt!: string; @IsOptional() @IsString() endsAt?: string; @IsOptional() @IsString() timezone?: string; @IsOptional() @IsString() @MaxLength(500) location?: string; }
 class EventResponseDto { @IsIn(['GOING','MAYBE','DECLINED']) response!: 'GOING'|'MAYBE'|'DECLINED'; }
+class MiniAppLaunchDto { @IsString() @MinLength(20) @MaxLength(4096) token!: string; }
 class MiniAppDto { @IsString() @MinLength(2) @MaxLength(80) slug!: string; @IsString() @MinLength(1) @MaxLength(160) name!: string; @IsOptional() @IsString() @MaxLength(1000) description?: string; @IsString() @MaxLength(2048) launchUrl!: string; @IsOptional() @IsString() @MaxLength(2048) iconUrl?: string; @IsOptional() permissions?: string[]; }
 
 class CommunicationNotificationDto {
@@ -452,6 +453,11 @@ export class CommunicationController {
 
   @Post('mini-apps/:id/open')
   openMiniApp(@Req() req: AuthenticatedRequest,@Param('id') id:string) { return this.superApp.openMiniApp({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id); }
+
+  @Post('mini-apps/:id/verify-launch')
+  verifyMiniAppLaunch(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:MiniAppLaunchDto) {
+    return this.superApp.verifyMiniAppLaunch({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.token);
+  }
 
   @Get('events')
   events(@Req() req: AuthenticatedRequest,@Res() res:Response) {
