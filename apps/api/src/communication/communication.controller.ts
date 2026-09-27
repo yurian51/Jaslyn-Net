@@ -8,6 +8,7 @@ import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
 import { CommunicationPlatformService } from './communication.platform';
 import { CommunicationAiService } from './communication.ai';
+import { CommunicationSuperAppService } from './communication.superapp';
 
 class DirectConversationDto {
   @IsOptional() @IsUUID() userId?: string;
@@ -122,6 +123,12 @@ class PollDto {
 class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
+class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsString() @MaxLength(10000) body?: string; @IsOptional() @IsString() @MaxLength(2048) mediaKey?: string; @IsOptional() @IsString() audience?: string; @IsOptional() @IsString() expiresAt?: string; }
+class MessageExpiryDto { @IsString() expiresAt!: string; }
+class EventDto { @IsString() @MinLength(1) @MaxLength(200) title!: string; @IsOptional() @IsString() @MaxLength(4000) description?: string; @IsString() startsAt!: string; @IsOptional() @IsString() endsAt?: string; @IsOptional() @IsString() timezone?: string; @IsOptional() @IsString() @MaxLength(500) location?: string; }
+class EventResponseDto { @IsIn(['GOING','MAYBE','DECLINED']) response!: 'GOING'|'MAYBE'|'DECLINED'; }
+class MiniAppDto { @IsString() @MinLength(2) @MaxLength(80) slug!: string; @IsString() @MinLength(1) @MaxLength(160) name!: string; @IsOptional() @IsString() @MaxLength(1000) description?: string; @IsString() @MaxLength(2048) launchUrl!: string; @IsOptional() @IsString() @MaxLength(2048) iconUrl?: string; @IsOptional() permissions?: string[]; }
+
 class CommunicationNotificationDto {
   @IsUUID() userId!: string;
   @IsString() @MinLength(1) @MaxLength(64) type!: string;
@@ -134,7 +141,7 @@ class CommunicationNotificationDto {
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly ai: CommunicationAiService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly ai: CommunicationAiService, private readonly superApp: CommunicationSuperAppService) {}
 
   @Get('ai/tools')
   aiTools() {
@@ -400,6 +407,39 @@ export class CommunicationController {
   presence(@Req() req: AuthenticatedRequest,@Body() dto:PresenceDto) {
     return this.communication.setPresence({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.status);
   }
+
+  @Post('messages/:id/expiry')
+  setMessageExpiry(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:MessageExpiryDto) { return this.superApp.setMessageExpiry({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.expiresAt); }
+
+  @Get('stories')
+  stories(@Req() req: AuthenticatedRequest) { return this.superApp.listStories({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role}); }
+
+  @Post('stories')
+  createStory(@Req() req: AuthenticatedRequest,@Body() dto:StoryDto) { return this.superApp.createStory({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto); }
+
+  @Post('stories/:id/view')
+  viewStory(@Req() req: AuthenticatedRequest,@Param('id') id:string) { return this.superApp.viewStory({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id); }
+
+  @Get('conversations/:id/events')
+  conversationEvents(@Req() req: AuthenticatedRequest,@Param('id') id:string) { return this.superApp.listEvents({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id); }
+
+  @Post('conversations/:id/events')
+  createConversationEvent(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:EventDto) { return this.superApp.createEvent({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto); }
+
+  @Post('events/:id/respond')
+  respondEvent(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:EventResponseDto) { return this.superApp.respondEvent({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.response); }
+
+  @Get('mini-apps')
+  miniApps(@Req() req: AuthenticatedRequest) { return this.superApp.listMiniApps({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role}); }
+
+  @Post('mini-apps')
+  registerMiniApp(@Req() req: AuthenticatedRequest,@Body() dto:MiniAppDto) { return this.superApp.registerMiniApp({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto); }
+
+  @Post('mini-apps/:id/install')
+  installMiniApp(@Req() req: AuthenticatedRequest,@Param('id') id:string) { return this.superApp.installMiniApp({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id); }
+
+  @Post('mini-apps/:id/open')
+  openMiniApp(@Req() req: AuthenticatedRequest,@Param('id') id:string) { return this.superApp.openMiniApp({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id); }
 
   @Get('events')
   events(@Req() req: AuthenticatedRequest,@Res() res:Response) {
