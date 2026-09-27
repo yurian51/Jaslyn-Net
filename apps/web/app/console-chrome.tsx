@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
@@ -107,10 +107,37 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [legalUpdate, setLegalUpdate] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
   const mobilePrimaryHrefs = ['/dashboard', '/customers', '/sessions', '/network'];
   const moreActive = nav.some(([, , href]) => !mobilePrimaryHrefs.includes(href) && href !== '/settings' && isRouteActive(pathname, href));
 
   useEffect(() => { setMoreOpen(false); setHeaderMenuOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen(true);
+        setCommandQuery('');
+      }
+      if (event.key === 'Escape') setCommandOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!commandOpen) return;
+    const input = document.getElementById('jaslyn-command-search') as HTMLInputElement | null;
+    input?.focus();
+  }, [commandOpen]);
+
+  const commandResults = useMemo(() => {
+    const query = commandQuery.trim().toLowerCase();
+    if (!query) return nav.slice(0, 10);
+    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
+  }, [commandQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +155,34 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="console-chrome-frame">
+      {commandOpen && (
+        <div className="console-command-overlay" role="dialog" aria-modal="true" aria-label="JASLYN NET command palette" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCommandOpen(false);
+        }}>
+          <div className="console-command-palette">
+            <div className="console-command-head">
+              <span className="console-command-mark">⌘</span>
+              <div><strong>Command Center</strong><small>Jump to any operational surface</small></div>
+              <button type="button" onClick={() => setCommandOpen(false)} aria-label="Close command center">Esc</button>
+            </div>
+            <label className="console-command-input">
+              <span aria-hidden="true">⌕</span>
+              <input id="jaslyn-command-search" value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search customers, network, payments, communication..." autoComplete="off" />
+              <kbd>⌘K</kbd>
+            </label>
+            <div className="console-command-results">
+              {commandResults.length ? commandResults.map(([label, icon, href]) => (
+                <Link key={href} href={href} onClick={() => setCommandOpen(false)} className={isRouteActive(pathname, href) ? 'active' : ''}>
+                  <span><NavIcon name={icon} /></span>
+                  <div><strong>{label}</strong><small>{href}</small></div>
+                  <b>↵</b>
+                </Link>
+              )) : <div className="console-command-empty"><strong>No operational surface found.</strong><span>Try a module, route, or workspace function.</span></div>}
+            </div>
+            <div className="console-command-foot"><span><kbd>↑↓</kbd> Navigate</span><span><kbd>↵</kbd> Open</span><span><kbd>Esc</kbd> Close</span></div>
+          </div>
+        </div>
+      )}
       {legalUpdate && <div className="console-legal-alert" role="status"><span><strong>Legal documents updated</strong><small>Review the current Terms and Privacy Notice before continuing.</small></span><Link href="/legal">Review legal center</Link></div>}
       <aside className="console-chrome-sidebar" aria-label="Jaslyn Net operations">
         <div className="console-chrome-brand">
@@ -135,6 +190,9 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
+        <button className="console-command-trigger" type="button" onClick={() => { setCommandOpen(true); setCommandQuery(''); }}>
+          <span>⌕</span><b>Search workspace</b><kbd>⌘K</kbd>
+        </button>
         <div className="console-chrome-section">CONTROL PLANE</div>
         <nav className="console-chrome-nav" aria-label="Control plane">
           {nav.map(([label, icon, href]) => {
