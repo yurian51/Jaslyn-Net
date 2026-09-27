@@ -99,6 +99,9 @@ export class CommunicationSuperAppService {
             SELECT 1 FROM conversation_members cm1 JOIN conversation_members cm2
               ON cm2.tenant_id=cm1.tenant_id AND cm2.conversation_id=cm1.conversation_id
              WHERE cm1.tenant_id=s.tenant_id AND cm1.user_id=s.author_user_id AND cm2.user_id=$2 AND cm1.left_at IS NULL AND cm2.left_at IS NULL
+          )) OR (s.audience='CUSTOM' AND EXISTS (
+            SELECT 1 FROM story_allowed_users sau
+             WHERE sau.tenant_id=s.tenant_id AND sau.story_id=s.id AND sau.user_id=$2
           )))
         ORDER BY s.created_at DESC LIMIT 100`,
       [actor.tenantId,actor.userId],
@@ -106,27 +109,71 @@ export class CommunicationSuperAppService {
     return {data:result.rows,count:result.rowCount ?? 0};
   }
 
-  async createStory(actor: Actor, input: {kind?:string;body?:string;mediaKey?:string;audience?:string;expiresAt?:string}) {
+  async createStory(actor: Actor, input: {kind?:string;body?:string;mediaKey?:string;audience?:string;expiresAt?:string;allowedUserIds?:string[]}) {
     const kind = input.kind ?? 'TEXT';
     const audience = input.audience ?? 'CONTACTS';
     if (!['TEXT','IMAGE','VIDEO','LINK','POLL'].includes(kind)) throw new BadRequestException('Unsupported story kind');
-    if (!['PUBLIC','CONTACTS','PRIVATE'].includes(audience)) throw new BadRequestException('Unsupported story audience');
+    if (!['PUBLIC','CONTACTS','PRIVATE','CUSTOM'].includes(audience)) throw new BadRequestException('Unsupported story audience');
+    const allowedUserIds = [...new Set((input.allowedUserIds ?? []).map(value => value.trim()).filter(Boolean))];
+    if (audience === 'CUSTOM' && allowedUserIds.length === 0) throw new BadRequestException('Custom story audience requires at least one user');
+    if (allowedUserIds.length > 200) throw new BadRequestException('Custom story audience is limited to 200 users');
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : new Date(Date.now()+24*60*60*1000);
     if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) throw new BadRequestException('Story expiry must be in the future');
     if (!input.body?.trim() && !input.mediaKey?.trim()) throw new BadRequestException('Story requires body or media');
-    const result = await this.db.query(
-      `INSERT INTO stories (tenant_id,author_user_id,kind,body,media_key,audience,expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       RETURNING id,kind,body,media_key AS "mediaKey",audience,expires_at AS "expiresAt",created_at AS "createdAt"`,
-      [actor.tenantId,actor.userId,kind,input.body?.trim()||null,input.mediaKey?.trim()||null,audience,expiresAt.toISOString()],
-    );
-    this.realtime.publish({type:'story.created',tenantId:actor.tenantId,data:{...result.rows[0],authorUserId:actor.userId}});
-    await this.audit.record(actor.tenantId,'STORY_CREATED','story',result.rows[0].id,{kind,audience},{userId:actor.userId});
-    return result.rows[0];
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO stories (tenant_id,author_user_id,kind,body,media_key,audience,expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id,kind,body,media_key AS "mediaKey",audience,expires_at AS "expiresAt",created_at AS "createdAt"`,
+        [actor.tenantId,actor.userId,kind,input.body?.trim()||null,input.mediaKey?.trim()||null,audience,expiresAt.toISOString()],
+      );
+      if (audience === 'CUSTOM') {
+        await client.query(
+          `INSERT INTO story_allowed_users (tenant_id,story_id,user_id)
+           SELECT $1,$2,u.id FROM users u
+            WHERE u.tenant_id=$1 AND u.id = ANY($3::uuid[]) AND u.is_active=true
+           ON CONFLICT DO NOTHING`,
+          [actor.tenantId,result.rows[0].id,allowedUserIds],
+        );
+        const count = await client.query(
+          `SELECT COUNT(*)::int AS count FROM story_allowed_users WHERE tenant_id=$1 AND story_id=$2`,
+          [actor.tenantId,result.rows[0].id],
+        );
+        if (count.rows[0].count !== allowedUserIds.length) throw new BadRequestException('One or more custom story audience users are invalid');
+      }
+      await client.query('COMMIT');
+      this.realtime.publish({type:'story.created',tenantId:actor.tenantId,data:{...result.rows[0],authorUserId:actor.userId}});
+      await this.audit.record(actor.tenantId,'STORY_CREATED','story',result.rows[0].id,{kind,audience,allowedUserCount:allowedUserIds.length},{userId:actor.userId});
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async viewStory(actor: Actor, storyId: string) {
-    const story = await this.db.query('SELECT id FROM stories WHERE tenant_id=$1 AND id=$2 AND expires_at>now()',[actor.tenantId,storyId]);
+    const story = await this.db.query(
+      `SELECT id FROM stories s
+        WHERE s.tenant_id=$1 AND s.id=$2 AND s.expires_at>now()
+          AND (
+            s.audience='PUBLIC' OR s.author_user_id=$3
+            OR (s.audience='CONTACTS' AND EXISTS (
+              SELECT 1 FROM conversation_members cm1
+              JOIN conversation_members cm2 ON cm2.tenant_id=cm1.tenant_id AND cm2.conversation_id=cm1.conversation_id
+              WHERE cm1.tenant_id=s.tenant_id AND cm1.user_id=s.author_user_id AND cm2.user_id=$3
+                AND cm1.left_at IS NULL AND cm2.left_at IS NULL
+            ))
+            OR (s.audience='CUSTOM' AND EXISTS (
+              SELECT 1 FROM story_allowed_users sau
+              WHERE sau.tenant_id=s.tenant_id AND sau.story_id=s.id AND sau.user_id=$3
+            ))
+          )`,
+      [actor.tenantId,storyId,actor.userId],
+    );
     if (!story.rowCount) throw new NotFoundException('Story not found or expired');
     await this.db.query(
       `INSERT INTO story_views (tenant_id,story_id,viewer_user_id) VALUES ($1,$2,$3)
