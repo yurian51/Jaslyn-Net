@@ -2,7 +2,7 @@
   "name": "jaslyn-net",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@12.6.0",
+  "packageManager": "pnpm@12.7.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @jaslyn-net/api --filter @jaslyn-net/web dev",
     "build": "pnpm --filter @jaslyn-net/api build && pnpm --filter @jaslyn-net/web build",
