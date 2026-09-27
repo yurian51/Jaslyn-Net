@@ -99,13 +99,51 @@ export class CommunicationAttachmentService {
       throw new BadRequestException('Uploaded object metadata does not match the declared attachment');
     }
 
-    const scanStatus = this.scanRequired ? 'PENDING' : 'SKIPPED';
+    let scanStatus: 'PENDING'|'CLEAN'|'INFECTED'|'SKIPPED' = this.scanRequired ? 'PENDING' : 'SKIPPED';
+    if (this.scanRequired && this.config.get<string>('ATTACHMENT_SCANNER_URL')) {
+      const scan = await this.scanObject(attachment.storageKey, attachmentId);
+      if (scan === 'INFECTED') {
+        await this.client.send(new DeleteObjectCommand({Bucket:this.bucket,Key:attachment.storageKey})).catch(()=>undefined);
+        await this.db.query(
+          `UPDATE message_attachments SET uploaded_at=now(),scan_status='INFECTED' WHERE tenant_id=$1 AND id=$2`,
+          [actor.tenantId,attachmentId],
+        );
+        await this.audit.record(actor.tenantId,'ATTACHMENT_REJECTED','message_attachment',attachmentId,{messageId:attachment.messageId,reason:'MALWARE_DETECTED'},{userId:actor.userId});
+        throw new BadRequestException('Attachment rejected by security scanner');
+      }
+      if (scan === 'CLEAN') scanStatus = 'CLEAN';
+    }
     await this.db.query(
       `UPDATE message_attachments SET uploaded_at=now(),scan_status=$3 WHERE tenant_id=$1 AND id=$2`,
       [actor.tenantId,attachmentId,scanStatus],
     );
     await this.audit.record(actor.tenantId,'ATTACHMENT_UPLOADED','message_attachment',attachmentId,{messageId:attachment.messageId,scanStatus},{userId:actor.userId});
     return { attachmentId, status:'UPLOADED', scanStatus };
+  }
+
+  private async scanObject(storageKey: string, attachmentId: string): Promise<'CLEAN'|'INFECTED'|'PENDING'> {
+    if (!this.client || !this.bucket) return 'PENDING';
+    const scannerUrl = this.config.get<string>('ATTACHMENT_SCANNER_URL');
+    if (!scannerUrl) return 'PENDING';
+    try {
+      const getUrl = await getSignedUrl(this.client,new GetObjectCommand({Bucket:this.bucket,Key:storageKey}),{expiresIn:300});
+      const response = await fetch(scannerUrl,{
+        method:'POST',
+        headers:{
+          'content-type':'application/json',
+          ...(this.config.get<string>('ATTACHMENT_SCANNER_TOKEN') ? {authorization:'Bearer '+this.config.get<string>('ATTACHMENT_SCANNER_TOKEN')} : {}),
+        },
+        body:JSON.stringify({attachmentId,objectKey:storageKey,downloadUrl:getUrl}),
+        signal:AbortSignal.timeout(30000),
+      });
+      if (!response.ok) return 'PENDING';
+      const result = await response.json().catch(()=>null);
+      if (result?.clean === true) return 'CLEAN';
+      if (result?.infected === true || result?.malicious === true) return 'INFECTED';
+      return 'PENDING';
+    } catch {
+      return 'PENDING';
+    }
   }
 
   async getDownloadUrl(actor: Actor, attachmentId: string) {
