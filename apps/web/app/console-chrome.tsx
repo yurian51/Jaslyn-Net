@@ -191,7 +191,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [commandOpen, commandIndex, commandQuery, router, commandResults]);
 
   useEffect(() => {
     if (!commandOpen) return;
