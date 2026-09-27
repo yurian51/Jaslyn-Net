@@ -35,6 +35,7 @@ export interface CapabilityContext {
   routerId?: string;
   credentials?: NetworkCredentials;
   correlationId?: string;
+  permissions: string[];
 }
 
 export interface ProviderExecutionResult<T = unknown> {
@@ -62,7 +63,8 @@ export type ProviderErrorCode =
   | 'PROVIDER_INVALID_RESPONSE'
   | 'PROVIDER_AUTHENTICATION_FAILED'
   | 'PROVIDER_NETWORK_ERROR'
-  | 'PROVIDER_EXECUTION_UNCONFIRMED';
+  | 'PROVIDER_EXECUTION_UNCONFIRMED'
+  | 'UNAUTHORIZED';
 
 export class TypedProviderError extends Error {
   constructor(
@@ -277,6 +279,14 @@ export class NetworkCapabilityRegistry {
   async execute<T = unknown>(provider: NetworkProvider, capability: NetworkCapability, command: string, input: unknown, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     const schema = this.schema(provider, capability, command);
     if (!schema) return new StaticUnsupportedAdapter(provider).execute<T>(capability, command, input, context);
+    if (!context.tenantId.trim()) {
+      const error = new TypedProviderError('UNAUTHORIZED', 'Tenant scope is required for provider execution', false, provider, command);
+      return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
+    }
+    if (!context.permissions.includes(schema.permission) && !context.permissions.includes('*')) {
+      const error = new TypedProviderError('UNAUTHORIZED', `Permission ${schema.permission} is required for ${command}`, false, provider, command);
+      return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
+    }
     return this.adapters.get(provider)!.execute<T>(capability, command, input, context);
   }
 }
