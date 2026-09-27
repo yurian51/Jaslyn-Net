@@ -6,13 +6,14 @@ describe('CommunicationAiService', () => {
   const audit = { record: jest.fn() } as any;
   const communication = { sendMessage: jest.fn(), scheduleMessage: jest.fn() } as any;
   const commands = { execute: jest.fn() } as any;
+  const networkTools = { listTools: jest.fn(() => []), execute: jest.fn(), preview: jest.fn() } as any;
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('does not fabricate an answer when the AI provider is not configured', async () => {
-    const service = new CommunicationAiService(db, config, audit, communication, commands);
+    const service = new CommunicationAiService(db, config, audit, communication, commands, networkTools);
     db.query.mockResolvedValueOnce({ rows: [{ id: 'ai-1' }] });
     db.query.mockResolvedValueOnce({ rows: [] });
     const result = await service.chat({ userId:'u1',tenantId:'t1',role:'SUPPORT_AGENT' }, 'show status');
