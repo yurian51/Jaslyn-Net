@@ -55,7 +55,8 @@ describe('CommunicationAiService', () => {
       'exec-1',
     );
 
-    expect(result.status).toBe('SUCCESS');
+    expect(result.status).toBe('QUEUED');
+    expect(result.verified).toBe(false);
     expect(commands.execute).toHaveBeenCalledWith(
       { userId: 'u1', tenantId: 't1', role: 'NOC_ENGINEER' },
       'terminate session session-1',
@@ -65,7 +66,7 @@ describe('CommunicationAiService', () => {
     expect(client.query.mock.calls[1][0]).toContain('FOR UPDATE');
     expect(client.query.mock.calls[2][0]).toContain("status='EXECUTING'");
     expect(client.query.mock.calls[3][0]).toBe('COMMIT');
-    expect(db.query.mock.calls[0][0]).toContain("status='SUCCESS'");
+    expect(db.query.mock.calls[0][0]).toContain("status='EXECUTING'");
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 
