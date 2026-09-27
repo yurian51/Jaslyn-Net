@@ -36,7 +36,12 @@ export default function CommunicationPage(){
     finally{setLoading(false);}
   },[selected]);
 
-  const loadTopics=useCallback(async(id:string)=>{\n    const t=token();if(!t)return;\n    try{const r=await apiFetch<{data:Topic[]}>(`/communication/conversations/${id}/topics`,{headers:{Authorization:`Bearer ${t}`}});setTopics(r.data||[]);}catch{setTopics([]);}\n  },[]);\n\n  const loadMessages=useCallback(async(id:string)=>{
+  const loadTopics=useCallback(async(id:string)=>{
+    const t=token();if(!t)return;
+    try{const r=await apiFetch<{data:Topic[]}>(`/communication/conversations/${id}/topics`,{headers:{Authorization:`Bearer ${t}`}});setTopics(r.data||[]);}catch{setTopics([]);}
+  },[]);
+
+  const loadMessages=useCallback(async(id:string)=>{
     const t=token();if(!t)return;
     try{const r=await apiFetch<{data:Message[]}>(`/communication/conversations/${id}/messages?limit=100`,{headers:{Authorization:`Bearer ${t}`}});setMessages(r.data||[]);if(r.data?.length){void apiFetch(`/communication/conversations/${id}/read`,{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},body:JSON.stringify({messageId:r.data[r.data.length-1].id})});}}
     catch(e){setError(e instanceof ApiError||e instanceof Error?e.message:'Unable to load messages.');}
@@ -74,15 +79,18 @@ export default function CommunicationPage(){
     finally{setSending(false);}
   }
 
-  async function runCommand(){
+  async function runCommand(confirm=false){
     const t=token(); if(!t||!command.trim()||commandBusy)return;
     setCommandBusy(true); setCommandResult('');
     try{
-      const r=await apiFetch<any>('/communication/commands/execute',{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},body:JSON.stringify({command:command.trim()})});
-      setCommandResult(r.status==='AWAITING_CONFIRMATION'?'Confirmation required. Review the preview before executing this operation.':JSON.stringify(r.result ?? r));
+      const r=await apiFetch<any>('/communication/commands/execute',{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},body:JSON.stringify({command:command.trim(),confirm})});
+      if(r.status==='AWAITING_CONFIRMATION'){setCommandPreview(r.preview);setCommandResult('Review required before execution.');}
+      else {setCommandPreview(null);setCommandResult(JSON.stringify(r.result ?? r));}
     }catch(e){setCommandResult(e instanceof Error?e.message:'Unable to execute command.');}
     finally{setCommandBusy(false);}
   }
+
+  function cancelCommandPreview(){setCommandPreview(null);setCommandResult('');}
 
   async function runSearch(value:string){
     setSearch(value);const t=token();if(!t||value.trim().length<2){setResults([]);return;}
