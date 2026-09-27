@@ -27,14 +27,13 @@ export class CommunicationScheduler implements OnModuleInit, OnModuleDestroy {
   private async process() {
     if (this.running) return;
     this.running = true;
+    await this.superApp.processExpired().catch(() => undefined);
     const client = await this.db.connect();
     let lockAcquired = false;
     try {
       const lock = await client.query('SELECT pg_try_advisory_lock($1) AS acquired', [9817241]);
       lockAcquired = Boolean(lock.rows[0]?.acquired);
       if (!lockAcquired) return;
-
-      await this.superApp.processExpired().catch(() => undefined);
 
       const due = await client.query(
         'SELECT sm.id,sm.conversation_id AS "conversationId",sm.created_by_user_id AS "userId",u.tenant_id AS "tenantId",u.role,sm.scheduled_at AS "scheduledAt" ' +
