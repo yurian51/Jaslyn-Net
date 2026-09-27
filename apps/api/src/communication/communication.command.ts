@@ -8,6 +8,8 @@ import { NetworkCommandService } from '../modules/traffic/network-command.servic
 type Actor = { userId:string; tenantId:string; role:string };
 
 const OPERATOR_ROLES = new Set(['OWNER','ADMIN']);
+const NETWORK_READ_ROLES = new Set(['OWNER','ADMIN','AGENT']);
+const FINANCE_READ_ROLES = new Set(['OWNER','ADMIN','AGENT','CASHIER']);
 
 @Injectable()
 export class CommunicationCommandService {
@@ -68,6 +70,7 @@ export class CommunicationCommandService {
       );
       result = { verified:true, activeSessions:Number(active.rows[0]?.sessions||0), routers:{online:Number(routers.rows[0]?.online||0),total:Number(routers.rows[0]?.total||0)} };
     } else if (verb === '/router' || verb === 'router') {
+      if (!NETWORK_READ_ROLES.has(actor.role)) throw new ForbiddenException('Network command access denied');
       if (parts[1]?.toLowerCase() !== 'status' || !parts[2]) throw new BadRequestException('Usage: /router status <router-name>');
       const router = await this.db.query(
         'SELECT id,name,status,vendor,model,active_users AS "activeUsers",updated_at AS "updatedAt" FROM routers WHERE tenant_id=$1 AND name=$2 LIMIT 1',
@@ -76,6 +79,7 @@ export class CommunicationCommandService {
       if (!router.rowCount) result = { verified:true, dataAvailable:false, message:'No data available for the requested router.' };
       else result = { verified:true, router:router.rows[0] };
     } else if (verb === '/balance' || verb === 'balance') {
+      if (!FINANCE_READ_ROLES.has(actor.role)) throw new ForbiddenException('Billing command access denied');
       if (!parts[1]) throw new BadRequestException('Usage: /balance <customer-username>');
       const customer = await this.db.query('SELECT id,full_name AS "fullName",username FROM customers WHERE tenant_id=$1 AND username=$2 LIMIT 1',[actor.tenantId,parts[1]]);
       if (!customer.rowCount) result = { verified:true, dataAvailable:false, message:'No subscriber found.' };
@@ -87,6 +91,7 @@ export class CommunicationCommandService {
         result = { verified:true, customer:customer.rows[0], outstanding:invoices.rows };
       }
     } else if (verb === '/payment' || verb === 'payment') {
+      if (!FINANCE_READ_ROLES.has(actor.role)) throw new ForbiddenException('Payment command access denied');
       if (!parts[1]) throw new BadRequestException('Usage: /payment <customer-username>');
       const payment = await this.db.query(
         'SELECT p.id,p.amount,p.currency,p.provider,p.provider_reference AS "reference",p.status,p.created_at AS "createdAt" FROM payments p JOIN customers c ON c.tenant_id=p.tenant_id AND c.id=p.customer_id WHERE p.tenant_id=$1 AND c.username=$2 ORDER BY p.created_at DESC LIMIT 10',
@@ -94,6 +99,7 @@ export class CommunicationCommandService {
       );
       result = { verified:true, data:payment.rows };
     } else if (verb === '/package' || verb === 'package') {
+      if (!FINANCE_READ_ROLES.has(actor.role)) throw new ForbiddenException('Package command access denied');
       if (!parts[1]) throw new BadRequestException('Usage: /package <customer-username>');
       const purchase = await this.db.query(
         'SELECT p.id,p.status,p.starts_at AS "startsAt",p.ends_at AS "endsAt",pkg.name AS "packageName",pkg.download_bps AS "downloadBps",pkg.upload_bps AS "uploadBps",p.price,p.currency FROM wifi_plan_purchases p JOIN customers c ON c.tenant_id=p.tenant_id AND c.id=p.customer_id JOIN packages pkg ON pkg.tenant_id=p.tenant_id AND pkg.id=p.package_id WHERE p.tenant_id=$1 AND c.username=$2 ORDER BY p.created_at DESC LIMIT 1',
@@ -103,6 +109,7 @@ export class CommunicationCommandService {
     } else if (verb === '/support' || verb === 'support') {
       result = { verified:true, action:'OPEN_SUPPORT', message:'Support workflow is available through the Communication Center. No ticket was created by this read-only command.' };
     } else if (verb === 'show' && parts[1]?.toLowerCase()==='offline' && parts[2]?.toLowerCase()==='routers') {
+      if (!NETWORK_READ_ROLES.has(actor.role)) throw new ForbiddenException('Network command access denied');
       const routers = await this.db.query(
         'SELECT id,name,status,vendor,model,active_users AS "activeUsers",updated_at AS "updatedAt" FROM routers WHERE tenant_id=$1 AND status=\'OFFLINE\' ORDER BY updated_at DESC LIMIT 200',
         [actor.tenantId],
