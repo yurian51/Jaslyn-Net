@@ -1,4 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { jwtVerify } from 'jose';
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -13,6 +14,8 @@ type SocketContext = { tenantId: string; userId: string; role: string };
 export class CommunicationWebSocket implements OnModuleDestroy {
   private server?: WebSocketServer;
   private readonly sockets = new Map<WebSocket, SocketContext>();
+  private readonly lastPong = new Map<WebSocket, number>();
+  private heartbeatTimer?: NodeJS.Timeout;
 
   constructor(private readonly realtime: CommunicationRealtime, @Inject(PG_POOL) private readonly db: Pool) {}
 
@@ -35,10 +38,20 @@ export class CommunicationWebSocket implements OnModuleDestroy {
 
     this.server.on('connection', (client: WebSocket, _request: IncomingMessage, context: SocketContext) => {
       this.sockets.set(client, context);
+      this.lastPong.set(client, Date.now());
       client.send(JSON.stringify({ type: 'connected', data: { userId: context.userId }, createdAt: new Date().toISOString() }));
-      client.on('close', () => this.sockets.delete(client));
-      client.on('error', () => this.sockets.delete(client));
+      client.on('pong', () => this.lastPong.set(client, Date.now()));
+      client.on('message', (raw) => void this.handleClientEvent(client, context, raw.toString()));
+      client.on('close', () => { this.sockets.delete(client); this.lastPong.delete(client); });
+      client.on('error', () => { this.sockets.delete(client); this.lastPong.delete(client); });
     });
+    this.heartbeatTimer = setInterval(() => {
+      const now = Date.now();
+      for (const [client] of this.sockets) {
+        if (now - (this.lastPong.get(client) ?? 0) > 75_000) { client.terminate(); continue; }
+        if (client.readyState === WebSocket.OPEN) client.ping();
+      }
+    }, 30_000);
     this.realtime.subscribe((event) => this.broadcast(event));
   }
 
@@ -74,9 +87,39 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     }
   }
 
+  private async handleClientEvent(client: WebSocket, context: SocketContext, raw: string) {
+    let event: any;
+    try { event = JSON.parse(raw); } catch { return; }
+    const type = typeof event?.type === 'string' ? event.type : '';
+    const conversationId = typeof event?.conversationId === 'string' ? event.conversationId : null;
+    if (!conversationId || !['typing.started','typing.stopped'].includes(type)) return;
+    const membership = await this.db.query(
+      `SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL LIMIT 1`,
+      [context.tenantId, conversationId, context.userId],
+    ).catch(() => ({ rowCount: 0 } as any));
+    if (!membership.rowCount) return;
+    const payload = JSON.stringify({
+      type,
+      tenantId: context.tenantId,
+      conversationId,
+      data: { userId: context.userId },
+      createdAt: new Date().toISOString(),
+    });
+    for (const [peer, peerContext] of this.sockets) {
+      if (peer === client || peerContext.tenantId !== context.tenantId || peer.readyState !== WebSocket.OPEN) continue;
+      const peerMembership = await this.db.query(
+        `SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL LIMIT 1`,
+        [context.tenantId, conversationId, peerContext.userId],
+      ).catch(() => ({ rowCount: 0 } as any));
+      if (peerMembership.rowCount) peer.send(payload);
+    }
+  }
+
   onModuleDestroy() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     for (const client of this.sockets.keys()) client.close();
     this.sockets.clear();
+    this.lastPong.clear();
     this.server?.close();
   }
 }
