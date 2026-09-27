@@ -138,11 +138,6 @@ export interface NetworkCapabilityAdapter {
     input: CapabilityInput<C>,
     context: CapabilityContext,
   ): Promise<ProviderExecutionResult<T>>;
-    capability: NetworkCapability,
-    command: string,
-    input: unknown,
-    context: CapabilityContext,
-  ): Promise<ProviderExecutionResult<T>>;
 }
 
 interface HotspotSession {
@@ -189,7 +184,7 @@ const schemas: CapabilityCommandSchema[] = [
 class StaticUnsupportedAdapter implements NetworkCapabilityAdapter {
   constructor(public readonly provider: NetworkProvider) {}
   discover(): CapabilityCommandSchema[] { return []; }
-  async execute<T = unknown>(capability: NetworkCapability, command: string): Promise<ProviderExecutionResult<T>> {
+  async execute<C extends NetworkCapability, T = unknown>(capability: C, command: string, _input: CapabilityInput<C>, _context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     const error = new TypedProviderError('UNSUPPORTED_CAPABILITY', `${this.provider} does not expose ${capability}/${command}`, false, this.provider, command);
     return { provider: this.provider, capability, command, status: 'UNAVAILABLE', confirmed: false, error };
   }
