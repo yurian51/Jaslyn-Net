@@ -7,6 +7,8 @@ import { apiFetch } from '../../lib/api';
 
 type Incident = {
   id: string;
+  tenantId: string;
+  tenantName: string;
   category: string;
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
   status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
@@ -17,6 +19,7 @@ type Incident = {
   startedAt: string;
   lastSeenAt: string;
   affectedResources: number;
+  affectedDevices: number;
   affectedCustomers: number;
   affectedSessions: number;
   estimatedRevenue: string | number;
@@ -284,11 +287,11 @@ export default function IncidentsPage() {
                   {expanded === item.id && (
                     <td colSpan={7} className="incident-expanded-cell">
                       <div className="incident-detail-grid">
-                        <div><span>INCIDENT ID</span><b>{item.id}</b></div>
+                        <div><span>INCIDENT ID</span><b>{item.id}</b></div><div><span>AFFECTED TENANT</span><b>{item.tenantName} · {item.tenantId}</b></div>
                         <div><span>ROOT RESOURCE</span><b>{item.rootResourceType || '—'} · {item.rootResourceId || '—'}</b></div>
                         <div><span>ASSIGNEE</span><b>{item.assigneeUserId || 'Unassigned'}</b></div>
                         <div><span>BUSINESS EXPOSURE</span><b>TSh {money(item.estimatedRevenue)}</b></div>
-                        <div><span>AFFECTED CUSTOMERS</span><b>{item.affectedCustomers}</b></div>
+                        <div><span>AFFECTED DEVICES</span><b>{item.affectedDevices}</b></div><div><span>AFFECTED CUSTOMERS</span><b>{item.affectedCustomers}</b></div>
                         <div><span>AFFECTED SESSIONS</span><b>{item.affectedSessions}</b></div>
                         <div><span>AFFECTED RESOURCES</span><b>{item.affectedResources}</b></div>
                         {item.summary && <div className="incident-summary"><span>SUMMARY</span><p>{item.summary}</p></div>}
@@ -301,7 +304,7 @@ export default function IncidentsPage() {
                           <ol>
                             <li className="done"><i /><span>Started<time>{fmt(item.startedAt)}</time></span></li>
                             <li className={item.status === 'OPEN' ? 'current' : 'done'}><i /><span>{item.status === 'OPEN' ? 'Open' : 'Acknowledged'}<time>{fmt(item.lastSeenAt)}</time></span></li>
-                            {item.status === 'RESOLVED' && <li className="done"><i /><span>Resolved<time>{fmt(item.lastSeenAt)}</time></span></li>}
+                            {item.status === 'RESOLVED' && <li className="done"><i /><span>Resolved<time>{fmt(item.resolvedAt)}</time></span></li>}
                           </ol>
                         </div>
                         <div className="incident-detail-actions"><button disabled={busy === item.id} onClick={() => void assignIncident(item.id)}>Assign / unassign</button>
