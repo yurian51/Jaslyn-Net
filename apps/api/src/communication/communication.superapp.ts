@@ -15,6 +15,56 @@ export class CommunicationSuperAppService {
     private readonly realtime: CommunicationRealtime,
   ) {}
 
+  async getIdentity(actor: Actor) {
+    const result = await this.db.query(
+      `SELECT cp.username,cp.phone_visibility AS "phoneVisibility",cp.discoverable_by_username AS "discoverableByUsername",
+              cp.discoverable_by_phone AS "discoverableByPhone",u.full_name AS "fullName",u.email
+         FROM communication_profiles cp JOIN users u ON u.tenant_id=cp.tenant_id AND u.id=cp.user_id
+        WHERE cp.tenant_id=$1 AND cp.user_id=$2`,
+      [actor.tenantId,actor.userId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async upsertIdentity(actor: Actor, input: { username: string; phoneVisibility?: string; discoverableByUsername?: boolean; discoverableByPhone?: boolean }) {
+    const username = input.username.trim().toLowerCase();
+    if (!/^[a-z0-9_][a-z0-9_.-]{2,31}$/.test(username)) throw new BadRequestException('Username must be 3-32 characters using letters, numbers, dot, dash or underscore');
+    const phoneVisibility = input.phoneVisibility ?? 'CONTACTS';
+    if (!['EVERYONE','CONTACTS','NOBODY'].includes(phoneVisibility)) throw new BadRequestException('Invalid phone visibility');
+    try {
+      const result = await this.db.query(
+        `INSERT INTO communication_profiles (tenant_id,user_id,username,phone_visibility,discoverable_by_username,discoverable_by_phone)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT (tenant_id,user_id) DO UPDATE SET username=EXCLUDED.username,phone_visibility=EXCLUDED.phone_visibility,
+           discoverable_by_username=EXCLUDED.discoverable_by_username,discoverable_by_phone=EXCLUDED.discoverable_by_phone,updated_at=now()
+         RETURNING username,phone_visibility AS "phoneVisibility",discoverable_by_username AS "discoverableByUsername",
+           discoverable_by_phone AS "discoverableByPhone"`,
+        [actor.tenantId,actor.userId,username,phoneVisibility,input.discoverableByUsername !== false,input.discoverableByPhone !== false],
+      );
+      return result.rows[0];
+    } catch (error:any) {
+      if (error?.code === '23505') throw new ConflictException('Username is already in use');
+      throw error;
+    }
+  }
+
+  async findByUsername(actor: Actor, username: string) {
+    const normalized = username.trim().toLowerCase().replace(/^@/,'');
+    if (!/^[a-z0-9_][a-z0-9_.-]{2,31}$/.test(normalized)) throw new BadRequestException('Invalid username');
+    const result = await this.db.query(
+      `SELECT cp.user_id AS "userId",cp.username,u.full_name AS "fullName",
+              EXISTS(SELECT 1 FROM conversation_members cm1 JOIN conversation_members cm2
+                       ON cm2.tenant_id=cm1.tenant_id AND cm2.conversation_id=cm1.conversation_id
+                      WHERE cm1.tenant_id=cp.tenant_id AND cm1.user_id=$2 AND cm2.user_id=cp.user_id
+                        AND cm1.left_at IS NULL AND cm2.left_at IS NULL) AS "isConnection"
+         FROM communication_profiles cp JOIN users u ON u.tenant_id=cp.tenant_id AND u.id=cp.user_id
+        WHERE cp.tenant_id=$1 AND cp.username=$3 AND cp.discoverable_by_username=true AND u.is_active=true`,
+      [actor.tenantId,actor.userId,normalized],
+    );
+    if (!result.rowCount) throw new NotFoundException('User not found');
+    return result.rows[0];
+  }
+
   async setMessageExpiry(actor: Actor, messageId: string, expiresAt: string) {
     const expiry = new Date(expiresAt);
     if (Number.isNaN(expiry.getTime()) || expiry.getTime() <= Date.now()) throw new BadRequestException('Expiry must be a future timestamp');
