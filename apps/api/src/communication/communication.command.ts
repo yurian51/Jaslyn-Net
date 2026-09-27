@@ -48,7 +48,7 @@ export class CommunicationCommandService {
           target:{routerId:row.id,routerName:row.name},
           request:{command:normalized},
         });
-        const result = { verified:false, queued:true, networkCommandId:queued.id, status:queued.status, message:'Router restart queued through the verified network command fabric.' };
+        const result = { verified:false, queued:true, networkCommandId:queued.id, status:'QUEUED', message:'Router restart queued through the verified network command fabric.' };
         await this.record(actor,normalized,'SUCCESS',result,requestId);
         return { status:'QUEUED', command:normalized, requestId, actor:actor.userId, resource:{routerId:row.id,routerName:row.name}, result, timestamp:new Date().toISOString() };
       }
