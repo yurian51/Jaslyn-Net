@@ -26,8 +26,8 @@ export class CommunicationCommandService {
     }
     if (dangerous) {
       if (!OPERATOR_ROLES.has(actor.role)) throw new ForbiddenException('Operator confirmation permission required');
-      if (/^restart router\\b/i.test(normalized)) {
-        const routerName = normalized.replace(/^restart router\\s*/i,'').trim();
+      if (/^restart router\b/i.test(normalized)) {
+        const routerName = normalized.replace(/^restart router\s*/i,'').trim();
         if (!routerName) throw new BadRequestException('Usage: restart router <router-name>');
         const router = await this.db.query(
           'SELECT id,name,management_protocol AS "managementProtocol",management_enabled AS "managementEnabled",api_endpoint AS "apiEndpoint" FROM routers WHERE tenant_id=$1 AND name=$2 LIMIT 1',
