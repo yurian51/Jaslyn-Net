@@ -52,5 +52,3 @@ describe('IncidentsService', () => {
     expect(audit.record).toHaveBeenCalledWith('tenant-1', 'INCIDENT_ASSIGNED', 'incident', 'incident-1', { assigneeUserId: 'user-2' }, { userId: 'operator-1' });
   });
 });
-
-});
