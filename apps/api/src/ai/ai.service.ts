@@ -207,7 +207,7 @@ export class AiService {
 
   private validatePlan(plan:AiPlan) {
     if(!plan||!Array.isArray(plan.steps)||!Array.isArray(plan.stopConditions)) throw new Error('Invalid AI plan');
-    const allowed=new Set(TOOLS.map(x=>x[0]));
+    const allowed=new Set<string>(TOOLS.map(x=>x[0]));
     for(const step of plan.steps) {
       if(!allowed.has(step.toolKey)) throw new Error('AI plan referenced an unavailable tool');
       if((step.risk==='HIGH'||step.risk==='CRITICAL') && !step.requiresApproval) step.requiresApproval=true;
