@@ -46,8 +46,8 @@ describe('CommunicationAiService', () => {
       .mockResolvedValueOnce({ rowCount: 1 }) // claim EXECUTING
       .mockResolvedValueOnce({}); // COMMIT
     db.connect.mockResolvedValueOnce(client);
-    db.query.mockResolvedValueOnce({ rowCount: 1 }); // terminal SUCCESS update
-    commands.execute.mockResolvedValueOnce({ status: 'SUCCESS', verified: true, requestId: 'request-1' });
+    db.query.mockResolvedValueOnce({ rowCount: 1 }); // persist QUEUED result
+    commands.execute.mockResolvedValueOnce({ status: 'QUEUED', queued: true, commandId: 'command-1' });
 
     const service = new CommunicationAiService(db, config, audit, communication, commands);
     const result = await service.confirm(
