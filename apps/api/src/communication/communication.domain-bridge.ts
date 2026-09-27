@@ -35,6 +35,7 @@ export class CommunicationDomainBridge implements OnModuleInit {
   }
 
   private async handle(event: DomainEvent) {
+    await this.reconcileAiExecution(event);
     const targets = await this.resolveTargets(event);
     if (!targets.length) return;
 
@@ -66,6 +67,52 @@ export class CommunicationDomainBridge implements OnModuleInit {
       tenantId: event.tenantId,
       data: { eventId: event.id, eventType: event.eventType, userIds: targets, resourceId: event.aggregateId ?? null },
     });
+  }
+
+  private async reconcileAiExecution(event: DomainEvent) {
+    if (!event.eventType.startsWith('NETWORK_COMMAND.')) return;
+    const commandId = typeof event.payload?.commandId === 'string' ? event.payload.commandId : event.aggregateId;
+    if (!commandId) return;
+
+    if (event.eventType === 'NETWORK_COMMAND.EXECUTED') {
+      await this.db.query(
+        `UPDATE ai_executions
+            SET output=COALESCE(output,'{}'::jsonb) || $3::jsonb,updated_at=now()
+          WHERE tenant_id=$1 AND network_command_id=$2 AND status='EXECUTING'`,
+        [event.tenantId,commandId,JSON.stringify({networkCommandStatus:'EXECUTED',executionResult:event.payload?.response ?? {}})],
+      );
+      return;
+    }
+
+    if (event.eventType === 'NETWORK_COMMAND.VERIFIED') {
+      const result=await this.db.query(
+        `UPDATE ai_executions
+            SET status='SUCCESS',verified_at=now(),completed_at=now(),
+                output=COALESCE(output,'{}'::jsonb) || $3::jsonb,updated_at=now()
+          WHERE tenant_id=$1 AND network_command_id=$2 AND status='EXECUTING'
+          RETURNING id`,
+        [event.tenantId,commandId,JSON.stringify({networkCommandStatus:'VERIFIED',verification:event.payload?.verification ?? {}})],
+      );
+      for(const row of result.rows){
+        await this.db.query(
+          `INSERT INTO ai_messages (tenant_id,ai_conversation_id,role,content,verified,metadata)
+           SELECT tenant_id,ai_conversation_id,'TOOL',$3,true,$4::jsonb
+             FROM ai_executions WHERE tenant_id=$1 AND id=$2`,
+          [event.tenantId,row.id,JSON.stringify({status:'VERIFIED',commandId}),JSON.stringify({executionId:row.id,source:'NETWORK_COMMAND'})],
+        );
+      }
+      return;
+    }
+
+    if (event.eventType === 'NETWORK_COMMAND.FAILED') {
+      await this.db.query(
+        `UPDATE ai_executions
+            SET status='FAILED',completed_at=now(),
+                output=COALESCE(output,'{}'::jsonb) || $3::jsonb,updated_at=now()
+          WHERE tenant_id=$1 AND network_command_id=$2 AND status='EXECUTING'`,
+        [event.tenantId,commandId,JSON.stringify({networkCommandStatus:'FAILED',error:event.payload?.error ?? 'Network command failed',verification:event.payload?.verification ?? {}})],
+      );
+    }
   }
 
   private async resolveTargets(event: DomainEvent) {

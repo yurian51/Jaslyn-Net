@@ -192,9 +192,9 @@ export class CommunicationAiService {
       if (queued) {
         await this.db.query(
           `UPDATE ai_executions
-           SET output=$3::jsonb,updated_at=now()
+           SET output=$3::jsonb,network_command_id=$4,updated_at=now()
            WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
-          [actor.tenantId,executionId,JSON.stringify(result)],
+          [actor.tenantId,executionId,JSON.stringify(result),typeof (result as Record<string,unknown>).commandId === 'string' ? (result as Record<string,unknown>).commandId : null],
         );
         await this.audit.record(actor.tenantId,'AI_COMMAND_QUEUED','ai_execution',executionId,{tool:tool.name,result},{userId:actor.userId,requestId:executionId});
         return {
