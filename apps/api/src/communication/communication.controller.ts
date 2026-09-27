@@ -127,6 +127,7 @@ class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsStrin
 class IdentityDto { @IsString() @MinLength(3) @MaxLength(32) username!: string; @IsOptional() @IsIn(['EVERYONE','CONTACTS','NOBODY']) phoneVisibility?: 'EVERYONE'|'CONTACTS'|'NOBODY'; @IsOptional() @IsBoolean() discoverableByUsername?: boolean; @IsOptional() @IsBoolean() discoverableByPhone?: boolean; }
 
 class MessageExpiryDto { @IsString() expiresAt!: string; }
+class PinMessageDto { @IsOptional() @IsIn(['24H','7D','30D','FOREVER']) duration?: '24H'|'7D'|'30D'|'FOREVER'; }
 class EventDto { @IsString() @MinLength(1) @MaxLength(200) title!: string; @IsOptional() @IsString() @MaxLength(4000) description?: string; @IsString() startsAt!: string; @IsOptional() @IsString() endsAt?: string; @IsOptional() @IsString() timezone?: string; @IsOptional() @IsString() @MaxLength(500) location?: string; }
 class EventResponseDto { @IsIn(['GOING','MAYBE','DECLINED']) response!: 'GOING'|'MAYBE'|'DECLINED'; }
 class MiniAppDto { @IsString() @MinLength(2) @MaxLength(80) slug!: string; @IsString() @MinLength(1) @MaxLength(160) name!: string; @IsOptional() @IsString() @MaxLength(1000) description?: string; @IsString() @MaxLength(2048) launchUrl!: string; @IsOptional() @IsString() @MaxLength(2048) iconUrl?: string; @IsOptional() permissions?: string[]; }
@@ -211,8 +212,8 @@ export class CommunicationController {
   }
 
   @Post('messages/:id/pin')
-  pin(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
-    return this.communication.pinMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  pin(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:PinMessageDto) {
+    return this.communication.pinMessage({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.duration ?? 'FOREVER');
   }
 
   @Delete('messages/:id/pin')
