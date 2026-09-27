@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './console-responsive.css';
 import './console-chrome.css';
@@ -24,10 +24,11 @@ import './purchases/purchases.css';
 import './sales/sales.css';
 import ConsoleChrome from './console-chrome';
 
+export const viewport: Viewport = { themeColor: '#101525', colorScheme: 'light' };
+
 export const metadata: Metadata = {
   title: 'JASLYN NET | Connectivity & ISP Operating System',
   description: 'JASLYN NET connects customers, services, payments, sessions and network operations in one connectivity control plane.',
-  themeColor: '#101525',
   icons: {
     icon: '/ram-logo-scalable.svg',
     apple: '/ram-logo-scalable.svg',
