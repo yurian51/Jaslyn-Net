@@ -10,6 +10,7 @@ import { CommunicationScheduler } from './communication.scheduler';
 import { CommunicationService } from './communication.service';
 import { CommunicationWebSocket } from './communication.websocket';
 import { CommunicationPlatformService } from './communication.platform';
+import { CommunicationSuperAppService } from './communication.superapp';
 
 @Module({
   imports: [AuditModule, TrafficModule],
@@ -23,6 +24,7 @@ import { CommunicationPlatformService } from './communication.platform';
     CommunicationRealtime,
     CommunicationScheduler,
     CommunicationWebSocket,
+    CommunicationSuperAppService,
   ],
   exports: [
     CommunicationService,
@@ -33,6 +35,7 @@ import { CommunicationPlatformService } from './communication.platform';
     CommunicationRealtime,
     CommunicationScheduler,
     CommunicationWebSocket,
+    CommunicationSuperAppService,
   ],
 })
 export class CommunicationModule {}
