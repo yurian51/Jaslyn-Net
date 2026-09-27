@@ -245,44 +245,90 @@ export class CommunicationSuperAppService {
     const client = await this.db.connect();
     let locked = false;
     try {
-      const lock = await client.query('SELECT pg_try_advisory_lock($1) AS acquired', [9817242]);
+      const lock = await client.query(
+        'SELECT pg_try_advisory_lock($1) AS acquired',
+        [9817242],
+      );
       locked = Boolean(lock.rows[0]?.acquired);
-      if (!locked) return {expiredMessages:0,expiredPins:0,liveEvents:0,endedEvents:0};
+      if (!locked) return { expiredMessages: 0, expiredPins: 0, liveEvents: 0, endedEvents: 0 };
 
       const result = await client.query(
-            `UPDATE messages m SET deleted_at=now(),updated_at=now()
-               FROM message_expirations e
-              WHERE e.tenant_id=m.tenant_id AND e.message_id=m.id AND e.expires_at<=now() AND m.deleted_at IS NULL
-              RETURNING m.tenant_id AS "tenantId",m.id,m.conversation_id AS "conversationId"`,
-          );
-          for (const row of result.rows) this.realtime.publish({type:'message.expired',tenantId:row.tenantId,conversationId:row.conversationId,messageId:row.id,data:{expired:true}});
-          const expiredPins = await client.query(
-            `DELETE FROM pinned_messages WHERE expires_at IS NOT NULL AND expires_at<=now()
-             RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",message_id AS "messageId"`,
-          );
-          for (const row of expiredPins.rows) {
-            this.realtime.publish({type:'message.pinned',tenantId:row.tenantId,conversationId:row.conversationId,messageId:row.messageId,data:{messageId:row.messageId,pinned:false,expired:true}});
-          }
-      
-          await client.query('DELETE FROM stories WHERE expires_at<=now()');
-          const live = await client.query(
-            `UPDATE conversation_events SET status='LIVE',updated_at=now()
-               WHERE status='SCHEDULED' AND starts_at<=now() AND (ends_at IS NULL OR ends_at>now())
-               RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",id`,
-          );
-          const ended = await client.query(
-            `UPDATE conversation_events SET status='ENDED',updated_at=now()
-               WHERE status IN ('SCHEDULED','LIVE') AND ((ends_at IS NOT NULL AND ends_at<=now()) OR (ends_at IS NULL AND starts_at + interval '24 hours'<=now()))
-               RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",id`,
-          );
-          for (const row of live.rows) this.realtime.publish({type:'conversation.event.live',tenantId:row.tenantId,conversationId:row.conversationId,data:{eventId:row.id,status:'LIVE'}});
-          for (const row of ended.rows) this.realtime.publish({type:'conversation.event.ended',tenantId:row.tenantId,conversationId:row.conversationId,data:{eventId:row.id,status:'ENDED'}});
-          return {expiredMessages:result.rowCount ?? 0,expiredPins:expiredPins.rowCount ?? 0,liveEvents:live.rowCount ?? 0,endedEvents:ended.rowCount ?? 0};
+        `UPDATE messages m SET deleted_at=now(),updated_at=now()
+           FROM message_expirations e
+          WHERE e.tenant_id=m.tenant_id AND e.message_id=m.id AND e.expires_at<=now() AND m.deleted_at IS NULL
+          RETURNING m.tenant_id AS "tenantId",m.id,m.conversation_id AS "conversationId"`,
+      );
+      for (const row of result.rows) {
+        this.realtime.publish({
+          type:'message.expired',
+          tenantId:row.tenantId,
+          conversationId:row.conversationId,
+          messageId:row.id,
+          data:{expired:true},
+        });
+      }
+
+      const expiredPins = await client.query(
+        `DELETE FROM pinned_messages
+          WHERE expires_at IS NOT NULL AND expires_at<=now()
+          RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",message_id AS "messageId"`,
+      );
+      for (const row of expiredPins.rows) {
+        this.realtime.publish({
+          type:'message.pinned',
+          tenantId:row.tenantId,
+          conversationId:row.conversationId,
+          messageId:row.messageId,
+          data:{messageId:row.messageId,pinned:false,expired:true},
+        });
+      }
+
+      await client.query('DELETE FROM stories WHERE expires_at<=now()');
+
+      const live = await client.query(
+        `UPDATE conversation_events SET status='LIVE',updated_at=now()
+           WHERE status='SCHEDULED' AND starts_at<=now() AND (ends_at IS NULL OR ends_at>now())
+           RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",id`,
+      );
+      const ended = await client.query(
+        `UPDATE conversation_events SET status='ENDED',updated_at=now()
+           WHERE status IN ('SCHEDULED','LIVE')
+             AND ((ends_at IS NOT NULL AND ends_at<=now())
+               OR (ends_at IS NULL AND starts_at + interval '24 hours'<=now()))
+           RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",id`,
+      );
+
+      for (const row of live.rows) {
+        this.realtime.publish({
+          type:'conversation.event.live',
+          tenantId:row.tenantId,
+          conversationId:row.conversationId,
+          data:{eventId:row.id,status:'LIVE'},
+        });
+      }
+      for (const row of ended.rows) {
+        this.realtime.publish({
+          type:'conversation.event.ended',
+          tenantId:row.tenantId,
+          conversationId:row.conversationId,
+          data:{eventId:row.id,status:'ENDED'},
+        });
+      }
+
+      return {
+        expiredMessages:result.rowCount ?? 0,
+        expiredPins:expiredPins.rowCount ?? 0,
+        liveEvents:live.rowCount ?? 0,
+        endedEvents:ended.rowCount ?? 0,
+      };
     } finally {
-      if (locked) await client.query('SELECT pg_advisory_unlock($1)', [9817242]).catch(()=>undefined);
+      if (locked) {
+        await client.query('SELECT pg_advisory_unlock($1)', [9817242]).catch(()=>undefined);
+      }
       client.release();
     }
   }
+
   private async assertMember(actor: Actor, conversationId: string) {
     const result = await this.db.query(
       'SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL',
