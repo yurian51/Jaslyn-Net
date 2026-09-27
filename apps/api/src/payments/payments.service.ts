@@ -6,6 +6,7 @@ import { PG_POOL } from '../database/database.module';
 import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 import { PAYMENT_METHOD_CATALOG, getPaymentMethod } from './payment-method.catalog';
 import { getCorrelationId } from '../common/correlation-context';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 
 type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
@@ -16,6 +17,7 @@ export class PaymentsService {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly config: ConfigService,
+    private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
   async list(tenantId: string) {
@@ -236,6 +238,22 @@ export class PaymentsService {
 
       const eventId = inserted.rows[0].id as string;
       await eventClient.query('COMMIT');
+
+      await this.domainEvents.enqueue({
+        tenantId,
+        eventKey: `payment-webhook:${provider}:${providerEventId}`,
+        eventType: 'PAYMENT.WEBHOOK_RECEIVED',
+        aggregateType: 'payment_event',
+        aggregateId: eventId,
+        payload: {
+          provider,
+          providerEventId,
+          eventType: input.eventType.trim(),
+          paymentId: input.paymentId ?? null,
+          providerReference: input.providerReference ?? null,
+          targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'BILLING_ADMIN'],
+        },
+      });
 
       return {
         accepted: true,
