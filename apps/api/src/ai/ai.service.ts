@@ -176,6 +176,8 @@ export class AiService {
   }
 
   private async tryModelPlan(task:string,context:Record<string,unknown>):Promise<AiPlan|null> {
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),15000);
     const key=this.config.get<string>('ANTHROPIC_API_KEY')?.trim();
     if(!key) return null;
     const model=this.config.get<string>('ANTHROPIC_MODEL','claude-sonnet-4-5');
@@ -183,7 +185,7 @@ export class AiService {
       model,max_tokens:1800,system:'You are the JASLYN NET operations planner. Return ONLY valid JSON matching {summary:string,steps:[{title,agent,capability,toolKey,risk,requiresApproval,verify}],stopConditions:string[]}. Use only the supplied tool keys. Never invent tools. HIGH and CRITICAL require approval.',
       messages:[{role:'user',content:JSON.stringify({task,context,tools:this.tools('')})}],
     })});
-    if(!response.ok) throw new Error(`Anthropic planning failed: ${response.status}`);
+    try {\n      if(!response.ok) throw new Error(`Anthropic planning failed: ${response.status}`);
     const payload=await response.json() as {content?:Array<{text?:string}>};
     const raw=payload.content?.find(x=>x.text)?.text?.trim();
     if(!raw) return null;
