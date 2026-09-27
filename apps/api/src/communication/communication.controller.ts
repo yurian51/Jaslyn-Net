@@ -459,6 +459,7 @@ export class CommunicationController {
     return this.superApp.verifyMiniAppLaunch({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.token,id);
   }
 
+
   @Get('events')
   events(@Req() req: AuthenticatedRequest,@Res() res:Response) {
     const tenantId=req.user!.tenantId;
