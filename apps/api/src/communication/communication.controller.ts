@@ -21,6 +21,7 @@ class SendMessageDto {
   @IsOptional() @IsString() @MaxLength(128) idempotencyKey?: string;
   @IsOptional() @IsUUID() replyToMessageId?: string;
   @IsOptional() @IsBoolean() protected?: boolean;
+  @IsOptional() @IsIn(['TEXT','VOICE','FILE']) messageType?: 'TEXT'|'VOICE'|'FILE';
 }
 
 class EditMessageDto {
