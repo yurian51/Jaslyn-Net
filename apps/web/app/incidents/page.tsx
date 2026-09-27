@@ -18,6 +18,7 @@ type Incident = {
   rootResourceId?: string;
   startedAt: string;
   lastSeenAt: string;
+  resolvedAt?: string;
   affectedResources: number;
   affectedDevices: number;
   affectedCustomers: number;
