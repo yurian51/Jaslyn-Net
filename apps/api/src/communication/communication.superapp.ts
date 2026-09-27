@@ -115,6 +115,7 @@ export class CommunicationSuperAppService {
     if (!['TEXT','IMAGE','VIDEO','LINK','POLL'].includes(kind)) throw new BadRequestException('Unsupported story kind');
     if (!['PUBLIC','CONTACTS','PRIVATE','CUSTOM'].includes(audience)) throw new BadRequestException('Unsupported story audience');
     const allowedUserIds = [...new Set((input.allowedUserIds ?? []).map(value => value.trim()).filter(Boolean))];
+    if (allowedUserIds.some(value => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))) throw new BadRequestException('Custom story audience contains an invalid user id');
     if (audience === 'CUSTOM' && allowedUserIds.length === 0) throw new BadRequestException('Custom story audience requires at least one user');
     if (allowedUserIds.length > 200) throw new BadRequestException('Custom story audience is limited to 200 users');
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : new Date(Date.now()+24*60*60*1000);
