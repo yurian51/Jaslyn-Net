@@ -251,7 +251,7 @@ export class CommunicationSuperAppService {
     return { ...app.rows[0], launchContext:{token:launchToken,expiresAt:new Date(expiresAt*1000).toISOString(),tenantId:actor.tenantId,userId:actor.userId,miniAppId:app.rows[0].id,permissions:app.rows[0].permissions ?? []} };
   }
 
-  async verifyMiniAppLaunch(actor: Actor, token: string) {
+  async verifyMiniAppLaunch(actor: Actor, token: string, expectedMiniAppId?: string) {
     const secret = process.env.JASLYN_MINI_APP_SECRET?.trim();
     if (!secret) throw new InternalServerErrorException('Mini app signing secret is not configured');
     const raw = token.trim();
@@ -267,6 +267,7 @@ export class CommunicationSuperAppService {
     const now = Math.floor(Date.now() / 1000);
     if (payload.v !== 1 || !payload.tenantId || !payload.userId || !payload.miniAppId || !payload.slug || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.exp <= payload.iat || payload.exp < now || payload.iat > now + 30) throw new ForbiddenException('Mini app launch token is expired or invalid');
     if (payload.tenantId !== actor.tenantId || payload.userId !== actor.userId) throw new ForbiddenException('Mini app launch token is not valid for this user');
+    if (expectedMiniAppId && payload.miniAppId !== expectedMiniAppId) throw new ForbiddenException('Mini app launch token does not match this mini app');
     const app = await this.db.query(`SELECT m.id,m.slug,m.enabled,i.permissions
        FROM mini_apps m
        JOIN mini_app_installs i ON i.tenant_id=m.tenant_id AND i.mini_app_id=m.id AND i.user_id=$2
