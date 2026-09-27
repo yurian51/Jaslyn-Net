@@ -130,60 +130,76 @@ export class CommunicationAiService {
   }
 
   async confirm(actor: Actor, executionId: string) {
-    // SELECT ... FOR UPDATE only provides protection while a transaction is open.
-    // Keep the confirmation claim and terminal state transition on the same connection
-    // so two concurrent confirmations cannot execute the destructive tool twice.
+    // Claim the execution in a short transaction. Never hold a PostgreSQL
+    // transaction open while waiting on a network provider.
     const client = await this.db.connect();
+    let row: any;
     try {
       await client.query('BEGIN');
-      const row = await client.query(
+      const result = await client.query(
         `SELECT id,ai_conversation_id AS "conversationId",tool_name AS "toolName",input,status
          FROM ai_executions
          WHERE tenant_id=$1 AND id=$2 AND actor_user_id=$3
          FOR UPDATE`,
         [actor.tenantId,executionId,actor.userId],
       );
-      if (!row.rowCount) {
+      if (!result.rowCount) {
         await client.query('ROLLBACK');
         throw new NotFoundException('AI execution not found');
       }
-      if (row.rows[0].status !== 'AWAITING_CONFIRMATION') {
+      row = result.rows[0];
+      if (row.status !== 'AWAITING_CONFIRMATION') {
         await client.query('ROLLBACK');
         throw new BadRequestException('AI execution is no longer awaiting confirmation');
       }
 
-      const tool = this.tools().find(item => item.name === row.rows[0].toolName);
+      const tool = this.tools().find(item => item.name === row.toolName);
       if (!tool?.requiresConfirmation) {
         await client.query('ROLLBACK');
         throw new BadRequestException('Execution does not require confirmation');
       }
       this.assertPermission(actor,tool);
 
-      const call: ToolCall = { id:executionId,name:tool.name,input:row.rows[0].input };
-      try {
-        const result = await this.executeTool(actor,call);
-        await client.query(
-          `UPDATE ai_executions SET status='SUCCESS',confirmed_at=now(),output=$3::jsonb,completed_at=now()
-           WHERE tenant_id=$1 AND id=$2 AND status='AWAITING_CONFIRMATION'`,
-          [actor.tenantId,executionId,JSON.stringify(result)],
-        );
-        await client.query('COMMIT');
-        await this.audit.record(actor.tenantId,'AI_COMMAND_EXECUTED','ai_execution',executionId,{tool:tool.name,result},{userId:actor.userId,requestId:executionId});
-        return { status:'SUCCESS',verified:true,executionId,tool:tool.name,result };
-      } catch (error) {
-        await client.query(
-          `UPDATE ai_executions SET status='FAILED',output=$3::jsonb,completed_at=now()
-           WHERE tenant_id=$1 AND id=$2 AND status='AWAITING_CONFIRMATION'`,
-          [actor.tenantId,executionId,JSON.stringify({error:error instanceof Error ? error.message : String(error)})],
-        );
-        await client.query('COMMIT');
-        throw error;
+      const claimed = await client.query(
+        `UPDATE ai_executions
+         SET status='EXECUTING',confirmed_at=now(),updated_at=now()
+         WHERE tenant_id=$1 AND id=$2 AND status='AWAITING_CONFIRMATION'
+         RETURNING id`,
+        [actor.tenantId,executionId],
+      );
+      if (!claimed.rowCount) {
+        await client.query('ROLLBACK');
+        throw new BadRequestException('AI execution is no longer available for confirmation');
       }
+      await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
     } finally {
       client.release();
+    }
+
+    const tool = this.tools().find(item => item.name === row.toolName)!;
+    const call: ToolCall = { id:executionId,name:tool.name,input:row.input };
+
+    try {
+      const result = await this.executeTool(actor,call);
+      await this.db.query(
+        `UPDATE ai_executions
+         SET status='SUCCESS',output=$3::jsonb,completed_at=now(),updated_at=now()
+         WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
+        [actor.tenantId,executionId,JSON.stringify(result)],
+      );
+      await this.audit.record(actor.tenantId,'AI_COMMAND_EXECUTED','ai_execution',executionId,{tool:tool.name,result},{userId:actor.userId,requestId:executionId});
+      return { status:'SUCCESS',verified:true,executionId,tool:tool.name,result };
+    } catch (error) {
+      await this.db.query(
+        `UPDATE ai_executions
+         SET status='FAILED',output=$3::jsonb,completed_at=now(),updated_at=now()
+         WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
+        [actor.tenantId,executionId,JSON.stringify({error:error instanceof Error ? error.message : String(error)})],
+      );
+      throw error;
     }
   }
 
