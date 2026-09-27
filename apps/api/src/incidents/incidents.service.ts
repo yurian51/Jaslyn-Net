@@ -14,15 +14,17 @@ export class IncidentsService {
 
   async list(tenantId: string, status?: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED') {
     const result = await this.db.query(
-      `SELECT i.id, i.fingerprint, i.category, i.severity, i.status, i.title, i.summary,
+      `SELECT i.id, i.tenant_id AS "tenantId", t.name AS "tenantName", i.fingerprint, i.category, i.severity, i.status, i.title, i.summary,
               i.root_resource_type AS "rootResourceType", i.root_resource_id AS "rootResourceId",
               i.started_at AS "startedAt", i.last_seen_at AS "lastSeenAt", i.acknowledged_at AS "acknowledgedAt",
               i.resolved_at AS "resolvedAt", i.resolution, i.assignee_user_id AS "assigneeUserId", i.evidence, i.created_at AS "createdAt",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.state='AFFECTED'),0)::int AS "affectedResources",
+              COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='ROUTER' AND ii.state='AFFECTED'),0)::int AS "affectedDevices",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='CUSTOMER' AND ii.state='AFFECTED'),0)::int AS "affectedCustomers",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='SESSION' AND ii.state='AFFECTED'),0)::int AS "affectedSessions",
               COALESCE(SUM(ii.estimated_revenue) FILTER (WHERE ii.resource_type='REVENUE' AND ii.state='AFFECTED'),0)::numeric AS "estimatedRevenue"
        FROM incidents i
+       JOIN tenants t ON t.id=i.tenant_id
        LEFT JOIN incident_impacts ii ON ii.incident_id=i.id AND ii.tenant_id=i.tenant_id
        WHERE i.tenant_id=$1 AND ($2::text IS NULL OR i.status=$2)
        GROUP BY i.id
