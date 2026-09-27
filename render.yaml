@@ -5,12 +5,12 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/api build
+    buildCommand: corepack enable && corepack prepare pnpm@12.6.0 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/api build
     startCommand: pnpm --filter @jaslyn-net/api migrate && pnpm --filter @jaslyn-net/api start
     healthCheckPath: /api/v1/health/ready
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: "24.21.0"
       - key: NODE_ENV
         value: "production"
       - key: CORS_ORIGIN
@@ -35,11 +35,11 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/web build
+    buildCommand: corepack enable && corepack prepare pnpm@12.6.0 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/web build
     startCommand: pnpm --filter @jaslyn-net/web start
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: "24.21.0"
       - key: NEXT_PUBLIC_API_URL
         value: "https://jaslyn-net-api.onrender.com/api/v1"
 
