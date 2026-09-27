@@ -97,21 +97,12 @@ export class CommunicationWebSocket implements OnModuleDestroy {
       [context.tenantId, conversationId, context.userId],
     ).catch(() => ({ rowCount: 0 } as any));
     if (!membership.rowCount) return;
-    const payload = JSON.stringify({
+    this.realtime.publish({
       type,
       tenantId: context.tenantId,
       conversationId,
       data: { userId: context.userId },
-      createdAt: new Date().toISOString(),
     });
-    for (const [peer, peerContext] of this.sockets) {
-      if (peer === client || peerContext.tenantId !== context.tenantId || peer.readyState !== WebSocket.OPEN) continue;
-      const peerMembership = await this.db.query(
-        `SELECT 1 FROM conversation_members WHERE tenant_id=$1 AND conversation_id=$2 AND user_id=$3 AND left_at IS NULL LIMIT 1`,
-        [context.tenantId, conversationId, peerContext.userId],
-      ).catch(() => ({ rowCount: 0 } as any));
-      if (peerMembership.rowCount) peer.send(payload);
-    }
   }
 
   onModuleDestroy() {
