@@ -7,6 +7,7 @@ import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
 import { CommunicationPlatformService } from './communication.platform';
+import { CommunicationAiService } from './communication.ai';
 
 class DirectConversationDto {
   @IsOptional() @IsUUID() userId?: string;
@@ -39,6 +40,11 @@ class PresenceDto {
 
 class ReadDto {
   @IsOptional() @IsUUID() messageId?: string;
+}
+
+class AiChatDto {
+  @IsString() @MinLength(1) @MaxLength(8000) prompt!: string;
+  @IsOptional() @IsUUID() conversationId?: string;
 }
 
 class CommandDto {
@@ -128,7 +134,22 @@ class CommunicationNotificationDto {
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly ai: CommunicationAiService) {}
+
+  @Get('ai/tools')
+  aiTools() {
+    return this.ai.listTools();
+  }
+
+  @Post('ai/chat')
+  aiChat(@Req() req: AuthenticatedRequest,@Body() dto:AiChatDto) {
+    return this.ai.chat({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.prompt,dto.conversationId);
+  }
+
+  @Post('ai/executions/:id/confirm')
+  aiConfirm(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.ai.confirm({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
 
   @Post('commands/execute')
   command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {
