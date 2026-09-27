@@ -227,7 +227,14 @@ export class OverviewService {
       })),
       sessions: sessions.rows,
       incidents: activeIncidents,
-      commands: commands.rows,
+      commands: commands.rows.map((command) => ({
+        ...command,
+        authorization: command.request?.authorization ?? null,
+        riskLevel: command.request?.riskLevel ?? null,
+        confirmation: command.request?.confirmation ?? null,
+        durationMs: command.completedAt && command.createdAt ? Math.max(0, new Date(command.completedAt).getTime() - new Date(command.createdAt).getTime()) : null,
+        result: command.verification ?? command.response ?? null,
+      })),
       recentCriticalEvents: criticalEvents.rows,
     };
   }
