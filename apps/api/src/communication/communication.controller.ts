@@ -7,6 +7,7 @@ import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
 import { CommunicationAttachmentService } from './communication.attachments';
+import { CommunicationAiService } from './communication.ai';
 import { CommunicationPlatformService } from './communication.platform';
 
 class DirectConversationDto {
@@ -117,6 +118,11 @@ class PollDto {
 class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
+class AiChatDto {
+  @IsString() @MinLength(1) @MaxLength(8000) message!: string;
+  @IsOptional() @IsUUID() conversationId?: string;
+}
+
 class AttachmentUploadDto {
   @IsString() @MaxLength(180) fileName!: string;
   @IsString() @MaxLength(120) mimeType!: string;
@@ -137,7 +143,12 @@ class CommunicationNotificationDto {
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly attachments: CommunicationAttachmentService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService, private readonly attachments: CommunicationAttachmentService, private readonly ai: CommunicationAiService) {}
+
+  @Post('ai/chat')
+  aiChat(@Req() req: AuthenticatedRequest,@Body() dto:AiChatDto) {
+    return this.ai.chat({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
+  }
 
   @Post('commands/execute')
   command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {
