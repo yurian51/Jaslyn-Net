@@ -29,7 +29,7 @@ describe('CommunicationAiService', () => {
     )).toThrow('Network command permission required');
   });
 
-  it('serializes destructive confirmation with a transaction lock', async () => {
+  it('claims destructive confirmation before provider execution and releases the DB transaction', async () => {
     const client = { query: jest.fn(), release: jest.fn() } as any;
     client.query
       .mockResolvedValueOnce({}) // BEGIN
@@ -43,9 +43,10 @@ describe('CommunicationAiService', () => {
           status: 'AWAITING_CONFIRMATION',
         }],
       })
-      .mockResolvedValueOnce({ rowCount: 1 }) // terminal SUCCESS update
+      .mockResolvedValueOnce({ rowCount: 1 }) // claim EXECUTING
       .mockResolvedValueOnce({}); // COMMIT
     db.connect.mockResolvedValueOnce(client);
+    db.query.mockResolvedValueOnce({ rowCount: 1 }); // terminal SUCCESS update
     commands.execute.mockResolvedValueOnce({ status: 'SUCCESS', verified: true, requestId: 'request-1' });
 
     const service = new CommunicationAiService(db, config, audit, communication, commands);
@@ -62,8 +63,34 @@ describe('CommunicationAiService', () => {
     );
     expect(client.query.mock.calls[0][0]).toBe('BEGIN');
     expect(client.query.mock.calls[1][0]).toContain('FOR UPDATE');
-    expect(client.query.mock.calls[2][0]).toContain("status='SUCCESS'");
+    expect(client.query.mock.calls[2][0]).toContain("status='EXECUTING'");
     expect(client.query.mock.calls[3][0]).toBe('COMMIT');
+    expect(db.query.mock.calls[0][0]).toContain("status='SUCCESS'");
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not execute a confirmation already claimed by another request', async () => {
+    const client = { query: jest.fn(), release: jest.fn() } as any;
+    client.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          id: 'exec-1',
+          toolName: 'terminateSession',
+          input: { sessionId: 'session-1' },
+          status: 'EXECUTING',
+        }],
+      });
+    db.connect.mockResolvedValueOnce(client);
+
+    const service = new CommunicationAiService(db, config, audit, communication, commands);
+    await expect(service.confirm(
+      { userId: 'u1', tenantId: 't1', role: 'NOC_ENGINEER' },
+      'exec-1',
+    )).rejects.toThrow('AI execution is no longer awaiting confirmation');
+
+    expect(commands.execute).not.toHaveBeenCalled();
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 
