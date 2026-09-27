@@ -39,14 +39,21 @@ export class CommunicationAiService {
 
     const model = this.config.get<string>('AI_MODEL') || 'claude-sonnet-5';
     const endpoint = this.config.get<string>('AI_BASE_URL') || 'https://api.anthropic.com/v1/messages';
-    const conversationId = input.conversationId || randomUUID();
+    let conversationId = input.conversationId || randomUUID();
 
-    await this.db.query(
-      `INSERT INTO ai_conversations (id,tenant_id,user_id,title)
-       VALUES ($1,$2,$3,$4)
-       ON CONFLICT (tenant_id,id) DO NOTHING`,
-      [conversationId,actor.tenantId,actor.userId,text.slice(0,120)],
-    );
+    if (input.conversationId) {
+      const existing = await this.db.query(
+        'SELECT id FROM ai_conversations WHERE tenant_id=$1 AND id=$2 AND user_id=$3 AND status=\'ACTIVE\'',
+        [actor.tenantId,input.conversationId,actor.userId],
+      );
+      if (!existing.rowCount) throw new ServiceUnavailableException('AI conversation not found or not accessible');
+    } else {
+      await this.db.query(
+        `INSERT INTO ai_conversations (id,tenant_id,user_id,title)
+         VALUES ($1,$2,$3,$4)`,
+        [conversationId,actor.tenantId,actor.userId,text.slice(0,120)],
+      );
+    }
     await this.db.query(
       `INSERT INTO ai_messages (tenant_id,ai_conversation_id,role,content,verified)
        VALUES ($1,$2,'USER',$3,false)`,
