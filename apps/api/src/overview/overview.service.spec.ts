@@ -94,6 +94,8 @@ describe('OverviewService', () => {
       commandQueue: { pending: 0, failed: 1 },
     });
     expect(result.systemHealth.providerFailures24h).toEqual([{ provider: 'MikroTik', failures: 3 }]);
+    expect(result.devices[0].reachability).toBe(false);
+    expect(result.sessions[0]).toMatchObject({ macAddress: 'AA:BB:CC:DD:EE:FF', durationSeconds: 120 });
     expect(result.devices[0].telemetry.cpu).toBeNull();
     expect(result.devices[0].telemetry.source).toBe('NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL');
     expect(result.commands[0].durationMs).toBe(2000);
