@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { TrafficModule } from '../modules/traffic/traffic.module';
 import { CommunicationCommandService } from './communication.command';
+import { CommunicationAiService } from './communication.ai';
 import { CommunicationBotService } from './communication.bot';
 import { CommunicationController } from './communication.controller';
 import { CommunicationRealtime } from './communication.realtime';
@@ -17,6 +18,7 @@ import { CommunicationPlatformService } from './communication.platform';
     CommunicationService,
     CommunicationPlatformService,
     CommunicationCommandService,
+    CommunicationAiService,
     CommunicationBotService,
     CommunicationRealtime,
     CommunicationScheduler,
@@ -26,6 +28,7 @@ import { CommunicationPlatformService } from './communication.platform';
     CommunicationService,
     CommunicationPlatformService,
     CommunicationCommandService,
+    CommunicationAiService,
     CommunicationBotService,
     CommunicationRealtime,
     CommunicationScheduler,
