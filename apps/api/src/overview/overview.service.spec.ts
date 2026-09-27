@@ -77,7 +77,7 @@ describe('OverviewService', () => {
         .mockResolvedValueOnce({ rows: [{ id: 'command-1', commandType: 'RESTART', actor: 'operator', provider: 'MikroTik', status: 'FAILED', error: 'timeout', routerId: 'router-1', createdAt: '2026-09-27T08:00:00Z', completedAt: '2026-09-27T08:00:02Z', request: {}, response: null, verification: null }] })
         .mockResolvedValueOnce({ rows: [{ count: '4' }] })
         .mockResolvedValueOnce({ rows: [{ count: '2' }] })
-        .mockResolvedValueOnce({ provider: 'MikroTik', failures: '3' }])
+        .mockResolvedValueOnce({ rows: [{ provider: 'MikroTik', failures: '3' }] })
         .mockResolvedValueOnce({ rows: [{ id: 'incident-1', title: 'Core offline', severity: 'CRITICAL', category: 'DEVICE_OFFLINE', occurredAt: '2026-09-27T08:00:00Z' }] }),
     } as unknown as Pool;
     const service = new OverviewService(db);
