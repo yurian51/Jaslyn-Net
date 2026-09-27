@@ -456,7 +456,7 @@ export class CommunicationController {
 
   @Post('mini-apps/:id/verify-launch')
   verifyMiniAppLaunch(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:MiniAppLaunchDto) {
-    return this.superApp.verifyMiniAppLaunch({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.token);
+    return this.superApp.verifyMiniAppLaunch({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.token,id);
   }
 
   @Get('events')
