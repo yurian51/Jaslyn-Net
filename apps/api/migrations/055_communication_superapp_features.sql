@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS stories (
   audience text NOT NULL DEFAULT 'CONTACTS' CHECK (audience IN ('PUBLIC','CONTACTS','PRIVATE')),
   expires_at timestamptz NOT NULL DEFAULT (now() + interval '24 hours'),
   created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id,id),
   FOREIGN KEY (tenant_id,author_user_id) REFERENCES users(tenant_id,id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS stories_active_idx ON stories(tenant_id,expires_at,created_at DESC);
