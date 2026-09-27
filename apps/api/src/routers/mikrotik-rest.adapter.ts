@@ -328,7 +328,7 @@ function uptimeSeconds(value: unknown): number | null {
   if (!Array.isArray(value) || !value.length || !isRecord(value[0])) return null;
   const raw = value[0].uptime;
   if (typeof raw !== 'string') return null;
-  const match = raw.match(/^(?:(\\d+)w)?(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)?$/i);
+  const match = raw.match(/^(?:(\d+)w)?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
   if (!match) return null;
   const weeks = Number(match[1] || 0);
   const days = Number(match[2] || 0);
