@@ -38,7 +38,7 @@ const required = [
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
   ['NOC command center', dashboard.includes('noc-command-center') && dashboard.includes('/overview/command-center') && dashboard.includes('NOC COMMAND CENTER')],
-  ['NOC real state guardrails', dashboard.includes('NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL') && dashboard.includes('No invented figures')],
+  ['NOC real state guardrails', dashboard.includes('current schema does not report those values') && dashboard.includes('does not manufacture them')],
   ['incident assignment/audit', read('apps/web/app/incidents/page.tsx').includes('/assign') && read('apps/web/app/incidents/page.tsx').includes('/audit-trail')],
   ['command evidence controls', read('apps/web/app/network-commands/page.tsx').includes('Risk level') && read('apps/web/app/network-commands/page.tsx').includes('Authorization') && read('apps/web/app/network-commands/page.tsx').includes('Confirmation')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
