@@ -21,7 +21,6 @@ describe('IncidentsService', () => {
 
     await expect(service.get('tenant-1', 'missing')).rejects.toThrow('Incident not found');
   });
-});
 
   it('rejects assignment to an inactive or cross-tenant user', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) } as any;
@@ -52,4 +51,6 @@ describe('IncidentsService', () => {
     expect(result).toEqual({ id: 'incident-1', status: 'OPEN' });
     expect(audit.record).toHaveBeenCalledWith('tenant-1', 'INCIDENT_ASSIGNED', 'incident', 'incident-1', { assigneeUserId: 'user-2' }, { userId: 'operator-1' });
   });
+});
+
 });
