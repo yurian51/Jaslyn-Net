@@ -55,8 +55,6 @@ describe('CommunicationCommandService', () => {
       true,
     )).rejects.toBeInstanceOf(ForbiddenException);
   });
-});
-
 
   it('blocks network data access for read-only users', async () => {
     await expect(service.execute(
@@ -65,3 +63,4 @@ describe('CommunicationCommandService', () => {
       false,
     )).rejects.toBeInstanceOf(ForbiddenException);
   });
+});
