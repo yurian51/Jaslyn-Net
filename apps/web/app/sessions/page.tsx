@@ -17,6 +17,9 @@ type Session = {
   bytesIn?: string | number;
   bytesOut?: string | number;
   bytesTotal?: string | number;
+  durationSeconds?: string | number;
+  authenticationState?: string;
+  accountingState?: string;
   status: 'ACTIVE' | 'STALE' | 'ENDED' | string;
 };
 type SessionResponse = { data: Session[]; count: number };
@@ -170,7 +173,7 @@ export default function SessionsPage() {
                 <td><span className={`operator-status ${item.status.toLowerCase()}`}><i />{item.status}</span></td>
                 <td><button className="operator-menu" aria-label={`Toggle details for ${item.id}`} onClick={() => setExpanded(expanded === item.id ? null : item.id)}>⋯</button></td>
                 {expanded === item.id && <td colSpan={7} className="operator-expanded-cell"><div className="operator-detail-grid">
-                  <div><span>SESSION ID</span><b>{item.id}</b></div><div><span>CUSTOMER</span><b>{item.customerId ?? '—'}</b></div><div><span>BYTES IN</span><b>{formatBytes(item.bytesIn)}</b></div><div><span>BYTES OUT</span><b>{formatBytes(item.bytesOut)}</b></div><div><span>STARTED</span><b>{formatDate(item.startedAt)}</b></div><div><span>ENDED</span><b>{formatDate(item.endedAt)}</b></div>
+                  <div><span>SESSION ID</span><b>{item.id}</b></div><div><span>CUSTOMER</span><b>{item.customerId ?? '—'}</b></div><div><span>BYTES IN</span><b>{formatBytes(item.bytesIn)}</b></div><div><span>BYTES OUT</span><b>{formatBytes(item.bytesOut)}</b></div><div><span>STARTED</span><b>{formatDate(item.startedAt)}</b></div><div><span>ENDED</span><b>{formatDate(item.endedAt)}</b></div><div><span>DURATION</span><b>{item.durationSeconds == null ? '—' : String(item.durationSeconds) + 's'}</b></div><div><span>AUTHENTICATION</span><b>{item.authenticationState ?? 'NOT_REPORTED'}</b></div><div><span>ACCOUNTING</span><b>{item.accountingState ?? 'NOT_REPORTED'}</b></div>
                   <div className="operator-timeline"><span>SESSION TIMELINE</span><ol><li><i />Session record started <time>{formatDate(item.startedAt)}</time></li>{item.endedAt && <li><i />Session ended <time>{formatDate(item.endedAt)}</time></li>}</ol></div>
                   {item.status === 'ACTIVE' && <div className="operator-session-action"><button className="operator-danger-button" disabled={ending === item.id} onClick={() => void disconnectSession(item.id)}>{ending === item.id ? 'Disconnecting…' : 'Disconnect session'}</button></div>}
                 </div></td>}
