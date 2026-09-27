@@ -99,7 +99,7 @@ export class CommunicationService {
     finally { client.release(); }
   }
 
-  async sendMessage(actor: Actor, conversationId: string, input: { body: string; idempotencyKey?: string; replyToMessageId?: string; protected?: boolean }) {
+  async sendMessage(actor: Actor, conversationId: string, input: { body: string; idempotencyKey?: string; replyToMessageId?: string; protected?: boolean; messageType?: 'TEXT'|'VOICE'|'FILE' }) {
     await this.assertMember(actor, conversationId);
     const body = input.body.trim();
     if (!body || body.length > 10_000) throw new BadRequestException('Message body must contain 1-10000 characters');
