@@ -250,7 +250,19 @@ export class CommunicationSuperAppService {
     );
     for (const row of result.rows) this.realtime.publish({type:'message.expired',tenantId:row.tenantId,conversationId:row.conversationId,messageId:row.id,data:{expired:true}});
     await this.db.query('DELETE FROM stories WHERE expires_at<=now()');
-    return {expiredMessages:result.rowCount ?? 0};
+    const live = await this.db.query(
+      `UPDATE conversation_events SET status='LIVE',updated_at=now()
+         WHERE status='SCHEDULED' AND starts_at<=now() AND (ends_at IS NULL OR ends_at>now())
+         RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",id`,
+    );
+    const ended = await this.db.query(
+      `UPDATE conversation_events SET status='ENDED',updated_at=now()
+         WHERE status IN ('SCHEDULED','LIVE') AND ((ends_at IS NOT NULL AND ends_at<=now()) OR (ends_at IS NULL AND starts_at + interval '24 hours'<=now()))
+         RETURNING tenant_id AS "tenantId",conversation_id AS "conversationId",id`,
+    );
+    for (const row of live.rows) this.realtime.publish({type:'conversation.event.live',tenantId:row.tenantId,conversationId:row.conversationId,data:{eventId:row.id,status:'LIVE'}});
+    for (const row of ended.rows) this.realtime.publish({type:'conversation.event.ended',tenantId:row.tenantId,conversationId:row.conversationId,data:{eventId:row.id,status:'ENDED'}});
+    return {expiredMessages:result.rowCount ?? 0,liveEvents:live.rowCount ?? 0,endedEvents:ended.rowCount ?? 0};
   }
 
   private async assertMember(actor: Actor, conversationId: string) {
