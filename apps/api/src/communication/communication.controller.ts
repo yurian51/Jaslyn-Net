@@ -123,7 +123,7 @@ class PollDto {
 class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
-class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsString() @MaxLength(10000) body?: string; @IsOptional() @IsString() @MaxLength(2048) mediaKey?: string; @IsOptional() @IsIn(['PUBLIC','CONTACTS','PRIVATE','CUSTOM']) audience?: string; @IsOptional() @IsString() expiresAt?: string; @IsOptional() @IsUUID('4', { each:true }) allowedUserIds?: string[]; }
+class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsString() @MaxLength(10000) body?: string; @IsOptional() @IsString() @MaxLength(2048) mediaKey?: string; @IsOptional() @IsIn(['PUBLIC','CONTACTS','PRIVATE','CUSTOM']) audience?: string; @IsOptional() @IsString() expiresAt?: string; @IsOptional() @IsArray() @IsUUID('4', { each:true }) allowedUserIds?: string[]; }
 class IdentityDto { @IsString() @MinLength(3) @MaxLength(32) username!: string; @IsOptional() @IsIn(['EVERYONE','CONTACTS','NOBODY']) phoneVisibility?: 'EVERYONE'|'CONTACTS'|'NOBODY'; @IsOptional() @IsBoolean() discoverableByUsername?: boolean; @IsOptional() @IsBoolean() discoverableByPhone?: boolean; }
 
 class MessageExpiryDto { @IsString() expiresAt!: string; }
@@ -131,7 +131,7 @@ class PinMessageDto { @IsOptional() @IsIn(['24H','7D','30D','FOREVER']) duration
 class EventDto { @IsString() @MinLength(1) @MaxLength(200) title!: string; @IsOptional() @IsString() @MaxLength(4000) description?: string; @IsString() startsAt!: string; @IsOptional() @IsString() endsAt?: string; @IsOptional() @IsString() timezone?: string; @IsOptional() @IsString() @MaxLength(500) location?: string; }
 class EventResponseDto { @IsIn(['GOING','MAYBE','DECLINED']) response!: 'GOING'|'MAYBE'|'DECLINED'; }
 class MiniAppLaunchDto { @IsString() @MinLength(20) @MaxLength(4096) token!: string; }
-class MiniAppDto { @IsString() @MinLength(2) @MaxLength(80) slug!: string; @IsString() @MinLength(1) @MaxLength(160) name!: string; @IsOptional() @IsString() @MaxLength(1000) description?: string; @IsString() @MaxLength(2048) launchUrl!: string; @IsOptional() @IsString() @MaxLength(2048) iconUrl?: string; @IsOptional() permissions?: string[]; }
+class MiniAppDto { @IsString() @MinLength(2) @MaxLength(80) slug!: string; @IsString() @MinLength(1) @MaxLength(160) name!: string; @IsOptional() @IsString() @MaxLength(1000) description?: string; @IsString() @MaxLength(2048) launchUrl!: string; @IsOptional() @IsString() @MaxLength(2048) iconUrl?: string; @IsOptional() @IsArray() @IsString({ each:true }) permissions?: string[]; }
 
 class CommunicationNotificationDto {
   @IsUUID() userId!: string;
