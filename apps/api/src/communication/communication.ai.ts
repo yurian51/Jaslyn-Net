@@ -16,6 +16,7 @@ type ToolDefinition = {
   input_schema: { type: 'object'; properties: Record<string, unknown>; required: string[] };
   requiresConfirmation: boolean;
   permission: string;
+  risk: 'READ_ONLY' | 'LOW_RISK' | 'MODERATE_RISK' | 'HIGH_RISK' | 'DESTRUCTIVE';
 };
 
 type ToolCall = { id: string; name: string; input: Record<string, unknown> };
@@ -45,36 +46,36 @@ export class CommunicationAiService {
 
   private tools(): ToolDefinition[] {
     return [
-      { name:'getSubscriber', description:'Get verified subscriber/customer information by username.', permission:'subscribers.read', requiresConfirmation:false,
+      { name:'getSubscriber', description:'Get verified subscriber/customer information by username.', permission:'subscribers.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{username:{type:'string'}},required:['username']} },
-      { name:'getInvoice', description:'Get verified invoice information by invoice id.', permission:'billing.read', requiresConfirmation:false,
+      { name:'getInvoice', description:'Get verified invoice information by invoice id.', permission:'billing.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{invoiceId:{type:'string'}},required:['invoiceId']} },
-      { name:'getPayment', description:'Get verified payment information by payment id.', permission:'payments.read', requiresConfirmation:false,
+      { name:'getPayment', description:'Get verified payment information by payment id.', permission:'payments.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{paymentId:{type:'string'}},required:['paymentId']} },
-      { name:'getPackage', description:'Get the latest verified package purchase for a subscriber username.', permission:'billing.read', requiresConfirmation:false,
+      { name:'getPackage', description:'Get the latest verified package purchase for a subscriber username.', permission:'billing.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{username:{type:'string'}},required:['username']} },
-      { name:'getSession', description:'Get a verified active session by session id.', permission:'sessions.read', requiresConfirmation:false,
+      { name:'getSession', description:'Get a verified active session by session id.', permission:'sessions.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{sessionId:{type:'string'}},required:['sessionId']} },
-      { name:'getRouter', description:'Get verified router state by router id.', permission:'network.read', requiresConfirmation:false,
+      { name:'getRouter', description:'Get verified router state by router id.', permission:'network.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{routerId:{type:'string'}},required:['routerId']} },
-      { name:'getNetworkStatus', description:'Get verified tenant network status counts.', permission:'network.read', requiresConfirmation:false,
+      { name:'getNetworkStatus', description:'Get verified tenant network status counts.', permission:'network.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{},required:[]} },
-      { name:'getIncident', description:'Get a verified incident and its impacts.', permission:'incidents.read', requiresConfirmation:false,
+      { name:'getIncident', description:'Get a verified incident and its impacts.', permission:'incidents.read', risk:'READ_ONLY', requiresConfirmation:false,
         input_schema:{type:'object',properties:{incidentId:{type:'string'}},required:['incidentId']} },
-      { name:'createTicket', description:'Create a support ticket for a verified subscriber.', permission:'support.write', requiresConfirmation:false,
+      { name:'createTicket', description:'Create a support ticket for a verified subscriber.', permission:'support.write', risk:'MODERATE_RISK', requiresConfirmation:false,
         input_schema:{type:'object',properties:{subject:{type:'string'},category:{type:'string'},customerId:{type:'string'},priority:{type:'string'}},required:['subject','category']} },
-      { name:'sendMessage', description:'Send a communication message to a conversation the actor can access.', permission:'messages.send', requiresConfirmation:false,
+      { name:'sendMessage', description:'Send a communication message to a conversation the actor can access.', permission:'messages.send', risk:'LOW_RISK', requiresConfirmation:false,
         input_schema:{type:'object',properties:{conversationId:{type:'string'},body:{type:'string'}},required:['conversationId','body']} },
-      { name:'scheduleMessage', description:'Schedule a message in a conversation the actor can access.', permission:'messages.schedule', requiresConfirmation:false,
+      { name:'scheduleMessage', description:'Schedule a message in a conversation the actor can access.', permission:'messages.schedule', risk:'MODERATE_RISK', requiresConfirmation:false,
         input_schema:{type:'object',properties:{conversationId:{type:'string'},body:{type:'string'},scheduledAt:{type:'string'},timezone:{type:'string'}},required:['conversationId','body','scheduledAt']} },
-      { name:'terminateSession', description:'Disconnect an active subscriber session through the existing Network Command Fabric. This is destructive and always requires human confirmation.', permission:'network.commands.execute', requiresConfirmation:true,
+      { name:'terminateSession', description:'Disconnect an active subscriber session through the existing Network Command Fabric. This is destructive and always requires human confirmation.', permission:'network.commands.execute', risk:'DESTRUCTIVE', requiresConfirmation:true,
         input_schema:{type:'object',properties:{sessionId:{type:'string'}},required:['sessionId']} },
-      ...this.networkTools.listTools().map((tool) => ({ name:tool.name, description:tool.description, permission:tool.permission, requiresConfirmation:tool.name === 'execute_network_command', input_schema:tool.inputSchema })),
+      ...this.networkTools.listTools().map((tool) => ({ name:tool.name, description:tool.description, permission:tool.permission, risk:tool.risk, requiresConfirmation:tool.risk === 'HIGH_RISK' || tool.risk === 'DESTRUCTIVE' || tool.name === 'preview_network_command', input_schema:tool.inputSchema })),
     ];
   }
 
   listTools() {
-    return this.tools().map(({name,description,input_schema,requiresConfirmation,permission}) => ({name,description,inputSchema:input_schema,requiresConfirmation,permission}));
+    return this.tools().map(({name,description,input_schema,requiresConfirmation,permission,risk}) => ({name,description,inputSchema:input_schema,requiresConfirmation,permission,risk}));
   }
 
   async chat(actor: Actor, prompt: string, conversationId?: string) {
