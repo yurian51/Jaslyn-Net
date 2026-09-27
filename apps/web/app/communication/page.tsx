@@ -27,7 +27,12 @@ export default function CommunicationPage(){
   const [commandResult,setCommandResult]=useState<string>('');
   const [commandBusy,setCommandBusy]=useState(false);
   const [commandPreview,setCommandPreview]=useState<any>(null);
+  const [typingUsers,setTypingUsers]=useState<string[]>([]);
+  const [replyTo,setReplyTo]=useState<Message|null>(null);
+  const [notificationCount,setNotificationCount]=useState(0);
   const readerAbort=useRef<AbortController|null>(null);
+  const socketRef=useRef<WebSocket|null>(null);
+  const typingTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const token=()=>getAccessToken();
   const currentUserId=useMemo(()=>{const t=token();if(!t)return null;try{return JSON.parse(atob(t.split('.')[1])).sub as string;}catch{return null;}},[]);
@@ -55,6 +60,17 @@ export default function CommunicationPage(){
 
   useEffect(()=>{
     const t=token(); if(!t||!API_URL)return;
+    const base=API_URL.replace(/^http/i,API_URL.startsWith('https')?'wss':'ws');
+    const socket=new WebSocket(`${base}/communication/socket?access_token=${encodeURIComponent(t)}`);
+    socketRef.current=socket;
+    socket.onmessage=(event)=>{try{const payload=JSON.parse(event.data); if(payload.type==='typing.started'&&payload.conversationId===selected){setTypingUsers(prev=>prev.includes(payload.data?.userId)?prev:[...prev,payload.data?.userId].filter(Boolean));} if(payload.type==='typing.stopped'&&payload.conversationId===selected){setTypingUsers(prev=>prev.filter(id=>id!==payload.data?.userId));} if(payload.type==='notification.created'&&payload.data?.userId===currentUserId){setNotificationCount(v=>v+1);}}catch{}};
+    socket.onclose=()=>{if(socketRef.current===socket)socketRef.current=null;};
+    socket.onerror=()=>undefined;
+    return()=>{if(socketRef.current===socket)socketRef.current=null;socket.close();};
+  },[selected,currentUserId]);
+
+  useEffect(()=>{
+    const t=token(); if(!t||!API_URL)return;
     const controller=new AbortController(); readerAbort.current=controller;
     fetch(`${API_URL}/communication/events`,{headers:{Authorization:`Bearer ${t}`},signal:controller.signal}).then(async response=>{
       if(!response.ok||!response.body)return;
@@ -74,10 +90,23 @@ export default function CommunicationPage(){
     return()=>{controller.abort();readerAbort.current=null;};
   },[selected,loadConversations]);
 
+  function emitTyping(type:'typing.started'|'typing.stopped'){
+    if(!selected||socketRef.current?.readyState!==WebSocket.OPEN)return;
+    socketRef.current.send(JSON.stringify({type,conversationId:selected}));
+  }
+
+  function onDraftChange(value:string){
+    setDraft(value);
+    if(!value.trim()){emitTyping('typing.stopped');return;}
+    emitTyping('typing.started');
+    if(typingTimer.current)clearTimeout(typingTimer.current);
+    typingTimer.current=setTimeout(()=>emitTyping('typing.stopped'),1200);
+  }
+
   async function send(){
     const t=token();if(!t||!selected||!draft.trim()||sending)return;
-    setSending(true);setError(null);const body=draft.trim();setDraft('');
-    try{const message=await apiFetch<Message>(`/communication/conversations/${selected}/messages`,{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({body})});setMessages(prev=>prev.some(m=>m.id===message.id)?prev:[...prev,message]);void loadConversations();}
+    setSending(true);setError(null);const body=draft.trim();setDraft('');emitTyping('typing.stopped');
+    try{const message=await apiFetch<Message>(`/communication/conversations/${selected}/messages`,{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({body,replyToMessageId:replyTo?.id})});setMessages(prev=>prev.some(m=>m.id===message.id)?prev:[...prev,message]);setReplyTo(null);void loadConversations();}
     catch(e){setDraft(body);setError(e instanceof ApiError||e instanceof Error?e.message:'Unable to send message.')}
     finally{setSending(false);}
   }
@@ -115,12 +144,12 @@ export default function CommunicationPage(){
       @media(max-width:650px){.communication{margin:0;border-radius:0;height:100vh;min-height:0;grid-template-columns:1fr}.list{display:${selected?'none':'flex'}}.chat{display:${selected?'flex':'none'}}.chatHead{position:sticky;top:0}.message{max-width:90%}}
     `}</style>
     {error&&<div className="error" role="alert">{error}</div>}
-    <aside className="rail"><div className="brand">JASLYN NET</div><div className="muted">Communication Center</div><div className="nav"><div className="active">Chats</div><div>Channels</div><div>NOC</div><div>Support</div><div>Saved</div><div>Notifications</div><div>Command</div></div><div className="railBottom"><div className="muted">Presence</div><div className="presence"><span className="dot"/><select className="statusSelect" value={presence} onChange={e=>void updatePresence(e.target.value)}><option>ONLINE</option><option>AWAY</option><option>BUSY</option><option>INVISIBLE</option><option>OFFLINE</option></select></div></div></aside>
+    <aside className="rail"><div className="brand">JASLYN NET</div><div className="muted">Communication Center</div><div className="nav"><div className="active">Chats</div><div>Channels</div><div>NOC</div><div>Support</div><div>Saved</div><div>Notifications {notificationCount>0&&<span className="badge">{notificationCount}</span>}</div><div>Command</div></div><div className="railBottom"><div className="muted">Presence</div><div className="presence"><span className="dot"/><select className="statusSelect" value={presence} onChange={e=>void updatePresence(e.target.value)}><option>ONLINE</option><option>AWAY</option><option>BUSY</option><option>INVISIBLE</option><option>OFFLINE</option></select></div></div></aside>
     <section className="list"><div className="listHead"><h1>Chats</h1><div className="sub">{loading?'Loading live conversations…':`${conversations.length} conversation${conversations.length===1?'':'s'}`}</div><div className="searchWrap"><input className="search" value={search} onChange={e=>void runSearch(e.target.value)} placeholder="Search messages, users, subscribers…" />{results.length>0&&<div className="searchResults">{results.slice(0,8).map((r,i)=><div className="result" key={r.id+`-${i}`}><strong>{r.type}</strong> · {r.fullName||r.senderName||r.conversationTitle||r.body}</div>)}</div>}</div></div><div className="rows">{conversations.map(c=><div key={c.id} className={`row ${selected===c.id?'selected':''}`} onClick={()=>{setSelected(c.id);setSearch('');setResults([])}}><div className="rowTitle"><span>{c.title||'Untitled conversation'}</span>{c.unreadCount>0&&<span className="badge">{c.unreadCount}</span>}</div><div className="rowPreview">{c.lastMessageBody||'No messages yet'}</div></div>)}{!loading&&!conversations.length&&<div className="empty" style={{padding:24}}>No conversations yet.<br/>The system is correctly showing no fake chats.</div>}</div></section>
-    <section className="chat"><div className="chatHead"><div><h2>{active?.title||'Select a conversation'}</h2><div className="sub">{active?.kind||'Communication Center'} · {topics.length} topic{topics.length===1?'':'s'}</div></div><button className="statusSelect" onClick={()=>selected&&void loadMessages(selected)}>Refresh</button></div>{selected&&topics.length>0&&<div className="topics" aria-label="Conversation topics">{topics.filter(t=>!t.archivedAt).slice(0,12).map(t=><div className="topic" key={t.id}><strong>{t.name}</strong> · {t.messageCount}</div>)}</div>}<div className="messages">{selected&&messages.length?messages.map(m=><article key={m.id} className={`message ${m.senderUserId===currentUserId?'mine':''}`}><div className="sender">{m.senderName||m.senderCustomerName||'System'}</div><div className="body">{m.deletedAt?'Message deleted':m.body}</div>{m.reactions?.length? <div className="sub">{m.reactions.map(r=>`${r.reaction} ${r.count}`).join('  ')}</div>:null}<div className="time">{time(m.createdAt)}</div></article>):<div className="empty">{selected?'No messages in this conversation.':'Choose a conversation from the left.'}</div>}</div>{selected&&<>
+    <section className="chat"><div className="chatHead"><div><h2>{active?.title||'Select a conversation'}</h2><div className="sub">{active?.kind||'Communication Center'} · {topics.length} topic{topics.length===1?'':'s'}</div></div><button className="statusSelect" onClick={()=>selected&&void loadMessages(selected)}>Refresh</button></div>{selected&&topics.length>0&&<div className="topics" aria-label="Conversation topics">{topics.filter(t=>!t.archivedAt).slice(0,12).map(t=><div className="topic" key={t.id}><strong>{t.name}</strong> · {t.messageCount}</div>)}</div>}<div className="messages">{selected&&messages.length?messages.map(m=><article key={m.id} className={`message ${m.senderUserId===currentUserId?'mine':''}`}><div className="sender">{m.senderName||m.senderCustomerName||'System'}</div><div className="body">{m.deletedAt?'Message deleted':m.body}</div>{m.reactions?.length? <div className="sub">{m.reactions.map(r=>`${r.reaction} ${r.count}`).join('  ')}</div>:null}<div className="messageActions"><button onClick={()=>setReplyTo(m)}>Reply</button><button onClick={()=>{const t=token();void apiFetch(`/communication/messages/${m.id}/reactions`,{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},body:JSON.stringify({reaction:'👍'})}).then(()=>loadMessages(selected!)).catch(()=>undefined)}}>👍</button><button onClick={()=>{const t=token();void apiFetch(`/communication/messages/${m.id}/save`,{method:'POST',headers:{Authorization:`Bearer ${t}`,'Content-Type':'application/json'},body:JSON.stringify({})}).catch(()=>undefined)}}>Save</button></div><div className="time">{time(m.createdAt)}</div></article>):<div className="empty">{selected?'No messages in this conversation.':'Choose a conversation from the left.'}</div>}</div>{selected&&typingUsers.length>0&&<div className="typing">Someone is typing…</div>}{selected&&replyTo&&<div className="replyBar"><span>Replying to <strong>{replyTo.senderName||replyTo.senderCustomerName||'message'}</strong>: {replyTo.body}</span><button onClick={()=>setReplyTo(null)}>Cancel</button></div>}{selected&&<>
       <div className="commandBar"><input value={command} onChange={e=>setCommand(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void runCommand()}}} placeholder="Ask Jaslyn or run /status, /router status <name>…" /><button className="commandBtn" disabled={commandBusy||!command.trim()} onClick={()=>void runCommand()}>{commandBusy?'Checking…':'Run'}</button></div>
       {commandResult&&<div className="commandResult" role="status">{commandResult}</div>}{commandPreview&&<div className="commandPreview"><strong>Confirmation required</strong><div style={{marginTop:5}}>{commandPreview.warning||'This operation changes service state.'}</div><div className="commandPreviewActions"><button className="confirmBtn" onClick={()=>void runCommand(true)} disabled={commandBusy}>Confirm execution</button><button className="cancelBtn" onClick={cancelCommandPreview}>Cancel</button></div></div>}
-      <div className="composer"><textarea value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send()}}} placeholder="Write a message…" /><button className="send" disabled={sending||!draft.trim()} onClick={()=>void send()}>{sending?'Sending…':'Send'}</button></div>
+      <div className="composer"><textarea value={draft} onChange={e=>onDraftChange(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send()}}} placeholder="Write a message…" /><button className="send" disabled={sending||!draft.trim()} onClick={()=>void send()}>{sending?'Sending…':'Send'}</button></div>
     </>}</section>
   </main>;
 }
