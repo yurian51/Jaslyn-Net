@@ -184,6 +184,29 @@ export class CommunicationAiService {
 
     try {
       const result = await this.executeTool(actor,call);
+      const queued = typeof result === 'object' && result !== null && (
+        (result as Record<string,unknown>).queued === true ||
+        (result as Record<string,unknown>).status === 'QUEUED'
+      );
+
+      if (queued) {
+        await this.db.query(
+          `UPDATE ai_executions
+           SET output=$3::jsonb,updated_at=now()
+           WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
+          [actor.tenantId,executionId,JSON.stringify(result)],
+        );
+        await this.audit.record(actor.tenantId,'AI_COMMAND_QUEUED','ai_execution',executionId,{tool:tool.name,result},{userId:actor.userId,requestId:executionId});
+        return {
+          status:'QUEUED',
+          verified:false,
+          executionId,
+          tool:tool.name,
+          result,
+          message:'The command was accepted by the Network Command Fabric but has not been verified as executed.',
+        };
+      }
+
       await this.db.query(
         `UPDATE ai_executions
          SET status='SUCCESS',output=$3::jsonb,completed_at=now(),updated_at=now()
