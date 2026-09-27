@@ -20,11 +20,14 @@ type Incident = {
   affectedCustomers: number;
   affectedSessions: number;
   estimatedRevenue: string | number;
+  assigneeUserId?: string | null;
 };
 
 type IncidentResponse = { data: Incident[]; count: number };
 type IncidentStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | '';
 type SavedView = { name: string; status: IncidentStatus; query: string };
+type AuditEntry = { id: string; action: string; actorName?: string | null; createdAt: string; metadata?: Record<string, unknown> };
+
 
 const money = (value: string | number) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = (value?: string) => {
@@ -59,6 +62,7 @@ export default function IncidentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [auditByIncident, setAuditByIncident] = useState<Record<string, AuditEntry[]>>({});
 
   const syncUrl = useCallback((nextStatus: IncidentStatus, nextQuery: string) => {
     const next = new URLSearchParams(params.toString());
@@ -143,6 +147,38 @@ export default function IncidentsPage() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  async function loadAudit(id: string) {
+    const token = getAccessToken();
+    if (!token) return;
+    try {
+      const response = await apiFetch<{ data: AuditEntry[] }>(`/incidents/${id}/audit-trail`, { headers: { Authorization: `Bearer ${token}` } });
+      setAuditByIncident((current) => ({ ...current, [id]: Array.isArray(response.data) ? response.data : [] }));
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load incident audit trail.');
+    }
+  }
+
+  async function assignIncident(id: string) {
+    const assigneeUserId = window.prompt('Tenant user ID to assign this incident to. Leave blank to unassign.');
+    if (assigneeUserId === null) return;
+    const token = getAccessToken();
+    if (!token) return;
+    setBusy(id);
+    try {
+      await apiFetch(`/incidents/${id}/assign`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigneeUserId: assigneeUserId.trim() || null }),
+      });
+      await load();
+      await loadAudit(id);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'Incident assignment failed.');
+    } finally {
+      setBusy(null);
+    }
   }
 
   function saveCurrentView() {
@@ -230,7 +266,7 @@ export default function IncidentsPage() {
                   <td><input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleRow(item.id)} aria-label={`Select incident ${item.id}`} /></td>
                   <td><span className={`severity ${item.severity.toLowerCase()}`}><i />{item.severity}</span></td>
                   <td>
-                    <button className="incident-row-trigger" onClick={() => setExpanded(expanded === item.id ? null : item.id)} aria-expanded={expanded === item.id}>
+                    <button className="incident-row-trigger" onClick={() => { const next = expanded === item.id ? null : item.id; setExpanded(next); if (next) void loadAudit(next); }} aria-expanded={expanded === item.id}>
                       <strong>{item.title}</strong><small>{item.category} · {item.status} · {item.id}</small>
                     </button>
                   </td>
@@ -250,11 +286,16 @@ export default function IncidentsPage() {
                       <div className="incident-detail-grid">
                         <div><span>INCIDENT ID</span><b>{item.id}</b></div>
                         <div><span>ROOT RESOURCE</span><b>{item.rootResourceType || '—'} · {item.rootResourceId || '—'}</b></div>
+                        <div><span>ASSIGNEE</span><b>{item.assigneeUserId || 'Unassigned'}</b></div>
                         <div><span>BUSINESS EXPOSURE</span><b>TSh {money(item.estimatedRevenue)}</b></div>
                         <div><span>AFFECTED CUSTOMERS</span><b>{item.affectedCustomers}</b></div>
                         <div><span>AFFECTED SESSIONS</span><b>{item.affectedSessions}</b></div>
                         <div><span>AFFECTED RESOURCES</span><b>{item.affectedResources}</b></div>
                         {item.summary && <div className="incident-summary"><span>SUMMARY</span><p>{item.summary}</p></div>}
+                        <div className="incident-timeline">
+                          <span>AUDIT TRAIL</span>
+                          <ol>{(auditByIncident[item.id] ?? []).slice(-8).map((entry) => <li key={entry.id} className="done"><i /><span>{entry.action}<time>{entry.actorName || 'System'} · {fmt(entry.createdAt)}</time></span></li>)}</ol>
+                        </div>
                         <div className="incident-timeline">
                           <span>INCIDENT TIMELINE</span>
                           <ol>
@@ -263,7 +304,7 @@ export default function IncidentsPage() {
                             {item.status === 'RESOLVED' && <li className="done"><i /><span>Resolved<time>{fmt(item.lastSeenAt)}</time></span></li>}
                           </ol>
                         </div>
-                        <div className="incident-detail-actions">
+                        <div className="incident-detail-actions"><button disabled={busy === item.id} onClick={() => void assignIncident(item.id)}>Assign / unassign</button>
                           {item.status === 'OPEN' && <button disabled={busy === item.id} onClick={() => void action(item.id, 'acknowledge')}>Acknowledge incident</button>}
                           {item.status !== 'RESOLVED' && <button className="resolve" disabled={busy === item.id} onClick={() => void action(item.id, 'resolve')}>Resolve incident</button>}
                         </div>
