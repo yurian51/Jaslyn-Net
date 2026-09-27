@@ -28,7 +28,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @jaslyn-net/api typecheck
-      - run: pnpm --filter @jaslyn-net/api test -- --runInBand
+      - run: pnpm --filter @jaslyn-net/api test
       - run: pnpm --filter @jaslyn-net/api build
       - run: pnpm --filter @jaslyn-net/web typecheck
       - run: pnpm --filter @jaslyn-net/web build
