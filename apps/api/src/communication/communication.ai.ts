@@ -278,7 +278,7 @@ export class CommunicationAiService {
       case 'createTicket': return this.createTicket(actor,call.input);
       case 'sendMessage': return this.communication.sendMessage(actor,this.stringInput(call.input,'conversationId'),{body:this.stringInput(call.input,'body'),idempotencyKey:`ai:${call.id}`});
       case 'scheduleMessage': return this.communication.scheduleMessage(actor,this.stringInput(call.input,'conversationId'),{body:this.stringInput(call.input,'body'),scheduledAt:this.stringInput(call.input,'scheduledAt'),timezone:typeof call.input.timezone==='string'?call.input.timezone:undefined});
-      case 'terminateSession': return this.commands.execute(actor,`terminate session ${this.stringInput(call.input,'sessionId')}`,true);
+      case 'terminateSession': return this.commands.execute(actor,`terminate session ${this.stringInput(call.input,'sessionId')}`,true,call.id);
       default: throw new BadRequestException(`Unknown AI tool: ${call.name}`);
     }
   }

@@ -78,7 +78,13 @@ export class CommunicationDomainBridge implements OnModuleInit {
       await this.db.query(
         `UPDATE ai_executions
             SET output=COALESCE(output,'{}'::jsonb) || $3::jsonb,updated_at=now()
-          WHERE tenant_id=$1 AND network_command_id=$2 AND status='EXECUTING'`,
+          WHERE tenant_id=$1 AND status='EXECUTING'
+            AND (network_command_id=$2 OR (network_command_id IS NULL AND EXISTS (
+              SELECT 1 FROM network_commands nc
+               WHERE nc.tenant_id=ai_executions.tenant_id
+                 AND nc.id=$2
+                 AND nc.request->>'requestId'=ai_executions.id::text
+            )))`,
         [event.tenantId,commandId,JSON.stringify({networkCommandStatus:'EXECUTED',executionResult:event.payload?.response ?? {}})],
       );
       return;
