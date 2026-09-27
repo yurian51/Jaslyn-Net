@@ -390,17 +390,54 @@ export class CommunicationService {
     return {id:messageId,deleted:true};
   }
 
-  async pinMessage(actor: Actor, messageId: string) {
+  async pinMessage(actor: Actor, messageId: string, duration: '24H'|'7D'|'30D'|'FOREVER' = 'FOREVER') {
     const message = await this.getMessage(actor, messageId);
     if (!['OWNER','ADMIN'].includes(actor.role)) throw new BadRequestException('Pinning requires an authorized conversation operator');
-    await this.db.query(
-      `INSERT INTO pinned_messages (tenant_id,conversation_id,message_id,pinned_by_user_id)
-       VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id,conversation_id,message_id) DO NOTHING`,
-      [actor.tenantId,message.conversationId,message.id,actor.userId],
-    );
-    await this.audit.record(actor.tenantId,'MESSAGE_PINNED','message',message.id,{conversationId:message.conversationId},{userId:actor.userId});
-    this.realtime.publish({type:'message.pinned',tenantId:actor.tenantId,conversationId:message.conversationId,messageId:message.id,data:{messageId:message.id,pinned:true}});
-    return {messageId:message.id,pinned:true};
+    if (!['24H','7D','30D','FOREVER'].includes(duration)) throw new BadRequestException('Invalid pin duration');
+
+    const expiresAt = duration === 'FOREVER'
+      ? null
+      : new Date(Date.now() + ({'24H': 24 * 60 * 60 * 1000, '7D': 7 * 24 * 60 * 60 * 1000, '30D': 30 * 24 * 60 * 60 * 1000} as const)[duration]).toISOString();
+
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 9817241))',
+        [`${actor.tenantId}:${message.conversationId}`],
+      );
+      await client.query(
+        'DELETE FROM pinned_messages WHERE tenant_id=$1 AND conversation_id=$2 AND expires_at IS NOT NULL AND expires_at<=now()',
+        [actor.tenantId,message.conversationId],
+      );
+      const count = await client.query(
+        'SELECT id FROM pinned_messages WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY created_at ASC LIMIT 1 OFFSET 2',
+        [actor.tenantId,message.conversationId],
+      );
+      if (count.rowCount) {
+        await client.query(
+          'DELETE FROM pinned_messages WHERE tenant_id=$1 AND id=$2',
+          [actor.tenantId,count.rows[0].id],
+        );
+      }
+      await client.query(
+        `INSERT INTO pinned_messages (tenant_id,conversation_id,message_id,pinned_by_user_id,expires_at)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (tenant_id,conversation_id,message_id)
+         DO UPDATE SET expires_at=EXCLUDED.expires_at,pinned_by_user_id=EXCLUDED.pinned_by_user_id`,
+        [actor.tenantId,message.conversationId,message.id,actor.userId,expiresAt],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    await this.audit.record(actor.tenantId,'MESSAGE_PINNED','message',message.id,{conversationId:message.conversationId,duration,expiresAt},{userId:actor.userId});
+    this.realtime.publish({type:'message.pinned',tenantId:actor.tenantId,conversationId:message.conversationId,messageId:message.id,data:{messageId:message.id,pinned:true,expiresAt}});
+    return {messageId:message.id,pinned:true,expiresAt};
   }
 
   async unpinMessage(actor: Actor, messageId: string) {
@@ -494,7 +531,7 @@ export class CommunicationService {
               m.body,m.created_at AS "messageCreatedAt",u.full_name AS "pinnedByName"
        FROM pinned_messages p JOIN messages m ON m.tenant_id=p.tenant_id AND m.id=p.message_id
        LEFT JOIN users u ON u.tenant_id=p.tenant_id AND u.id=p.pinned_by_user_id
-       WHERE p.tenant_id=$1 AND p.conversation_id=$2 ORDER BY p.created_at DESC LIMIT 100`,
+       WHERE p.tenant_id=$1 AND p.conversation_id=$2 AND (p.expires_at IS NULL OR p.expires_at>now()) ORDER BY p.created_at DESC LIMIT 100`,
       [actor.tenantId,conversationId],
     );
     return {data:result.rows,count:result.rowCount ?? 0};
