@@ -59,7 +59,8 @@ describe('CommunicationService', () => {
       exp: issuedAt + 300,
     };
     const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const signature = createHmac('sha256', process.env.JASLYN_MINI_APP_SECRET).update(encoded).digest('base64url');
+    const secret = process.env.JASLYN_MINI_APP_SECRET!;
+    const signature = createHmac('sha256', secret).update(encoded).digest('base64url');
     const db = {
       query: jest.fn().mockResolvedValue({
         rowCount: 1,
@@ -69,7 +70,6 @@ describe('CommunicationService', () => {
     };
     const audit = { record: jest.fn() };
     const realtime = { publish: jest.fn() };
-    const service = new CommunicationService(db as never, audit as never, realtime as never);
     const superApp = new (await import('./communication.superapp')).CommunicationSuperAppService(db as never, audit as never, realtime as never);
 
     await expect(superApp.verifyMiniAppLaunch(
@@ -84,7 +84,6 @@ describe('CommunicationService', () => {
       'other-app',
     )).rejects.toThrow('does not match this mini app');
 
-    void service;
     delete process.env.JASLYN_MINI_APP_SECRET;
   });
 
