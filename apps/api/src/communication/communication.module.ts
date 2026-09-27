@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { TrafficModule } from '../modules/traffic/traffic.module';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
 import { CommunicationController } from './communication.controller';
@@ -10,7 +11,7 @@ import { CommunicationWebSocket } from './communication.websocket';
 import { CommunicationPlatformService } from './communication.platform';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, TrafficModule],
   controllers: [CommunicationController],
   providers: [
     CommunicationService,
