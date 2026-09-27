@@ -6,6 +6,7 @@ import { CommunicationService } from './communication.service';
 import { CommunicationRealtime } from './communication.realtime';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationBotService } from './communication.bot';
+import { CommunicationPlatformService } from './communication.platform';
 
 class DirectConversationDto {
   @IsOptional() @IsUUID() userId?: string;
@@ -91,11 +92,43 @@ class ScheduleMessageDto {
 class SaveDto {
   @IsOptional() @IsString() @MaxLength(500) note?: string;
 }
+class TopicDto {
+  @IsString() @MinLength(1) @MaxLength(120) name!: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+}
+class FolderDto {
+  @IsString() @MinLength(1) @MaxLength(80) name!: string;
+  @IsOptional() rules?: Record<string, unknown>;
+  @IsOptional() position?: number;
+}
+class CommunityDto {
+  @IsString() @MinLength(1) @MaxLength(160) name!: string;
+  @IsString() @MinLength(2) @MaxLength(80) slug!: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+}
+class PollDto {
+  @IsString() @MinLength(1) @MaxLength(500) question!: string;
+  @IsString({ each:true }) options!: string[];
+  @IsOptional() @IsBoolean() anonymous?: boolean;
+  @IsOptional() @IsBoolean() multipleChoice?: boolean;
+  @IsOptional() @IsString() closesAt?: string;
+}
+class PollVoteDto {
+  @IsUUID('4', { each:true }) optionIds!: string[];
+}
+class CommunicationNotificationDto {
+  @IsUUID() userId!: string;
+  @IsString() @MinLength(1) @MaxLength(64) type!: string;
+  @IsString() @MinLength(1) @MaxLength(200) title!: string;
+  @IsOptional() @IsString() @MaxLength(4000) body?: string;
+  @IsOptional() @IsString() @MaxLength(80) resourceType?: string;
+  @IsOptional() @IsUUID() resourceId?: string;
+}
 
 @Controller('communication')
 @UseGuards(AuthGuard)
 export class CommunicationController {
-  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService) {}
+  constructor(private readonly communication: CommunicationService, private readonly realtime: CommunicationRealtime, private readonly commands: CommunicationCommandService, private readonly bots: CommunicationBotService, private readonly platform: CommunicationPlatformService) {}
 
   @Post('commands/execute')
   command(@Req() req: AuthenticatedRequest,@Body() dto:CommandDto) {
@@ -225,6 +258,71 @@ export class CommunicationController {
   @Patch('notification-preferences/:category')
   updateNotificationPreference(@Req() req: AuthenticatedRequest,@Param('category') category:string,@Body() dto:NotificationPreferenceDto) {
     return this.communication.updateNotificationPreference({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},category,dto);
+  }
+
+  @Get('conversations/:id/topics')
+  topics(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.platform.listTopics({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Post('conversations/:id/topics')
+  createTopic(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:TopicDto) {
+    return this.platform.createTopic({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.name,dto.description);
+  }
+
+  @Delete('topics/:id')
+  archiveTopic(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.platform.archiveTopic({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('folders')
+  folders(@Req() req: AuthenticatedRequest) {
+    return this.platform.listFolders({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Post('folders')
+  upsertFolder(@Req() req: AuthenticatedRequest,@Body() dto:FolderDto) {
+    return this.platform.upsertFolder({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
+  }
+
+  @Delete('folders/:id')
+  deleteFolder(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.platform.deleteFolder({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Get('communities')
+  communities(@Req() req: AuthenticatedRequest) {
+    return this.platform.listCommunities({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role});
+  }
+
+  @Post('communities')
+  createCommunity(@Req() req: AuthenticatedRequest,@Body() dto:CommunityDto) {
+    return this.platform.createCommunity({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
+  }
+
+  @Post('communities/:id/join')
+  joinCommunity(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.platform.joinCommunity({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Post('conversations/:id/polls')
+  createPoll(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:PollDto) {
+    return this.platform.createPoll({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto);
+  }
+
+  @Get('polls/:id')
+  getPoll(@Req() req: AuthenticatedRequest,@Param('id') id:string) {
+    return this.platform.getPoll({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id);
+  }
+
+  @Post('polls/:id/vote')
+  votePoll(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:PollVoteDto) {
+    return this.platform.votePoll({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.optionIds);
+  }
+
+  @Post('notifications')
+  createNotification(@Req() req: AuthenticatedRequest,@Body() dto:CommunicationNotificationDto) {
+    return this.platform.createNotification({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto);
   }
 
   @Post('conversations/:id/read')
