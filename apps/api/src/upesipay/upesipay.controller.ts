@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { UpesiPayService } from './upesipay.service';
 
 @Controller('upesipay')
@@ -36,7 +38,8 @@ export class UpesiPayController {
   }
 
   @Post('wallet/top-up')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN', 'BILLING_ADMIN')
   topUp(@Req() req: AuthenticatedRequest, @Body() body: { amount: number; phoneNumber: string }) {
     return this.upesipay.topUpServiceWallet(req.user!.tenantId, body.amount, body.phoneNumber);
   }
