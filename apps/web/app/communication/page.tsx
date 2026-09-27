@@ -13,7 +13,8 @@ function time(value?:string|null){ if(!value) return ''; const d=new Date(value)
 export default function CommunicationPage(){
   const [conversations,setConversations]=useState<Conversation[]>([]);
   const [selected,setSelected]=useState<string|null>(null);
-  const [messages,setMessages]=useState<Message[]>([]);\n  const [topics,setTopics]=useState<Topic[]>([]);
+  const [messages,setMessages]=useState<Message[]>([]);
+  const [topics,setTopics]=useState<Topic[]>([]);
   const [draft,setDraft]=useState('');
   const [search,setSearch]=useState('');
   const [results,setResults]=useState<SearchResult[]>([]);
@@ -23,7 +24,8 @@ export default function CommunicationPage(){
   const [presence,setPresence]=useState('ONLINE');
   const [command,setCommand]=useState('');
   const [commandResult,setCommandResult]=useState<string>('');
-  const [commandBusy,setCommandBusy]=useState(false);\n  const [commandPreview,setCommandPreview]=useState<any>(null);
+  const [commandBusy,setCommandBusy]=useState(false);
+  const [commandPreview,setCommandPreview]=useState<any>(null);
   const readerAbort=useRef<AbortController|null>(null);
 
   const token=()=>getAccessToken();
