@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
+import { NetworkCommandService } from '../modules/traffic/network-command.service';
 
 type Actor = { userId:string; tenantId:string; role:string };
 
@@ -10,7 +11,7 @@ const OPERATOR_ROLES = new Set(['OWNER','ADMIN']);
 
 @Injectable()
 export class CommunicationCommandService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly audit: AuditService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly audit: AuditService, private readonly networkCommands: NetworkCommandService) {}
 
   async execute(actor: Actor, command: string, confirm = false) {
     const normalized = command.trim().replace(/\s+/g,' ');
@@ -25,7 +26,31 @@ export class CommunicationCommandService {
     }
     if (dangerous) {
       if (!OPERATOR_ROLES.has(actor.role)) throw new ForbiddenException('Operator confirmation permission required');
-      throw new ForbiddenException('Dangerous command is not wired to a verified execution fabric');
+      if (/^restart router\\b/i.test(normalized)) {
+        const routerName = normalized.replace(/^restart router\\s*/i,'').trim();
+        if (!routerName) throw new BadRequestException('Usage: restart router <router-name>');
+        const router = await this.db.query(
+          'SELECT id,name,management_protocol AS "managementProtocol",management_enabled AS "managementEnabled",api_endpoint AS "apiEndpoint" FROM routers WHERE tenant_id=$1 AND name=$2 LIMIT 1',
+          [actor.tenantId,routerName],
+        );
+        if (!router.rowCount) throw new BadRequestException('Router not found');
+        const row = router.rows[0];
+        if (!row.managementEnabled || !row.apiEndpoint) throw new BadRequestException('Router management is not configured for this router');
+        if (row.managementProtocol !== 'MIKROTIK_REST') throw new ForbiddenException('Verified router restart is currently supported only for MikroTik REST');
+        const queued = await this.networkCommands.queue(actor.tenantId,{
+          routerId:row.id,
+          commandType:'ROUTER_RESTART',
+          actor:actor.userId,
+          provider:row.managementProtocol,
+          correlationId:requestId,
+          target:{routerId:row.id,routerName:row.name},
+          request:{command:normalized},
+        });
+        const result = { verified:false, queued:true, networkCommandId:queued.id, status:queued.status, message:'Router restart queued through the verified network command fabric.' };
+        await this.record(actor,normalized,'SUCCESS',result,requestId);
+        return { status:'QUEUED', command:normalized, requestId, actor:actor.userId, resource:{routerId:row.id,routerName:row.name}, result, timestamp:new Date().toISOString() };
+      }
+      throw new ForbiddenException('This dangerous command is not connected to a verified execution fabric');
     }
 
     const parts = normalized.split(' ');
