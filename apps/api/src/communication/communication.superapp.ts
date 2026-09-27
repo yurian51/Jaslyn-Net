@@ -277,7 +277,7 @@ export class CommunicationSuperAppService {
           );
           for (const row of live.rows) this.realtime.publish({type:'conversation.event.live',tenantId:row.tenantId,conversationId:row.conversationId,data:{eventId:row.id,status:'LIVE'}});
           for (const row of ended.rows) this.realtime.publish({type:'conversation.event.ended',tenantId:row.tenantId,conversationId:row.conversationId,data:{eventId:row.id,status:'ENDED'}});
-          return {expiredMessages:result.rowCount ?? 0,liveEvents:live.rowCount ?? 0,endedEvents:ended.rowCount ?? 0};
+          return {expiredMessages:result.rowCount ?? 0,expiredPins:expiredPins.rowCount ?? 0,liveEvents:live.rowCount ?? 0,endedEvents:ended.rowCount ?? 0};
     } finally {
       if (locked) await client.query('SELECT pg_advisory_unlock($1)', [9817242]).catch(()=>undefined);
       client.release();
