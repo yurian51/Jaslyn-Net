@@ -10,18 +10,6 @@ class ResolveIncidentDto {
   @MinLength(3)
   @MaxLength(500)
   resolution!: string;
-
-  @Post(':id/assign')
-  @Roles('OWNER', 'ADMIN', 'AGENT')
-  assign(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AssignIncidentDto) {
-    return this.incidents.assign(req.user!.tenantId, id, dto.assigneeUserId ?? null, { userId: req.user!.id, requestId: req.requestId });
-  }
-
-  @Get(':id/audit-trail')
-  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
-  auditTrail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.incidents.auditTrail(req.user!.tenantId, id);
-  }
 }
 
 class AssignIncidentDto {
