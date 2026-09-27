@@ -11,6 +11,8 @@ import { CommunicationService } from './communication.service';
 import { CommunicationWebSocket } from './communication.websocket';
 import { CommunicationPlatformService } from './communication.platform';
 import { CommunicationSuperAppService } from './communication.superapp';
+import { CommunicationDomainEventsService } from './communication.domain-events';
+import { CommunicationDomainBridge } from './communication.domain-bridge';
 
 @Module({
   imports: [AuditModule, TrafficModule],
@@ -25,6 +27,8 @@ import { CommunicationSuperAppService } from './communication.superapp';
     CommunicationScheduler,
     CommunicationWebSocket,
     CommunicationSuperAppService,
+    CommunicationDomainEventsService,
+    CommunicationDomainBridge,
   ],
   exports: [
     CommunicationService,
@@ -36,6 +40,7 @@ import { CommunicationSuperAppService } from './communication.superapp';
     CommunicationScheduler,
     CommunicationWebSocket,
     CommunicationSuperAppService,
+    CommunicationDomainEventsService,
   ],
 })
 export class CommunicationModule {}
