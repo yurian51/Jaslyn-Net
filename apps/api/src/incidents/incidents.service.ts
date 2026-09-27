@@ -2,12 +2,14 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 
 @Injectable()
 export class IncidentsService {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly audit: AuditService,
+    private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
   async list(tenantId: string, status?: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED') {
@@ -91,6 +93,7 @@ export class IncidentsService {
         [tenantId, fingerprint],
       );
       let incidentId: string;
+      let createdNew = false;
       if (existing.rowCount) {
         incidentId = existing.rows[0].id;
         await client.query(
@@ -105,6 +108,7 @@ export class IncidentsService {
           [tenantId, fingerprint, `${router.name} is offline`, `Router ${router.name} is offline${router.locationName ? ` at ${router.locationName}` : ''}.`, routerId, JSON.stringify({ routerStatus: router.status, detectedBy: 'router-state-sync' })],
         );
         incidentId = created.rows[0].id;
+        createdNew = true;
       }
 
       await client.query(
@@ -140,6 +144,22 @@ export class IncidentsService {
       await this.audit.record(tenantId, 'INCIDENT_SYNCED_ROUTER_OFFLINE', 'incident', incidentId, {
         routerId, routerName: router.name, affectedCustomers: Number(impact.customers || 0), affectedSessions: Number(impact.sessions || 0), estimatedRevenue: revenue,
       }, context);
+      if (createdNew) {
+        await this.domainEvents.enqueue({
+          tenantId,
+          eventKey: `incident.opened:${incidentId}`,
+          eventType: 'INCIDENT.OPENED',
+          aggregateType: 'incident',
+          aggregateId: incidentId,
+          payload: {
+            title: `${router.name} is offline`,
+            summary: `Router ${router.name} is offline${router.locationName ? ` at ${router.locationName}` : ''}.`,
+            severity: 'CRITICAL',
+            routerId,
+            targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'NOC_ENGINEER', 'NETWORK_ADMIN'],
+          },
+        });
+      }
       return this.get(tenantId, incidentId);
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
@@ -157,6 +177,19 @@ export class IncidentsService {
     const incidentId = result.rows[0].id;
     await this.db.query(`UPDATE incident_impacts SET state='RECOVERED', recovered_at=now() WHERE tenant_id=$1 AND incident_id=$2 AND state='AFFECTED'`, [tenantId, incidentId]);
     await this.audit.record(tenantId, 'INCIDENT_RESOLVED_ROUTER_RECOVERY', 'incident', incidentId, { routerId }, context);
+    await this.domainEvents.enqueue({
+      tenantId,
+      eventKey: `incident.resolved:${incidentId}:router-recovery`,
+      eventType: 'INCIDENT.RESOLVED',
+      aggregateType: 'incident',
+      aggregateId: incidentId,
+      payload: {
+        title: 'Network incident resolved',
+        summary: 'Router heartbeat recovered.',
+        routerId,
+        targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'NOC_ENGINEER', 'NETWORK_ADMIN'],
+      },
+    });
     return { resolved: true, incident: await this.get(tenantId, incidentId) };
   }
 
