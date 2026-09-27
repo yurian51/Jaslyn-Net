@@ -33,7 +33,7 @@ describe('CommunicationAiService', () => {
   });
 
   it('rejects a destructive AI tool for a non-operator', async () => {
-    const service = new CommunicationAiService(db, config, audit, communication, commands);
+    const service = new CommunicationAiService(db, config, audit, communication, commands, networkTools);
     expect(() => (service as any).assertPermission(
       { userId:'u1',tenantId:'t1',role:'SUBSCRIBER' },
       { name:'terminateSession',description:'',input_schema:{type:'object',properties:{},required:[]},requiresConfirmation:true,permission:'network.commands.execute' },
