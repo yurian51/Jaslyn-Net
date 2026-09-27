@@ -315,7 +315,7 @@ export class CommunicationSuperAppService {
     const now = Math.floor(Date.now() / 1000);
     const issuedAt = payload.iat;
     const expiresAt = payload.exp;
-    if (payload.v !== 1 || !payload.tenantId || !payload.userId || !payload.miniAppId || !payload.slug || !Number.isInteger(issuedAt) || !Number.isInteger(expiresAt) || expiresAt <= issuedAt || expiresAt < now || issuedAt > now + 30) throw new ForbiddenException('Mini app launch token is expired or invalid');
+    if (payload.v !== 1 || !payload.tenantId || !payload.userId || !payload.miniAppId || !payload.slug || typeof issuedAt !== 'number' || typeof expiresAt !== 'number' || !Number.isInteger(issuedAt) || !Number.isInteger(expiresAt) || expiresAt <= issuedAt || expiresAt < now || issuedAt > now + 30) throw new ForbiddenException('Mini app launch token is expired or invalid');
     if (payload.tenantId !== actor.tenantId || payload.userId !== actor.userId) throw new ForbiddenException('Mini app launch token is not valid for this user');
     if (expectedMiniAppId && payload.miniAppId !== expectedMiniAppId) throw new ForbiddenException('Mini app launch token does not match this mini app');
     const app = await this.db.query(`SELECT m.id,m.slug,m.enabled,i.permissions
