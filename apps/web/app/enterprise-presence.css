@@ -1,0 +1,220 @@
+/* JASLYN NET — Enterprise Presence Layer
+ * Canonical visual refinement layer. No product data is introduced here.
+ * Keeps the existing operational components and strengthens hierarchy,
+ * focus treatment, density, responsive behavior and truthful state presentation.
+ */
+
+:root {
+  --jaslyn-ink: #111827;
+  --jaslyn-ink-soft: #334155;
+  --jaslyn-muted: #64748b;
+  --jaslyn-line: #e2e8f0;
+  --jaslyn-surface: #ffffff;
+  --jaslyn-surface-subtle: #f8fafc;
+  --jaslyn-purple: #6d4aff;
+  --jaslyn-purple-dark: #5033c8;
+  --jaslyn-gold: #c89b3c;
+  --jaslyn-success: #16835b;
+  --jaslyn-warning: #a66a12;
+  --jaslyn-danger: #b33d4a;
+  --jaslyn-info: #3568c9;
+  --jaslyn-radius-sm: 7px;
+  --jaslyn-radius-md: 10px;
+  --jaslyn-radius-lg: 14px;
+  --jaslyn-shadow-sm: 0 1px 2px rgba(15, 23, 42, .04);
+  --jaslyn-shadow-md: 0 10px 30px rgba(15, 23, 42, .07);
+}
+
+/* Operational surfaces: quieter than marketing surfaces, denser than generic SaaS. */
+.console-chrome-frame {
+  background: #f5f7fa;
+}
+
+.console-chrome-sidebar {
+  background:
+    linear-gradient(180deg, #101525 0%, #0c1220 100%);
+  border-right-color: rgba(255,255,255,.075);
+}
+
+.console-chrome-brand strong {
+  letter-spacing: .12em;
+}
+
+.console-chrome-workspace {
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+}
+
+.console-chrome-nav a {
+  border: 1px solid transparent;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.console-chrome-nav a:hover {
+  background: rgba(255,255,255,.045);
+  border-color: rgba(255,255,255,.065);
+}
+
+.console-chrome-nav a.active {
+  background: linear-gradient(90deg, rgba(109,74,255,.19), rgba(109,74,255,.06));
+  border-color: rgba(109,74,255,.24);
+  box-shadow: inset 2px 0 var(--jaslyn-purple);
+}
+
+.console-chrome-nav a.active span {
+  color: #b9a9ff;
+}
+
+.console-command-trigger {
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+}
+
+.console-command-trigger:focus-visible,
+.console-chrome-nav a:focus-visible,
+.console-chrome-user:focus-visible,
+.console-mobile-header-actions a:focus-visible,
+.console-mobile-header-actions button:focus-visible,
+.console-chrome-mobile a:focus-visible,
+.console-chrome-mobile button:focus-visible {
+  outline: 2px solid #a99aff;
+  outline-offset: 2px;
+}
+
+.console-command-overlay {
+  background: rgba(5, 9, 18, .64);
+  backdrop-filter: blur(10px);
+}
+
+.console-command-palette {
+  border-color: rgba(255,255,255,.1);
+  box-shadow: 0 30px 90px rgba(0,0,0,.35);
+}
+
+.console-command-results a {
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.console-command-results a[aria-selected="true"] {
+  background: rgba(109,74,255,.12);
+  border-color: rgba(109,74,255,.2);
+}
+
+/* Consistent page hierarchy without forcing every module into a card. */
+.console-chrome-content :is(.overview-page, .customer-page, .package-page, .purchase-page) {
+  color: var(--jaslyn-ink);
+}
+
+.console-chrome-content :is(h1, h2, h3, h4) {
+  text-wrap: balance;
+}
+
+.console-chrome-content :is(button, input, select, textarea) {
+  font: inherit;
+}
+
+.console-chrome-content :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid rgba(109,74,255,.72);
+  outline-offset: 2px;
+}
+
+.console-chrome-content :is(.panel, .hd-card, .overview-panel) {
+  box-shadow: var(--jaslyn-shadow-sm);
+}
+
+.console-chrome-content :is(.panel, .hd-card, .overview-panel):hover {
+  box-shadow: var(--jaslyn-shadow-md);
+}
+
+.console-chrome-content :is(.empty, .empty-state) {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  border: 1px dashed var(--jaslyn-line);
+  border-radius: var(--jaslyn-radius-md);
+  background: var(--jaslyn-surface-subtle);
+  line-height: 1.5;
+}
+
+.console-chrome-content :is(.error-banner, .notice)[role="alert"] {
+  border-left: 3px solid var(--jaslyn-danger);
+}
+
+.console-chrome-content :is(.status, .pill, .badge) {
+  white-space: nowrap;
+}
+
+/* Premium command/status language. */
+.console-chrome-health i,
+.data-state-inline i {
+  box-shadow: 0 0 0 3px rgba(22,131,91,.10);
+}
+
+.commandbar-refresh:disabled {
+  cursor: wait;
+  opacity: .62;
+}
+
+/* Tables should feel like operational instruments, not spreadsheet leftovers. */
+.console-chrome-content table {
+  font-variant-numeric: tabular-nums;
+}
+
+.console-chrome-content :is(th, td) {
+  border-bottom-color: #edf1f5;
+}
+
+.console-chrome-content tbody tr {
+  transition: background-color .14s ease;
+}
+
+.console-chrome-content tbody tr:focus-within,
+.console-chrome-content tbody tr:hover {
+  background: #fbfcfe;
+}
+
+/* Mobile is a different information architecture, not desktop shrunk by force. */
+@media (max-width: 820px) {
+  .console-chrome-frame {
+    background: #f5f7fa;
+  }
+
+  .console-mobile-header {
+    border-bottom-color: var(--jaslyn-line);
+    box-shadow: 0 1px 0 rgba(15,23,42,.025);
+  }
+
+  .console-chrome-mobile {
+    border-top-color: rgba(255,255,255,.08);
+  }
+
+  .console-chrome-mobile .console-mobile-scan {
+    box-shadow: 0 8px 20px rgba(109,74,255,.22);
+    background: var(--jaslyn-purple);
+  }
+
+  .console-command-overlay {
+    align-items: flex-start;
+    padding: 12vh 10px 20px;
+  }
+
+  .console-command-palette {
+    width: min(100%, 680px);
+    max-height: 78dvh;
+    border-radius: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-chrome-content *,
+  .console-chrome-sidebar *,
+  .console-command-palette *,
+  .console-chrome-mobile * {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
