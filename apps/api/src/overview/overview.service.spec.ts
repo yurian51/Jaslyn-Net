@@ -66,4 +66,36 @@ describe('OverviewService', () => {
     expect(overview.kpis.networkAvailability).toBe(50);
     expect(overview.sessions[0]).toMatchObject({ bytesIn: 100, bytesOut: 200 });
   });
+  it('builds command center health only from persisted tenant state', async () => {
+    const db = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'tenant-1', name: 'Test', currency: 'TZS', timezone: 'Africa/Dar_es_Salaam', status: 'ACTIVE' }] })
+        .mockResolvedValueOnce({ rows: [{ total: '3', online: '1', degraded: '1', offline: '1' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'router-1', name: 'Core', status: 'OFFLINE', activeUsers: 0, capabilities: {} }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'session-1', routerId: 'router-1', subscriber: 'Alice', device: 'Core', status: 'ACTIVE', bytesIn: '100', bytesOut: '200', authenticationState: 'ACCEPTED', accountingState: 'REPORTED' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'incident-1', category: 'DEVICE_OFFLINE', severity: 'CRITICAL', status: 'OPEN', title: 'Core offline', affectedDevices: 1, affectedSubscribers: 2, rootResourceId: 'router-1' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'command-1', commandType: 'RESTART', actor: 'operator', provider: 'MikroTik', status: 'FAILED', error: 'timeout', routerId: 'router-1', createdAt: '2026-09-27T08:00:00Z', completedAt: '2026-09-27T08:00:02Z', request: {}, response: null, verification: null }] })
+        .mockResolvedValueOnce({ rows: [{ count: '4' }] })
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] })
+        .mockResolvedValueOnce({ provider: 'MikroTik', failures: '3' }])
+        .mockResolvedValueOnce({ rows: [{ id: 'incident-1', title: 'Core offline', severity: 'CRITICAL', category: 'DEVICE_OFFLINE', occurredAt: '2026-09-27T08:00:00Z' }] }),
+    } as unknown as Pool;
+    const service = new OverviewService(db);
+
+    const result = await service.getCommandCenter('tenant-1');
+
+    expect(result.systemHealth).toMatchObject({
+      status: 'DEGRADED',
+      devices: { total: 3, online: 1, degraded: 1, unreachable: 1 },
+      activeIncidents: 1,
+      activeSessions: 1,
+      authenticationFailures24h: 4,
+      paymentFailures24h: 2,
+      commandQueue: { pending: 0, failed: 1 },
+    });
+    expect(result.systemHealth.providerFailures24h).toEqual([{ provider: 'MikroTik', failures: 3 }]);
+    expect(result.devices[0].telemetry.cpu).toBeNull();
+    expect(result.devices[0].telemetry.source).toBe('NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL');
+    expect(result.commands[0].durationMs).toBe(2000);
+  });
 });
