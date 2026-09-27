@@ -124,6 +124,8 @@ class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
 class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsString() @MaxLength(10000) body?: string; @IsOptional() @IsString() @MaxLength(2048) mediaKey?: string; @IsOptional() @IsString() audience?: string; @IsOptional() @IsString() expiresAt?: string; }
+class IdentityDto { @IsString() @MinLength(3) @MaxLength(32) username!: string; @IsOptional() @IsIn(['EVERYONE','CONTACTS','NOBODY']) phoneVisibility?: 'EVERYONE'|'CONTACTS'|'NOBODY'; @IsOptional() @IsBoolean() discoverableByUsername?: boolean; @IsOptional() @IsBoolean() discoverableByPhone?: boolean; }
+
 class MessageExpiryDto { @IsString() expiresAt!: string; }
 class EventDto { @IsString() @MinLength(1) @MaxLength(200) title!: string; @IsOptional() @IsString() @MaxLength(4000) description?: string; @IsString() startsAt!: string; @IsOptional() @IsString() endsAt?: string; @IsOptional() @IsString() timezone?: string; @IsOptional() @IsString() @MaxLength(500) location?: string; }
 class EventResponseDto { @IsIn(['GOING','MAYBE','DECLINED']) response!: 'GOING'|'MAYBE'|'DECLINED'; }
@@ -407,6 +409,15 @@ export class CommunicationController {
   presence(@Req() req: AuthenticatedRequest,@Body() dto:PresenceDto) {
     return this.communication.setPresence({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto.status);
   }
+
+  @Get('identity')
+  identity(@Req() req: AuthenticatedRequest) { return this.superApp.getIdentity({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role}); }
+
+  @Put('identity')
+  updateIdentity(@Req() req: AuthenticatedRequest,@Body() dto:IdentityDto) { return this.superApp.upsertIdentity({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},dto); }
+
+  @Get('identity/:username')
+  findIdentity(@Req() req: AuthenticatedRequest,@Param('username') username:string) { return this.superApp.findByUsername({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},username); }
 
   @Post('messages/:id/expiry')
   setMessageExpiry(@Req() req: AuthenticatedRequest,@Param('id') id:string,@Body() dto:MessageExpiryDto) { return this.superApp.setMessageExpiry({userId:req.user!.id,tenantId:req.user!.tenantId,role:req.user!.role},id,dto.expiresAt); }
