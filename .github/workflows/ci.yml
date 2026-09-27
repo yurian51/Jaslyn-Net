@@ -47,7 +47,10 @@ jobs:
           test -f apps/api/migrations/037_radius_aaa.sql
           test -f apps/api/migrations/043_connectivity_correlation.sql
           test -f apps/api/migrations/044_radius_correlation_convergence.sql
+          test -f apps/api/migrations/060_ai_command_agent.sql
           grep -q "correlation_id" apps/api/migrations/043_connectivity_correlation.sql
+          grep -q "ai_executions" apps/api/migrations/060_ai_command_agent.sql
+          grep -q "status IN ('AWAITING_CONFIRMATION','EXECUTING','SUCCESS','FAILED')" apps/api/migrations/060_ai_command_agent.sql
           grep -q "ALTER TABLE radius_events" apps/api/migrations/044_radius_correlation_convergence.sql
           grep -q "correlation_id TYPE text" apps/api/migrations/044_radius_correlation_convergence.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
