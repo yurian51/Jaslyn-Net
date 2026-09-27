@@ -11,10 +11,12 @@ describe('CommunicationService', () => {
     const client = {
       query: jest.fn()
         .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] })
         .mockResolvedValueOnce({ rowCount: 1, rows: [{ id:'oldest-pin' }] })
         .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] })
         .mockResolvedValueOnce({ rowCount: 1, rows: [] })
-        .mockResolvedValueOnce({ rowCount: 0, rows: [] }),
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] }),
       release: jest.fn(),
     };
     db.connect.mockResolvedValue(client);
