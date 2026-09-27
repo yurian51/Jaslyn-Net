@@ -43,6 +43,34 @@ export class MikrotikRestAdapter {
     }
   }
 
+  async restart(baseUrl: string, credentials: NetworkCredentials, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    const before = await this.request(baseUrl, credentials, 'system/resource', { timeoutMs });
+    const beforeUptime = uptimeSeconds(before);
+    try {
+      await this.request(baseUrl, credentials, 'system/reboot', { method: 'POST', body: {}, timeoutMs });
+    } catch (error: unknown) {
+      const code = errorCode(error);
+      if (!['NETWORK_ERROR','TIMEOUT','ECONNRESET','UND_ERR_SOCKET','FETCH_FAILED'].includes(code)) throw error;
+    }
+
+    const deadline = Date.now() + 60_000;
+    let lastCode = 'RESTART_VERIFICATION_TIMEOUT';
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 2_000));
+      const health = await this.health(baseUrl, credentials, Math.min(timeoutMs, 5_000));
+      if (!health.ok) {
+        lastCode = health.code;
+        continue;
+      }
+      const current = await this.request(baseUrl, credentials, 'system/resource', { timeoutMs: Math.min(timeoutMs, 5_000) }).catch(() => null);
+      const currentUptime = uptimeSeconds(current);
+      if (beforeUptime == null || currentUptime == null || currentUptime < beforeUptime) {
+        return { ok: true as const, verified: true as const, status: 'online', version: health.version };
+      }
+    }
+    return { ok: false as const, verified: false as const, status: 'unknown', code: lastCode };
+  }
+
   async enforcePolicy(
     baseUrl: string,
     credentials: NetworkCredentials,
@@ -293,4 +321,19 @@ function isRecord(value: unknown): value is JsonRecord {
 
 function errorCode(error: unknown) {
   return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'NETWORK_ERROR';
+}
+
+
+function uptimeSeconds(value: unknown): number | null {
+  if (!Array.isArray(value) || !value.length || !isRecord(value[0])) return null;
+  const raw = value[0].uptime;
+  if (typeof raw !== 'string') return null;
+  const match = raw.match(/^(?:(\\d+)w)?(?:(\\d+)d)?(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)?$/i);
+  if (!match) return null;
+  const weeks = Number(match[1] || 0);
+  const days = Number(match[2] || 0);
+  const hours = Number(match[3] || 0);
+  const minutes = Number(match[4] || 0);
+  const seconds = Number(match[5] || 0);
+  return weeks * 604800 + days * 86400 + hours * 3600 + minutes * 60 + seconds;
 }
