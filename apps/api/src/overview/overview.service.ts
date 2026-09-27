@@ -183,4 +183,52 @@ export class OverviewService {
     };
   }
 }
+
+  async getCommandCenter(tenantId: string) {
+    const [tenant, health, devices, sessions, incidents, commands, authFailures, paymentFailures, providerFailures, criticalEvents] = await Promise.all([
+      this.db.query("SELECT id, name, currency, timezone, status FROM tenants WHERE id=$1", [tenantId]),
+      this.db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='ONLINE')::int AS online, COUNT(*) FILTER (WHERE status='DEGRADED')::int AS degraded, COUNT(*) FILTER (WHERE status='OFFLINE')::int AS offline FROM routers WHERE tenant_id=$1", [tenantId]),
+      this.db.query("SELECT r.id,r.name,r.vendor,r.model,r.ip_address::text AS \"ipAddress\",r.mac_address::text AS \"macAddress\",r.status,r.active_users AS \"activeUsers\",r.updated_at AS \"updatedAt\",r.management_protocol AS \"managementProtocol\",r.management_enabled AS \"managementEnabled\",r.capabilities FROM routers r WHERE r.tenant_id=$1 ORDER BY CASE r.status WHEN 'OFFLINE' THEN 0 WHEN 'DEGRADED' THEN 1 ELSE 2 END,r.name LIMIT 200", [tenantId]),
+      this.db.query("SELECT s.id,s.customer_id AS \"customerId\",COALESCE(c.full_name,s.username,'Unknown subscriber') AS subscriber,s.router_id AS \"routerId\",COALESCE(r.name,'Unknown device') AS device,s.ip_address::text AS ip,s.username,s.started_at AS \"startedAt\",s.bytes_in AS \"bytesIn\",s.bytes_out AS \"bytesOut\",s.status,CASE WHEN EXISTS (SELECT 1 FROM radius_events re WHERE re.tenant_id=s.tenant_id AND re.username=COALESCE(s.username,c.username) AND re.result='ACCEPT' AND re.created_at >= s.started_at) THEN 'ACCEPTED' ELSE 'NOT_CONFIRMED' END AS \"authenticationState\",CASE WHEN EXISTS (SELECT 1 FROM traffic_samples ts WHERE ts.tenant_id=s.tenant_id AND ts.session_id=s.id) THEN 'REPORTED' ELSE 'NOT_REPORTED' END AS \"accountingState\" FROM sessions s LEFT JOIN customers c ON c.tenant_id=s.tenant_id AND c.id=s.customer_id LEFT JOIN routers r ON r.tenant_id=s.tenant_id AND r.id=s.router_id WHERE s.tenant_id=$1 AND s.status IN ('ACTIVE','STALE') ORDER BY s.started_at DESC LIMIT 100", [tenantId]),
+      this.db.query("SELECT i.id,i.category,i.severity,i.status,i.title,i.summary,i.root_resource_type AS \"rootResourceType\",i.root_resource_id AS \"rootResourceId\",i.started_at AS \"startedAt\",i.last_seen_at AS \"lastSeenAt\",i.acknowledged_at AS \"acknowledgedAt\",i.resolved_at AS \"resolvedAt\",i.resolution,COUNT(ii.id) FILTER (WHERE ii.resource_type='ROUTER' AND ii.state='AFFECTED')::int AS \"affectedDevices\",COUNT(ii.id) FILTER (WHERE ii.resource_type='CUSTOMER' AND ii.state='AFFECTED')::int AS \"affectedSubscribers\" FROM incidents i LEFT JOIN incident_impacts ii ON ii.tenant_id=i.tenant_id AND ii.incident_id=i.id WHERE i.tenant_id=$1 AND i.status IN ('OPEN','ACKNOWLEDGED') GROUP BY i.id ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END,i.last_seen_at DESC LIMIT 100", [tenantId]),
+      this.db.query("SELECT n.id,n.command_type AS \"commandType\",n.actor,n.provider,n.status,n.error,n.correlation_id AS \"correlationId\",n.created_at AS \"createdAt\",n.sent_at AS \"sentAt\",n.completed_at AS \"completedAt\",n.verified_at AS \"verifiedAt\",n.router_id AS \"routerId\",n.target,n.request,n.response,n.verification FROM network_commands n WHERE n.tenant_id=$1 ORDER BY n.created_at DESC LIMIT 100", [tenantId]),
+      this.db.query("SELECT COUNT(*)::int AS count FROM radius_events WHERE tenant_id=$1 AND result='REJECT' AND created_at >= now()-interval '24 hours'", [tenantId]),
+      this.db.query("SELECT COUNT(*)::int AS count FROM payments WHERE tenant_id=$1 AND status='FAILED' AND created_at >= now()-interval '24 hours'", [tenantId]),
+      this.db.query("SELECT provider,COUNT(*)::int AS failures FROM network_commands WHERE tenant_id=$1 AND status='FAILED' AND created_at >= now()-interval '24 hours' GROUP BY provider ORDER BY failures DESC,provider LIMIT 20", [tenantId]),
+      this.db.query("SELECT id,title,summary,severity,category,started_at AS \"occurredAt\",root_resource_type AS \"resourceType\",root_resource_id AS \"resourceId\" FROM incidents WHERE tenant_id=$1 AND severity='CRITICAL' ORDER BY last_seen_at DESC LIMIT 20", [tenantId]),
+    ]);
+
+    if (!tenant.rowCount) throw new Error('Tenant not found');
+    const router = health.rows[0] ?? { total: 0, online: 0, degraded: 0, offline: 0 };
+    const activeIncidents = incidents.rows;
+    const degradedServices = activeIncidents.filter((i) => ['SERVICE_IMPACT','UPSTREAM_FAILURE','RADIUS_FAILURE','PAYMENT_FAILURE','AUTHENTICATION_FAILURE'].includes(i.category));
+    const pendingCommands = commands.rows.filter((c) => ['QUEUED','SENT','ACCEPTED','RETRYING'].includes(c.status));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      tenant: tenant.rows[0],
+      systemHealth: {
+        status: Number(router.offline) > 0 || activeIncidents.some((i) => i.severity === 'CRITICAL') ? 'DEGRADED' : Number(router.degraded) > 0 ? 'ATTENTION' : 'OPERATIONAL',
+        devices: { total: Number(router.total), online: Number(router.online), degraded: Number(router.degraded), unreachable: Number(router.offline) },
+        activeIncidents: activeIncidents.length,
+        degradedServices: degradedServices.length,
+        activeSessions: sessions.rows.filter((s) => s.status === 'ACTIVE').length,
+        authenticationFailures24h: Number(authFailures.rows[0]?.count || 0),
+        paymentFailures24h: Number(paymentFailures.rows[0]?.count || 0),
+        providerFailures24h: providerFailures.rows.map((row) => ({ provider: row.provider ?? 'UNSPECIFIED', failures: Number(row.failures) })),
+        commandQueue: { pending: pendingCommands.length, failed: commands.rows.filter((c) => c.status === 'FAILED').length },
+      },
+      devices: devices.rows.map((row) => ({
+        ...row,
+        telemetry: { uptime: null, cpu: null, memory: null, interfaces: null, bandwidth: null, latency: null, packetLoss: null, source: 'NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL' },
+        activeSessions: sessions.rows.filter((s) => s.routerId === row.id && s.status === 'ACTIVE').length,
+        recentCommands: commands.rows.filter((c) => c.routerId === row.id).slice(0, 10),
+        recentIncidents: activeIncidents.filter((i) => i.rootResourceId === row.id).slice(0, 10),
+      })),
+      sessions: sessions.rows,
+      incidents: activeIncidents,
+      commands: commands.rows,
+      recentCriticalEvents: criticalEvents.rows,
+    };
+  }
 }
