@@ -123,7 +123,7 @@ class PollDto {
 class PollVoteDto {
   @IsUUID('4', { each:true }) optionIds!: string[];
 }
-class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsString() @MaxLength(10000) body?: string; @IsOptional() @IsString() @MaxLength(2048) mediaKey?: string; @IsOptional() @IsString() audience?: string; @IsOptional() @IsString() expiresAt?: string; }
+class StoryDto { @IsOptional() @IsString() kind?: string; @IsOptional() @IsString() @MaxLength(10000) body?: string; @IsOptional() @IsString() @MaxLength(2048) mediaKey?: string; @IsOptional() @IsIn(['PUBLIC','CONTACTS','PRIVATE','CUSTOM']) audience?: string; @IsOptional() @IsString() expiresAt?: string; @IsOptional() @IsUUID('4', { each:true }) allowedUserIds?: string[]; }
 class IdentityDto { @IsString() @MinLength(3) @MaxLength(32) username!: string; @IsOptional() @IsIn(['EVERYONE','CONTACTS','NOBODY']) phoneVisibility?: 'EVERYONE'|'CONTACTS'|'NOBODY'; @IsOptional() @IsBoolean() discoverableByUsername?: boolean; @IsOptional() @IsBoolean() discoverableByPhone?: boolean; }
 
 class MessageExpiryDto { @IsString() expiresAt!: string; }
