@@ -56,3 +56,12 @@ describe('CommunicationCommandService', () => {
     )).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+
+  it('blocks network data access for read-only users', async () => {
+    await expect(service.execute(
+      { userId:'user-1', tenantId:'tenant-1', role:'READ_ONLY' },
+      'show offline routers',
+      false,
+    )).rejects.toBeInstanceOf(ForbiddenException);
+  });
