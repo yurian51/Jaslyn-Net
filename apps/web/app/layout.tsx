@@ -10,6 +10,7 @@ import './legal/legal.css';
 import './console-system-ui.css';
 import './landing.css';
 import './premium.css';
+import './enterprise-presence.css';
 import './landing-premium.css';
 import './loading.css';
 import './settings/settings.css';
@@ -26,6 +27,7 @@ import ConsoleChrome from './console-chrome';
 export const metadata: Metadata = {
   title: 'JASLYN NET | Connectivity & ISP Operating System',
   description: 'JASLYN NET connects customers, services, payments, sessions and network operations in one connectivity control plane.',
+  themeColor: '#101525',
   icons: {
     icon: '/ram-logo-scalable.svg',
     apple: '/ram-logo-scalable.svg',
