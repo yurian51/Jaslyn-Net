@@ -6,6 +6,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationService } from './communication.service';
+import { NetworkAiToolsService, NetworkToolName } from './network-ai-tools';
 
 type Actor = { userId: string; tenantId: string; role: string };
 
@@ -34,6 +35,7 @@ export class CommunicationAiService {
     private readonly audit: AuditService,
     private readonly communication: CommunicationService,
     private readonly commands: CommunicationCommandService,
+    private readonly networkTools: NetworkAiToolsService,
   ) {
     this.provider = this.config.get<string>('JASLYN_AI_PROVIDER', '').trim().toLowerCase();
     this.apiKey = this.config.get<string>('JASLYN_AI_API_KEY', '').trim();
@@ -67,6 +69,7 @@ export class CommunicationAiService {
         input_schema:{type:'object',properties:{conversationId:{type:'string'},body:{type:'string'},scheduledAt:{type:'string'},timezone:{type:'string'}},required:['conversationId','body','scheduledAt']} },
       { name:'terminateSession', description:'Disconnect an active subscriber session through the existing Network Command Fabric. This is destructive and always requires human confirmation.', permission:'network.commands.execute', requiresConfirmation:true,
         input_schema:{type:'object',properties:{sessionId:{type:'string'}},required:['sessionId']} },
+      ...this.networkTools.listTools().map((tool) => ({ name:tool.name, description:tool.description, permission:tool.permission, requiresConfirmation:tool.name === 'execute_network_command', input_schema:tool.inputSchema })),
     ];
   }
 
@@ -180,7 +183,7 @@ export class CommunicationAiService {
     }
 
     const tool = this.tools().find(item => item.name === row.toolName)!;
-    const call: ToolCall = { id:executionId,name:tool.name,input:row.input };
+    const call: ToolCall = { id:executionId,name:tool.name,input:tool.name === 'execute_network_command' ? { ...row.input, confirmationId: executionId } : row.input };
 
     try {
       const result = await this.executeTool(actor,call);
@@ -260,12 +263,18 @@ export class CommunicationAiService {
   }
 
   private async previewTool(actor: Actor, call: ToolCall) {
+    if (call.name === 'execute_network_command') {
+      return this.networkTools.preview(actor, { id:call.id, name:'preview_network_command', input:call.input });
+    }
     if (call.name !== 'terminateSession') throw new BadRequestException('Unsupported confirmation tool');
     const sessionId = this.stringInput(call.input,'sessionId');
     return this.commands.execute(actor,`terminate session ${sessionId}`,false);
   }
 
   private async executeTool(actor: Actor, call: ToolCall) {
+    if (this.networkTools.listTools().some((tool) => tool.name === call.name)) {
+      return this.networkTools.execute(actor, { id:call.id, name:call.name as NetworkToolName, input:call.input });
+    }
     switch(call.name) {
       case 'getSubscriber': return this.getSubscriber(actor,this.stringInput(call.input,'username'));
       case 'getInvoice': return this.getInvoice(actor,this.stringInput(call.input,'invoiceId'));
