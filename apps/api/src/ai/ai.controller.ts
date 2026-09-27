@@ -15,7 +15,7 @@ export class AiController {
   @Get('runs') runs(@Req() req:AuthenticatedRequest){return this.ai.runs(req.user!.tenantId);}
   @Get('runs/:id') run(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.ai.run(req.user!.tenantId,id);}
   @Post('runs') createRun(@Req() req:AuthenticatedRequest,@Body() input:CreateAiRunDto){return this.ai.createRun(req.user!.id,req.user!.tenantId,input.task,input.context??{});}
-  @Post('actions/:id/approve') approve(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.ai.approve(req.user!.id,req.user!.tenantId,id);}
+  @Post('actions/:id/approve') approve(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.ai.approve(req.user!.id,req.user!.tenantId,id,req.user!.role);}
   @Post('actions/:id/reject') reject(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() input:RejectAiActionDto){return this.ai.reject(req.user!.id,req.user!.tenantId,id,input.reason);}
   @Post('actions/:id/execute') execute(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.ai.execute(req.user!.id,req.user!.tenantId,id);}
 }
