@@ -6,7 +6,8 @@ import { getAccessToken } from '../../lib/auth';
 
 type Conversation = { id:string; kind:string; title?:string|null; description?:string|null; lastMessageBody?:string|null; lastMessageAt?:string|null; unreadCount:number };
 type Message = { id:string; conversationId:string; body?:string|null; senderName?:string|null; senderCustomerName?:string|null; senderUserId?:string|null; createdAt:string; replyToMessageId?:string|null; reactions?:Array<{reaction:string;count:number}>; deletedAt?:string|null };
-type SearchResult = { type:string; id:string; fullName?:string; email?:string; username?:string; body?:string; conversationId?:string; conversationTitle?:string; senderName?:string };\ntype Topic = { id:string; name:string; description?:string|null; archivedAt?:string|null; messageCount:number };
+type SearchResult = { type:string; id:string; fullName?:string; email?:string; username?:string; body?:string; conversationId?:string; conversationTitle?:string; senderName?:string };
+type Topic = { id:string; name:string; description?:string|null; archivedAt?:string|null; messageCount:number };
 
 function time(value?:string|null){ if(!value) return ''; const d=new Date(value); return Number.isNaN(d.getTime())?'':d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
 
