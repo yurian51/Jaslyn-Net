@@ -23,7 +23,9 @@
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "@aws-sdk/client-s3": "^3.900.0",
+    "@aws-sdk/s3-request-presigner": "^3.900.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.11",
