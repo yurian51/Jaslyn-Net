@@ -93,10 +93,19 @@ export class NetworkAiToolsService {
   async preview(actor: NetworkOperatorActor, call: ToolCall): Promise<ToolResult> {
     const contract = this.contract('preview_network_command');
     this.assertActor(actor, contract);
-    this.validateInput(contract, call.input);
-    const command = this.commandFromInput(call.input);
-    const data = await this.withTimeout(this.commands.execute(actor, command, false, call.id), contract.timeoutMs);
-    return { ok:true, verified:true, tool:'preview_network_command', tenantId:actor.tenantId, data, risk:this.riskForAction(call.input.action as string), requiresConfirmation:true };
+    const started = Date.now();
+    try {
+      this.validateInput(contract, call.input);
+      const command = this.commandFromInput(call.input);
+      const data = await this.withTimeout(this.commands.execute(actor, command, false, call.id), contract.timeoutMs);
+      const result = { ok:true, verified:true, tool:'preview_network_command' as const, tenantId:actor.tenantId, data, risk:this.riskForAction(call.input.action as string), requiresConfirmation:true };
+      await this.audit.record(actor.tenantId,'AI_TOOL_PREVIEW_NETWORK_COMMAND_SUCCESS','ai_tool',call.id,{tool:'preview_network_command',risk:result.risk,durationMs:Date.now()-started},{userId:actor.userId,requestId:call.id});
+      return result;
+    } catch (error) {
+      const normalized = this.normalizeError(error);
+      await this.audit.record(actor.tenantId,'AI_TOOL_PREVIEW_NETWORK_COMMAND_FAILED','ai_tool',call.id,{tool:'preview_network_command',durationMs:Date.now()-started,error:normalized.code},{userId:actor.userId,requestId:call.id});
+      throw error;
+    }
   }
 
   private contract(name: NetworkToolName) {
