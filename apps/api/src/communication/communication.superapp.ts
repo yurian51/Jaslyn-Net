@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -251,6 +251,33 @@ export class CommunicationSuperAppService {
     return { ...app.rows[0], launchContext:{token:launchToken,expiresAt:new Date(expiresAt*1000).toISOString(),tenantId:actor.tenantId,userId:actor.userId,miniAppId:app.rows[0].id,permissions:app.rows[0].permissions ?? []} };
   }
 
+  async verifyMiniAppLaunch(actor: Actor, token: string) {
+    const secret = process.env.JASLYN_MINI_APP_SECRET?.trim();
+    if (!secret) throw new InternalServerErrorException('Mini app signing secret is not configured');
+    const raw = token.trim();
+    const parts = raw.split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) throw new BadRequestException('Invalid mini app launch token');
+    const [encodedPayload, encodedSignature] = parts;
+    const expected = createHmac('sha256', secret).update(encodedPayload).digest();
+    let supplied: Buffer;
+    try { supplied = Buffer.from(encodedSignature, 'base64url'); } catch { throw new BadRequestException('Invalid mini app launch token'); }
+    if (supplied.length !== expected.length || !timingSafeEqual(expected, supplied)) throw new ForbiddenException('Invalid mini app launch signature');
+    let payload: { v?: number; tenantId?: string; userId?: string; miniAppId?: string; slug?: string; permissions?: string[]; iat?: number; exp?: number };
+    try { payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')); } catch { throw new BadRequestException('Invalid mini app launch payload'); }
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.v !== 1 || !payload.tenantId || !payload.userId || !payload.miniAppId || !payload.slug || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.exp <= payload.iat || payload.exp < now || payload.iat > now + 30) throw new ForbiddenException('Mini app launch token is expired or invalid');
+    if (payload.tenantId !== actor.tenantId || payload.userId !== actor.userId) throw new ForbiddenException('Mini app launch token is not valid for this user');
+    const app = await this.db.query(`SELECT m.id,m.slug,m.enabled,i.permissions
+       FROM mini_apps m
+       JOIN mini_app_installs i ON i.tenant_id=m.tenant_id AND i.mini_app_id=m.id AND i.user_id=$2
+      WHERE m.tenant_id=$1 AND m.id=$3`, [actor.tenantId, actor.userId, payload.miniAppId]);
+    if (!app.rowCount || app.rows[0].enabled !== true || app.rows[0].slug !== payload.slug) throw new ForbiddenException('Mini app is no longer available to this user');
+    const installedPermissions = Array.isArray(app.rows[0].permissions) ? app.rows[0].permissions : [];
+    const tokenPermissions = Array.isArray(payload.permissions) ? payload.permissions : [];
+    const permissionSet = new Set(installedPermissions.map((value: unknown) => String(value)));
+    if (tokenPermissions.some((permission: unknown) => !permissionSet.has(String(permission)))) throw new ForbiddenException('Mini app launch permissions are no longer valid');
+    return { valid:true, tenantId:actor.tenantId, userId:actor.userId, miniAppId:app.rows[0].id, slug:app.rows[0].slug, permissions:tokenPermissions, expiresAt:new Date(payload.exp * 1000).toISOString() };
+  }
   async processExpired() {
     const client = await this.db.connect();
     let locked = false;
