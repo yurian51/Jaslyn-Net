@@ -38,6 +38,11 @@ const required = [
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
+  ['operator shell health', chrome.includes('/health/ready') && chrome.includes('console-system-health')],
+  ['workspace context', chrome.includes('console-chrome-workspace') && chrome.includes('/account')],
+  ['context breadcrumbs', chrome.includes('console-breadcrumbs') && chrome.includes('aria-label="Breadcrumb"')],
+  ['notification center', chrome.includes('/notifications') && chrome.includes('console-notification-link')],
+  ['operator presence state', chrome.includes('operator-presence') && chrome.includes('navigator.onLine')],
   ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
 
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
