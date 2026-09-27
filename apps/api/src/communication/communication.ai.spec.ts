@@ -1,7 +1,7 @@
 import { CommunicationAiService } from './communication.ai';
 
 describe('CommunicationAiService', () => {
-  const db = { query: jest.fn() } as any;
+  const db = { query: jest.fn(), connect: jest.fn() } as any;
   const config = { get: jest.fn((key: string, fallback: string) => fallback) } as any;
   const audit = { record: jest.fn() } as any;
   const communication = { sendMessage: jest.fn(), scheduleMessage: jest.fn() } as any;
@@ -27,6 +27,44 @@ describe('CommunicationAiService', () => {
       { userId:'u1',tenantId:'t1',role:'SUBSCRIBER' },
       { name:'terminateSession',description:'',input_schema:{type:'object',properties:{},required:[]},requiresConfirmation:true,permission:'network.commands.execute' },
     )).toThrow('Network command permission required');
+  });
+
+  it('serializes destructive confirmation with a transaction lock', async () => {
+    const client = { query: jest.fn(), release: jest.fn() } as any;
+    client.query
+      .mockResolvedValueOnce({}) // BEGIN
+      .mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          id: 'exec-1',
+          conversationId: 'ai-1',
+          toolName: 'terminateSession',
+          input: { sessionId: 'session-1' },
+          status: 'AWAITING_CONFIRMATION',
+        }],
+      })
+      .mockResolvedValueOnce({ rowCount: 1 }) // terminal SUCCESS update
+      .mockResolvedValueOnce({}); // COMMIT
+    db.connect.mockResolvedValueOnce(client);
+    commands.execute.mockResolvedValueOnce({ status: 'SUCCESS', verified: true, requestId: 'request-1' });
+
+    const service = new CommunicationAiService(db, config, audit, communication, commands);
+    const result = await service.confirm(
+      { userId: 'u1', tenantId: 't1', role: 'NOC_ENGINEER' },
+      'exec-1',
+    );
+
+    expect(result.status).toBe('SUCCESS');
+    expect(commands.execute).toHaveBeenCalledWith(
+      { userId: 'u1', tenantId: 't1', role: 'NOC_ENGINEER' },
+      'terminate session session-1',
+      true,
+    );
+    expect(client.query.mock.calls[0][0]).toBe('BEGIN');
+    expect(client.query.mock.calls[1][0]).toContain('FOR UPDATE');
+    expect(client.query.mock.calls[2][0]).toContain("status='SUCCESS'");
+    expect(client.query.mock.calls[3][0]).toBe('COMMIT');
+    expect(client.release).toHaveBeenCalledTimes(1);
   });
 
   it('returns the declared tool contract without hiding confirmation requirements', async () => {
