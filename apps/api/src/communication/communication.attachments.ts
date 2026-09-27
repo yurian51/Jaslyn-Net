@@ -84,7 +84,7 @@ export class CommunicationAttachmentService {
     }), { expiresIn:900 });
 
     await this.audit.record(actor.tenantId,'ATTACHMENT_UPLOAD_URL_CREATED','message_attachment',attachmentId,{messageId,mimeType,sizeBytes:input.sizeBytes},{userId:actor.userId});
-    return { attachmentId, uploadUrl, expiresIn:900, maxBytes:MAX_BYTES, scanRequired };
+    return { attachmentId, uploadUrl, expiresIn:900, maxBytes:MAX_BYTES, scanRequired: this.scanRequired };
   }
 
   async completeUpload(actor: Actor, attachmentId: string) {
