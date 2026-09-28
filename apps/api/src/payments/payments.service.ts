@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
@@ -187,15 +187,132 @@ export class PaymentsService {
     if (left.length !== right.length || !timingSafeEqual(left, right)) throw new UnauthorizedException('Invalid webhook signature');
   }
 
+  private async applyVerifiedWebhook(
+    client: Pick<PoolClient, 'query'>,
+    tenantId: string,
+    input: PaymentWebhookDto,
+    eventId: string,
+  ) {
+    const targetStatus = input.status === 'SUCCESS' ? 'PAID' : input.status === 'FAILED' ? 'FAILED' : 'REFUNDED';
+    const paymentResult = await client.query<{
+      id: string; status: string; amount: string; currency: string; provider: string;
+      purchaseId: string | null; correlationId: string | null;
+    }>(
+      `SELECT id,status,amount,currency,provider,purchase_id AS "purchaseId",correlation_id AS "correlationId"
+         FROM payments
+        WHERE tenant_id=$1
+          AND (
+            ($2::uuid IS NOT NULL AND id=$2)
+            OR ($3::text IS NOT NULL AND provider=$3 AND provider_reference=$4)
+          )
+        ORDER BY created_at ASC
+        LIMIT 1
+        FOR UPDATE`,
+      [tenantId, input.paymentId ?? null, input.provider.trim().toLowerCase(), input.providerReference?.trim() ?? null],
+    );
+    if (!paymentResult.rowCount) throw new NotFoundException('Payment not found for verified provider event');
+
+    const payment = paymentResult.rows[0];
+    if (payment.provider !== input.provider.trim().toLowerCase()) {
+      throw new ConflictException('Provider response does not match payment provider');
+    }
+
+    const payloadAmount = input.amount ?? (typeof input.payload?.amount === 'number' ? input.payload.amount : typeof input.payload?.amount === 'string' ? Number(input.payload.amount) : undefined);
+    const payloadCurrency = (input.currency ?? (typeof input.payload?.currency === 'string' ? input.payload.currency : undefined))?.trim().toUpperCase();
+    if (payloadAmount !== undefined && (!Number.isFinite(payloadAmount) || String(payloadAmount) !== String(payment.amount))) {
+      throw new ConflictException('Provider response amount does not match server-side payment amount');
+    }
+    if (payloadCurrency && payloadCurrency !== payment.currency) {
+      throw new ConflictException('Provider response currency does not match server-side payment currency');
+    }
+
+    const correlationId = payment.correlationId ?? getCorrelationId() ?? `payment:${payment.id}`;
+
+    if (targetStatus === 'REFUNDED') {
+      if (!['PAID','REVERSED'].includes(payment.status)) {
+        throw new ConflictException(`Payment cannot be refunded from ${payment.status}`);
+      }
+      const refundAmount = payloadAmount ?? Number(payment.amount);
+      const prior = await client.query<{ total: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS total
+           FROM refunds
+          WHERE tenant_id=$1 AND payment_id=$2 AND status IN ('REQUESTED','APPROVED','PROCESSING','SUCCEEDED')`,
+        [tenantId, payment.id],
+      );
+      const remaining = Number(payment.amount) - Number(prior.rows[0]?.total ?? 0);
+      if (refundAmount <= 0 || refundAmount > remaining) throw new ConflictException('Provider refund exceeds the remaining refundable payment amount');
+
+      const refundKey = `webhook:${input.provider.trim().toLowerCase()}:${input.providerEventId.trim()}`;
+      const refund = await client.query<{ id: string }>(
+        `INSERT INTO refunds(tenant_id,payment_id,amount,currency,reason,status,provider_reference,idempotency_key,processed_at)
+         VALUES($1,$2,$3,$4,'Provider webhook refund','SUCCEEDED',$5,$6,now())
+         ON CONFLICT (tenant_id,idempotency_key) DO UPDATE SET updated_at=now()
+         RETURNING id`,
+        [tenantId, payment.id, refundAmount, payment.currency, input.providerReference?.trim() ?? null, refundKey],
+      );
+      if (refund.rowCount) {
+        const cashCode = `CASH:${payment.provider}:${payment.currency}`.slice(0,64);
+        const revenueCode = `REVENUE:WIFI:${payment.currency}`.slice(0,64);
+        const cash = await client.query<{id:string}>(`SELECT id FROM financial_ledger_accounts WHERE tenant_id=$1 AND code=$2`,[tenantId,cashCode]);
+        const revenue = await client.query<{id:string}>(`SELECT id FROM financial_ledger_accounts WHERE tenant_id=$1 AND code=$2`,[tenantId,revenueCode]);
+        if (cash.rowCount && revenue.rowCount) {
+          const tx = await client.query<{id:string}>(
+            `INSERT INTO financial_ledger_transactions(tenant_id,transaction_type,reference_type,reference_id,correlation_id,description)
+             VALUES($1,'REFUND','REFUND',$2,$3,'Provider refund')
+             ON CONFLICT (tenant_id,transaction_type,reference_type,reference_id) WHERE reference_id IS NOT NULL DO NOTHING
+             RETURNING id`,
+            [tenantId, refund.rows[0].id, correlationId],
+          );
+          let txId = tx.rows[0]?.id;
+          if (!txId) {
+            const existingTx = await client.query<{id:string}>(`SELECT id FROM financial_ledger_transactions WHERE tenant_id=$1 AND transaction_type='REFUND' AND reference_type='REFUND' AND reference_id=$2`,[tenantId,refund.rows[0].id]);
+            txId = existingTx.rows[0]?.id;
+          }
+          if (txId) {
+            await client.query(
+              `INSERT INTO financial_ledger_entries(tenant_id,transaction_id,account_id,currency,debit,credit)
+               VALUES($1,$2,$3,$4,$5,0),($1,$2,$6,$4,0,$5)
+               ON CONFLICT DO NOTHING`,
+              [tenantId,txId,revenue.rows[0].id,payment.currency,refundAmount,cash.rows[0].id],
+            );
+          }
+        }
+      }
+      if (Number(refundAmount) === Number(payment.amount)) {
+        await client.query(`UPDATE payments SET status='REFUNDED',provider_event_id=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,payment.id,input.providerEventId.trim()]);
+      }
+    } else {
+      if (targetStatus === 'PAID' && !['INITIATED','PENDING','AUTHORIZED','PAID'].includes(payment.status)) {
+        throw new ConflictException(`Payment cannot be paid from ${payment.status}`);
+      }
+      if (targetStatus === 'FAILED' && !['INITIATED','PENDING','AUTHORIZED','FAILED'].includes(payment.status)) {
+        throw new ConflictException(`Payment cannot fail from ${payment.status}`);
+      }
+      await client.query(
+        `UPDATE payments
+            SET status=$3,provider_reference=COALESCE($4,provider_reference),provider_event_id=$5,
+                verification_status='VERIFIED',verified_at=COALESCE(verified_at,now()),
+                verification_source='SIGNED_PROVIDER_WEBHOOK',raw_payload=$6,correlation_id=COALESCE(correlation_id,$7),updated_at=now()
+          WHERE tenant_id=$1 AND id=$2`,
+        [tenantId,payment.id,targetStatus,input.providerReference?.trim() ?? null,input.providerEventId.trim(),JSON.stringify(input.payload ?? {}),correlationId],
+      );
+    }
+
+    await client.query(
+      `UPDATE payment_events
+          SET payment_id=$2,processing_status='PROCESSED',processed_at=now(),
+              verification_status='VERIFIED',verified_at=now(),verification_source='SIGNED_PROVIDER_WEBHOOK'
+        WHERE tenant_id=$1 AND id=$3`,
+      [tenantId,payment.id,eventId],
+    );
+
+    return { paymentId: payment.id, status: targetStatus, correlationId };
+  }
+
   async webhook(tenantId: string, input: PaymentWebhookDto, rawBody: Buffer, signature?: string) {
     const provider = input.provider.trim().toLowerCase();
     const providerEventId = input.providerEventId.trim();
     let correlationId = getCorrelationId() ?? null;
-    if (!correlationId && input.paymentId) {
-      const payment = await this.db.query<{ correlationId: string | null }>(`SELECT correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2`, [tenantId, input.paymentId]);
-      correlationId = payment.rows[0]?.correlationId ?? null;
-    }
-    correlationId ??= `payment-webhook:${provider}:${providerEventId}`;
     const secret = await this.resolveWebhookSecret(tenantId, provider);
     this.verifyWebhookSignature(secret, rawBody, signature);
 
@@ -206,17 +323,17 @@ export class PaymentsService {
       const inserted = await eventClient.query(
         `INSERT INTO payment_events
            (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status, correlation_id)
-         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED',$6)
+         VALUES ($1,$2,$3,$4,$5,$6,true,'RECEIVED',$7)
          ON CONFLICT (tenant_id, provider, provider_event_id)
          WHERE provider_event_id IS NOT NULL
          DO NOTHING
          RETURNING id`,
-        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}, correlationId],
+        [tenantId, input.paymentId ?? null, provider, providerEventId, input.eventType.trim(), input.payload ?? {}, correlationId],
       );
 
       if (!inserted.rowCount) {
         const existing = await eventClient.query(
-          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId"
+          `SELECT id,event_type AS "eventType",processing_status AS "processingStatus",payment_id AS "paymentId"
              FROM payment_events
             WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
             FOR UPDATE`,
@@ -227,43 +344,28 @@ export class PaymentsService {
           throw new ConflictException('Payment event identifier is already bound to a different event type');
         }
         await eventClient.query('COMMIT');
-        return {
-          accepted: true,
-          duplicate: true,
-          paymentId: existing.rows[0].paymentId,
-          processingStatus: existing.rows[0].processingStatus,
-          requiresVerification: existing.rows[0].processingStatus !== 'PROCESSED',
-        };
+        return { accepted:true, duplicate:true, paymentId:existing.rows[0].paymentId, processingStatus:existing.rows[0].processingStatus, requiresVerification:existing.rows[0].processingStatus !== 'PROCESSED' };
       }
 
       const eventId = inserted.rows[0].id as string;
+      const processed = await this.applyVerifiedWebhook(eventClient, tenantId, input, eventId);
       await eventClient.query('COMMIT');
+
+      await this.audit?.record(tenantId, `PAYMENT_${input.status}`, 'payment', processed.paymentId, {
+        provider, providerEventId, eventType: input.eventType.trim(), status: processed.status,
+        amount: input.amount ?? input.payload?.amount ?? null, currency: input.currency ?? input.payload?.currency ?? null,
+      }, { correlationId: processed.correlationId }).catch(() => undefined);
 
       await this.domainEvents.enqueue({
         tenantId,
         eventKey: `payment-webhook:${provider}:${providerEventId}`,
-        eventType: 'PAYMENT.WEBHOOK_RECEIVED',
-        aggregateType: 'payment_event',
-        aggregateId: eventId,
-        payload: {
-          provider,
-          providerEventId,
-          eventType: input.eventType.trim(),
-          paymentId: input.paymentId ?? null,
-          providerReference: input.providerReference ?? null,
-          targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'BILLING_ADMIN'],
-        },
+        eventType: 'PAYMENT.WEBHOOK_PROCESSED',
+        aggregateType: 'payment',
+        aggregateId: processed.paymentId,
+        payload: { provider, providerEventId, status: processed.status, targetRoles:['OWNER','ADMIN','SUPER_ADMIN','BILLING_ADMIN'] },
       });
 
-      return {
-        accepted: true,
-        duplicate: false,
-        eventId,
-        processingStatus: 'RECEIVED',
-        requiresVerification: true,
-        paymentId: input.paymentId ?? null,
-        providerReference: input.providerReference ?? null,
-      };
+      return { accepted:true, duplicate:false, eventId, processingStatus:'PROCESSED', requiresVerification:false, paymentId:processed.paymentId, status:processed.status };
     } catch (error: unknown) {
       await eventClient.query('ROLLBACK').catch(() => undefined);
       throw error;
@@ -271,4 +373,5 @@ export class PaymentsService {
       eventClient.release();
     }
   }
+
 }
