@@ -14,8 +14,8 @@ describe('billing/payment integrity migration',()=>{
   it('defines the complete deterministic payment state machine',()=>{
     for(const state of ['INITIATED','PENDING','AUTHORIZED','PAID','FAILED','CANCELLED','REVERSED','REFUNDED']) expect(migration).toContain(state);
     expect(migration).toContain('payments_state_transition_trg');
-    expect(migration).toContain('AS $');
-    expect(migration).not.toMatch(/RETURNS trigger[\\s\\S]*AS \\$(?!\\$)/);
+    expect((migration.match(/AS \\\$\\$/g) ?? []).length).toBeGreaterThanOrEqual(5);
+    expect((migration.match(/\\n\\$\\$;/g) ?? []).length).toBeGreaterThanOrEqual(5);
     expect(migration).toContain('payments_one_active_attempt_per_purchase_uq');
   });
 
