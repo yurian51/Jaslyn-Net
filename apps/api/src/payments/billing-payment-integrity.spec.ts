@@ -6,7 +6,7 @@ import { Pool } from 'pg';
 import { PaymentsService } from './payments.service';
 
 const migration = readFileSync(
-  join(__dirname, '../../migrations/061_billing_payment_integrity.sql'),
+  join(__dirname, '../../../migrations/061_billing_payment_integrity.sql'),
   'utf8',
 );
 
