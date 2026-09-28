@@ -204,11 +204,12 @@ export class PaymentsService {
           AND (
             ($2::uuid IS NOT NULL AND id=$2)
             OR ($3::text IS NOT NULL AND provider=$3 AND provider_reference=$4)
+            OR ($5::uuid IS NOT NULL AND purchase_id=$5 AND provider=$3)
           )
         ORDER BY created_at ASC
         LIMIT 1
         FOR UPDATE`,
-      [tenantId, input.paymentId ?? null, input.provider.trim().toLowerCase(), input.providerReference?.trim() ?? null],
+      [tenantId, input.paymentId ?? null, input.provider.trim().toLowerCase(), input.providerReference?.trim() ?? null, input.purchaseId ?? null],
     );
     if (!paymentResult.rowCount) throw new NotFoundException('Payment not found for verified provider event');
 
