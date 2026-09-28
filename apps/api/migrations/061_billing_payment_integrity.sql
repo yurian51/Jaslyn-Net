@@ -8,10 +8,12 @@ ALTER TABLE payments
 ALTER TABLE refunds
   ADD COLUMN IF NOT EXISTS idempotency_key text;
 
-UPDATE payments SET status='PAID' WHERE status='SUCCESS';
-
+-- Remove the legacy transition trigger/constraint before normalizing SUCCESS -> PAID.
+DROP TRIGGER IF EXISTS payments_state_transition_trg ON payments;
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_chk;
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_state_chk;
+UPDATE payments SET status='PAID' WHERE status='SUCCESS';
+
 ALTER TABLE payments
   ADD CONSTRAINT payments_status_chk
   CHECK (status IN ('INITIATED','PENDING','AUTHORIZED','PAID','FAILED','CANCELLED','REVERSED','REFUNDED'));
