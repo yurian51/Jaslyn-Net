@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const migration=readFileSync(join(__dirname,'../../migrations/060_billing_payment_integrity.sql'),'utf8');
+const migration=readFileSync(join(__dirname,'../../migrations/061_billing_payment_integrity.sql'),'utf8');
 
 describe('billing/payment integrity migration',()=>{
   it('is transactional and non-destructive except for deterministic legacy status normalization',()=>{
