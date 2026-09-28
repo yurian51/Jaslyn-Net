@@ -10,7 +10,7 @@ describe('PurchasesService payment confirmation', () => {
     await expect(service.confirmPayment('tenant-1', 'purchase-1', {
       provider: 'mpesa',
       providerReference: 'MPESA-001',
-      status: 'SUCCESS',
+      status: 'PAID',
     })).rejects.toThrow('External payment providers must be verified through their provider webhook');
 
     expect(db.connect).not.toHaveBeenCalled();
@@ -41,7 +41,7 @@ describe('PurchasesService payment confirmation', () => {
         if (sql.includes('SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages')) {
           return { rowCount: 1, rows: [{ id: packageId, name: 'Daily', duration_seconds: 86400, data_limit_bytes: null, download_bps: 10000000, upload_bps: 2000000 }] };
         }
-        if (sql.includes('SELECT status, amount, currency, provider FROM payments')) return { rowCount: 1, rows: [{ status: 'SUCCESS', amount: '5000', currency: 'TZS', provider: 'manual' }] };
+        if (sql.includes('SELECT status, amount, currency, provider FROM payments')) return { rowCount: 1, rows: [{ status: 'PAID', amount: '5000', currency: 'TZS', provider: 'manual' }] };
         if (sql.includes('INSERT INTO financial_ledger_accounts')) return { rowCount: 1, rows: [{ id: sql.includes('WiFi service revenue') ? 'revenue-account' : 'cash-account' }] };
         if (sql.includes('INSERT INTO financial_ledger_transactions')) return { rowCount: 1, rows: [{ id: 'ledger-tx-1' }] };
         if (sql.includes('FROM financial_ledger_entries')) return { rowCount: 0, rows: [] };
@@ -72,12 +72,12 @@ describe('PurchasesService payment confirmation', () => {
       provider: 'manual',
       providerReference: 'CASH-001',
       idempotencyKey: 'confirm-001',
-      status: 'SUCCESS',
+      status: 'PAID',
     });
 
     expect(result.paymentId).toBe(paymentId);
     expect(calls.some(sql => sql.includes('INSERT INTO payments'))).toBe(false);
-    expect(calls.some(sql => sql.includes("UPDATE payments SET provider_reference=$2, status='SUCCESS'"))).toBe(true);
+    expect(calls.some(sql => sql.includes("UPDATE payments SET provider_reference=$2, status='PAID'"))).toBe(true);
     expect(calls.some(sql => sql.includes('INSERT INTO access_grants'))).toBe(true);
     expect(client.release).toHaveBeenCalled();
   });
