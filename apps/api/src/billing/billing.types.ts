@@ -1,5 +1,5 @@
 export type WifiPurchaseStatus = 'PENDING_PAYMENT' | 'PAID' | 'ACTIVE' | 'EXPIRED' | 'CANCELED' | 'REFUNDED';
-export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+export type PaymentStatus = 'INITIATED' | 'PENDING' | 'AUTHORIZED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REVERSED' | 'REFUNDED';
 
 export interface PaymentInitiation {
   tenantId: string; customerId: string; purchaseId: string; amount: number; currency: string; phone?: string; idempotencyKey: string;
