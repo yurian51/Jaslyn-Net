@@ -14,6 +14,8 @@ describe('billing/payment integrity migration',()=>{
   it('defines the complete deterministic payment state machine',()=>{
     for(const state of ['INITIATED','PENDING','AUTHORIZED','PAID','FAILED','CANCELLED','REVERSED','REFUNDED']) expect(migration).toContain(state);
     expect(migration).toContain('payments_state_transition_trg');
+    expect(migration).toContain('AS $');
+    expect(migration).not.toMatch(/RETURNS trigger[\\s\\S]*AS \\$(?!\\$)/);
     expect(migration).toContain('payments_one_active_attempt_per_purchase_uq');
   });
 
@@ -28,6 +30,7 @@ describe('billing/payment integrity migration',()=>{
     expect(migration).toContain('reconciliation_items_tenant_payment_run_uq');
     expect(migration).toContain('payment_state_history');
     expect(migration).toContain('entitlement_state_history');
+    expect(migration).toContain('entitlement_state_history_trg');
   });
 
   it('covers replay, concurrency, failure, refund, partial fulfillment, and expiry guards',()=>{
