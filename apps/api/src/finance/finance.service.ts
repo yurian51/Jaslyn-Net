@@ -115,7 +115,7 @@ export class FinanceService {
   async accrueCommission(tenantId:string,input:CreateCommissionDto) {
     const r=await this.db.query(`SELECT r.commission_rate,r.status,p.id AS "purchaseId",pay.amount,p.currency,p.status AS "paymentStatus" FROM resellers r JOIN payments pay ON pay.tenant_id=r.tenant_id JOIN wifi_plan_purchases p ON p.tenant_id=pay.tenant_id AND p.id=pay.purchase_id WHERE r.tenant_id=$1 AND r.id=$2 AND pay.tenant_id=$1 AND pay.id=$3`,[tenantId,input.resellerId,input.paymentId]);
     if(!r.rowCount) throw new NotFoundException('Reseller or payment not found');
-    const x=r.rows[0]; if(x.status!=='ACTIVE') throw new ConflictException('Reseller is not active'); if(x.paymentStatus!=='SUCCESS') throw new ConflictException('Only successful payments can accrue commission');
+    const x=r.rows[0]; if(x.status!=='ACTIVE') throw new ConflictException('Reseller is not active'); if(x.paymentStatus!=='PAID') throw new ConflictException('Only successful payments can accrue commission');
     const amount=Number(x.amount), rate=Number(x.commission_rate), commission=Math.round(amount*rate)/100;
     try { const q=await this.db.query(`INSERT INTO commissions(tenant_id,reseller_id,purchase_id,payment_id,basis_amount,currency,rate,commission_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id,payment_id,reseller_id) DO UPDATE SET updated_at=now() RETURNING *`,[tenantId,input.resellerId,x.purchaseId,input.paymentId,amount,x.currency,rate,commission]); await this.auditMutation(tenantId,'ACCRUE','commission',q.rows[0].id,undefined,{resellerId:input.resellerId,paymentId:input.paymentId,amount:commission,currency:x.currency}); return q.rows[0]; }
     catch(e:any){throw e;}
@@ -132,13 +132,34 @@ export class FinanceService {
 
   async listRefunds(tenantId:string) { const r=await this.db.query(`SELECT rf.*,pay.provider,pay.provider_reference AS "paymentReference" FROM refunds rf JOIN payments pay ON pay.tenant_id=rf.tenant_id AND pay.id=rf.payment_id WHERE rf.tenant_id=$1 ORDER BY rf.created_at DESC LIMIT 500`,[tenantId]); return {data:r.rows}; }
   async requestRefund(tenantId:string,input:CreateRefundDto) {
-    const p=await this.db.query(`SELECT id,amount,currency,status FROM payments WHERE tenant_id=$1 AND id=$2`,[tenantId,input.paymentId]);
-    if(!p.rowCount) throw new NotFoundException('Payment not found'); const payment=p.rows[0];
-    if(payment.status!=='SUCCESS') throw new ConflictException('Only successful payments can be refunded');
-    const used=await this.db.query(`SELECT COALESCE(SUM(amount),0) AS total FROM refunds WHERE tenant_id=$1 AND payment_id=$2 AND status IN ('REQUESTED','APPROVED','PROCESSING','SUCCEEDED')`,[tenantId,input.paymentId]);
-    if(Number(used.rows[0].total)+input.amount>Number(payment.amount)) throw new ConflictException('Refund exceeds settled payment amount');
-    const r=await this.db.query(`INSERT INTO refunds(tenant_id,payment_id,amount,currency,reason) VALUES($1,$2,$3,$4,$5) RETURNING *`,[tenantId,input.paymentId,input.amount,payment.currency,input.reason.trim()]);
-    await this.auditMutation(tenantId,'CREATE','refund',r.rows[0].id,undefined,{paymentId:input.paymentId,amount:input.amount,currency:payment.currency}); return r.rows[0];
+    const client=await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const p=await client.query(`SELECT id,amount,currency,status FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,[tenantId,input.paymentId]);
+      if(!p.rowCount) throw new NotFoundException('Payment not found');
+      const payment=p.rows[0];
+      if(payment.status!=='PAID') throw new ConflictException('Only PAID payments can be refunded');
+      const existing=await client.query(`SELECT * FROM refunds WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE`,[tenantId,input.idempotencyKey.trim()]);
+      if(existing.rowCount) {
+        const refund=existing.rows[0];
+        if(refund.payment_id!==input.paymentId || Number(refund.amount)!==Number(input.amount)) throw new ConflictException('Refund idempotency key is already bound to another refund');
+        await client.query('COMMIT');
+        return refund;
+      }
+      const used=await client.query(`SELECT COALESCE(SUM(amount),0) AS total FROM refunds WHERE tenant_id=$1 AND payment_id=$2 AND status IN ('REQUESTED','APPROVED','PROCESSING','SUCCEEDED')`,[tenantId,input.paymentId]);
+      if(Number(used.rows[0].total)+input.amount>Number(payment.amount)) throw new ConflictException('Refund exceeds settled payment amount');
+      const r=await client.query(`INSERT INTO refunds(tenant_id,payment_id,amount,currency,reason,idempotency_key) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[tenantId,input.paymentId,input.amount,payment.currency,input.reason.trim(),input.idempotencyKey.trim()]);
+      await client.query('COMMIT');
+      await this.auditMutation(tenantId,'CREATE','refund',r.rows[0].id,undefined,{paymentId:input.paymentId,amount:input.amount,currency:payment.currency,idempotencyKey:input.idempotencyKey.trim()});
+      return r.rows[0];
+    } catch(error:any) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if(error?.code==='23505') {
+        const existing=await this.db.query(`SELECT * FROM refunds WHERE tenant_id=$1 AND idempotency_key=$2`,[tenantId,input.idempotencyKey.trim()]);
+        if(existing.rowCount) return existing.rows[0];
+      }
+      throw error;
+    } finally { client.release(); }
   }
   async approveRefund(tenantId:string,id:string,userId?:string) {
     const r=await this.db.query(`UPDATE refunds SET status='APPROVED',approved_by=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='REQUESTED' RETURNING *`,[tenantId,id,userId??null]);
@@ -177,7 +198,7 @@ export class FinanceService {
     if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||end<=start) throw new ConflictException('Invalid reconciliation period');
     const run=await this.db.query(`INSERT INTO reconciliation_runs(tenant_id,provider,currency,period_start,period_end,status) VALUES($1,$2,$3,$4,$5,'RUNNING') RETURNING *`,[tenantId,input.provider?.trim().toLowerCase()??null,input.currency?.toUpperCase()??null,start.toISOString(),end.toISOString()]);
     const id=run.rows[0].id;
-    const payments=await this.db.query(`SELECT id,provider,provider_reference,amount,currency FROM payments WHERE tenant_id=$1 AND status='SUCCESS' AND created_at >= $2 AND created_at < $3 AND ($4::text IS NULL OR provider=$4) AND ($5::text IS NULL OR currency=$5) ORDER BY created_at`,[tenantId,start.toISOString(),end.toISOString(),input.provider?.trim().toLowerCase()??null,input.currency?.toUpperCase()??null]);
+    const payments=await this.db.query(`SELECT id,provider,provider_reference,amount,currency FROM payments WHERE tenant_id=$1 AND status='PAID' AND created_at >= $2 AND created_at < $3 AND ($4::text IS NULL OR provider=$4) AND ($5::text IS NULL OR currency=$5) ORDER BY created_at`,[tenantId,start.toISOString(),end.toISOString(),input.provider?.trim().toLowerCase()??null,input.currency?.toUpperCase()??null]);
     let matched=0; for(const p of payments.rows){ await this.db.query(`INSERT INTO reconciliation_items(tenant_id,run_id,payment_id,provider,provider_reference,internal_amount,internal_currency,status,reason) VALUES($1,$2,$3,$4,$5,$6,$7,'UNMATCHED_INTERNAL',$8)`,[tenantId,id,p.id,p.provider,p.provider_reference??null,p.amount,p.currency,p.provider_reference?'Provider statement not supplied; internal record cannot be externally matched':'Missing provider reference']); }
     const unmatched=payments.rows.length;
     await this.db.query(`UPDATE reconciliation_runs SET status=$2,matched_count=0,unmatched_count=$4,mismatch_count=0,completed_at=now() WHERE tenant_id=$1 AND id=$5`,[tenantId,unmatched?'PARTIAL':'COMPLETED',0,unmatched,id]);
