@@ -145,7 +145,7 @@ export class PurchasesService {
       throw new ConflictException('External payment providers must be verified through their provider webhook');
     }
     const providerReference = input.providerReference.trim();
-    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
+    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'PAID';
     let correlationId = getCorrelationId() ?? null;
     try {
       await client.query('BEGIN');
@@ -178,7 +178,7 @@ export class PurchasesService {
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
-        if (existing.status !== 'PENDING') throw new ConflictException(`Payment cannot be confirmed from ${existing.status}`);
+        if (!['INITIATED','PENDING','AUTHORIZED'].includes(existing.status)) throw new ConflictException(`Payment cannot be confirmed from ${existing.status}`);
 
         if (requestedStatus === 'FAILED') {
           await client.query(
