@@ -174,7 +174,7 @@ export class PurchasesService {
         const existing = existingByKey.rows[0];
         if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
         if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-        if (existing.status === 'SUCCESS') {
+        if (existing.status === 'PAID') {
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
@@ -191,7 +191,7 @@ export class PurchasesService {
         }
 
         await client.query(
-          `UPDATE payments SET provider_reference=$2, status='SUCCESS', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+          `UPDATE payments SET provider_reference=$2, status='PAID', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
           [tenantId, providerReference, existing.id, correlationId],
         );
         await this.payments.recordVerifiedSettlement(client, tenantId, existing.id, current.price, current.currency, provider);
@@ -217,7 +217,7 @@ export class PurchasesService {
       }
 
       const pending = await client.query(
-        `SELECT id, provider, status FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='PENDING' ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        `SELECT id, provider, status FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('INITIATED','PENDING','AUTHORIZED') ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
         [tenantId, purchaseId],
       );
       if (pending.rowCount && pending.rows[0].provider !== provider) {
@@ -233,7 +233,7 @@ export class PurchasesService {
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
-        await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
+        await client.query(`UPDATE payments SET provider_reference=$2, status='PAID', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
         await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       } else {
         const payment = await client.query(
