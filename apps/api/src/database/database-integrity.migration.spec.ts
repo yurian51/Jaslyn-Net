@@ -26,7 +26,7 @@ describe('060 database integrity hardening migration', () => {
     ]) {
       expect(sql).toContain(fragment);
     }
-    expect((sql.match(/RAISE EXCEPTION 'Cannot harden/g) ?? []).length).toBe(7);
+    expect((sql.match(/RAISE EXCEPTION 'Cannot harden/g) ?? []).length).toBe(8);
     expect(sql).toContain('Cannot tenant-scope users.email');
   });
 
