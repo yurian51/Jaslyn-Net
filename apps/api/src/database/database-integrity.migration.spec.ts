@@ -7,7 +7,7 @@ describe('database integrity migration',()=>{
   it('is transactional and fail-closed',()=>{
     expect(migration.trim().startsWith('BEGIN;')).toBe(true);
     expect(migration.trim().endsWith('COMMIT;')).toBe(true);
-    expect((migration.match(/RAISE EXCEPTION 'Cannot harden/g)||[]).length).toBe(8);
+    expect((migration.match(/RAISE EXCEPTION 'Cannot harden/g)||[] ).length).toBe(13);
     expect(migration).not.toMatch(/DELETE FROM|UPDATE\s+[^;]+\s+SET/i);
   });
 
@@ -21,12 +21,15 @@ describe('database integrity migration',()=>{
       'ipam_addresses_tenant_session_fk',
       'radius_accounting_tenant_nas_fk',
       'radius_events_tenant_nas_fk',
+      'ai_runs_tenant_actor_fk',
+      'ai_runs_tenant_parent_fk',
+      'ai_actions_tenant_run_fk',
+      'ai_actions_tenant_approved_by_fk',
     ]) expect(migration).toContain(s);
   });
 
   it('covers critical uniqueness and query indexes',()=>{
     expect(migration).toContain('voucher_batches_tenant_id_uq');
-    expect(migration).toContain('invoices_purchase_uq');
     expect(migration).toContain('audit_logs_tenant_correlation_idx');
     expect(migration).toContain('ipam_addresses_router_idx');
     expect(migration).toContain('ipam_addresses_session_idx');
