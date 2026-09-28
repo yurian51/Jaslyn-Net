@@ -356,7 +356,7 @@ export class PaymentsService {
         amount: input.amount ?? input.payload?.amount ?? null, currency: input.currency ?? input.payload?.currency ?? null,
       }, { correlationId: processed.correlationId }).catch(() => undefined);
 
-      await this.domainEvents.enqueue({
+      await this.domainEvents?.enqueue({
         tenantId,
         eventKey: `payment-webhook:${provider}:${providerEventId}`,
         eventType: 'PAYMENT.WEBHOOK_PROCESSED',
