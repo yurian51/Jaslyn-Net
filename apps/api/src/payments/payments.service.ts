@@ -7,6 +7,7 @@ import { CreatePaymentIntentDto, PaymentWebhookDto } from './payments.dto';
 import { PAYMENT_METHOD_CATALOG, getPaymentMethod } from './payment-method.catalog';
 import { getCorrelationId } from '../common/correlation-context';
 import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
+import { AuditService } from '../audit/audit.service';
 
 type DatabaseError = { code?: string; constraint?: string };
 type PaymentRecord = { id: string; provider: string; status: string; purchaseId: string | null };
@@ -17,7 +18,8 @@ export class PaymentsService {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly config: ConfigService,
-    private readonly domainEvents: CommunicationDomainEventsService,
+    @Optional() private readonly domainEvents?: CommunicationDomainEventsService,
+    @Optional() private readonly audit?: AuditService,
   ) {}
 
   async list(tenantId: string) {
@@ -75,13 +77,13 @@ export class PaymentsService {
         await client.query('COMMIT');
         return { id: existing.rows[0].id, status: existing.rows[0].status, provider: existing.rows[0].provider, idempotencyKey: key, reused: true };
       }
-      const result = await client.query(`INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, amount, currency, status, idempotency_key, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,'PENDING',$7,$8) RETURNING id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, amount, currency, status, idempotency_key AS "idempotencyKey", created_at AS "createdAt"`, [tenantId, purchase.rows[0].customer_id, input.purchaseId, provider, purchase.rows[0].price, purchase.rows[0].currency, key, correlationId]);
+      const result = await client.query(`INSERT INTO payments (tenant_id, customer_id, purchase_id, provider, amount, currency, status, idempotency_key, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,'INITIATED',$7,$8) RETURNING id, customer_id AS "customerId", purchase_id AS "purchaseId", provider, amount, currency, status, idempotency_key AS "idempotencyKey", created_at AS "createdAt"`, [tenantId, purchase.rows[0].customer_id, input.purchaseId, provider, purchase.rows[0].price, purchase.rows[0].currency, key, correlationId]);
       await client.query('COMMIT');
       return { ...result.rows[0], reused: false };
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       const dbError = error as DatabaseError;
-      if (dbError.code === '23505' && dbError.constraint === 'payments_one_pending_per_purchase_uq') {
+      if (dbError.code === '23505' && dbError.constraint === 'payments_one_active_attempt_per_purchase_uq') {
         const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('INITIATED','PENDING','AUTHORIZED') ORDER BY created_at ASC LIMIT 1`, [tenantId, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('A pending payment already exists for another provider');
@@ -106,7 +108,7 @@ export class PaymentsService {
     );
     const settledPayment = payment.rows[0];
     const correlationId = settledPayment?.correlationId ?? getCorrelationId() ?? `payment:${paymentId}`;
-    if (!settledPayment || settledPayment.status !== 'PAID') throw new ConflictException('Only a successfully persisted payment can be settled');
+    if (!settledPayment || settledPayment.status !== 'PAID') throw new ConflictException('Only a PAID payment can be settled');
     if (settledPayment.provider !== provider) throw new ConflictException('Settlement provider does not match payment provider');
     if (String(settledPayment.amount) !== String(amount) || settledPayment.currency !== currency) throw new ConflictException('Settlement amount or currency does not match payment');
     await client.query(
