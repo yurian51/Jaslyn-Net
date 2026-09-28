@@ -53,7 +53,27 @@ BEGIN
     WHERE a.session_id IS NOT NULL AND (s.id IS NULL OR s.tenant_id<>a.tenant_id)
   ) THEN RAISE EXCEPTION 'Cannot harden ipam_addresses.session_id tenant scope';
   END IF;
-END $$;
+  IF EXISTS (
+    SELECT 1 FROM ai_runs r LEFT JOIN users u ON u.id=r.actor_user_id
+    WHERE r.actor_user_id IS NOT NULL AND (u.id IS NULL OR u.tenant_id<>r.tenant_id)
+  ) THEN RAISE EXCEPTION 'Cannot harden ai_runs.actor_user_id tenant scope';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM ai_runs child LEFT JOIN ai_runs parent ON parent.id=child.parent_run_id
+    WHERE child.parent_run_id IS NOT NULL AND (parent.id IS NULL OR parent.tenant_id<>child.tenant_id)
+  ) THEN RAISE EXCEPTION 'Cannot harden ai_runs.parent_run_id tenant scope';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM ai_actions a LEFT JOIN ai_runs r ON r.id=a.run_id
+    WHERE r.id IS NULL OR r.tenant_id<>a.tenant_id
+  ) THEN RAISE EXCEPTION 'Cannot harden ai_actions.run_id tenant scope';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM ai_actions a LEFT JOIN users u ON u.id=a.approved_by
+    WHERE a.approved_by IS NOT NULL AND (u.id IS NULL OR u.tenant_id<>a.tenant_id)
+  ) THEN RAISE EXCEPTION 'Cannot harden ai_actions.approved_by tenant scope';
+  END IF;
+END $;
 
 -- Replace weak global FKs with tenant-scoped composite FKs.
 ALTER TABLE network_commands DROP CONSTRAINT IF EXISTS network_commands_router_id_fkey;
@@ -99,6 +119,16 @@ ALTER TABLE radius_accounting_events
 ALTER TABLE radius_events
   ADD CONSTRAINT radius_events_tenant_nas_fk
   FOREIGN KEY (tenant_id,nas_client_id) REFERENCES radius_nas_clients(tenant_id,id) ON DELETE SET NULL;
+ALTER TABLE ai_runs
+  ADD CONSTRAINT ai_runs_tenant_actor_fk
+  FOREIGN KEY (tenant_id,actor_user_id) REFERENCES users(tenant_id,id) ON DELETE SET NULL,
+  ADD CONSTRAINT ai_runs_tenant_parent_fk
+  FOREIGN KEY (tenant_id,parent_run_id) REFERENCES ai_runs(tenant_id,id) ON DELETE SET NULL;
+ALTER TABLE ai_actions
+  ADD CONSTRAINT ai_actions_tenant_run_fk
+  FOREIGN KEY (tenant_id,run_id) REFERENCES ai_runs(tenant_id,id) ON DELETE CASCADE,
+  ADD CONSTRAINT ai_actions_tenant_approved_by_fk
+  FOREIGN KEY (tenant_id,approved_by) REFERENCES users(tenant_id,id) ON DELETE SET NULL;
 
 -- Query-path indexes for the hardened relations and reconciliation checks.
 CREATE INDEX IF NOT EXISTS ipam_addresses_router_idx
@@ -113,11 +143,7 @@ CREATE INDEX IF NOT EXISTS radius_accounting_nas_idx
 CREATE INDEX IF NOT EXISTS radius_events_nas_idx
   ON radius_events (tenant_id,nas_client_id,created_at DESC)
   WHERE nas_client_id IS NOT NULL;
-
--- Prevent concurrent duplicate invoice issuance for the same purchase.
-CREATE UNIQUE INDEX IF NOT EXISTS invoices_purchase_uq
-  ON invoices (tenant_id,purchase_id)
-  WHERE purchase_id IS NOT NULL;
+ 
 
 -- Ensure audit actor references cannot cross tenants at the database layer.
 -- audit_logs already has this composite FK; add its supporting index for trace/list.
