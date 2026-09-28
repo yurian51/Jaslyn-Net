@@ -69,6 +69,72 @@ CREATE TRIGGER access_grants_state_transition_trg
 BEFORE UPDATE OF status ON access_grants
 FOR EACH ROW EXECUTE FUNCTION enforce_entitlement_state_transition();
 
+
+-- Immutable state history provides database-level audit events for financial state changes.
+CREATE TABLE IF NOT EXISTS payment_state_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  payment_id uuid NOT NULL,
+  from_state text,
+  to_state text NOT NULL,
+  correlation_id text,
+  changed_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id,id),
+  FOREIGN KEY (tenant_id,payment_id) REFERENCES payments(tenant_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS payment_state_history_payment_idx
+  ON payment_state_history (tenant_id,payment_id,changed_at DESC);
+
+CREATE OR REPLACE FUNCTION record_payment_state_history()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    INSERT INTO payment_state_history (tenant_id,payment_id,from_state,to_state,correlation_id)
+    VALUES (NEW.tenant_id,NEW.id,OLD.status,NEW.status,NEW.correlation_id);
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS payment_state_history_trg ON payments;
+CREATE TRIGGER payment_state_history_trg
+AFTER UPDATE OF status ON payments
+FOR EACH ROW EXECUTE FUNCTION record_payment_state_history();
+
+CREATE TABLE IF NOT EXISTS entitlement_state_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  entitlement_id uuid NOT NULL,
+  from_state text,
+  to_state text NOT NULL,
+  correlation_id text,
+  changed_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id,id),
+  FOREIGN KEY (tenant_id,entitlement_id) REFERENCES access_grants(tenant_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS entitlement_state_history_idx
+  ON entitlement_state_history (tenant_id,entitlement_id,changed_at DESC);
+
+CREATE OR REPLACE FUNCTION record_entitlement_state_history()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    INSERT INTO entitlement_state_history (tenant_id,entitlement_id,from_state,to_state,correlation_id)
+    VALUES (NEW.tenant_id,NEW.id,OLD.status,NEW.status,NEW.correlation_id);
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS entitlement_state_history_trg ON access_grants;
+CREATE TRIGGER entitlement_state_history_trg
+AFTER UPDATE OF status ON access_grants
+FOR EACH ROW EXECUTE FUNCTION record_entitlement_state_history();
+
 -- Refund requests become idempotent and concurrency-safe.
 ALTER TABLE refunds ADD COLUMN IF NOT EXISTS idempotency_key text;
 UPDATE refunds SET idempotency_key='legacy-refund:' || id::text WHERE idempotency_key IS NULL;
