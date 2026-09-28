@@ -82,7 +82,7 @@ export class PaymentsService {
       await client.query('ROLLBACK').catch(() => undefined);
       const dbError = error as DatabaseError;
       if (dbError.code === '23505' && dbError.constraint === 'payments_one_pending_per_purchase_uq') {
-        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='PENDING' ORDER BY created_at ASC LIMIT 1`, [tenantId, input.purchaseId]);
+        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('INITIATED','PENDING','AUTHORIZED') ORDER BY created_at ASC LIMIT 1`, [tenantId, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('A pending payment already exists for another provider');
           return { ...existing.rows[0], reused: true };
@@ -106,7 +106,7 @@ export class PaymentsService {
     );
     const settledPayment = payment.rows[0];
     const correlationId = settledPayment?.correlationId ?? getCorrelationId() ?? `payment:${paymentId}`;
-    if (!settledPayment || settledPayment.status !== 'SUCCESS') throw new ConflictException('Only a successfully persisted payment can be settled');
+    if (!settledPayment || settledPayment.status !== 'PAID') throw new ConflictException('Only a successfully persisted payment can be settled');
     if (settledPayment.provider !== provider) throw new ConflictException('Settlement provider does not match payment provider');
     if (String(settledPayment.amount) !== String(amount) || settledPayment.currency !== currency) throw new ConflictException('Settlement amount or currency does not match payment');
     await client.query(
@@ -115,7 +115,7 @@ export class PaymentsService {
               verified_at=COALESCE(verified_at,now()),
               verification_source=COALESCE(verification_source,'MANUAL_SETTLEMENT'),
               updated_at=now()
-        WHERE tenant_id=$1 AND id=$2 AND status='SUCCESS'`,
+        WHERE tenant_id=$1 AND id=$2 AND status='PAID'`,
       [tenantId, paymentId],
     );
     const cashCode = `CASH:${provider}:${currency}`.slice(0, 64);
