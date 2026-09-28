@@ -20,7 +20,8 @@ describe('Billing & Payment Integrity', () => {
     ['refund', 'refunds_tenant_idempotency_uq'],
     ['partial fulfillment', 'access_grants_state_transition_trg'],
     ['expired entitlement', "SUSPENDED','EXPIRED','REVOKED"],
-  ])('contains the invariant for %s', (_name, invariant) => {
+  ])('contains the invariant for %s', (...args) => {
+    const invariant = args[1] as string;
     expect(migration).toContain(invariant);
   });
 
