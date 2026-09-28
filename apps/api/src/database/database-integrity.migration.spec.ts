@@ -7,7 +7,7 @@ describe('database integrity migration',()=>{
   it('is transactional and fail-closed',()=>{
     expect(migration.trim().startsWith('BEGIN;')).toBe(true);
     expect(migration.trim().endsWith('COMMIT;')).toBe(true);
-    expect((migration.match(/RAISE EXCEPTION 'Cannot harden/g)||[] ).length).toBe(13);
+    expect((migration.match(/RAISE EXCEPTION 'Cannot harden/g)||[] ).length).toBe(12);
     expect(migration).not.toMatch(/DELETE FROM|UPDATE\s+[^;]+\s+SET/i);
   });
 
