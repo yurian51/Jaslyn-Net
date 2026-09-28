@@ -30,6 +30,14 @@ describe('billing/payment integrity migration',()=>{
     expect(migration).toContain('entitlement_state_history');
   });
 
+  it('covers replay, concurrency, failure, refund, partial fulfillment, and expiry guards',()=>{
+    expect(migration).toContain('payment_events_tenant_provider_event_uq');
+    expect(migration).toContain('payments_one_active_attempt_per_purchase_uq');
+    expect(migration).toContain('refunds_tenant_idempotency_uq');
+    expect(migration).toContain('access_grants_state_transition_trg');
+    expect(migration).toContain('payment_state_history');
+  });
+
   it('has transaction rollback safety',()=>{
     expect(migration).toContain('BEGIN;');
     expect(migration).toContain('COMMIT;');
