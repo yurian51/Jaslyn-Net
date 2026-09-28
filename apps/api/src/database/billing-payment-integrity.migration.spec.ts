@@ -26,6 +26,8 @@ describe('billing/payment integrity migration',()=>{
     expect(migration).toContain('refunds_tenant_idempotency_uq');
     expect(migration).toContain('prevent_financial_ledger_mutation');
     expect(migration).toContain('reconciliation_items_tenant_payment_run_uq');
+    expect(migration).toContain('payment_state_history');
+    expect(migration).toContain('entitlement_state_history');
   });
 
   it('has transaction rollback safety',()=>{
