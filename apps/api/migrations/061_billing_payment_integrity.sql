@@ -1,8 +1,9 @@
 BEGIN;
 
--- Deterministic payment lifecycle. Legacy SUCCESS is normalized to PAID before
--- the stronger state constraint is installed.
+-- Deterministic payment lifecycle. Normalize the legacy SUCCESS state before
+-- installing the authoritative state constraint.
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_chk;
 UPDATE payments SET status='PAID', updated_at=now() WHERE status='SUCCESS';
 ALTER TABLE payments
   ADD CONSTRAINT payments_status_check
@@ -41,6 +42,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS payments_one_active_attempt_per_purchase_uq
 
 -- Entitlements are access_grants in the existing architecture.
 ALTER TABLE access_grants DROP CONSTRAINT IF EXISTS access_grants_status_check;
+ALTER TABLE access_grants DROP CONSTRAINT IF EXISTS access_grants_status_chk;
 ALTER TABLE access_grants
   ADD CONSTRAINT access_grants_status_check
   CHECK (status IN ('PENDING','ACTIVE','SUSPENDED','EXPIRED','REVOKED'));
@@ -69,8 +71,8 @@ CREATE TRIGGER access_grants_state_transition_trg
 BEFORE UPDATE OF status ON access_grants
 FOR EACH ROW EXECUTE FUNCTION enforce_entitlement_state_transition();
 
-
--- Immutable state history provides database-level audit events for financial state changes.
+-- Immutable state history provides database-level auditability for financial
+-- state changes without rewriting the source records.
 CREATE TABLE IF NOT EXISTS payment_state_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -88,7 +90,7 @@ CREATE INDEX IF NOT EXISTS payment_state_history_payment_idx
 CREATE OR REPLACE FUNCTION record_payment_state_history()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   IF NEW.status IS DISTINCT FROM OLD.status THEN
     INSERT INTO payment_state_history (tenant_id,payment_id,from_state,to_state,correlation_id)
@@ -96,7 +98,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS payment_state_history_trg ON payments;
 CREATE TRIGGER payment_state_history_trg
@@ -109,7 +111,6 @@ CREATE TABLE IF NOT EXISTS entitlement_state_history (
   entitlement_id uuid NOT NULL,
   from_state text,
   to_state text NOT NULL,
-  correlation_id text,
   changed_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id,id),
   FOREIGN KEY (tenant_id,entitlement_id) REFERENCES access_grants(tenant_id,id) ON DELETE CASCADE
@@ -120,22 +121,23 @@ CREATE INDEX IF NOT EXISTS entitlement_state_history_idx
 CREATE OR REPLACE FUNCTION record_entitlement_state_history()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   IF NEW.status IS DISTINCT FROM OLD.status THEN
-    INSERT INTO entitlement_state_history (tenant_id,entitlement_id,from_state,to_state,correlation_id)
-    VALUES (NEW.tenant_id,NEW.id,OLD.status,NEW.status,NEW.correlation_id);
+    INSERT INTO entitlement_state_history (tenant_id,entitlement_id,from_state,to_state)
+    VALUES (NEW.tenant_id,NEW.id,OLD.status,NEW.status);
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS entitlement_state_history_trg ON access_grants;
 CREATE TRIGGER entitlement_state_history_trg
 AFTER UPDATE OF status ON access_grants
 FOR EACH ROW EXECUTE FUNCTION record_entitlement_state_history();
 
--- Refund requests become idempotent and concurrency-safe.
+-- Refund requests become idempotent and concurrency-safe. Existing rows get
+-- deterministic legacy keys so the uniqueness invariant can be enforced.
 ALTER TABLE refunds ADD COLUMN IF NOT EXISTS idempotency_key text;
 UPDATE refunds SET idempotency_key='legacy-refund:' || id::text WHERE idempotency_key IS NULL;
 ALTER TABLE refunds ALTER COLUMN idempotency_key SET NOT NULL;
