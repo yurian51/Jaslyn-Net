@@ -131,7 +131,7 @@ describe('PaymentsService', () => {
   });
 
 
-  it('accepts a signed webhook as an unverified event without settling payment', async () => {
+  it('accepts a signed webhook and settles the verified payment', async () => {
     const secret = 'test-webhook-secret';
     const rawBody = Buffer.from('{"event":"payment.refunded","paymentId":"pay-1"}');
     const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
@@ -139,6 +139,9 @@ describe('PaymentsService', () => {
       query: jest.fn(async (sql: string) => {
         if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
         if (sql.includes('INSERT INTO payment_events')) return { rowCount: 1, rows: [{ id: 'event-1' }] };
+        if (sql.includes('FROM payments') && sql.includes('FOR UPDATE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', amount: '1000', currency: 'TZS', provider: 'mpesa', purchaseId: 'purchase-1', correlationId: 'corr-1' }] };
+        if (sql.includes('UPDATE payments')) return { rowCount: 1, rows: [] };
+        if (sql.includes('UPDATE payment_events')) return { rowCount: 1, rows: [] };
         if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
         throw new Error(`Unexpected SQL: ${sql}`);
       }),
@@ -153,19 +156,22 @@ describe('PaymentsService', () => {
 
     await expect(service.webhook('tenant-1', {
       provider: 'mpesa',
-      providerEventId: 'evt-refund-1',
-      eventType: 'payment.refunded',
+      providerEventId: 'evt-success-1',
+      eventType: 'payment.success',
       paymentId: 'pay-1',
-      status: 'REFUNDED',
-      providerReference: 'MPESA-REFUND-1',
+      status: 'SUCCESS',
+      amount: 1000,
+      currency: 'TZS',
+      providerReference: 'MPESA-1',
     }, rawBody, signature)).resolves.toMatchObject({
       accepted: true,
       eventId: 'event-1',
-      processingStatus: 'RECEIVED',
-      requiresVerification: true,
+      processingStatus: 'PROCESSED',
+      requiresVerification: false,
+      status: 'PAID',
     });
 
-    expect(eventClient.query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE payments'));
+    expect(eventClient.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE payments'), expect.any(Array));
     expect(eventClient.release).toHaveBeenCalled();
   });
 
