@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreatePaymentIntentDto {
   @IsUUID()
@@ -46,6 +46,15 @@ export class PaymentWebhookDto {
 
   @IsIn(['SUCCESS', 'FAILED', 'REFUNDED'])
   status!: 'SUCCESS' | 'FAILED' | 'REFUNDED';
+
+  @IsOptional()
+  @IsNumber()
+  amount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  currency?: string;
 
   @IsOptional()
   payload?: Record<string, unknown>;
