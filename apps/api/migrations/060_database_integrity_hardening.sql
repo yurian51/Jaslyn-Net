@@ -78,19 +78,19 @@ BEGIN
   ) THEN RAISE EXCEPTION 'Cannot harden ai_actions relations: cross-tenant/orphan rows exist'; END IF;
 END $$;
 
-DROP CONSTRAINT IF EXISTS network_commands_router_id_fkey;
+ALTER TABLE network_commands DROP CONSTRAINT IF EXISTS network_commands_router_id_fkey;
 ALTER TABLE network_commands
   ADD CONSTRAINT network_commands_router_tenant_fk
   FOREIGN KEY (tenant_id, router_id) REFERENCES routers(tenant_id, id) ON DELETE SET NULL;
 
-DROP CONSTRAINT IF EXISTS incident_impacts_incident_id_fkey;
+ALTER TABLE incident_impacts DROP CONSTRAINT IF EXISTS incident_impacts_incident_id_fkey;
 ALTER TABLE incident_impacts
   ADD CONSTRAINT incident_impacts_incident_tenant_fk
   FOREIGN KEY (tenant_id, incident_id) REFERENCES incidents(tenant_id, id) ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX IF NOT EXISTS voucher_batches_tenant_id_uq
   ON voucher_batches (tenant_id, id);
-DROP CONSTRAINT IF EXISTS vouchers_batch_fk;
+ALTER TABLE vouchers DROP CONSTRAINT IF EXISTS vouchers_batch_fk;
 ALTER TABLE vouchers
   ADD CONSTRAINT vouchers_batch_tenant_fk
   FOREIGN KEY (tenant_id, batch_id) REFERENCES voucher_batches(tenant_id, id) ON DELETE SET NULL;
@@ -110,12 +110,12 @@ CREATE INDEX IF NOT EXISTS ipam_addresses_session_idx
   ON ipam_addresses (tenant_id, session_id, status)
   WHERE session_id IS NOT NULL;
 
-DROP CONSTRAINT IF EXISTS radius_accounting_events_nas_client_id_fkey;
+ALTER TABLE radius_accounting_events DROP CONSTRAINT IF EXISTS radius_accounting_events_nas_client_id_fkey;
 ALTER TABLE radius_accounting_events
   ADD CONSTRAINT radius_accounting_events_nas_tenant_fk
   FOREIGN KEY (tenant_id, nas_client_id) REFERENCES radius_nas_clients(tenant_id, id) ON DELETE SET NULL;
 
-DROP CONSTRAINT IF EXISTS radius_events_nas_client_id_fkey;
+ALTER TABLE radius_events DROP CONSTRAINT IF EXISTS radius_events_nas_client_id_fkey;
 ALTER TABLE radius_events
   ADD CONSTRAINT radius_events_nas_tenant_fk
   FOREIGN KEY (tenant_id, nas_client_id) REFERENCES radius_nas_clients(tenant_id, id) ON DELETE SET NULL;
@@ -130,22 +130,22 @@ CREATE INDEX IF NOT EXISTS radius_events_nas_idx
 CREATE UNIQUE INDEX IF NOT EXISTS ai_runs_tenant_id_uq
   ON ai_runs (tenant_id, id);
 
-DROP CONSTRAINT IF EXISTS ai_runs_actor_user_id_fkey;
+ALTER TABLE ai_runs DROP CONSTRAINT IF EXISTS ai_runs_actor_user_id_fkey;
 ALTER TABLE ai_runs
   ADD CONSTRAINT ai_runs_actor_tenant_fk
   FOREIGN KEY (tenant_id, actor_user_id) REFERENCES users(tenant_id, id) ON DELETE SET NULL;
 
-DROP CONSTRAINT IF EXISTS ai_runs_parent_run_id_fkey;
+ALTER TABLE ai_runs DROP CONSTRAINT IF EXISTS ai_runs_parent_run_id_fkey;
 ALTER TABLE ai_runs
   ADD CONSTRAINT ai_runs_parent_tenant_fk
   FOREIGN KEY (tenant_id, parent_run_id) REFERENCES ai_runs(tenant_id, id) ON DELETE SET NULL;
 
-DROP CONSTRAINT IF EXISTS ai_actions_run_id_fkey;
+ALTER TABLE ai_actions DROP CONSTRAINT IF EXISTS ai_actions_run_id_fkey;
 ALTER TABLE ai_actions
   ADD CONSTRAINT ai_actions_run_tenant_fk
   FOREIGN KEY (tenant_id, run_id) REFERENCES ai_runs(tenant_id, id) ON DELETE CASCADE;
 
-DROP CONSTRAINT IF EXISTS ai_actions_approved_by_fkey;
+ALTER TABLE ai_actions DROP CONSTRAINT IF EXISTS ai_actions_approved_by_fkey;
 ALTER TABLE ai_actions
   ADD CONSTRAINT ai_actions_approved_tenant_fk
   FOREIGN KEY (tenant_id, approved_by) REFERENCES users(tenant_id, id) ON DELETE SET NULL;
