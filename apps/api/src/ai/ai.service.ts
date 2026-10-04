@@ -87,8 +87,8 @@ export class AiService {
     const provider=planned?.provider ?? 'deterministic';
     const model=planned?.model ?? null;
     const result=await this.db.query(
-      'INSERT INTO ai_runs (tenant_id,actor_user_id,agent_key,task,status,risk_level,plan,correlation_id,provider,model,started_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,created_at AS "createdAt",status,risk_level AS "riskLevel",plan,correlation_id AS "correlationId",provider,model',
-      [tenantId,userId,'orchestrator',task.trim(),status,risk,JSON.stringify(plan),correlationId,provider,model,'operator'],
+      'INSERT INTO ai_runs (tenant_id,actor_user_id,agent_key,task,status,risk_level,plan,correlation_id,provider,model,input_tokens,output_tokens,started_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id,created_at AS "createdAt",status,risk_level AS "riskLevel",plan,correlation_id AS "correlationId",provider,model,input_tokens AS "inputTokens",output_tokens AS "outputTokens"',
+      [tenantId,userId,'orchestrator',task.trim(),status,risk,JSON.stringify(plan),correlationId,provider,model,planned?.inputTokens ?? null,planned?.outputTokens ?? null,'operator'],
     );
     const run=result.rows[0];
     for(const step of plan.steps) {
@@ -102,12 +102,12 @@ export class AiService {
   }
 
   async runs(tenantId:string) {
-    const result=await this.db.query('SELECT id,agent_key AS "agentKey",task,status,risk_level AS "riskLevel",plan,result,error,correlation_id AS "correlationId",provider,model,created_at AS "createdAt",started_at AS "startedAt",finished_at AS "finishedAt" FROM ai_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 100',[tenantId]);
+    const result=await this.db.query('SELECT id,agent_key AS "agentKey",task,status,risk_level AS "riskLevel",plan,result,error,correlation_id AS "correlationId",provider,model,input_tokens AS "inputTokens",output_tokens AS "outputTokens",created_at AS "createdAt",started_at AS "startedAt",finished_at AS "finishedAt" FROM ai_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 100',[tenantId]);
     return {data:result.rows,count:result.rowCount??0};
   }
 
   async run(tenantId:string,id:string) {
-    const result=await this.db.query('SELECT id,actor_user_id AS "actorUserId",agent_key AS "agentKey",task,status,risk_level AS "riskLevel",plan,result,error,correlation_id AS "correlationId",provider,model,created_at AS "createdAt",started_at AS "startedAt",finished_at AS "finishedAt" FROM ai_runs WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+    const result=await this.db.query('SELECT id,actor_user_id AS "actorUserId",agent_key AS "agentKey",task,status,risk_level AS "riskLevel",plan,result,error,correlation_id AS "correlationId",provider,model,input_tokens AS "inputTokens",output_tokens AS "outputTokens",created_at AS "createdAt",started_at AS "startedAt",finished_at AS "finishedAt" FROM ai_runs WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
     if(!result.rows[0]) throw new NotFoundException('AI run not found');
     const actions=await this.db.query('SELECT id,tool_key AS "toolKey",action,risk_level AS "riskLevel",status,input,output,approval_required AS "approvalRequired",approved_by AS "approvedBy",approved_at AS "approvedAt",error,correlation_id AS "correlationId",rollback,created_at AS "createdAt",finished_at AS "finishedAt" FROM ai_actions WHERE tenant_id=$1 AND run_id=$2 ORDER BY created_at',[tenantId,id]);
     return {...result.rows[0],actions:actions.rows};
