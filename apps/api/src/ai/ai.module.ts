@@ -6,11 +6,12 @@ import { IspOperationsModule } from '../isp-operations/isp-operations.module';
 import { IncidentsModule } from '../incidents/incidents.module';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
+import { LlamafileProvider } from './llamafile.provider';
 
 @Module({
   imports:[AuditModule,RoutersModule,SessionsModule,IspOperationsModule,IncidentsModule],
   controllers:[AiController],
-  providers:[AiService],
+  providers:[AiService,LlamafileProvider],
   exports:[AiService],
 })
 export class AiModule {}
