@@ -9,6 +9,7 @@ import { SessionsService } from '../sessions/sessions.service';
 import { IspOperationsService } from '../isp-operations/isp-operations.service';
 import { IncidentsService } from '../incidents/incidents.service';
 import { AiAgentKey, AiPlan, AiPlanStep, AiRiskLevel } from './ai.types';
+import { LlamafileProvider } from './llamafile.provider';
 
 const AGENTS = [
   ['orchestrator','Jaslyn Orchestrator','Coordinates specialist agents and verifies cross-domain work.','HIGH'],
@@ -51,6 +52,7 @@ export class AiService {
     private readonly sessions: SessionsService,
     private readonly isp: IspOperationsService,
     private readonly incidents: IncidentsService,
+    private readonly llamafile: LlamafileProvider,
   ) {}
 
   capabilities(_tenantId: string) {
@@ -58,7 +60,13 @@ export class AiService {
       agents: AGENTS.map(([key,name,description,risk]) => ({key,name,description,risk})),
       capabilities: TOOLS.map(([key,capability,risk,executionMode]) => ({key,capability,risk,executionMode})),
       autonomy: {LOW:'AUTO',MEDIUM:'AUTO_OR_APPROVAL',HIGH:'APPROVAL',CRITICAL:'APPROVAL_OR_BLOCK'},
-      modelProvider: this.config.get<string>('AI_PROVIDER','anthropic'),
+      modelProvider: this.config.get<string>('JASLYN_AI_PROVIDER', this.config.get<string>('AI_PROVIDER', 'deterministic')),
+      localInference: {
+        provider: 'llamafile',
+        configured: Boolean(this.config.get<string>('JASLYN_LLAMAFILE_ENDPOINT')?.trim()),
+        endpoint: this.config.get<string>('JASLYN_LLAMAFILE_ENDPOINT', 'http://127.0.0.1:8080/v1'),
+        model: this.config.get<string>('JASLYN_LLAMAFILE_MODEL', 'LLaMA_CPP'),
+      },
       architecture: ['agent-orchestrator','skills','dynamic-tool-registry','MCP-gateway','approval-policy','checkpoint-rollback','agent-audit','model-router'],
     };
   }
@@ -72,12 +80,12 @@ export class AiService {
 
   async createRun(userId:string,tenantId:string,task:string,context:Record<string,unknown>) {
     const correlationId=randomUUID();
-    const modelPlan=await this.tryModelPlan(task,context).catch(()=>null);
-    const plan=modelPlan ?? this.buildPlan(task);
+    const planned=await this.tryModelPlan(task,context);
+    const plan=planned?.plan ?? this.buildPlan(task);
     const risk=this.planRisk(plan);
     const status=plan.steps.some(s=>s.requiresApproval)?'WAITING_APPROVAL':'PLANNING';
-    const provider=modelPlan?'anthropic':'deterministic';
-    const model=modelPlan?this.config.get<string>('ANTHROPIC_MODEL','claude-sonnet-4-5') : null;
+    const provider=planned?.provider ?? 'deterministic';
+    const model=planned?.model ?? null;
     const result=await this.db.query(
       'INSERT INTO ai_runs (tenant_id,actor_user_id,agent_key,task,status,risk_level,plan,correlation_id,provider,model,started_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,created_at AS "createdAt",status,risk_level AS "riskLevel",plan,correlation_id AS "correlationId",provider,model',
       [tenantId,userId,'orchestrator',task.trim(),status,risk,JSON.stringify(plan),correlationId,provider,model,'operator'],
@@ -175,10 +183,23 @@ export class AiService {
     const value=input[key]; if(typeof value!=='string'||!value.trim()) throw new BadRequestException(`${key} is required`); return value;
   }
 
-  private async tryModelPlan(task:string,context:Record<string,unknown>):Promise<AiPlan|null> {
-    const key=this.config.get<string>('ANTHROPIC_API_KEY')?.trim();
-    if(!key) return null;
-    const model=this.config.get<string>('ANTHROPIC_MODEL','claude-sonnet-4-5');
+  private async tryModelPlan(task:string,context:Record<string,unknown>):Promise<{plan:AiPlan;provider:string;model:string|null;inputTokens?:number;outputTokens?:number}|null> {
+    const provider=(this.config.get<string>('JASLYN_AI_PROVIDER') ?? this.config.get<string>('AI_PROVIDER') ?? '').trim().toLowerCase();
+    const llamafileConfigured=Boolean(this.config.get<string>('JASLYN_LLAMAFILE_ENDPOINT')?.trim());
+    const anthropicKey=(this.config.get<string>('JASLYN_AI_API_KEY') ?? this.config.get<string>('ANTHROPIC_API_KEY') ?? '').trim();
+
+    if(provider==='deterministic' || (!provider && !llamafileConfigured && !anthropicKey)) return null;
+
+    if(provider==='llamafile' || (!provider && llamafileConfigured)) {
+      const result=await this.llamafile.plan(task,context,this.tools(''));
+      this.validatePlan(result.plan);
+      return {plan:result.plan,provider:'llamafile',model:result.model,inputTokens:result.inputTokens,outputTokens:result.outputTokens};
+    }
+
+    if(provider && provider!=='anthropic') throw new Error(`Unsupported JASLYN AI provider: ${provider}`);
+    if(!anthropicKey) throw new Error('Anthropic AI provider is configured but JASLYN_AI_API_KEY is missing');
+    const key=anthropicKey;
+    const model=this.config.get<string>('JASLYN_AI_MODEL', this.config.get<string>('ANTHROPIC_MODEL','claude-sonnet-4-5'));
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),15000);
     try {
@@ -199,7 +220,7 @@ export class AiService {
       if(!raw) return null;
       const parsed=JSON.parse(raw) as AiPlan;
       this.validatePlan(parsed);
-      return parsed;
+      return {plan:parsed,provider:'anthropic',model};
     } finally {
       clearTimeout(timeout);
     }
