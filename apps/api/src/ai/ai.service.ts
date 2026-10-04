@@ -227,10 +227,16 @@ export class AiService {
   }
 
   private validatePlan(plan:AiPlan) {
-    if(!plan||!Array.isArray(plan.steps)||!Array.isArray(plan.stopConditions)) throw new Error('Invalid AI plan');
-    const allowed=new Set<string>(TOOLS.map(x=>x[0]));
+    if(!plan||typeof plan.summary!=='string'||!Array.isArray(plan.steps)||!Array.isArray(plan.stopConditions)) throw new Error('Invalid AI plan');
+    const allowedTools=new Set<string>(TOOLS.map(x=>x[0]));
+    const allowedAgents=new Set<string>(AGENTS.map(x=>x[0]));
+    const allowedRisks=new Set<string>(['LOW','MEDIUM','HIGH','CRITICAL']);
+    if(!plan.steps.length) throw new Error('Invalid AI plan: no executable steps');
     for(const step of plan.steps) {
-      if(!allowed.has(step.toolKey)) throw new Error('AI plan referenced an unavailable tool');
+      if(!step||typeof step.title!=='string'||typeof step.agent!=='string'||typeof step.capability!=='string'||typeof step.toolKey!=='string'||typeof step.verify!=='string'||typeof step.requiresApproval!=='boolean') throw new Error('Invalid AI plan step');
+      if(!allowedTools.has(step.toolKey)) throw new Error('AI plan referenced an unavailable tool');
+      if(!allowedAgents.has(step.agent)) throw new Error('AI plan referenced an unavailable agent');
+      if(!allowedRisks.has(step.risk)) throw new Error('AI plan referenced an invalid risk level');
       if((step.risk==='HIGH'||step.risk==='CRITICAL') && !step.requiresApproval) step.requiresApproval=true;
     }
   }
