@@ -27,7 +27,8 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Payments', 'payments', '/payments'],
   ['Vouchers', 'vouchers', '/vouchers'],
   ['Plans & Products', 'packages', '/packages'],
-  ['Jaslyn Tiers', 'tiers', '/dashboard/packages'],
+  ['WiFi Tiers', 'tiers', '/dashboard/packages'],
+  ['Platform Subscription', 'tiers', '/dashboard/platform-subscription'],
   ['Promotions', 'promotions', '/promotions'],
   ['Finance', 'finance', '/finance'],
   ['WiFi Operations', 'network', '/upesilipa'],
@@ -42,7 +43,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 
 const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
-  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/dashboard/packages', '/promotions', '/finance']],
+  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/dashboard/packages', '/dashboard/platform-subscription', '/promotions', '/finance']],
   ['Communication', ['/communication', '/notifications']],
   ['Operations', ['/isp', '/incidents', '/audit']],
   ['Workspace', ['/account', '/settings']],
