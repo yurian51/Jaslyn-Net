@@ -12,7 +12,8 @@
 - Corrected stale NEXORA branding in `docs/production-readiness.md`.
 - Created draft PR #63: https://github.com/yurian51/Jaslyn-Net/pull/63
 - Updated `apps/api/src/payments/payments.service.spec.ts` to inject the required domain-events mock and added regression tests for missing/malformed webhook signatures.
-- No production runtime code was changed. Tests and live router/payment-provider verification have not been run.
+- Runtime changes now include atomic webhook event/outbox handling and tenant/provider ownership validation, plus a tenant-scoped read API and operator UI for platform subscription status/catalogue.
+- Added focused unit tests for the new subscription query service. Full API/web builds and tests are still unverified; live router/payment-provider verification has not been run.
 - GitHub Actions runs currently report `startup_failure` with zero jobs created; this is infrastructure/startup evidence, not a passing or failing test result.
 
 ## Product direction agreed in discussion
@@ -25,6 +26,8 @@ Priorities:
 3. Mobile-first onboarding, vouchers, time/data/combo plans, branded portal and agent/dealer workflows.
 4. Evidence-linked read-only AI NOC, followed by approval-gated changes only after P0 safety gates pass.
 5. Enterprise operations, telemetry, incident response, backups and recovery.
+
+- Added `/dashboard/platform-subscription`, `GET /api/v1/platform-subscriptions/plans`, and `GET /api/v1/platform-subscriptions/current`. This is read-only: subscription checkout, plan mutation, cancellation, renewal and entitlement enforcement are not implemented by these routes.
 
 ## Current known documentation issue
 
