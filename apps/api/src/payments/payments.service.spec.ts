@@ -169,4 +169,41 @@ describe('PaymentsService', () => {
     expect(eventClient.release).toHaveBeenCalled();
   });
 
+
+  it('rejects a webhook with a missing signature before opening an event transaction', async () => {
+    const config = { get: jest.fn().mockReturnValue('test-webhook-secret') } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn(),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-no-signature',
+      eventType: 'payment.success',
+      status: 'SUCCESS',
+    }, Buffer.from('{"event":"payment.success"}'))).rejects.toThrow('Missing webhook signature');
+
+    expect(db.connect).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed webhook signature before opening an event transaction', async () => {
+    const config = { get: jest.fn().mockReturnValue('test-webhook-secret') } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn(),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-bad-signature',
+      eventType: 'payment.success',
+      status: 'SUCCESS',
+    }, Buffer.from('{"event":"payment.success"}'), 'not-a-signature')).rejects.toThrow('Invalid webhook signature');
+
+    expect(db.connect).not.toHaveBeenCalled();
+  });
+
 });
