@@ -15,9 +15,9 @@ export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     // Keep SMS outbox rows untouched until credentials and explicit enablement are present.
     if (!this.sms.status().configured) return;
-    this.timer = setInterval(() => void this.process(), 2000);
+    this.timer = setInterval(() => void this.process().catch(() => undefined), 2000);
     this.timer.unref?.();
-    void this.process();
+    void this.process().catch(() => undefined);
   }
 
   onModuleDestroy() {
