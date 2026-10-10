@@ -95,6 +95,7 @@ const required = [
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-progress')],
   ['console navigation avoids dead WiFi operations route', chrome.includes("['WiFi Operations', 'isp', '/isp']") && !chrome.includes("'/upesilipa'")],
   ['all console navigation routes resolve to app pages', consoleNavigationRoutes.length > 0 && consoleNavigationRoutes.every(routeExists)],
+  ['nested dashboard routes do not double-highlight overview', chrome.includes("href !== '/dashboard' && pathname.startsWith")],
   ['command palette keyboard handler tracks live search results', chrome.includes('[commandOpen, commandResults, commandIndex, router]') && chrome.indexOf('const commandResults = useMemo') < chrome.indexOf('[commandOpen, commandResults, commandIndex, router]')],
   ['command palette traps and restores keyboard focus', chrome.includes("event.key === 'Tab'") && chrome.includes('commandOpenerRef.current?.focus()') && chrome.includes('commandOpenerRef.current = event.currentTarget')],
   ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
