@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 
 describe('PaymentsService', () => {
   function serviceWith(db: Pool) {
-    return new PaymentsService(db, new ConfigService());
+    return new PaymentsService(db, new ConfigService(), { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
   }
 
   it('reuses an existing idempotent payment intent', async () => {
@@ -110,7 +110,7 @@ describe('PaymentsService', () => {
       query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
       connect: jest.fn().mockResolvedValue(eventClient),
     } as unknown as Pool;
-    const service = new PaymentsService(db, config);
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
 
     await expect(service.webhook(
       'tenant-1',
