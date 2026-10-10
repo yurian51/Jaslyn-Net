@@ -117,3 +117,16 @@ This audit becomes implementation-complete only after the source paths for each 
 - Capability status definitions and AI safety invariants added to `docs/product-architecture.md`.
 - Payment unit-test construction aligned with the current `PaymentsService` constructor; missing and malformed webhook-signature regression cases added.
 - **Verification limitation:** GitHub Actions currently ends at startup failure with no jobs created. No claim is made that tests passed. Production payment, RADIUS and router changes are not yet implemented or verified by this PR.
+
+
+## Follow-up implementation update (2026-10-10)
+
+The first hardening slice now includes targeted runtime changes on the audit branch:
+
+- Webhook event persistence and durable domain-event/outbox enqueue share one database transaction. If enqueue fails, the webhook event rolls back instead of remaining permanently deduplicated in `RECEIVED` without queued work.
+- Normalized webhook status, internal payment/purchase references, provider reference, and provider payload are retained for downstream verification.
+- A caller-supplied internal payment ID is checked against both tenant and provider before it can be attached to a webhook event; mismatches fail closed.
+- Regression tests cover outbox failure rollback and tenant/provider ownership rejection, in addition to signature validation cases.
+- Release instructions now use the actual workspace package names and spell out webhook safety invariants.
+
+**Still unverified:** tests and builds have not been executed because the repository's GitHub Actions runner issue prevents jobs from starting. Provider-specific signature contracts, settlement consumers, live mobile-money callbacks, and RouterOS/RADIUS hardware flows require separate end-to-end verification.
