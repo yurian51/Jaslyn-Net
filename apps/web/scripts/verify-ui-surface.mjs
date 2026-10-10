@@ -76,7 +76,7 @@ const required = [
 
   ['purchase domains load independently', purchases.includes('const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests') && purchases.includes('failures.join')],
   ['customer purchase history distinguishes unavailable from empty', customers.includes('salesError') && customers.includes('Purchase history unavailable:') && customers.includes('No customer purchases were returned')],
-  ['customer directory supports active-only filtering', customers.includes("params.set('activeOnly', String(onlyActive))") && customers.includes('Show active customers only')],
+  ['customer directory supports active-only filtering', customers.includes("activeOnly:String(onlyActive)") && customers.includes('Show active customers only')],
   ['customer counts are not presented before successful load', customers.includes("customersLoaded?pagination.total.toLocaleString():'—'") && customers.includes("salesLoaded&&!salesLoading?sales.length.toLocaleString()")],
 
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
