@@ -76,6 +76,7 @@ Production credentials and secrets are never part of the repository. Use environ
 - [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)
 - [Platform subscription vs WiFi subscriber plan UX and ownership rules](docs/PLAN-CATALOGUE-UX-AND-OWNERSHIP.md)
 - [Platform subscription API and UI implementation](docs/PLATFORM-SUBSCRIPTION-IMPLEMENTATION.md)
+- [Landing page quality and conversion update](docs/LANDING-PAGE-QUALITY-UPDATE.md)
 - [Competitive gap audit and prioritized execution backlog](docs/COMPETITIVE-GAP-AUDIT.md)
 - [Production readiness gates and launch blockers](docs/production-readiness.md)
 - [Product architecture and source-of-truth rules](docs/product-architecture.md)
