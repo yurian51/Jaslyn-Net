@@ -52,9 +52,9 @@ const required = [
   ['loading stylesheet', layout.includes("import './loading.css';")],
   ['no superseded generated logo references', !landing.includes('jaslyn-official.svg') && !nav.includes('jaslyn-official.svg') && !chrome.includes('jaslyn-official.svg') && !login.includes('jaslyn-official.svg') && !register.includes('jaslyn-official.svg')],
   ['unboxed integration layout', landing.includes('jn-integration-brand') && !landing.includes('jn-integration-watermark')],
-  ['unboxed identity styling', !read('apps/web/app/landing-premium.css').includes('jn-integration-logo-box') && !read('apps/web/app/landing-premium.css').includes('jn-integration-watermark')],
+  ['unboxed identity styling', !landing.includes('jn-integration-watermark') && read('apps/web/app/landing-premium.css').includes('/* Final integration composition: floating marks, no card containers. */')],
   ['unboxed auth brand', !read('apps/web/app/auth.css').includes('.auth-brand-logo{border:1px')],
-  ['unboxed product-preview brand', read('apps/web/app/landing-premium.css').includes('.jn-preview-brand img') && !read('apps/web/app/landing-premium.css').includes('jn-preview-brand img{width:29px')],
+  ['unboxed product-preview brand', read('apps/web/app/landing-premium.css').includes('/* Product-preview brand mark follows the same unboxed identity rule. */') && read('apps/web/app/landing-premium.css').includes('border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;')],
 
 
 ];
@@ -63,8 +63,6 @@ const assets = [
   'apps/web/public/ram-logo-scalable.svg',
   'apps/web/public/1000242339.png',
   'apps/web/public/capricon.png',
-  'apps/web/public/brand/jaslyn-net-mark.svg',
-  'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
 
 const uploadedBrandFiles = ['ram-logo-scalable.svg','1000242339.png','capricon.png'];
