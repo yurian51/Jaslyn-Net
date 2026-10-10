@@ -15,12 +15,15 @@ const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
+const platformSubscription = read('apps/web/app/dashboard/platform-subscription/page.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
   ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
   ['LandingNav usage', landing.includes('<LandingNav />')],
   ['preview explicitly illustrative', landing.includes('ILLUSTRATIVE WORKSPACE') && landing.includes('Illustrative session')],
+  ['subscription API errors do not show false empty state', platformSubscription.includes('!loading && !current && !error')],
+  ['subscription catalogue error differs from unpublished pricing', platformSubscription.includes('Platform plans are temporarily unavailable.') && platformSubscription.includes('Platform pricing has not been published yet.')],
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
   ['outcomes section exists', landing.includes('id="jn-outcomes-title"') && landing.includes('jn-outcomes-grid')],
