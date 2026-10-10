@@ -237,8 +237,9 @@ export class PaymentsService {
       }
 
       const eventId = inserted.rows[0].id as string;
-      await eventClient.query('COMMIT');
-
+      // Persist the durable work item in the same transaction as the webhook event.
+      // Otherwise a queue write failure after COMMIT would strand a RECEIVED event:
+      // provider retries would hit the duplicate path and never enqueue it again.
       await this.domainEvents.enqueue({
         tenantId,
         eventKey: `payment-webhook:${provider}:${providerEventId}`,
@@ -253,7 +254,9 @@ export class PaymentsService {
           providerReference: input.providerReference ?? null,
           targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'BILLING_ADMIN'],
         },
-      });
+      }, eventClient);
+
+      await eventClient.query('COMMIT');
 
       return {
         accepted: true,
