@@ -36,7 +36,7 @@ const required = [
   ['local integration logo source', landing.includes('/integrations/') && !landing.includes('https://cdn.simpleicons.org/')],
   ['uploaded brand logo set', brandLogo.includes('/ram-logo-scalable.svg') && brandLogo.includes('/1000242339.png') && brandLogo.includes('/capricon.png')],
 
-  ['official vector logo reference', landing.includes('/ram-logo-scalable.svg')],
+  ['official vector logo reference', brandLogo.includes('/ram-logo-scalable.svg')],
   ['official raster fallback references', brandLogo.includes('/1000242339.png') && brandLogo.includes('/capricon.png')],
   ['official logo in navigation', nav.includes("BrandLogo")],
   ['official logo in console chrome', chrome.includes("BrandLogo")],
