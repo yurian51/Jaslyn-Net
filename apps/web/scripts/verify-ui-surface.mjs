@@ -5,6 +5,7 @@ const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const layout = read('apps/web/app/layout.tsx');
+const robots = read('apps/web/app/robots.ts');
 const landing = read('apps/web/app/page.tsx');
 const landingNav = read('apps/web/app/landing-nav.tsx');
 const landingCss = read('apps/web/app/landing-premium.css');
@@ -33,6 +34,8 @@ const required = [
   ['reduced-motion preference respected', landingCss.includes('@media(prefers-reduced-motion:reduce)')],
   ['outcomes section adapts to mobile', landingCss.includes('@media(max-width:620px)') && landingCss.includes('.jn-outcomes-grid{grid-template-columns:1fr')],
   ['social card does not claim missing large image', read('apps/web/app/layout.tsx').includes("card: 'summary'")],
+  ['public indexing policy is explicit', layout.includes('robots: { index: true, follow: true }') && robots.includes("allow: '/'")],
+  ['Apple touch icon uses raster asset', layout.includes("apple: '/1000242339.png'")],
   ['preview explicitly illustrative', landing.includes('ILLUSTRATIVE WORKSPACE') && landing.includes('Illustrative session')],
   ['subscription API errors do not show false empty state', platformSubscription.includes('!loading && !current && !error')],
   ['subscription catalogue error differs from unpublished pricing', platformSubscription.includes('Platform plans are temporarily unavailable.') && platformSubscription.includes('Platform pricing has not been published yet.')],
