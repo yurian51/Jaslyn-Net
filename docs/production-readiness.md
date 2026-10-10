@@ -1,8 +1,10 @@
-# NEXORA Production Readiness
+# JASLYN NET Production Readiness
 
 ## Current foundation
 
-- Repository identity: `yurian51/nexora`
+> The package filter names below are retained as currently documented; verify them against the workspace manifests before using these commands in release automation.
+
+- Repository identity: `yurian51/Jaslyn-Net`
 - Frontend: Next.js + TypeScript
 - API: NestJS + TypeScript
 - Database: PostgreSQL
