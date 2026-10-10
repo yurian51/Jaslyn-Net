@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -38,7 +38,7 @@ export class NotificationsController {
     const category = body.category || 'TRANSACTIONAL';
     const availableAt = body.availableAt ? new Date(body.availableAt) : undefined;
     if (availableAt && Number.isNaN(availableAt.getTime())) {
-      throw new Error('availableAt must be a valid ISO date');
+      throw new BadRequestException('availableAt must be a valid ISO date');
     }
     return this.notifications.enqueueSms(req.user!.tenantId, {
       recipient: body.recipient || '',
