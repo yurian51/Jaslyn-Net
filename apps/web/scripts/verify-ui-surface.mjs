@@ -19,6 +19,10 @@ const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
 const platformSubscription = read('apps/web/app/dashboard/platform-subscription/page.tsx');
+const payments = read('apps/web/app/payments/page.tsx');
+const sessions = read('apps/web/app/sessions/page.tsx');
+const finance = read('apps/web/app/finance/page.tsx');
+const purchases = read('apps/web/app/purchases/page.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -39,6 +43,15 @@ const required = [
   ['preview explicitly illustrative', landing.includes('ILLUSTRATIVE WORKSPACE') && landing.includes('Illustrative session')],
   ['subscription API errors do not show false empty state', platformSubscription.includes('!loading && !current && !error')],
   ['subscription catalogue error differs from unpublished pricing', platformSubscription.includes('Platform plans are temporarily unavailable.') && platformSubscription.includes('Platform pricing has not been published yet.')],
+  ['dashboard does not report clean health without telemetry', dashboard.includes('No health conclusion can be drawn without an API snapshot') && dashboard.includes('API UNAVAILABLE')],
+  ['payment ledger and provider methods fail independently', payments.includes('paymentResult') && payments.includes('methodResult') && payments.includes('failures.join')],
+  ['payment totals respect currency boundaries', payments.includes('totalByCurrency') && payments.includes('Object.entries(totalByCurrency)')],
+  ['payment ledger search and status filter', payments.includes('visiblePayments') && payments.includes('statusFilter') && payments.includes('Search payments')],
+  ['session inventory supports operational search', sessions.includes('visibleSessions') && sessions.includes('Search sessions')],
+  ['session empty state distinguishes search filtering', sessions.includes('No sessions match this search and status filter.')],
+  ['finance domains survive partial endpoint failures', finance.includes('const results=await Promise.all(endpoints.map') && finance.includes('failures.join')],
+  ['purchase domains load independently', purchases.includes('const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests') && purchases.includes('failures.join')],
+
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
   ['outcomes section exists', landing.includes('id="jn-outcomes-title"') && landing.includes('jn-outcomes-grid')],
