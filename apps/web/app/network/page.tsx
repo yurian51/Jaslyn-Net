@@ -92,6 +92,7 @@ function Icon({ name }: { name: 'network' | 'plus' | 'refresh' | 'router' | 'use
 export default function NetworkPage() {
   const [routers, setRouters] = useState<Router[]>([]);
   const [loading, setLoading] = useState(true);
+  const [routersLoaded, setRoutersLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -113,6 +114,7 @@ export default function NetworkPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setRouters(Array.isArray(response.data) ? response.data : []);
+      setRoutersLoaded(true);
     } catch (cause: unknown) {
       setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load network devices.');
     } finally {
@@ -241,23 +243,23 @@ export default function NetworkPage() {
         <div className="network-stat-grid">
           <article className="network-stat">
             <div className="network-stat-icon"><Icon name="router" /></div>
-            <strong>{routers.length}</strong><span>Registered devices</span><small>tenant inventory</small>
+            <strong>{routersLoaded ? routers.length.toLocaleString() : '—'}</strong><span>Registered devices</span><small>tenant inventory</small>
           </article>
           <article className="network-stat online">
             <div className="network-stat-icon"><Icon name="network" /></div>
-            <strong>{online}</strong><span>Operational</span><small>online state</small>
+            <strong>{routersLoaded ? online.toLocaleString() : '—'}</strong><span>Operational</span><small>online state</small>
           </article>
           <article className="network-stat degraded">
             <div className="network-stat-icon"><Icon name="alert" /></div>
-            <strong>{degraded}</strong><span>Attention</span><small>degraded state</small>
+            <strong>{routersLoaded ? degraded.toLocaleString() : '—'}</strong><span>Attention</span><small>degraded state</small>
           </article>
           <article className="network-stat offline">
             <div className="network-stat-icon"><Icon name="offline" /></div>
-            <strong>{offline}</strong><span>Offline</span><small>not reporting</small>
+            <strong>{routersLoaded ? offline.toLocaleString() : '—'}</strong><span>Offline</span><small>not reporting</small>
           </article>
           <article className="network-stat users">
             <div className="network-stat-icon"><Icon name="users" /></div>
-            <strong>{users}</strong><span>Connected users</span><small>reported active users</small>
+            <strong>{routersLoaded ? users.toLocaleString() : '—'}</strong><span>Connected users</span><small>reported active users</small>
           </article>
         </div>
       </section>
@@ -374,7 +376,7 @@ export default function NetworkPage() {
             </tbody>
           </table>
 
-          {!loading && !filteredRouters.length ? (
+          {!loading && routersLoaded && !filteredRouters.length ? (
             <div className="network-empty">
               <div className="network-empty-icon"><Icon name="router" /></div>
               <strong>{query ? 'No matching devices' : 'No network devices registered'}</strong>
