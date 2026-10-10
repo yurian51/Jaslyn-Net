@@ -73,7 +73,7 @@ export default function PlatformSubscriptionPage() {
         {current.cancelAtPeriodEnd && <p className="platform-cancel-note">Cancellation is scheduled for the end of this billing period.</p>}
       </section>}
 
-      {!loading && !current && <section className="platform-empty">
+      {!loading && !current && !error && <section className="platform-empty">
         <div className="platform-empty-mark">↗</div><h2>No platform subscription assigned</h2>
         <p>This workspace does not currently have a subscription record. Your WiFi customer packages remain a separate catalogue.</p>
       </section>}
@@ -81,6 +81,7 @@ export default function PlatformSubscriptionPage() {
       <section className="platform-catalogue-section">
         <div className="platform-section-heading"><div><span className="platform-eyebrow">AVAILABLE TO WORKSPACES</span><h2>Platform plans</h2></div><span>{plans.length} active {plans.length === 1 ? 'plan' : 'plans'}</span></div>
         {loading && plans.length === 0 ? <div className="platform-plans-grid"><div className="platform-plan-skeleton" /><div className="platform-plan-skeleton" /></div> :
+          plans.length === 0 && error ? <div className="platform-catalogue-empty" role="status"><strong>Platform plans are temporarily unavailable.</strong><p>We could not confirm the catalogue from the API. Refresh to retry; no plan or price has been assumed.</p></div> :
           plans.length === 0 ? <div className="platform-catalogue-empty"><strong>Platform pricing has not been published yet.</strong><p>We do not display guessed prices. Once active SaaS plans are configured by the platform operator, their real prices and limits will appear here.</p></div> :
           <div className="platform-plans-grid">{plans.map(plan => <article className="platform-plan-card" key={plan.id}>
             <div className="platform-plan-code">{plan.code}</div><h3>{plan.name}</h3><p>{plan.description || 'JASLYN NET platform access plan.'}</p>
