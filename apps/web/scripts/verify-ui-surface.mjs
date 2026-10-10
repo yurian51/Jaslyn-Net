@@ -41,6 +41,7 @@ const finance = read('apps/web/app/finance/page.tsx');
 const purchases = read('apps/web/app/purchases/page.tsx');
 const customers = read('apps/web/app/customers/page.tsx');
 const vouchers = read('apps/web/app/vouchers/page.tsx');
+const network = read('apps/web/app/network/page.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -83,6 +84,7 @@ const required = [
   ['voucher ledger distinguishes unavailable from verified empty', vouchers.includes('Voucher ledger unavailable.') && vouchers.includes('No vouchers were returned for this tenant.')],
   ['voucher generation requires verified active package data', vouchers.includes('disabled={!packagesLoaded||packages.length===0}')],
   ['voucher print output escapes HTML content', vouchers.includes('escapeHtml(code)') && vouchers.includes('escapeHtml(lastBatch.printStyle)')],
+  ['network KPIs wait for a successful inventory snapshot', network.includes('routersLoaded ? routers.length.toLocaleString()') && network.includes('routersLoaded ? online.toLocaleString()') && network.includes('routersLoaded && !filteredRouters.length')],
 
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
