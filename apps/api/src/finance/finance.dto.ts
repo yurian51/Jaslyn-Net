@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateInvoiceDto {
   @IsUUID() customerId!: string;
@@ -31,6 +31,7 @@ export class CreateRefundDto {
   @IsUUID() paymentId!: string;
   @IsNumber() @Min(0.000001) amount!: number;
   @IsString() @MinLength(3) reason!: string;
+  @IsString() @MinLength(8) @MaxLength(200) idempotencyKey!: string;
 }
 export class CreateAdjustmentDto {
   @IsOptional() @IsUUID() customerId?: string;
