@@ -494,3 +494,10 @@
 .jn-outcomes-note{margin:15px 0 0;color:#929dad;font-size:10px;line-height:1.6}
 @media(max-width:850px){.jn-outcomes-heading{grid-template-columns:1fr;gap:16px}.jn-outcomes-heading .jn-kicker{margin-bottom:0}.jn-outcomes-heading>p{max-width:650px}.jn-outcomes-grid article{min-height:285px;padding-right:18px}.jn-outcomes-grid article+article{padding-left:18px}}
 @media(max-width:620px){.jn-outcomes{padding:60px 18px}.jn-outcomes-heading h2{font-size:36px}.jn-outcomes-grid{grid-template-columns:1fr;margin-top:28px}.jn-outcomes-grid article{min-height:0;padding:22px 0!important;border-left:0!important}.jn-outcomes-grid article+article{border-left:0;border-top:1px solid #e4eaf1}.jn-outcome-icon{margin:15px 0 12px}.jn-outcomes-grid a{margin-top:15px;padding-top:0}}
+
+/* The console preview is a concept illustration, not live tenant telemetry. */
+.jn-preview-sidebar-foot .jn-preview-example-dot{
+  display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;
+  background:#9ba7b5;box-shadow:0 0 0 4px rgba(155,167,181,.09);
+}
+.jn-preview-metrics span{color:#728096!important;font-weight:650!important}
