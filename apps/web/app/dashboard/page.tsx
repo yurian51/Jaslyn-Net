@@ -175,6 +175,7 @@ export default function DashboardPage() {
           <a href="/communication"><span>Communication</span><small>Messages &amp; commands</small></a>
           <a href="/packages"><span>Packages</span><small>Plans &amp; products</small></a>
           <a href="/dashboard/packages"><span>Jaslyn Tiers</span><small>Premium tier catalogue</small></a>
+          <a href="/dashboard/platform-subscription"><span>Workspace billing</span><small>Jaslyn Net plan &amp; limits</small></a>
         </div>
         <button className="commandbar-refresh" type="button" onClick={() => void load()} disabled={loading}>
           <i />{loading ? 'Refreshing telemetry' : 'Refresh telemetry'}
@@ -220,7 +221,7 @@ export default function DashboardPage() {
         </article>
 
         <article className="panel overview-panel network-summary">
-          <div className="panel-head"><div><div className="panel-kicker">NETWORK FABRIC</div><h2>Router health</h2><p>{n(network.totalRouters)} registered devices</p></div><span className="panel-badge">{network.degraded + network.offline ? `${network.degraded + network.offline} ATTENTION` : 'STABLE'}</span></div>
+          <div className="panel-head"><div><div className="panel-kicker">NETWORK FABRIC</div><h2>Router health</h2><p>{n(network.totalRouters)} registered devices</p></div><span className={`panel-badge ${!network.totalRouters || network.degraded + network.offline ? 'badge-danger' : ''}`}>{!network.totalRouters ? 'NO INVENTORY' : network.degraded + network.offline ? `${network.degraded + network.offline} ATTENTION` : 'STABLE'}</span></div>
           <div className="health-meter" style={healthStyle}><div className="health-meter-value">{availability == null ? 'N/A' : `${availability}%`}<small>availability</small></div></div>
           <div className="health-stats"><div><b>{network.online}</b><span>ONLINE</span></div><div><b>{network.degraded}</b><span>DEGRADED</span></div><div><b>{network.offline}</b><span>OFFLINE</span></div></div>
         </article>
@@ -258,7 +259,7 @@ export default function DashboardPage() {
         </article>
 
         <article className="panel overview-panel posture-panel">
-          <div className="panel-head"><div><div className="panel-kicker">ACCESS POSTURE</div><h2>Entitlement state</h2><p>Access validity signals returned by the API.</p></div><span className="panel-badge">{operations.access.expiring24h ? operations.access.expiring24h + ' EXPIRING' : 'STABLE'}</span></div>
+          <div className="panel-head"><div><div className="panel-kicker">ACCESS POSTURE</div><h2>Entitlement state</h2><p>Access validity signals returned by the API.</p></div><span className={`panel-badge ${operations.access.expiredButActive || operations.access.expiring24h ? 'badge-danger' : ''}`}>{operations.access.expiredButActive ? operations.access.expiredButActive + ' EXPIRED ACTIVE' : operations.access.expiring24h ? operations.access.expiring24h + ' EXPIRING' : 'STABLE'}</span></div>
           <div className="posture-list">
             <div><span>Valid active access</span><strong>{n(operations.access.activeValid)}</strong></div>
             <div><span>Expired but still active</span><strong className={operations.access.expiredButActive ? 'bad-text' : ''}>{n(operations.access.expiredButActive)}</strong></div>
@@ -276,6 +277,7 @@ export default function DashboardPage() {
           <a href="/network"><b>Network</b><span>Routers, gateways and management state →</span></a>
           <a href="/packages"><b>Plans &amp; Products</b><span>Access packages and catalogue operations →</span></a>
           <a href="/dashboard/packages"><b>Jaslyn Tiers</b><span>Eight premium package tiers and feature flags →</span></a>
+          <a href="/dashboard/platform-subscription"><b>Workspace billing</b><span>Current Jaslyn Net plan, billing period and workspace limits →</span></a>
           <a href="/purchases"><b>Purchases</b><span>Payment, voucher and access operations →</span></a>
           <a href="/customer-commerce"><b>Customer Commerce</b><span>Wallet, beneficiaries, saved purchases, rewards and renewals →</span></a>
           <a href="/communication"><b>Communication</b><span>Telegram-style conversations, search and operator commands →</span></a>
