@@ -42,6 +42,14 @@ const purchases = read('apps/web/app/purchases/page.tsx');
 const customers = read('apps/web/app/customers/page.tsx');
 const vouchers = read('apps/web/app/vouchers/page.tsx');
 const network = read('apps/web/app/network/page.tsx');
+const notificationsPage = read('apps/web/app/notifications/page.tsx');
+const notificationsService = read('apps/api/src/notifications/notifications.service.ts');
+const notificationsController = read('apps/api/src/notifications/notifications.controller.ts');
+const smsProvider = read('apps/api/src/notifications/sms.provider.ts');
+const smsWorker = read('apps/api/src/notifications/notifications.worker.ts');
+const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
+const purchasesService = read('apps/api/src/purchases/purchases.service.ts');
+const expiryService = read('apps/api/src/isp-operations/isp-expiry.service.ts');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -113,6 +121,18 @@ const required = [
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
+  ['SMS provider fails closed until explicitly enabled and configured', smsProvider.includes("SMS_ENABLED') === 'true'") && smsProvider.includes('!status.configured') && smsProvider.includes('BEEM_SECRET_KEY')],
+  ['SMS outbox is tenant-scoped and idempotent', notificationsService.includes('ON CONFLICT (tenant_id,dedupe_key)') && notificationsService.includes('WHERE tenant_id = $1') && notificationsService.includes('claimSms')],
+  ['marketing SMS requires tenant-specific opt-in', notificationsService.includes('sms_marketing_consent=true') && notificationsService.includes('Marketing SMS requires recorded customer opt-in')],
+  ['SMS worker does not claim while provider is disabled', smsWorker.includes('if (!this.sms.status().configured) return') && smsWorker.includes('if (this.running || !this.sms.status().configured) return')],
+  ['SMS worker has bounded exponential retries', smsWorker.includes('Math.min(3600, 15 * 2 **') && notificationsService.includes('attempts >= 8')],
+  ['provider acknowledgement is tracked without exposing secrets', notificationsService.includes('provider_message_id') && smsProvider.includes('credentialsPresent')],
+  ['payment receipt is queued in the settlement transaction', purchasesService.includes('Persist the payment receipt in the same transaction') && purchasesService.includes('purchase-paid:')],
+  ['expiry reminders and final notices use dedupe keys', expiryService.includes('expiry-reminder:') && expiryService.includes('expiry-final:')],
+  ['SMS operations UI distinguishes provider acceptance from handset delivery', notificationsPage.includes('Accepted by provider') && notificationsPage.includes('not a handset delivery receipt') && notificationsPage.includes('SMS DELIVERY PROVIDER')],
+  ['SMS endpoints are guarded and expose only provider readiness', notificationsController.includes('@UseGuards(AuthGuard, RolesGuard)') && notificationsController.includes("@Get('sms/status')") && notificationsController.includes("@Post('sms')")],
+  ['SMS schema records marketing consent and provider receipts', smsMigration.includes('sms_marketing_consent') && smsMigration.includes('provider_message_id') && smsMigration.includes('notification_outbox_sms_claim_idx')],
+
   ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
 
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
