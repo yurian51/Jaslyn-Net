@@ -32,6 +32,7 @@ export const metadata: Metadata = {
   title: 'JASLYN NET | Connectivity & ISP Operating System',
   description: 'JASLYN NET helps WiFi operators, ISPs and managed network teams connect customer management, billing, access workflows and network operations in one control plane.',
   applicationName: 'JASLYN NET',
+  robots: { index: true, follow: true },
   keywords: ['WiFi management', 'ISP billing', 'hotspot management', 'RADIUS', 'network operations', 'subscriber management', 'JASLYN NET'],
   openGraph: {
     title: 'JASLYN NET | Connectivity Operations Platform',
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: '/ram-logo-scalable.svg',
-    apple: '/ram-logo-scalable.svg',
+    apple: '/1000242339.png',
   },
 };
 
