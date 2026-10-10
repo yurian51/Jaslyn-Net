@@ -114,6 +114,20 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
   useEffect(() => { setMoreOpen(false); setHeaderMenuOpen(false); }, [pathname]);
 
+
+
+  useEffect(() => {
+    if (!commandOpen) return;
+    const input = document.getElementById('jaslyn-command-search') as HTMLInputElement | null;
+    input?.focus();
+  }, [commandOpen]);
+
+  const commandResults = useMemo(() => {
+    const query = commandQuery.trim().toLowerCase();
+    if (!query) return nav.slice(0, 10);
+    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
+  }, [commandQuery]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -143,19 +157,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  useEffect(() => {
-    if (!commandOpen) return;
-    const input = document.getElementById('jaslyn-command-search') as HTMLInputElement | null;
-    input?.focus();
-  }, [commandOpen]);
-
-  const commandResults = useMemo(() => {
-    const query = commandQuery.trim().toLowerCase();
-    if (!query) return nav.slice(0, 10);
-    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
-  }, [commandQuery]);
+  }, [commandOpen, commandResults, commandIndex, router]);
 
   useEffect(() => { setCommandIndex(0); }, [commandQuery]);
 
