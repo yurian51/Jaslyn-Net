@@ -17,7 +17,11 @@ type Notification = {
   updatedAt: string;
   sentAt?: string | null;
   availableAt?: string | null;
+  category?: string;
+  providerMessageId?: string | null;
 };
+
+type SmsProviderStatus = { provider: string; enabled: boolean; configured: boolean; credentialsPresent: boolean; senderIdConfigured: boolean; mode: string };
 
 type Stats = {
   PENDING: number;
@@ -54,6 +58,8 @@ export default function NotificationsPage() {
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [smsProvider, setSmsProvider] = useState<SmsProviderStatus | null>(null);
+  const [smsStatusError, setSmsStatusError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -83,6 +89,19 @@ export default function NotificationsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+    apiFetch<SmsProviderStatus>('/notifications/sms/status', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((status) => {
+      setSmsProvider(status);
+      setSmsStatusError(null);
+    }).catch((err: unknown) => {
+      setSmsStatusError(err instanceof Error ? err.message : 'SMS provider status unavailable.');
+    });
+  }, []);
 
   async function recover() {
     const token = getAccessToken();
@@ -114,7 +133,7 @@ export default function NotificationsPage() {
   const statCards = [
     { key: 'PENDING', value: stats.PENDING, icon: 'clock' as const, label: 'Waiting to send', tone: 'pending' },
     { key: 'PROCESSING', value: stats.PROCESSING, icon: 'refresh' as const, label: 'In processing', tone: 'processing' },
-    { key: 'SENT', value: stats.SENT, icon: 'check' as const, label: 'Delivered successfully', tone: 'sent' },
+    { key: 'SENT', value: stats.SENT, icon: 'check' as const, label: 'Accepted by provider', tone: 'sent' },
     { key: 'FAILED', value: stats.FAILED, icon: 'alert' as const, label: 'Needs attention', tone: 'failed' },
     { key: 'CANCELED', value: stats.CANCELED, icon: 'x' as const, label: 'Canceled', tone: 'canceled' },
   ];
@@ -127,7 +146,7 @@ export default function NotificationsPage() {
           <div>
             <span className="notifications-eyebrow">JASLYN NET · OPERATIONS</span>
             <h1>Notifications</h1>
-            <p>Delivery health, queue state and recovery controls for the authenticated tenant.</p>
+            <p>Delivery queue, provider acceptance and retry controls for the authenticated tenant. Provider acceptance is not a handset delivery receipt.</p>
           </div>
         </div>
 
@@ -149,6 +168,19 @@ export default function NotificationsPage() {
           <span>{error}</span>
         </div>
       ) : null}
+
+      <section className="notifications-sms-provider" aria-label="SMS provider configuration">
+        <div>
+          <span className="notifications-sms-eyebrow">SMS DELIVERY PROVIDER</span>
+          <strong>{smsProvider?.provider === 'beem' ? 'Beem SMS API' : (smsProvider?.provider || 'Provider status')}</strong>
+          <p>{smsStatusError || (smsProvider?.configured
+            ? 'Provider credentials are present and SMS worker is enabled. A provider acceptance is not a handset delivery receipt.'
+            : 'SMS delivery is safely disabled until credentials, sender ID and SMS_ENABLED=true are configured.')}</p>
+        </div>
+        <span className={`notifications-sms-state ${smsProvider?.configured ? 'ready' : 'disabled'}`}>
+          {smsStatusError ? 'STATUS UNKNOWN' : smsProvider?.configured ? 'CONFIGURED' : 'DISABLED'}
+        </span>
+      </section>
 
       <section className="notifications-overview" aria-label="Notification status">
         <div className="notifications-overview-copy">
@@ -190,10 +222,12 @@ export default function NotificationsPage() {
               <tr>
                 <th>Event</th>
                 <th>Channel</th>
+                <th>Category</th>
                 <th>Recipient</th>
                 <th>Status</th>
                 <th>Attempts</th>
                 <th>Available</th>
+                <th>Provider receipt</th>
                 <th>Last error</th>
                 <th>Created</th>
               </tr>
@@ -206,10 +240,12 @@ export default function NotificationsPage() {
                     <small>{row.id.slice(0, 8)}…</small>
                   </td>
                   <td><span className="notifications-channel">{row.channel}</span></td>
+                  <td><span className="notifications-channel">{row.category ?? '—'}</span></td>
                   <td className="notifications-recipient">{row.recipient}</td>
                   <td><span className={`notifications-status ${row.status.toLowerCase()}`}><i />{row.status}</span></td>
                   <td>{row.attempts}</td>
                   <td>{fmt(row.availableAt)}</td>
+                  <td><small>{row.providerMessageId ?? '—'}</small></td>
                   <td><small className="notifications-error-text">{row.lastError ?? '—'}</small></td>
                   <td>{fmt(row.createdAt)}</td>
                 </tr>

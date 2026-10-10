@@ -145,7 +145,7 @@ export class PurchasesService {
       throw new ConflictException('External payment providers must be verified through their provider webhook');
     }
     const providerReference = input.providerReference.trim();
-    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'PAID';
+    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
     let correlationId = getCorrelationId() ?? null;
     try {
       await client.query('BEGIN');
@@ -174,7 +174,7 @@ export class PurchasesService {
         const existing = existingByKey.rows[0];
         if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
         if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-        if (existing.status === 'PAID') {
+        if (existing.status === 'SUCCESS') {
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
@@ -191,7 +191,7 @@ export class PurchasesService {
         }
 
         await client.query(
-          `UPDATE payments SET provider_reference=$2, status='PAID', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+          `UPDATE payments SET provider_reference=$2, status='SUCCESS', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
           [tenantId, providerReference, existing.id, correlationId],
         );
         await this.payments.recordVerifiedSettlement(client, tenantId, existing.id, current.price, current.currency, provider);
@@ -233,7 +233,7 @@ export class PurchasesService {
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
-        await client.query(`UPDATE payments SET provider_reference=$2, status='PAID', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
+        await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
         await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       } else {
         const payment = await client.query(
@@ -262,6 +262,45 @@ export class PurchasesService {
       await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
       await this.recordPromoRedemption(client, tenantId, current, correlationId!);
       await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
+      // Persist the payment receipt in the same transaction as settlement and access activation.
+      await client.query(
+        `INSERT INTO notification_outbox (tenant_id,channel,recipient,event_type,payload,available_at,dedupe_key,category)
+         SELECT p.tenant_id,'SMS',
+                CASE WHEN digits LIKE '0%' THEN '255'||substring(digits FROM 2) ELSE digits END,
+                'PAYMENT',
+                jsonb_build_object('message', 'Malipo yamepokelewa. Kifurushi '||k.name||' kimewashwa. Kiasi: '||p.price::text||' '||p.currency||'.'),
+                now(),'purchase-paid:'||p.id,'PAYMENT'
+           FROM wifi_plan_purchases p
+           JOIN customers c ON c.tenant_id=p.tenant_id AND c.id=p.customer_id
+           JOIN packages k ON k.tenant_id=p.tenant_id AND k.id=p.package_id
+           CROSS JOIN LATERAL (SELECT regexp_replace(coalesce(c.phone,''),'[^0-9]','','g') AS digits) normalized
+          WHERE p.tenant_id=$1 AND p.id=$2
+            AND (digits ~ '^255[0-9]{9}
+      return { purchase: await this.get(tenantId, purchaseId), paymentId };
+    } catch (error: any) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (error?.code === '23505') throw new ConflictException('Payment reference or idempotency key already exists');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+ OR digits ~ '^0[0-9]{9}
+      return { purchase: await this.get(tenantId, purchaseId), paymentId };
+    } catch (error: any) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (error?.code === '23505') throw new ConflictException('Payment reference or idempotency key already exists');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+)
+         ON CONFLICT (tenant_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+        [tenantId, purchaseId],
+      );
       await client.query('COMMIT');
       return { purchase: await this.get(tenantId, purchaseId), paymentId };
     } catch (error: any) {
