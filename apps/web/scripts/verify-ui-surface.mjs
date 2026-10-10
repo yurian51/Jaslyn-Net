@@ -70,6 +70,7 @@ const required = [
   ['official logo in console chrome', chrome.includes("BrandLogo")],
   ['official logo in auth', login.includes("BrandLogo") && register.includes("BrandLogo")],
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-progress')],
+  ['console navigation avoids dead WiFi operations route', chrome.includes("['WiFi Operations', 'isp', '/isp']") && !chrome.includes("'/upesilipa'")],
   ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
