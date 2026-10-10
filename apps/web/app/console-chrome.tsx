@@ -50,7 +50,7 @@ const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
 
 const publicRoutes = new Set(['/', '/login', '/register']);
 const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
-const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
+const isRouteActive = (pathname: string, href: string) => pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 
 function NavIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
