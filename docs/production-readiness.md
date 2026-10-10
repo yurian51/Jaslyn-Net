@@ -18,8 +18,8 @@
 ## Release gates
 
 1. `pnpm install --no-frozen-lockfile --ignore-scripts`
-2. `pnpm --filter @nexora/api typecheck`
-3. `pnpm --filter @nexora/web typecheck`
+2. `pnpm --filter @jaslyn-net/api typecheck`
+3. `pnpm --filter @jaslyn-net/web typecheck`
 4. `pnpm --filter @nexora/api build`
 5. `pnpm --filter @nexora/web build`
 6. Validate database migrations against a disposable PostgreSQL instance.
