@@ -39,6 +39,7 @@ const payments = read('apps/web/app/payments/page.tsx');
 const sessions = read('apps/web/app/sessions/page.tsx');
 const finance = read('apps/web/app/finance/page.tsx');
 const purchases = read('apps/web/app/purchases/page.tsx');
+const customers = read('apps/web/app/customers/page.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -74,6 +75,9 @@ const required = [
   ['purchase ledger does not show false zero metrics', purchases.includes('loadedDomains.includes(\'Purchases\')') && purchases.includes('Purchase ledger unavailable')],
 
   ['purchase domains load independently', purchases.includes('const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests') && purchases.includes('failures.join')],
+  ['customer purchase history distinguishes unavailable from empty', customers.includes('salesError') && customers.includes('Purchase history unavailable:') && customers.includes('No customer purchases were returned')],
+  ['customer directory supports active-only filtering', customers.includes("params.set('activeOnly', String(onlyActive))") && customers.includes('Show active customers only')],
+  ['customer counts are not presented before successful load', customers.includes("customersLoaded?pagination.total.toLocaleString():'—'") && customers.includes("salesLoaded&&!salesLoading?sales.length.toLocaleString()")],
 
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
