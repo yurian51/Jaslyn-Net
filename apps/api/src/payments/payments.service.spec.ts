@@ -202,6 +202,7 @@ describe('PaymentsService', () => {
     expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
       eventKey: 'payment-webhook:mpesa:evt-atomic-1',
       aggregateId: 'event-atomic-1',
+      payload: expect.objectContaining({ status: 'SUCCESS', paymentId: null, purchaseId: null }),
     }), eventClient);
     expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
     expect(eventClient.query).not.toHaveBeenCalledWith('COMMIT');
