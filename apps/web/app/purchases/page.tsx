@@ -176,35 +176,49 @@ export default function PurchasesPage() {
     setLoading(true);
     setError('');
 
-    try {
-      const [purchaseResponse, methodsResponse, packageResponse, customerResponse, routerResponse] = await Promise.all([
-        apiFetch<{ data?: Purchase[] }>('/purchases', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PurchasePackage[] }>('/packages?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PurchaseCustomer[] }>('/customers?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PurchaseRouter[] }>('/routers?limit=100', { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
+    const requests = await Promise.all([
+      apiFetch<{ data?: Purchase[] }>('/purchases', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PurchasePackage[] }>('/packages?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PurchaseCustomer[] }>('/customers?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PurchaseRouter[] }>('/routers?limit=100', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+    ]);
 
-      const purchaseRows = purchaseResponse.data ?? [];
+    const failures: string[] = [];
+    const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests;
+    if ('value' in purchaseResult) {
+      const purchaseRows = purchaseResult.value.data ?? [];
       setRows(purchaseRows);
+      setSelectedId(current => current && purchaseRows.some(row => row.id === current) ? current : purchaseRows[0]?.id ?? '');
+    } else failures.push('Purchases: ' + (purchaseResult.cause instanceof Error ? purchaseResult.cause.message : 'request failed'));
 
-      const enabled = (methodsResponse.data ?? FALLBACK_PAYMENT_PROVIDERS).filter(item => item.enabled);
+    if ('value' in methodsResult) {
+      const enabled = (methodsResult.value.data ?? []).filter(item => item.enabled);
       const operational = enabled.length ? enabled : FALLBACK_PAYMENT_PROVIDERS;
       setProviders(operational);
-      setPackages((packageResponse.data ?? []).filter(item => item.isActive));
-      setCustomers((customerResponse.data ?? []).filter(item => item.isActive));
-      setRouters(routerResponse.data ?? []);
-
       setProvider(current => operational.some(item => item.code === current) ? current : operational[0]?.code ?? 'manual');
-      setSelectedId(current => current || purchaseRows[0]?.id || '');
-      setFlowPackage(current => current || (packageResponse.data ?? []).find(item => item.isActive)?.id || '');
-      setFlowCustomer(current => current || (customerResponse.data ?? []).find(item => item.isActive)?.id || '');
-      setFlowRouter(current => current || (routerResponse.data ?? []).find(item => ['ONLINE','CONNECTED'].includes(upper(item.status)))?.id || '');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load purchase operations.');
-    } finally {
-      setLoading(false);
-    }
+    } else failures.push('Payment methods: ' + (methodsResult.cause instanceof Error ? methodsResult.cause.message : 'request failed'));
+
+    if ('value' in packageResult) {
+      const activePackages = (packageResult.value.data ?? []).filter(item => item.isActive);
+      setPackages(activePackages);
+      setFlowPackage(current => current || activePackages[0]?.id || '');
+    } else failures.push('Packages: ' + (packageResult.cause instanceof Error ? packageResult.cause.message : 'request failed'));
+
+    if ('value' in customerResult) {
+      const activeCustomers = (customerResult.value.data ?? []).filter(item => item.isActive);
+      setCustomers(activeCustomers);
+      setFlowCustomer(current => current || activeCustomers[0]?.id || '');
+    } else failures.push('Customers: ' + (customerResult.cause instanceof Error ? customerResult.cause.message : 'request failed'));
+
+    if ('value' in routerResult) {
+      const availableRouters = routerResult.value.data ?? [];
+      setRouters(availableRouters);
+      setFlowRouter(current => current || availableRouters.find(item => ['ONLINE', 'CONNECTED'].includes(upper(item.status)))?.id || '');
+    } else failures.push('Routers: ' + (routerResult.cause instanceof Error ? routerResult.cause.message : 'request failed'));
+
+    setError(failures.length ? failures.join(' · ') : '');
+    setLoading(false);
   }, []);
 
   useEffect(() => {
