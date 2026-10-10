@@ -173,7 +173,7 @@ export default function Home() {
         <div className="jn-hero-visual">
           <ProductPreview />
           <div className="jn-floating-card">
-            <span className="status-dot" />
+            <span className="jn-preview-example-dot" aria-hidden="true" />
             <div><small>OPERATING MODEL</small><b>Customer → Service → Access</b></div>
           </div>
         </div>
