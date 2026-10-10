@@ -6,7 +6,7 @@ type Voucher={id:string;code:string;packageId:string;packageName:string;status:s
 type Package={id:string;name:string;price:string|number;currency:string;durationSeconds:number;isActive:boolean;isFreeTrial?:boolean;devicesPerCode?:number};
 const date=(v?:string|null)=>!v?'No expiry':new Date(v).toLocaleString();
 const duration=(s:number)=>s%86400===0?(s/86400)+' day':s%3600===0?(s/3600)+' hour':Math.max(1,Math.floor(s/60))+' min';
-const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]||char));
+const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,char=>{const escapes:Record<string,string>={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};return escapes[char]||char});
 export default function VouchersPage(){
  const [vouchers,setVouchers]=useState<Voucher[]>([]),[packages,setPackages]=useState<Package[]>([]),[loading,setLoading]=useState(true),[vouchersLoaded,setVouchersLoaded]=useState(false),[packagesLoaded,setPackagesLoaded]=useState(false),[voucherError,setVoucherError]=useState(''),[packageError,setPackageError]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('');
  const [batch,setBatch]=useState({packageId:'',quantity:'10',expires:'2592000',format:'LETTERS_NUMBERS',size:'MINI',style:'CLASSIC'});
