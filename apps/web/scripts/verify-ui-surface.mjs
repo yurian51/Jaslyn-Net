@@ -6,6 +6,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const layout = read('apps/web/app/layout.tsx');
 const landing = read('apps/web/app/page.tsx');
+const landingNav = read('apps/web/app/landing-nav.tsx');
+const landingCss = read('apps/web/app/landing-premium.css');
 const register = read('apps/web/app/register/page.tsx');
 const login = read('apps/web/app/login/page.tsx');
 const nav = read('apps/web/app/landing-nav.tsx');
@@ -21,6 +23,16 @@ const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
   ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
   ['LandingNav usage', landing.includes('<LandingNav />')],
+  ['mobile menu focus management', landingNav.includes('focusable?.[0]?.focus()') && landingNav.includes('event.key === \'Escape\'') && landingNav.includes('last.focus()')],
+  ['mobile menu trigger semantics', landingNav.includes('aria-expanded={open}') && landingNav.includes('aria-controls="landing-mobile-menu"')],
+  ['all navigation section targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
+  ['real routes exist for landing CTAs', ['/register', '/login', '/packages'].every((route) => landing.includes('href="' + route + '"'))],
+  ['integration claims include deployment caveat', landing.includes('confirm compatibility before planning a production cutover')],
+  ['no green live-status marker on illustrative preview', !landing.includes('className="status-dot"') && landing.includes('className="jn-preview-example-dot"')],
+  ['mobile landing breakpoints present', landingCss.includes('@media(max-width:760px)') && landingCss.includes('@media(max-width:520px)')],
+  ['reduced-motion preference respected', landingCss.includes('@media(prefers-reduced-motion:reduce)')],
+  ['outcomes section adapts to mobile', landingCss.includes('@media(max-width:620px)') && landingCss.includes('.jn-outcomes-grid{grid-template-columns:1fr')],
+  ['social card does not claim missing large image', read('apps/web/app/layout.tsx').includes("card: 'summary'")],
   ['preview explicitly illustrative', landing.includes('ILLUSTRATIVE WORKSPACE') && landing.includes('Illustrative session')],
   ['subscription API errors do not show false empty state', platformSubscription.includes('!loading && !current && !error')],
   ['subscription catalogue error differs from unpublished pricing', platformSubscription.includes('Platform plans are temporarily unavailable.') && platformSubscription.includes('Platform pricing has not been published yet.')],
