@@ -206,12 +206,18 @@ export class PaymentsService {
       const inserted = await eventClient.query(
         `INSERT INTO payment_events
            (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status, correlation_id)
-         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED',$6)
+         VALUES ($1,$7,$2,$3,$4,$5,true,'RECEIVED',$6)
          ON CONFLICT (tenant_id, provider, provider_event_id)
          WHERE provider_event_id IS NOT NULL
          DO NOTHING
          RETURNING id`,
-        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}, correlationId],
+        [tenantId, provider, providerEventId, input.eventType.trim(), {
+          status: input.status,
+          paymentId: input.paymentId ?? null,
+          purchaseId: input.purchaseId ?? null,
+          providerReference: input.providerReference ?? null,
+          providerPayload: input.payload ?? {},
+        }, correlationId, input.paymentId ?? null],
       );
 
       if (!inserted.rowCount) {
@@ -250,8 +256,11 @@ export class PaymentsService {
           provider,
           providerEventId,
           eventType: input.eventType.trim(),
+          status: input.status,
           paymentId: input.paymentId ?? null,
+          purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,
+          providerPayload: input.payload ?? {},
           targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'BILLING_ADMIN'],
         },
       }, eventClient);
