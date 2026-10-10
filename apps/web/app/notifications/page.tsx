@@ -133,7 +133,7 @@ export default function NotificationsPage() {
   const statCards = [
     { key: 'PENDING', value: stats.PENDING, icon: 'clock' as const, label: 'Waiting to send', tone: 'pending' },
     { key: 'PROCESSING', value: stats.PROCESSING, icon: 'refresh' as const, label: 'In processing', tone: 'processing' },
-    { key: 'SENT', value: stats.SENT, icon: 'check' as const, label: 'Delivered successfully', tone: 'sent' },
+    { key: 'SENT', value: stats.SENT, icon: 'check' as const, label: 'Accepted by provider', tone: 'sent' },
     { key: 'FAILED', value: stats.FAILED, icon: 'alert' as const, label: 'Needs attention', tone: 'failed' },
     { key: 'CANCELED', value: stats.CANCELED, icon: 'x' as const, label: 'Canceled', tone: 'canceled' },
   ];
@@ -146,7 +146,7 @@ export default function NotificationsPage() {
           <div>
             <span className="notifications-eyebrow">JASLYN NET · OPERATIONS</span>
             <h1>Notifications</h1>
-            <p>Delivery health, queue state and recovery controls for the authenticated tenant.</p>
+            <p>Delivery queue, provider acceptance and retry controls for the authenticated tenant. Provider acceptance is not a handset delivery receipt.</p>
           </div>
         </div>
 
@@ -174,7 +174,7 @@ export default function NotificationsPage() {
           <span className="notifications-sms-eyebrow">SMS DELIVERY PROVIDER</span>
           <strong>{smsProvider?.provider === 'beem' ? 'Beem SMS API' : (smsProvider?.provider || 'Provider status')}</strong>
           <p>{smsStatusError || (smsProvider?.configured
-            ? 'Provider credentials are present and SMS worker is enabled. Queue acceptance is not the same as handset delivery.'
+            ? 'Provider credentials are present and SMS worker is enabled. A provider acceptance is not a handset delivery receipt.'
             : 'SMS delivery is safely disabled until credentials, sender ID and SMS_ENABLED=true are configured.')}</p>
         </div>
         <span className={`notifications-sms-state ${smsProvider?.configured ? 'ready' : 'disabled'}`}>
