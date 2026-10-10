@@ -69,3 +69,14 @@ JASLYN NET is one product in the wider JASLYN ecosystem. Other JASLYN products m
 JASLYN NET is proprietary software of YURIAN TECH LTD. Repository access does not grant a license to copy, redistribute, modify, reverse engineer, or publish the source. Development access is controlled through GitHub permissions, protected branches, CODEOWNERS and security checks.
 
 Production credentials and secrets are never part of the repository. Use environment/deployment secret storage for credentials.
+
+
+## Product strategy and delivery documents
+
+- [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)
+- [Competitive gap audit and prioritized execution backlog](docs/COMPETITIVE-GAP-AUDIT.md)
+- [Production readiness gates and launch blockers](docs/production-readiness.md)
+- [Product architecture and source-of-truth rules](docs/product-architecture.md)
+- [UpesiPay integration boundary and verification notes](docs/UPESIPAY-INTEGRATION.md)
+
+**Capability truth rule:** AI-NOC and other roadmap capabilities must be treated as intended product direction unless an end-to-end implementation and its tests prove the capability exists. Never infer production readiness from README wording alone.
