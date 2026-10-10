@@ -9,6 +9,7 @@ import './auth.css';
 import './legal/legal.css';
 import './console-system-ui.css';
 import './plan-catalogue.css';
+import './dashboard/platform-subscription/platform-subscription.css';
 import './landing.css';
 import './premium.css';
 import './enterprise-presence.css';
