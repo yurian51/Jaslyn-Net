@@ -203,6 +203,15 @@ export class PaymentsService {
     try {
       await eventClient.query('BEGIN');
 
+      // Never trust a caller-supplied internal payment ID across tenant/provider boundaries.
+      if (input.paymentId) {
+        const payment = await eventClient.query(
+          `SELECT id FROM payments WHERE tenant_id=$1 AND id=$2 AND provider=$3 FOR UPDATE`,
+          [tenantId, input.paymentId, provider],
+        );
+        if (!payment.rowCount) throw new NotFoundException('Payment not found for this tenant and provider');
+      }
+
       const inserted = await eventClient.query(
         `INSERT INTO payment_events
            (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status, correlation_id)
