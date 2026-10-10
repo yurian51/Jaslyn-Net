@@ -19,6 +19,22 @@ const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
 const platformSubscription = read('apps/web/app/dashboard/platform-subscription/page.tsx');
+
+const routeExists = (route) => {
+  const segments = route.split('/').filter(Boolean);
+  const visit = (directory, index) => {
+    if (index === segments.length) {
+      return ['page.tsx', 'page.ts', 'page.jsx', 'page.js', 'route.ts'].some((file) => fs.existsSync(path.join(directory, file)));
+    }
+    const exact = path.join(directory, segments[index]);
+    if (fs.existsSync(exact) && fs.statSync(exact).isDirectory() && visit(exact, index + 1)) return true;
+    return fs.readdirSync(directory, { withFileTypes: true })
+      .some((entry) => entry.isDirectory() && /^\\[.+\\]$/.test(entry.name) && visit(path.join(directory, entry.name), index + 1));
+  };
+  return visit('apps/web/app', 0);
+};
+
+const consoleNavigationRoutes = [...chrome.matchAll(/\\['[^']+',\\s*'[^']+',\\s*'([^']+)'\\]/g)].map((match) => match[1]);
 const payments = read('apps/web/app/payments/page.tsx');
 const sessions = read('apps/web/app/sessions/page.tsx');
 const finance = read('apps/web/app/finance/page.tsx');
@@ -78,6 +94,7 @@ const required = [
   ['official logo in auth', login.includes("BrandLogo") && register.includes("BrandLogo")],
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-progress')],
   ['console navigation avoids dead WiFi operations route', chrome.includes("['WiFi Operations', 'isp', '/isp']") && !chrome.includes("'/upesilipa'")],
+  ['all console navigation routes resolve to app pages', consoleNavigationRoutes.length > 0 && consoleNavigationRoutes.every(routeExists)],
   ['command palette keyboard handler tracks live search results', chrome.includes('[commandOpen, commandResults, commandIndex, router]') && chrome.indexOf('const commandResults = useMemo') < chrome.indexOf('[commandOpen, commandResults, commandIndex, router]')],
   ['command palette traps and restores keyboard focus', chrome.includes("event.key === 'Tab'") && chrome.includes('commandOpenerRef.current?.focus()') && chrome.includes('commandOpenerRef.current = event.currentTarget')],
   ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
