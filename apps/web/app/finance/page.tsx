@@ -12,14 +12,21 @@ export default function FinancePage(){
   const [invoices,setInvoices]=useState<Row[]>([]),[resellers,setResellers]=useState<Row[]>([]),[commissions,setCommissions]=useState<Row[]>([]);
   const [refunds,setRefunds]=useState<Row[]>([]),[disputes,setDisputes]=useState<Row[]>([]),[recons,setRecons]=useState<Row[]>([]);
   const [loading,setLoading]=useState(true),[error,setError]=useState('');
-  const token=getAccessToken();
-  const load=async()=>{if(!token)return;setLoading(true);setError('');try{const h={Authorization:`Bearer ${token}`};const [i,r,c,f,d,x]=await Promise.all([
-    apiFetch<{data:Row[]}>('/finance/invoices',{headers:h}),apiFetch<{data:Row[]}>('/finance/resellers',{headers:h}),
-    apiFetch<{data:Row[]}>('/finance/commissions',{headers:h}),apiFetch<{data:Row[]}>('/finance/refunds',{headers:h}),
-    apiFetch<{data:Row[]}>('/finance/disputes',{headers:h}),apiFetch<{data:Row[]}>('/finance/reconciliation',{headers:h})]);
-    setInvoices(i.data||[]);setResellers(r.data||[]);setCommissions(c.data||[]);setRefunds(f.data||[]);setDisputes(d.data||[]);setRecons(x.data||[]);
-  }catch(e:any){setError(e?.message||'Finance data could not be loaded.')}finally{setLoading(false)}}; 
-  useEffect(()=>{load()},[]);
+  const load=async()=>{const token=getAccessToken();if(!token){setError('Sign in to load tenant finance data.');setLoading(false);return;}setLoading(true);setError('');const h={Authorization:`Bearer ${token}`};
+    const endpoints=[
+      {name:'Invoices',request:apiFetch<{data:Row[]}>('/finance/invoices',{headers:h}),apply:(rows:Row[])=>setInvoices(rows)},
+      {name:'Resellers',request:apiFetch<{data:Row[]}>('/finance/resellers',{headers:h}),apply:(rows:Row[])=>setResellers(rows)},
+      {name:'Commissions',request:apiFetch<{data:Row[]}>('/finance/commissions',{headers:h}),apply:(rows:Row[])=>setCommissions(rows)},
+      {name:'Refunds',request:apiFetch<{data:Row[]}>('/finance/refunds',{headers:h}),apply:(rows:Row[])=>setRefunds(rows)},
+      {name:'Disputes',request:apiFetch<{data:Row[]}>('/finance/disputes',{headers:h}),apply:(rows:Row[])=>setDisputes(rows)},
+      {name:'Reconciliation',request:apiFetch<{data:Row[]}>('/finance/reconciliation',{headers:h}),apply:(rows:Row[])=>setRecons(rows)},
+    ];
+    const results=await Promise.all(endpoints.map(async endpoint=>({name:endpoint.name,apply:endpoint.apply,result:await endpoint.request.then(value=>({value})).catch(cause=>({cause}))})));
+    const failures:string[]=[];
+    for(const item of results){if('value' in item.result){item.apply(Array.isArray(item.result.value.data)?item.result.value.data:[]);}else{failures.push(item.name+': '+(item.result.cause instanceof Error?item.result.cause.message:'request failed'));}}
+    setError(failures.length?failures.join(' · '):'');setLoading(false);
+  };
+  useEffect(()=>{void load()},[]);
   const stats=useMemo(()=>({invoiceTotal:invoices.reduce((s,x)=>s+Number(x.total||0),0),pendingRefunds:refunds.filter(x=>['REQUESTED','APPROVED','PROCESSING'].includes(x.status)).length,openDisputes:disputes.filter(x=>['OPEN','UNDER_REVIEW'].includes(x.status)).length,approvedCommission:commissions.filter(x=>x.status==='APPROVED').reduce((s,x)=>s+Number(x.commission_amount||0),0)}),[invoices,refunds,disputes,commissions]);
   return <main className="finance-page"><header className="finance-head"><div><span className="finance-kicker">FINANCIAL CONTROL PLANE</span><h1>Finance & Settlement</h1><p>Invoices, reseller commissions, refunds, disputes and reconciliation in one tenant-isolated surface.</p></div><button onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></header>
     {error&&<div className="finance-error">{error}</div>}
