@@ -107,3 +107,13 @@ A release is not ready until the applicable checks pass:
 ## Definition of done for this audit
 
 This audit becomes implementation-complete only after the source paths for each finding are linked, regression tests are added and run, provider/router test evidence is recorded, and each acceptance gate has a pass/fail result. No integration should be advertised as production-ready on documentation alone.
+
+
+## Changes currently staged in PR #63
+
+- Product strategy and competitor benchmark consolidated in `docs/PRODUCT-STRATEGY-AND-ROADMAP.md`.
+- Audit and roadmap linked from `README.md`.
+- Stale NEXORA branding and old workspace package filters corrected in `docs/production-readiness.md`.
+- Capability status definitions and AI safety invariants added to `docs/product-architecture.md`.
+- Payment unit-test construction aligned with the current `PaymentsService` constructor; missing and malformed webhook-signature regression cases added.
+- **Verification limitation:** GitHub Actions currently ends at startup failure with no jobs created. No claim is made that tests passed. Production payment, RADIUS and router changes are not yet implemented or verified by this PR.
