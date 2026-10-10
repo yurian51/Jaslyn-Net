@@ -42,6 +42,7 @@ export default function SessionsPage() {
   const [status, setStatus] = useState<SessionFilter>('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -65,6 +66,9 @@ export default function SessionsPage() {
   }, [status]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleSessions = sessions.filter((item) => !normalizedQuery || [item.id, item.customerId, item.routerId, item.username, item.ipAddress, item.macAddress, item.status].some((value) => String(value ?? '').toLowerCase().includes(normalizedQuery)));
 
   return (
     <main className="app-shell">
@@ -96,13 +100,15 @@ export default function SessionsPage() {
           <article className="kpi"><div className="kpi-label"><span>Traffic</span></div><strong>{formatBytes(sessions.reduce((sum, item) => sum + Number(item.bytesTotal ?? 0), 0))}</strong><div className="kpi-foot"><span>COUNTERS</span><small>visible records</small></div></article>
         </section>
         <section className="panel sessions-panel">
-          <div className="panel-head"><div><div className="panel-kicker">SESSION INVENTORY</div><h2>Network sessions</h2><p>Tenant-isolated session records from the API, with stale state preserved until live evidence returns.</p></div><div className="periods" role="group" aria-label="Session status filter">
+          <div className="panel-head"><div><div className="panel-kicker">SESSION INVENTORY</div><h2>Network sessions</h2><p>{visibleSessions.length} visible of {count} API records. Tenant-isolated data; stale state is preserved until live evidence returns.</p></div><div className="periods" role="group" aria-label="Session status filter">
             {(['ACTIVE', 'STALE', 'ENDED', ''] as const).map((value) => <button key={value || 'all'} className={status === value ? 'selected' : ''} aria-pressed={status === value} onClick={() => setStatus(value)}>{value || 'ALL'}</button>)}
           </div></div>
+          <div className="session-search"><label htmlFor="session-search">Search sessions</label><input id="session-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Username, customer, IP, MAC, router…" /></div>
           <div className="table-wrap"><table><thead><tr><th>USERNAME</th><th>IP ADDRESS</th><th>MAC ADDRESS</th><th>STARTED</th><th>TRAFFIC</th><th>STATUS</th></tr></thead><tbody>
-            {sessions.map((item) => <tr key={item.id}><td>{item.username ?? item.customerId ?? '—'}</td><td>{item.ipAddress ?? '—'}</td><td>{item.macAddress ?? '—'}</td><td>{formatDate(item.startedAt)}</td><td>{formatBytes(item.bytesTotal)}</td><td><span className={`status ${item.status.toLowerCase()}`}><i/>{item.status}</span></td></tr>)}
-          </tbody></table>{!loading && !sessions.length && <div className="empty-state">No sessions matched the selected filter.</div>}{loading && <div className="empty-state">Loading tenant session data…</div>}</div>
+            {visibleSessions.map((item) => <tr key={item.id}><td>{item.username ?? item.customerId ?? '—'}</td><td>{item.ipAddress ?? '—'}</td><td>{item.macAddress ?? '—'}</td><td>{formatDate(item.startedAt)}</td><td>{formatBytes(item.bytesTotal)}</td><td><span className={`status ${item.status.toLowerCase()}`}><i/>{item.status}</span></td></tr>)}
+          </tbody></table>{!loading && !visibleSessions.length && <div className="empty-state">{sessions.length ? 'No sessions match this search and status filter.' : 'No sessions matched the selected status filter.'}</div>}{loading && <div className="empty-state">Loading tenant session data…</div>}</div>
         </section>
+        <style jsx>{`.session-search{display:flex;align-items:center;gap:10px;padding:0 18px 14px;flex-wrap:wrap}.session-search label{font-size:9px;font-weight:750;color:#69768a}.session-search input{height:35px;min-width:min(360px,100%);border:1px solid #dfe4eb;border-radius:7px;padding:0 10px;background:#fff;font:inherit}@media(max-width:620px){.session-search{align-items:stretch;flex-direction:column}.session-search input{width:100%;min-width:0;box-sizing:border-box}}`}</style>
         <footer className="footer"><span>JASLYN NET · Session Operations</span><span>Data loaded from authenticated tenant API</span></footer>
       </section>
     </main>
