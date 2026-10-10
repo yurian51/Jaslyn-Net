@@ -5,7 +5,10 @@ const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const layout = read('apps/web/app/layout.tsx');
+const robots = read('apps/web/app/robots.ts');
 const landing = read('apps/web/app/page.tsx');
+const landingNav = read('apps/web/app/landing-nav.tsx');
+const landingCss = read('apps/web/app/landing-premium.css');
 const register = read('apps/web/app/register/page.tsx');
 const login = read('apps/web/app/login/page.tsx');
 const nav = read('apps/web/app/landing-nav.tsx');
@@ -15,11 +18,78 @@ const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
+const platformSubscription = read('apps/web/app/dashboard/platform-subscription/page.tsx');
+
+const routeExists = (route) => {
+  const segments = route.split('/').filter(Boolean);
+  const visit = (directory, index) => {
+    if (index === segments.length) {
+      return ['page.tsx', 'page.ts', 'page.jsx', 'page.js', 'route.ts'].some((file) => fs.existsSync(path.join(directory, file)));
+    }
+    const exact = path.join(directory, segments[index]);
+    if (fs.existsSync(exact) && fs.statSync(exact).isDirectory() && visit(exact, index + 1)) return true;
+    return fs.readdirSync(directory, { withFileTypes: true })
+      .some((entry) => entry.isDirectory() && /^\[.+\]$/.test(entry.name) && visit(path.join(directory, entry.name), index + 1));
+  };
+  return visit('apps/web/app', 0);
+};
+
+const consoleNavigationRoutes = [...chrome.matchAll(/\['[^']+',\s*'[^']+',\s*'([^']+)'\]/g)].map((match) => match[1]);
+const payments = read('apps/web/app/payments/page.tsx');
+const sessions = read('apps/web/app/sessions/page.tsx');
+const finance = read('apps/web/app/finance/page.tsx');
+const purchases = read('apps/web/app/purchases/page.tsx');
+const customers = read('apps/web/app/customers/page.tsx');
+const vouchers = read('apps/web/app/vouchers/page.tsx');
+const network = read('apps/web/app/network/page.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
   ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
   ['LandingNav usage', landing.includes('<LandingNav />')],
+  ['mobile menu focus management', landingNav.includes('focusable?.[0]?.focus()') && landingNav.includes('event.key === \'Escape\'') && landingNav.includes('last.focus()')],
+  ['mobile menu trigger semantics', landingNav.includes('aria-expanded={open}') && landingNav.includes('aria-controls="landing-mobile-menu"')],
+  ['all navigation section targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
+  ['real routes exist for landing CTAs', ['/register', '/login', '/packages'].every((route) => landing.includes('href="' + route + '"'))],
+  ['integration claims include deployment caveat', landing.includes('confirm compatibility before planning a production cutover')],
+  ['no green live-status marker on illustrative preview', !landing.includes('className="status-dot"') && landing.includes('className="jn-preview-example-dot"')],
+  ['mobile landing breakpoints present', landingCss.includes('@media(max-width:760px)') && landingCss.includes('@media(max-width:520px)')],
+  ['reduced-motion preference respected', landingCss.includes('@media(prefers-reduced-motion:reduce)')],
+  ['outcomes section adapts to mobile', landingCss.includes('@media(max-width:620px)') && landingCss.includes('.jn-outcomes-grid{grid-template-columns:1fr')],
+  ['social card does not claim missing large image', read('apps/web/app/layout.tsx').includes("card: 'summary'")],
+  ['public indexing policy is explicit', layout.includes('robots: { index: true, follow: true }') && robots.includes("allow: '/'")],
+  ['Apple touch icon uses raster asset', layout.includes("apple: '/1000242339.png'")],
+  ['preview explicitly illustrative', landing.includes('ILLUSTRATIVE WORKSPACE') && landing.includes('Illustrative session')],
+  ['subscription API errors do not show false empty state', platformSubscription.includes('!loading && !current && !error')],
+  ['subscription catalogue error differs from unpublished pricing', platformSubscription.includes('Platform plans are temporarily unavailable.') && platformSubscription.includes('Platform pricing has not been published yet.')],
+  ['dashboard does not report clean health without telemetry', dashboard.includes('No health conclusion can be drawn without an API snapshot') && dashboard.includes('API UNAVAILABLE')],
+  ['payment ledger and provider methods fail independently', payments.includes('paymentResult') && payments.includes('methodResult') && payments.includes('failures.join')],
+  ['payment ledger empty state requires a successful response', payments.includes('paymentsLoaded') && payments.includes('Payment ledger unavailable')],
+  ['payment-method empty state requires a successful response', payments.includes('methodsLoaded') && payments.includes('Payment-method configuration could not be loaded.')],
+  ['payment currency formatter tolerates unknown codes', payments.includes('catch{return `${c||\'Unknown currency\'}')],
+
+  ['payment totals respect currency boundaries', payments.includes('totalByCurrency') && payments.includes('Object.entries(totalByCurrency)')],
+  ['payment ledger search and status filter', payments.includes('visiblePayments') && payments.includes('statusFilter') && payments.includes('Search payments')],
+  ['session inventory supports operational search', sessions.includes('visibleSessions') && sessions.includes('Search sessions')],
+  ['session empty state distinguishes search filtering', sessions.includes('No sessions match this search and status filter.')],
+  ['finance domains survive partial endpoint failures', finance.includes('const results=await Promise.all(endpoints.map') && finance.includes('failures.join')],
+  ['finance empty states require successful domain reads', finance.includes('loadedDomains.includes(\'Invoices\')') && finance.includes('Invoice data unavailable; an empty result cannot be confirmed.')],
+  ['purchase ledger does not show false zero metrics', purchases.includes('loadedDomains.includes(\'Purchases\')') && purchases.includes('Purchase ledger unavailable')],
+
+  ['purchase domains load independently', purchases.includes('const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests') && purchases.includes('failures.join')],
+  ['customer purchase history distinguishes unavailable from empty', customers.includes('salesError') && customers.includes('Purchase history unavailable:') && customers.includes('No customer purchases were returned')],
+  ['customer directory supports active-only filtering', customers.includes("activeOnly:String(onlyActive)") && customers.includes('Show active customers only')],
+  ['customer counts are not presented before successful load', customers.includes("customersLoaded?pagination.total.toLocaleString():'—'") && customers.includes("salesLoaded&&!salesLoading?sales.length.toLocaleString()")],
+  ['voucher and package APIs load independently', vouchers.includes('Promise.allSettled') && vouchers.includes('setVoucherError') && vouchers.includes('setPackageError')],
+  ['voucher ledger distinguishes unavailable from verified empty', vouchers.includes('Voucher ledger unavailable.') && vouchers.includes('No vouchers were returned for this tenant.')],
+  ['voucher generation requires verified active package data', vouchers.includes('disabled={!packagesLoaded||packages.length===0}')],
+  ['voucher print output escapes HTML content', vouchers.includes('escapeHtml(code)') && vouchers.includes('escapeHtml(lastBatch.printStyle)')],
+  ['network KPIs wait for a successful inventory snapshot', network.includes('routersLoaded ? routers.length.toLocaleString()') && network.includes('routersLoaded ? online.toLocaleString()') && network.includes('routersLoaded && !filteredRouters.length')],
+
+  ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
+  ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
+  ['outcomes section exists', landing.includes('id="jn-outcomes-title"') && landing.includes('jn-outcomes-grid')],
+  ['all landing navigation targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
   ['registration CTA', landing.includes('href="/register"')],
   ['confirm password field', register.includes('confirmPassword')],
   ['password strength UX', register.includes('passwordStrength')],
@@ -28,12 +98,17 @@ const required = [
   ['local integration logo source', landing.includes('/integrations/') && !landing.includes('https://cdn.simpleicons.org/')],
   ['uploaded brand logo set', brandLogo.includes('/ram-logo-scalable.svg') && brandLogo.includes('/1000242339.png') && brandLogo.includes('/capricon.png')],
 
-  ['official vector logo reference', landing.includes('/ram-logo-scalable.svg')],
+  ['official vector logo reference', brandLogo.includes('/ram-logo-scalable.svg')],
   ['official raster fallback references', brandLogo.includes('/1000242339.png') && brandLogo.includes('/capricon.png')],
   ['official logo in navigation', nav.includes("BrandLogo")],
   ['official logo in console chrome', chrome.includes("BrandLogo")],
   ['official logo in auth', login.includes("BrandLogo") && register.includes("BrandLogo")],
   ['branded route loader', routeLoading.includes('JASLYN NET') && routeLoading.includes('brand-loading-progress')],
+  ['console navigation avoids dead WiFi operations route', chrome.includes("['WiFi Operations', 'isp', '/isp']") && !chrome.includes("'/upesilipa'")],
+  ['all console navigation routes resolve to app pages', consoleNavigationRoutes.length > 0 && consoleNavigationRoutes.every(routeExists)],
+  ['nested dashboard routes do not double-highlight overview', chrome.includes("href !== '/dashboard' && pathname.startsWith")],
+  ['command palette keyboard handler tracks live search results', chrome.includes('[commandOpen, commandResults, commandIndex, router]') && chrome.indexOf('const commandResults = useMemo') < chrome.indexOf('[commandOpen, commandResults, commandIndex, router]')],
+  ['command palette traps and restores keyboard focus', chrome.includes("event.key === 'Tab'") && chrome.includes('commandOpenerRef.current?.focus()') && chrome.includes('commandOpenerRef.current = event.currentTarget')],
   ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
@@ -44,9 +119,9 @@ const required = [
   ['loading stylesheet', layout.includes("import './loading.css';")],
   ['no superseded generated logo references', !landing.includes('jaslyn-official.svg') && !nav.includes('jaslyn-official.svg') && !chrome.includes('jaslyn-official.svg') && !login.includes('jaslyn-official.svg') && !register.includes('jaslyn-official.svg')],
   ['unboxed integration layout', landing.includes('jn-integration-brand') && !landing.includes('jn-integration-watermark')],
-  ['unboxed identity styling', !read('apps/web/app/landing-premium.css').includes('jn-integration-logo-box') && !read('apps/web/app/landing-premium.css').includes('jn-integration-watermark')],
+  ['unboxed identity styling', !landing.includes('jn-integration-watermark') && read('apps/web/app/landing-premium.css').includes('/* Final integration composition: floating marks, no card containers. */')],
   ['unboxed auth brand', !read('apps/web/app/auth.css').includes('.auth-brand-logo{border:1px')],
-  ['unboxed product-preview brand', read('apps/web/app/landing-premium.css').includes('.jn-preview-brand img') && !read('apps/web/app/landing-premium.css').includes('jn-preview-brand img{width:29px')],
+  ['unboxed product-preview brand', read('apps/web/app/landing-premium.css').includes('/* Product-preview brand mark follows the same unboxed identity rule. */') && read('apps/web/app/landing-premium.css').includes('border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;')],
 
 
 ];
@@ -55,8 +130,6 @@ const assets = [
   'apps/web/public/ram-logo-scalable.svg',
   'apps/web/public/1000242339.png',
   'apps/web/public/capricon.png',
-  'apps/web/public/brand/jaslyn-net-mark.svg',
-  'apps/web/public/brand/jaslyn-net-wordmark.svg',
 ];
 
 const uploadedBrandFiles = ['ram-logo-scalable.svg','1000242339.png','capricon.png'];

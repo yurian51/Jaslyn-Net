@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
@@ -21,16 +21,16 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
   ['Network', 'network', '/network'],
   ['IPAM', 'ipam', '/ipam'],
   ['WAN & Load Balancing', 'loadBalancing', '/load-balancing'],
-  ['ISP Operations', 'isp', '/isp'],
+  ['WiFi Operations', 'isp', '/isp'],
   ['Purchases', 'purchases', '/purchases'],
   ['Sales', 'payments', '/sales'],
   ['Payments', 'payments', '/payments'],
   ['Vouchers', 'vouchers', '/vouchers'],
   ['Plans & Products', 'packages', '/packages'],
-  ['Jaslyn Tiers', 'tiers', '/dashboard/packages'],
+  ['WiFi Tiers', 'tiers', '/dashboard/packages'],
+  ['Platform Subscription', 'tiers', '/dashboard/platform-subscription'],
   ['Promotions', 'promotions', '/promotions'],
   ['Finance', 'finance', '/finance'],
-  ['WiFi Operations', 'network', '/upesilipa'],
   ['Communication', 'communication', '/communication'],
   ['Network Commands', 'networkCommands', '/network-commands'],
   ['RADIUS / AAA', 'radius', '/radius'],
@@ -42,7 +42,7 @@ const nav: ReadonlyArray<[string, IconName, string]> = [
 
 const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Network', ['/access-network', '/fiber', '/ipam', '/load-balancing', '/network-commands', '/radius']],
-  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/dashboard/packages', '/promotions', '/finance']],
+  ['Commercial', ['/customer-commerce', '/purchases', '/sales', '/payments', '/vouchers', '/packages', '/dashboard/packages', '/dashboard/platform-subscription', '/promotions', '/finance']],
   ['Communication', ['/communication', '/notifications']],
   ['Operations', ['/isp', '/incidents', '/audit']],
   ['Workspace', ['/account', '/settings']],
@@ -50,7 +50,7 @@ const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
 
 const publicRoutes = new Set(['/', '/login', '/register']);
 const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
-const isRouteActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
+const isRouteActive = (pathname: string, href: string) => pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 
 function NavIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
@@ -109,15 +109,34 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const [commandIndex, setCommandIndex] = useState(0);
+  const commandOpenerRef = useRef<HTMLElement | null>(null);
   const mobilePrimaryHrefs = ['/dashboard', '/customers', '/sessions', '/network'];
   const moreActive = nav.some(([, , href]) => !mobilePrimaryHrefs.includes(href) && href !== '/settings' && isRouteActive(pathname, href));
 
   useEffect(() => { setMoreOpen(false); setHeaderMenuOpen(false); }, [pathname]);
 
+
+
+  useEffect(() => {
+    if (!commandOpen) {
+      commandOpenerRef.current?.focus();
+      return;
+    }
+    const input = document.getElementById('jaslyn-command-search') as HTMLInputElement | null;
+    input?.focus();
+  }, [commandOpen]);
+
+  const commandResults = useMemo(() => {
+    const query = commandQuery.trim().toLowerCase();
+    if (!query) return nav.slice(0, 10);
+    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
+  }, [commandQuery]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        commandOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setCommandOpen(true);
         setCommandQuery('');
         setCommandIndex(0);
@@ -126,6 +145,23 @@ function OperationsChrome({ children }: { children: ReactNode }) {
       if (event.key === 'Escape') {
         event.preventDefault();
         setCommandOpen(false);
+      }
+      if (event.key === 'Tab') {
+        const overlay = document.querySelector('.console-command-overlay');
+        const focusable = overlay?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+        if (focusable?.length) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        } else {
+          event.preventDefault();
+        }
       }
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -143,19 +179,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  useEffect(() => {
-    if (!commandOpen) return;
-    const input = document.getElementById('jaslyn-command-search') as HTMLInputElement | null;
-    input?.focus();
-  }, [commandOpen]);
-
-  const commandResults = useMemo(() => {
-    const query = commandQuery.trim().toLowerCase();
-    if (!query) return nav.slice(0, 10);
-    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
-  }, [commandQuery]);
+  }, [commandOpen, commandResults, commandIndex, router]);
 
   useEffect(() => { setCommandIndex(0); }, [commandQuery]);
 
@@ -210,7 +234,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
         <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
-        <button className="console-command-trigger" type="button" onClick={() => { setCommandOpen(true); setCommandQuery(''); setCommandIndex(0); }}>
+        <button className="console-command-trigger" type="button" onClick={(event) => { commandOpenerRef.current = event.currentTarget; setCommandOpen(true); setCommandQuery(''); setCommandIndex(0); }}>
           <span>⌕</span><b>Search workspace</b><kbd>⌘K</kbd>
         </button>
         <div className="console-chrome-section">CONTROL PLANE</div>

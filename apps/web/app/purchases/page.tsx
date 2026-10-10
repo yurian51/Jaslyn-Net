@@ -164,6 +164,7 @@ export default function PurchasesPage() {
   const [voucherCode, setVoucherCode] = useState('');
   const [flowSaving, setFlowSaving] = useState(false);
   const [flowMessage, setFlowMessage] = useState('');
+  const [loadedDomains, setLoadedDomains] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -176,35 +177,54 @@ export default function PurchasesPage() {
     setLoading(true);
     setError('');
 
-    try {
-      const [purchaseResponse, methodsResponse, packageResponse, customerResponse, routerResponse] = await Promise.all([
-        apiFetch<{ data?: Purchase[] }>('/purchases', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PurchasePackage[] }>('/packages?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PurchaseCustomer[] }>('/customers?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }),
-        apiFetch<{ data?: PurchaseRouter[] }>('/routers?limit=100', { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
+    const requests = await Promise.all([
+      apiFetch<{ data?: Purchase[] }>('/purchases', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PaymentProvider[] }>('/payments/methods', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PurchasePackage[] }>('/packages?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PurchaseCustomer[] }>('/customers?limit=100&activeOnly=true', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+      apiFetch<{ data?: PurchaseRouter[] }>('/routers?limit=100', { headers: { Authorization: `Bearer ${token}` } }).then(value => ({ value })).catch(cause => ({ cause })),
+    ]);
 
-      const purchaseRows = purchaseResponse.data ?? [];
+    const failures: string[] = [];
+    const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests;
+    if ('value' in purchaseResult) {
+      const purchaseRows = purchaseResult.value.data ?? [];
       setRows(purchaseRows);
+      setLoadedDomains(current => current.includes('Purchases') ? current : [...current, 'Purchases']);
+      setSelectedId(current => current && purchaseRows.some(row => row.id === current) ? current : purchaseRows[0]?.id ?? '');
+    } else failures.push('Purchases: ' + (purchaseResult.cause instanceof Error ? purchaseResult.cause.message : 'request failed'));
 
-      const enabled = (methodsResponse.data ?? FALLBACK_PAYMENT_PROVIDERS).filter(item => item.enabled);
+    if ('value' in methodsResult) {
+      const enabled = (methodsResult.value.data ?? []).filter(item => item.enabled);
       const operational = enabled.length ? enabled : FALLBACK_PAYMENT_PROVIDERS;
       setProviders(operational);
-      setPackages((packageResponse.data ?? []).filter(item => item.isActive));
-      setCustomers((customerResponse.data ?? []).filter(item => item.isActive));
-      setRouters(routerResponse.data ?? []);
-
+      setLoadedDomains(current => current.includes('Payment methods') ? current : [...current, 'Payment methods']);
       setProvider(current => operational.some(item => item.code === current) ? current : operational[0]?.code ?? 'manual');
-      setSelectedId(current => current || purchaseRows[0]?.id || '');
-      setFlowPackage(current => current || (packageResponse.data ?? []).find(item => item.isActive)?.id || '');
-      setFlowCustomer(current => current || (customerResponse.data ?? []).find(item => item.isActive)?.id || '');
-      setFlowRouter(current => current || (routerResponse.data ?? []).find(item => ['ONLINE','CONNECTED'].includes(upper(item.status)))?.id || '');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load purchase operations.');
-    } finally {
-      setLoading(false);
-    }
+    } else failures.push('Payment methods: ' + (methodsResult.cause instanceof Error ? methodsResult.cause.message : 'request failed'));
+
+    if ('value' in packageResult) {
+      const activePackages = (packageResult.value.data ?? []).filter(item => item.isActive);
+      setPackages(activePackages);
+      setLoadedDomains(current => current.includes('Packages') ? current : [...current, 'Packages']);
+      setFlowPackage(current => current || activePackages[0]?.id || '');
+    } else failures.push('Packages: ' + (packageResult.cause instanceof Error ? packageResult.cause.message : 'request failed'));
+
+    if ('value' in customerResult) {
+      const activeCustomers = (customerResult.value.data ?? []).filter(item => item.isActive);
+      setCustomers(activeCustomers);
+      setLoadedDomains(current => current.includes('Customers') ? current : [...current, 'Customers']);
+      setFlowCustomer(current => current || activeCustomers[0]?.id || '');
+    } else failures.push('Customers: ' + (customerResult.cause instanceof Error ? customerResult.cause.message : 'request failed'));
+
+    if ('value' in routerResult) {
+      const availableRouters = routerResult.value.data ?? [];
+      setRouters(availableRouters);
+      setLoadedDomains(current => current.includes('Routers') ? current : [...current, 'Routers']);
+      setFlowRouter(current => current || availableRouters.find(item => ['ONLINE', 'CONNECTED'].includes(upper(item.status)))?.id || '');
+    } else failures.push('Routers: ' + (routerResult.cause instanceof Error ? routerResult.cause.message : 'request failed'));
+
+    setError(failures.length ? failures.join(' · ') : '');
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -557,10 +577,10 @@ export default function PurchasesPage() {
             </div>
             <div className="channel-assurance">
               <div className="assurance-primary"><span className="assurance-mark" aria-hidden="true">◎</span><div><strong>One access contract</strong><p>Every channel resolves into the same network entitlement: duration, quota, bandwidth, session controls and access binding.</p></div></div>
-              <div><span>Active packages</span><strong>{packages.length.toLocaleString()}</strong></div>
-              <div><span>Active customers</span><strong>{customers.length.toLocaleString()}</strong></div>
-              <div><span>Routers in fleet</span><strong>{routers.length.toLocaleString()}</strong></div>
-              <div><span>Enabled payment methods</span><strong>{providers.length.toLocaleString()}</strong></div>
+              <div><span>Active packages</span><strong>{loadedDomains.includes('Packages') ? packages.length.toLocaleString() : '—'}</strong></div>
+              <div><span>Active customers</span><strong>{loadedDomains.includes('Customers') ? customers.length.toLocaleString() : '—'}</strong></div>
+              <div><span>Routers in fleet</span><strong>{loadedDomains.includes('Routers') ? routers.length.toLocaleString() : '—'}</strong></div>
+              <div><span>Enabled payment methods</span><strong>{loadedDomains.includes('Payment methods') ? providers.length.toLocaleString() : '—'}</strong></div>
             </div>
           </div>
         )}
@@ -574,11 +594,11 @@ export default function PurchasesPage() {
       )}
 
       <section className="purchase-stats" aria-label="Purchase metrics">
-        <article><span>Total</span><strong>{metrics.total.toLocaleString()}</strong><small>purchase records</small></article>
-        <article><span>Successful</span><strong>{metrics.successful.toLocaleString()}</strong><small>paid or active</small></article>
-        <article><span>Pending</span><strong>{metrics.pending.toLocaleString()}</strong><small>awaiting settlement</small></article>
-        <article><span>Active access</span><strong>{metrics.activeAccess.toLocaleString()}</strong><small>entitlements currently active</small></article>
-        <article className="stat-value"><span>Settled value</span><strong>{metrics.currency ? money(metrics.value, metrics.currency) : metrics.currencies > 1 ? `${metrics.currencies} currencies` : '—'}</strong><small>successful records</small></article>
+        <article><span>Total</span><strong>{loadedDomains.includes('Purchases') ? metrics.total.toLocaleString() : '—'}</strong><small>{loadedDomains.includes('Purchases') ? 'purchase records' : 'Ledger unavailable'}</small></article>
+        <article><span>Successful</span><strong>{loadedDomains.includes('Purchases') ? metrics.successful.toLocaleString() : '—'}</strong><small>paid or active</small></article>
+        <article><span>Pending</span><strong>{loadedDomains.includes('Purchases') ? metrics.pending.toLocaleString() : '—'}</strong><small>awaiting settlement</small></article>
+        <article><span>Active access</span><strong>{loadedDomains.includes('Purchases') ? metrics.activeAccess.toLocaleString() : '—'}</strong><small>entitlements currently active</small></article>
+        <article className="stat-value"><span>Settled value</span><strong>{!loadedDomains.includes('Purchases') ? '—' : metrics.currency ? money(metrics.value, metrics.currency) : metrics.currencies > 1 ? `${metrics.currencies} currencies` : '—'}</strong><small>{loadedDomains.includes('Purchases') ? 'successful records' : 'Ledger unavailable'}</small></article>
       </section>
 
       <section className="purchase-workspace">
@@ -608,7 +628,7 @@ export default function PurchasesPage() {
           {loading ? (
             <div className="ledger-state">Loading purchase ledger…</div>
           ) : rows.length === 0 ? (
-            <div className="ledger-state empty"><strong>No purchases yet</strong><p>New customer purchases will appear here.</p><a href="/packages">Open Plans & Products</a></div>
+            <div className="ledger-state empty"><strong>{loadedDomains.includes('Purchases') ? 'No purchases yet' : 'Purchase ledger unavailable'}</strong><p>{loadedDomains.includes('Purchases') ? 'New customer purchases will appear here.' : 'The request failed; an empty ledger cannot be confirmed.'}</p>{loadedDomains.includes('Purchases') && <a href="/packages">Open Plans & Products</a>}</div>
           ) : filteredRows.length === 0 ? (
             <div className="ledger-state empty"><strong>No matching purchases</strong><p>Clear the search or status filter.</p><button type="button" onClick={() => { setQuery(''); setStatusFilter('ALL'); }}>Clear filters</button></div>
           ) : (

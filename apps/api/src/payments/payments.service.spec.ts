@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 
 describe('PaymentsService', () => {
   function serviceWith(db: Pool) {
-    return new PaymentsService(db, new ConfigService());
+    return new PaymentsService(db, new ConfigService(), { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
   }
 
   it('reuses an existing idempotent payment intent', async () => {
@@ -110,7 +110,7 @@ describe('PaymentsService', () => {
       query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
       connect: jest.fn().mockResolvedValue(eventClient),
     } as unknown as Pool;
-    const service = new PaymentsService(db, config);
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
 
     await expect(service.webhook(
       'tenant-1',
@@ -138,6 +138,7 @@ describe('PaymentsService', () => {
     const eventClient = {
       query: jest.fn(async (sql: string) => {
         if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM payments WHERE tenant_id=$1 AND id=$2 AND provider=$3')) return { rowCount: 1, rows: [{ id: 'pay-1' }] };
         if (sql.includes('INSERT INTO payment_events')) return { rowCount: 1, rows: [{ id: 'event-1' }] };
         if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
         throw new Error(`Unexpected SQL: ${sql}`);
@@ -149,7 +150,7 @@ describe('PaymentsService', () => {
       query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
       connect: jest.fn().mockResolvedValue(eventClient),
     } as unknown as Pool;
-    const service = new PaymentsService(db, config);
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
 
     await expect(service.webhook('tenant-1', {
       provider: 'mpesa',
@@ -167,6 +168,114 @@ describe('PaymentsService', () => {
 
     expect(eventClient.query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE payments'));
     expect(eventClient.release).toHaveBeenCalled();
+  });
+
+
+  it('rejects a payment ID that is not owned by the webhook tenant and provider', async () => {
+    const secret = 'test-webhook-secret';
+    const rawBody = Buffer.from('{"event":"payment.success"}');
+    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const eventClient = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM payments WHERE tenant_id=$1 AND id=$2 AND provider=$3')) return { rowCount: 0, rows: [] };
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn().mockResolvedValue(eventClient),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-wrong-tenant',
+      eventType: 'payment.success',
+      paymentId: '00000000-0000-0000-0000-000000000099',
+      status: 'SUCCESS',
+    }, rawBody, signature)).rejects.toThrow('Payment not found for this tenant and provider');
+
+    expect(eventClient.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO payment_events'), expect.anything());
+    expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(eventClient.release).toHaveBeenCalled();
+  });
+
+  it('rolls back the webhook event when durable domain-event enqueue fails', async () => {
+    const secret = 'test-webhook-secret';
+    const rawBody = Buffer.from('{"event":"payment.success"}');
+    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const eventClient = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN') return { rowCount: 0, rows: [] };
+        if (sql.includes('INSERT INTO payment_events')) return { rowCount: 1, rows: [{ id: 'event-atomic-1' }] };
+        if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql === 'COMMIT') throw new Error('Webhook transaction must not commit');
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn().mockResolvedValue(eventClient),
+    } as unknown as Pool;
+    const enqueue = jest.fn().mockRejectedValue(new Error('outbox unavailable'));
+    const service = new PaymentsService(db, config, { enqueue } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-atomic-1',
+      eventType: 'payment.success',
+      status: 'SUCCESS',
+    }, rawBody, signature)).rejects.toThrow('outbox unavailable');
+
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      eventKey: 'payment-webhook:mpesa:evt-atomic-1',
+      aggregateId: 'event-atomic-1',
+      payload: expect.objectContaining({ status: 'SUCCESS', paymentId: null, purchaseId: null }),
+    }), eventClient);
+    expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(eventClient.query).not.toHaveBeenCalledWith('COMMIT');
+    expect(eventClient.release).toHaveBeenCalled();
+  });
+
+  it('rejects a webhook with a missing signature before opening an event transaction', async () => {
+    const config = { get: jest.fn().mockReturnValue('test-webhook-secret') } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn(),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-no-signature',
+      eventType: 'payment.success',
+      status: 'SUCCESS',
+    }, Buffer.from('{"event":"payment.success"}'))).rejects.toThrow('Missing webhook signature');
+
+    expect(db.connect).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed webhook signature before opening an event transaction', async () => {
+    const config = { get: jest.fn().mockReturnValue('test-webhook-secret') } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn(),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-bad-signature',
+      eventType: 'payment.success',
+      status: 'SUCCESS',
+    }, Buffer.from('{"event":"payment.success"}'), 'not-a-signature')).rejects.toThrow('Invalid webhook signature');
+
+    expect(db.connect).not.toHaveBeenCalled();
   });
 
 });

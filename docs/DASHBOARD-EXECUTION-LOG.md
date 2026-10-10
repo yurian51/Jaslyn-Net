@@ -1,0 +1,33 @@
+# Dashboard execution log
+
+**Date:** 2026-10-10  
+**Branch:** `work/competitive-gap-audit`  
+**Scope:** Direct dashboard and operational-page implementation; not a release certification.
+
+## Changes committed
+
+- `apps/web/app/dashboard/page.tsx`: do not report “No attention signals”, “NO INVENTORY”, or a stable entitlement posture as if health had been verified before an API snapshot exists. The dashboard now labels those health summaries as unavailable until telemetry is present.
+- `apps/web/app/payments/page.tsx`: payment ledger and payment-method configuration load independently, so a failure in one endpoint does not hide successful results from the other. Successful amounts are grouped by currency rather than summed and mislabeled as TZS; unsupported currency metadata falls back to a readable amount rather than crashing the view. Added search/status filtering and unavailable-versus-empty states for both ledger and provider configuration. 
+- `apps/web/app/sessions/page.tsx`: added search by session ID, customer, router, username, IP, MAC and status; shows visible records separately from API record count; distinguishes search filtering from an empty API result. Session KPIs remain unavailable until the API successfully responds.
+- `apps/web/app/finance/page.tsx`: invoices, resellers, commissions, refunds, disputes and reconciliation load independently. Partial failures identify affected domains while successful domains can still refresh. Each domain's KPI and empty state distinguishes a failed first load from a verified empty result; currency formatting is defensive.
+- `apps/web/app/purchases/page.tsx`: purchases, payment methods, packages, customers and routers load independently; a failed endpoint no longer blocks all other operational data. Purchase KPIs, counts, and the ledger show unavailable rather than false zeros/empty results until their own API domain has succeeded.
+- `apps/web/app/console-chrome.tsx`: removed the dead `/upesilipa` navigation target and routes the WiFi Operations entry to the existing `/isp` page. Fixed a stale-state closure in the command palette so Arrow Up/Down and Enter follow the current filtered search results, added Tab/Shift+Tab focus trapping plus focus restoration on close, and stopped Overview from remaining highlighted on nested tier/subscription routes.
+- `apps/web/scripts/verify-ui-surface.mjs`: added source regression assertions for dashboard truth states, payment currency/search behavior, session search, partial-failure handling in finance/purchases, and the repaired console navigation target.
+
+## Validation status
+
+The changes above are committed to the working branch. A separate source review checked 17 cross-file conditions and confirmed that all 29 extracted console navigation destinations match a page route in the repository tree. This is a manual/source-level inspection, **not execution of the UI verification script**. The UI verification script has been extended but **has not been executed in a functioning repository runtime in this session**. Typecheck, lint, unit tests, production build, and browser tests are not claimed as passing. Latest GitHub Actions runs still report `startup_failure` before jobs are created (zero jobs returned), and direct clone attempts failed because repository DNS/network access was unavailable.
+
+## Operational invariants preserved
+
+- A failed endpoint must not be rendered as a verified empty result.
+- Financial totals must not combine different currencies into one amount.
+- Dashboard health summaries must not imply success without a successful telemetry snapshot.
+- These UI changes do not prove that external payment providers, routers, RADIUS, or production entitlements are live or verified.
+
+- `apps/web/app/customers/page.tsx`: customer purchase history now distinguishes loading, unavailable, verified-empty, and populated states; the customer directory distinguishes unverified counts from confirmed totals, adds active-only filtering and a refresh action, and avoids representing live connectivity as a customer count. Purchase-history failures no longer masquerade as an empty period.
+- `apps/web/scripts/verify-ui-surface.mjs`: added source-level assertions for customer-history truth states, active-only filtering, and count availability.
+- `apps/web/app/vouchers/page.tsx`: voucher ledger and active-package catalogue now load independently, so one endpoint outage does not erase the other domain's data. KPI totals and empty states are shown only after a successful ledger response; voucher generation is disabled until active package data is verified. Voucher code/style values are HTML-escaped before insertion into the printable document.
+- `apps/web/scripts/verify-ui-surface.mjs`: added source-level checks for independent voucher/package loading, truthful ledger states, generation gating, and print-output escaping.
+- `apps/web/app/network/page.tsx`: registered-device, online/degraded/offline, and connected-user metrics now remain unavailable until the network API has returned an inventory snapshot. A failed initial fetch no longer produces a misleading “No network devices registered” empty state.
+- `apps/web/scripts/verify-ui-surface.mjs`: added a source-level regression assertion for network snapshot gating.

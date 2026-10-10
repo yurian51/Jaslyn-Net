@@ -203,15 +203,30 @@ export class PaymentsService {
     try {
       await eventClient.query('BEGIN');
 
+      // Never trust a caller-supplied internal payment ID across tenant/provider boundaries.
+      if (input.paymentId) {
+        const payment = await eventClient.query(
+          `SELECT id FROM payments WHERE tenant_id=$1 AND id=$2 AND provider=$3 FOR UPDATE`,
+          [tenantId, input.paymentId, provider],
+        );
+        if (!payment.rowCount) throw new NotFoundException('Payment not found for this tenant and provider');
+      }
+
       const inserted = await eventClient.query(
         `INSERT INTO payment_events
            (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status, correlation_id)
-         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED',$6)
+         VALUES ($1,$7,$2,$3,$4,$5,true,'RECEIVED',$6)
          ON CONFLICT (tenant_id, provider, provider_event_id)
          WHERE provider_event_id IS NOT NULL
          DO NOTHING
          RETURNING id`,
-        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}, correlationId],
+        [tenantId, provider, providerEventId, input.eventType.trim(), {
+          status: input.status,
+          paymentId: input.paymentId ?? null,
+          purchaseId: input.purchaseId ?? null,
+          providerReference: input.providerReference ?? null,
+          providerPayload: input.payload ?? {},
+        }, correlationId, input.paymentId ?? null],
       );
 
       if (!inserted.rowCount) {
@@ -237,8 +252,9 @@ export class PaymentsService {
       }
 
       const eventId = inserted.rows[0].id as string;
-      await eventClient.query('COMMIT');
-
+      // Persist the durable work item in the same transaction as the webhook event.
+      // Otherwise a queue write failure after COMMIT would strand a RECEIVED event:
+      // provider retries would hit the duplicate path and never enqueue it again.
       await this.domainEvents.enqueue({
         tenantId,
         eventKey: `payment-webhook:${provider}:${providerEventId}`,
@@ -249,11 +265,16 @@ export class PaymentsService {
           provider,
           providerEventId,
           eventType: input.eventType.trim(),
+          status: input.status,
           paymentId: input.paymentId ?? null,
+          purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,
+          providerPayload: input.payload ?? {},
           targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'BILLING_ADMIN'],
         },
-      });
+      }, eventClient);
+
+      await eventClient.query('COMMIT');
 
       return {
         accepted: true,
