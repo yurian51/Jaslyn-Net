@@ -11,7 +11,8 @@
 - `apps/web/app/sessions/page.tsx`: added search by session ID, customer, router, username, IP, MAC and status; shows visible records separately from API record count; distinguishes search filtering from an empty API result.
 - `apps/web/app/finance/page.tsx`: invoices, resellers, commissions, refunds, disputes and reconciliation load independently. Partial failures identify affected domains while successful domains can still refresh.
 - `apps/web/app/purchases/page.tsx`: purchases, payment methods, packages, customers and routers load independently; a failed endpoint no longer blocks all other operational data.
-- `apps/web/scripts/verify-ui-surface.mjs`: added source regression assertions for the dashboard truth states, payment currency/search behavior, session search, and partial-failure handling in finance and purchase workflows.
+- `apps/web/app/console-chrome.tsx`: removed the dead `/upesilipa` navigation target and routes the WiFi Operations entry to the existing `/isp` page.
+- `apps/web/scripts/verify-ui-surface.mjs`: added source regression assertions for dashboard truth states, payment currency/search behavior, session search, partial-failure handling in finance/purchases, and the repaired console navigation target.
 
 ## Validation status
 
