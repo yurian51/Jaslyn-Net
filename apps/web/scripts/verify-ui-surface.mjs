@@ -40,6 +40,7 @@ const sessions = read('apps/web/app/sessions/page.tsx');
 const finance = read('apps/web/app/finance/page.tsx');
 const purchases = read('apps/web/app/purchases/page.tsx');
 const customers = read('apps/web/app/customers/page.tsx');
+const vouchers = read('apps/web/app/vouchers/page.tsx');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -78,6 +79,10 @@ const required = [
   ['customer purchase history distinguishes unavailable from empty', customers.includes('salesError') && customers.includes('Purchase history unavailable:') && customers.includes('No customer purchases were returned')],
   ['customer directory supports active-only filtering', customers.includes("activeOnly:String(onlyActive)") && customers.includes('Show active customers only')],
   ['customer counts are not presented before successful load', customers.includes("customersLoaded?pagination.total.toLocaleString():'—'") && customers.includes("salesLoaded&&!salesLoading?sales.length.toLocaleString()")],
+  ['voucher and package APIs load independently', vouchers.includes('Promise.allSettled') && vouchers.includes('setVoucherError') && vouchers.includes('setPackageError')],
+  ['voucher ledger distinguishes unavailable from verified empty', vouchers.includes('Voucher ledger unavailable.') && vouchers.includes('No vouchers were returned for this tenant.')],
+  ['voucher generation requires verified active package data', vouchers.includes('disabled={!packagesLoaded||packages.length===0}')],
+  ['voucher print output escapes HTML content', vouchers.includes('escapeHtml(code)') && vouchers.includes('escapeHtml(lastBatch.printStyle)')],
 
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
