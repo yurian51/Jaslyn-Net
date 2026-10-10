@@ -149,7 +149,7 @@ describe('PaymentsService', () => {
       query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
       connect: jest.fn().mockResolvedValue(eventClient),
     } as unknown as Pool;
-    const service = new PaymentsService(db, config);
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
 
     await expect(service.webhook('tenant-1', {
       provider: 'mpesa',
@@ -169,6 +169,44 @@ describe('PaymentsService', () => {
     expect(eventClient.release).toHaveBeenCalled();
   });
 
+
+  it('rolls back the webhook event when durable domain-event enqueue fails', async () => {
+    const secret = 'test-webhook-secret';
+    const rawBody = Buffer.from('{"event":"payment.success"}');
+    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const eventClient = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN') return { rowCount: 0, rows: [] };
+        if (sql.includes('INSERT INTO payment_events')) return { rowCount: 1, rows: [{ id: 'event-atomic-1' }] };
+        if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql === 'COMMIT') throw new Error('Webhook transaction must not commit');
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn().mockResolvedValue(eventClient),
+    } as unknown as Pool;
+    const enqueue = jest.fn().mockRejectedValue(new Error('outbox unavailable'));
+    const service = new PaymentsService(db, config, { enqueue } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-atomic-1',
+      eventType: 'payment.success',
+      status: 'SUCCESS',
+    }, rawBody, signature)).rejects.toThrow('outbox unavailable');
+
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      eventKey: 'payment-webhook:mpesa:evt-atomic-1',
+      aggregateId: 'event-atomic-1',
+    }), eventClient);
+    expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(eventClient.query).not.toHaveBeenCalledWith('COMMIT');
+    expect(eventClient.release).toHaveBeenCalled();
+  });
 
   it('rejects a webhook with a missing signature before opening an event transaction', async () => {
     const config = { get: jest.fn().mockReturnValue('test-webhook-secret') } as unknown as ConfigService;
