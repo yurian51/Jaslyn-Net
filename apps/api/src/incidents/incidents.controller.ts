@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -10,6 +10,12 @@ class ResolveIncidentDto {
   @MinLength(3)
   @MaxLength(500)
   resolution!: string;
+}
+
+class AssignIncidentDto {
+  @IsOptional()
+  @IsUUID()
+  assigneeUserId?: string | null;
 }
 
 class IncidentListQuery {
@@ -51,5 +57,17 @@ export class IncidentsController {
   @Roles('OWNER', 'ADMIN', 'AGENT')
   resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveIncidentDto) {
     return this.incidents.resolve(req.user!.tenantId, id, dto.resolution, { userId: req.user!.id, requestId: req.requestId });
+  }
+
+  @Post(':id/assign')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  assign(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AssignIncidentDto) {
+    return this.incidents.assign(req.user!.tenantId, id, dto.assigneeUserId ?? null, { userId: req.user!.id, requestId: req.requestId });
+  }
+
+  @Get(':id/audit-trail')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  auditTrail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.incidents.auditTrail(req.user!.tenantId, id);
   }
 }

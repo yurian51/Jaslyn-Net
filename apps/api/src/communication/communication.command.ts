@@ -17,10 +17,10 @@ export class CommunicationCommandService {
     private readonly networkCommands: NetworkCommandService,
   ) {}
 
-  async execute(actor: Actor, command: string, confirm = false) {
+  async execute(actor: Actor, command: string, confirm = false, requestIdOverride?: string) {
     const normalized = command.trim().replace(/\s+/g,' ');
     if (!normalized || normalized.length > 500) throw new BadRequestException('Command is required');
-    const requestId = randomUUID();
+    const requestId = requestIdOverride ?? randomUUID();
 
     const dangerous = /^(restart router|suspend subscriber|refund payment|terminate session|disable account|delete message|delete user)\b/i.test(normalized);
     if (dangerous && !OPERATOR_ROLES.has(actor.role)) {

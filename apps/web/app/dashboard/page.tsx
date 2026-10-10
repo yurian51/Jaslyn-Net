@@ -6,6 +6,32 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
+type CommandCenter = {
+  generatedAt: string;
+  systemHealth: {
+    status: 'OPERATIONAL' | 'ATTENTION' | 'DEGRADED';
+    devices: { total: number; online: number; degraded: number; unreachable: number };
+    activeIncidents: number;
+    degradedServices: number;
+    activeSessions: number;
+    authenticationFailures24h: number;
+    paymentFailures24h: number;
+    providerFailures24h: Array<{ provider: string; failures: number }>;
+    commandQueue: { pending: number; failed: number };
+  };
+  devices: Array<{
+    id: string; name: string; vendor?: string; model?: string; ipAddress?: string; macAddress?: string;
+    status: string; activeUsers: number; updatedAt?: string; managementProtocol?: string;
+    telemetry: { uptime: string | number | null; cpu: number | null; memory: number | null; interfaces: unknown[] | null; bandwidth: number | null; latency: number | null; packetLoss: number | null; source: string };
+    activeSessions: number; recentCommands: Array<{ id: string; commandType: string; status: string; provider?: string; error?: string | null }>;
+    recentIncidents: Array<{ id: string; title: string; severity: string; status: string }>;
+  }>;
+  sessions: Array<{ id: string; subscriber: string; device: string; ip?: string; username?: string; startedAt: string; bytesIn: number; bytesOut: number; status: string; authenticationState: string; accountingState: string }>;
+  incidents: Array<{ id: string; title: string; severity: string; status: string; category: string; affectedDevices: number; affectedSubscribers: number; startedAt: string; lastSeenAt: string; acknowledgedAt?: string | null; resolvedAt?: string | null; resolution?: string | null }>;
+  commands: Array<{ id: string; commandType: string; actor: string; provider?: string; status: string; error?: string | null; createdAt: string; sentAt?: string | null; completedAt?: string | null; verifiedAt?: string | null }>;
+  recentCriticalEvents: Array<{ id: string; title: string; summary?: string; severity: string; category: string; occurredAt: string }>;
+};
+
 type Overview = {
   tenant?: { currency?: string; timezone?: string; name?: string; status?: string };
   revenueSeries?: number[];
@@ -41,6 +67,8 @@ const percent = (value: number, total: number) => {
 
 export default function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
+  const [nocData, setNocData] = useState<CommandCenter | null>(null);
+  const [nocError, setNocError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
@@ -63,14 +91,20 @@ export default function DashboardPage() {
 
     setLoading(true);
     try {
-      const next = await apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } });
+      const [next, commandCenter] = await Promise.all([
+        apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch<CommandCenter>('/overview/command-center', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
       setData(next);
+      setNocData(commandCenter);
+      setNocError(null);
       setError(null);
       setConnection('online');
       setLastUpdatedAt(new Date());
     } catch (cause: unknown) {
       const message = cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load dashboard telemetry.';
       setError(message);
+      if (!nocData) setNocError(message);
       setConnection(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'degraded');
       // Preserve the last verified snapshot instead of replacing real telemetry with zeros.
     } finally {
@@ -182,6 +216,64 @@ export default function DashboardPage() {
       </nav>
 
       {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
+      <section className="noc-command-center" aria-label="NOC command center">
+        <div className="noc-head">
+          <div><div className="panel-kicker">NOC COMMAND CENTER</div><h2>Operational state</h2><p>Only persisted tenant state and reported telemetry are shown.</p></div>
+          <span className={`noc-health noc-${(nocData?.systemHealth.status ?? 'DEGRADED').toLowerCase()}`}><i />{nocData?.systemHealth.status ?? (nocError ? 'DEGRADED' : 'LOADING')}</span>
+        </div>
+        {nocError && <div className="noc-degraded" role="alert"><strong>NOC telemetry degraded.</strong> {nocError}</div>}
+        <div className="noc-health-grid">
+          <a href="/incidents"><b>{nocData?.systemHealth.activeIncidents ?? '—'}</b><span>Active incidents</span></a>
+          <a href="/network"><b>{nocData?.systemHealth.devices.unreachable ?? '—'}</b><span>Unreachable devices</span></a>
+          <a href="/sessions"><b>{nocData?.systemHealth.activeSessions ?? '—'}</b><span>Active sessions</span></a>
+          <a href="/radius"><b>{nocData?.systemHealth.authenticationFailures24h ?? '—'}</b><span>Auth failures · 24h</span></a>
+          <a href="/payments"><b>{nocData?.systemHealth.paymentFailures24h ?? '—'}</b><span>Payment failures · 24h</span></a>
+          <a href="/network-commands"><b>{nocData?.systemHealth.commandQueue.pending ?? '—'}</b><span>Commands queued</span></a>
+        </div>
+        <div className="noc-grid">
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>DEVICE FLEET</span><h3>Reachability</h3></div><a href="/network">Open network →</a></div>
+            <div className="noc-list">
+              {(nocData?.devices ?? []).slice(0,8).map((device) => <div className="noc-row" key={device.id}><span><i className={`noc-dot ${device.status.toLowerCase()}`} /><strong>{device.name}</strong><small>{device.vendor ?? 'Unknown vendor'} · {device.ipAddress ?? 'No IP'}</small></span><b>{device.status}</b><em>{device.activeSessions} sessions</em></div>)}
+              {!nocData?.devices.length && <div className="noc-empty">{nocError ? 'Device telemetry unavailable.' : 'No persisted devices returned.'}</div>}
+            </div>
+          </article>
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>ACTIVE INCIDENTS</span><h3>Operator queue</h3></div><a href="/incidents">Open incidents →</a></div>
+            <div className="noc-list">
+              {(nocData?.incidents ?? []).slice(0,6).map((incident) => <a className="noc-row" href={`/incidents?q=${encodeURIComponent(incident.id)}`} key={incident.id}><span><i className={`noc-dot ${incident.severity.toLowerCase()}`} /><strong>{incident.title}</strong><small>{incident.category} · {incident.affectedDevices} devices · {incident.affectedSubscribers} subscribers</small></span><b>{incident.severity}</b></a>)}
+              {!nocData?.incidents.length && <div className="noc-empty">{nocError ? 'Incident telemetry unavailable.' : 'No active incidents.'}</div>}
+            </div>
+          </article>
+        </div>
+        <div className="noc-grid">
+          <article className="noc-panel wide">
+            <div className="noc-panel-head"><div><span>SESSION CONTROL</span><h3>Current connections</h3></div><a href="/sessions">Open sessions →</a></div>
+            <div className="noc-table-wrap"><table><thead><tr><th>SUBSCRIBER</th><th>DEVICE</th><th>IP</th><th>AUTH</th><th>ACCOUNTING</th><th>STATE</th></tr></thead><tbody>
+              {(nocData?.sessions ?? []).slice(0,8).map((session) => <tr key={session.id}><td><strong>{session.subscriber}</strong><small>{session.username ?? '—'}</small></td><td>{session.device}</td><td>{session.ip ?? '—'}</td><td>{session.authenticationState}</td><td>{session.accountingState}</td><td><span className="noc-status">{session.status}</span></td></tr>)}
+              {!nocData?.sessions.length && <tr><td colSpan={6}><div className="noc-empty">{nocError ? 'Session telemetry unavailable.' : 'No active session records.'}</div></td></tr>}
+            </tbody></table></div>
+          </article>
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>COMMAND FABRIC</span><h3>Execution queue</h3></div><a href="/network-commands">Open commands →</a></div>
+            <div className="noc-list">
+              {(nocData?.commands ?? []).slice(0,7).map((command) => <a className="noc-row" href={`/network-commands?q=${encodeURIComponent(command.id)}`} key={command.id}><span><strong>{command.commandType}</strong><small>{command.actor} · {command.provider ?? 'provider pending'}</small></span><b>{command.status}</b></a>)}
+              {!nocData?.commands.length && <div className="noc-empty">{nocError ? 'Command telemetry unavailable.' : 'No persisted command records.'}</div>}
+            </div>
+          </article>
+        </div>
+        <div className="noc-grid">
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>PROVIDER HEALTH</span><h3>Failed commands · 24h</h3></div></div>
+            <div className="noc-provider-list">{(nocData?.systemHealth.providerFailures24h ?? []).map((item) => <div key={item.provider}><span>{item.provider}</span><b>{item.failures}</b></div>)}{!nocData?.systemHealth.providerFailures24h.length && <div className="noc-empty">No provider failures recorded in the last 24 hours.</div>}</div>
+          </article>
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>CRITICAL EVENTS</span><h3>Recent high-severity events</h3></div></div>
+            <div className="noc-list">{(nocData?.recentCriticalEvents ?? []).slice(0,6).map((event) => <div className="noc-row" key={event.id}><span><strong>{event.title}</strong><small>{event.category} · {new Date(event.occurredAt).toLocaleString()}</small></span><b>{event.severity}</b></div>)}{!nocData?.recentCriticalEvents.length && <div className="noc-empty">No critical incident records returned.</div>}</div>
+          </article>
+        </div>
+        <div className="noc-telemetry-note">Device CPU, memory, interfaces, bandwidth, latency, packet loss and uptime are intentionally shown only when a telemetry source persists them. The current schema does not report those values, so Jaslyn Net does not manufacture them.</div>
+      </section>
 
       <section className="overview-kpis" aria-label="Network and business KPIs">
         <article className="overview-kpi">
@@ -283,6 +375,15 @@ export default function DashboardPage() {
         </div>
         <div className="overview-footer-metrics"><span><b>{bytes(traffic)}</b> observed traffic in returned sessions</span><span>Timezone: {data?.tenant?.timezone ?? 'tenant configured'}</span></div>
       </section>
+    
+      <style jsx>{`
+        .noc-command-center{margin:0 0 18px;border:1px solid #dfe5eb;background:#fff;padding:18px}
+        .noc-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #e9edf1;padding-bottom:12px}.noc-head h2{margin:4px 0;font-size:18px}.noc-head p{margin:0;color:#8995a5;font-size:9px}.noc-health{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid #dce3ea;font-size:8px;font-weight:850;letter-spacing:.08em}.noc-health i,.noc-dot{width:6px;height:6px;border-radius:50%;display:inline-block;background:#7890ad}.noc-operational i,.noc-dot.online{background:#3b9b70}.noc-attention i,.noc-dot.degraded,.noc-dot.warning{background:#bd862d}.noc-degraded,.noc-dot.critical,.noc-degraded i{background:#fff5f6;color:#984651}.noc-health.noc-degraded i,.noc-dot.offline{background:#c95766}.noc-health.noc-degraded{color:#984651}.noc-health.noc-attention{color:#8b671d}.noc-health.noc-operational{color:#2e7455}
+        .noc-health-grid{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid #e9edf1}.noc-health-grid a{padding:12px;border-right:1px solid #edf0f3;text-decoration:none}.noc-health-grid a:last-child{border-right:0}.noc-health-grid b{display:block;font-size:20px;color:#26364b}.noc-health-grid span{display:block;margin-top:3px;color:#8a96a5;font-size:8px}
+        .noc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.noc-panel{border:1px solid #e4e9ee;min-width:0}.noc-panel.wide{grid-column:span 2}.noc-panel-head{display:flex;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid #e9edf1}.noc-panel-head span{font-size:7px;letter-spacing:.12em;color:#929da9;font-weight:850}.noc-panel-head h3{margin:3px 0 0;font-size:12px}.noc-panel-head a{font-size:8px;color:#526f91;text-decoration:none}.noc-list{min-height:80px}.noc-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #eef1f4;text-decoration:none;color:inherit}.noc-row:last-child{border-bottom:0}.noc-row>span{min-width:0}.noc-row strong,.noc-row small{display:block}.noc-row strong{font-size:9px;color:#2f4054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.noc-row small{font-size:7px;color:#98a3af;margin-top:3px}.noc-row b{font-size:7px;letter-spacing:.05em;color:#68788b;white-space:nowrap}.noc-row em{font-size:7px;color:#8895a4;font-style:normal}.noc-dot{margin-right:7px;vertical-align:middle}.noc-status{font-size:7px;font-weight:850;color:#3b7a5b}.noc-table-wrap{overflow:auto}.noc-table-wrap table{width:100%;border-collapse:collapse;min-width:650px}.noc-table-wrap th{padding:8px 10px;text-align:left;font-size:7px;color:#929da9;letter-spacing:.08em;border-bottom:1px solid #e9edf1}.noc-table-wrap td{padding:9px 10px;font-size:8px;color:#65758a;border-bottom:1px solid #eef1f4}.noc-table-wrap td strong,.noc-table-wrap td small{display:block}.noc-table-wrap td strong{color:#34465b}.noc-table-wrap td small{font-size:7px;color:#9aa4af;margin-top:2px}.noc-provider-list>div{display:flex;justify-content:space-between;padding:9px 11px;border-bottom:1px solid #eef1f4;font-size:8px}.noc-provider-list b{color:#a14c57}.noc-empty{padding:22px;text-align:center;color:#909ba7;font-size:8px}.noc-telemetry-note{margin-top:10px;padding:9px 11px;background:#f7f9fb;border-top:1px solid #e9edf1;color:#8793a1;font-size:8px;line-height:1.5}
+        @media(max-width:1100px){.noc-health-grid{grid-template-columns:repeat(3,1fr)}.noc-health-grid a:nth-child(3){border-right:0}.noc-grid{grid-template-columns:1fr}.noc-panel.wide{grid-column:auto}}@media(max-width:600px){.noc-command-center{padding:12px}.noc-health-grid{grid-template-columns:repeat(2,1fr)}.noc-health-grid a{border-bottom:1px solid #edf0f3}.noc-head{flex-direction:column}.noc-grid{gap:8px}}
+        @media(prefers-reduced-motion:reduce){.noc-command-center *{scroll-behavior:auto!important;transition:none!important}}
+      `}</style>
     </main>
   );
 }

@@ -80,4 +80,23 @@ describe('CommunicationCommandService', () => {
       }),
     );
   });
+
+  it('allows an upstream execution id to become the durable network request id', async () => {
+    const db = makeDb();
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const networkCommands = { queue: jest.fn().mockResolvedValue({ id: 'command-1', reused: false }) };
+    const service = new CommunicationCommandService(db as never, audit as never, networkCommands as never);
+
+    await service.execute(
+      { userId: 'operator-1', tenantId: 'tenant-1', role: 'NOC_ENGINEER' },
+      'terminate session session-1',
+      true,
+      'ai-execution-1',
+    );
+
+    expect(networkCommands.queue).toHaveBeenCalledWith(
+      'tenant-1',
+      expect.objectContaining({ request: { reason: 'OPERATOR_COMMAND', requestId: 'ai-execution-1' } }),
+    );
+  });
 });

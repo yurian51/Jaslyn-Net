@@ -14,15 +14,17 @@ export class IncidentsService {
 
   async list(tenantId: string, status?: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED') {
     const result = await this.db.query(
-      `SELECT i.id, i.fingerprint, i.category, i.severity, i.status, i.title, i.summary,
+      `SELECT i.id, i.tenant_id AS "tenantId", t.name AS "tenantName", i.fingerprint, i.category, i.severity, i.status, i.title, i.summary,
               i.root_resource_type AS "rootResourceType", i.root_resource_id AS "rootResourceId",
               i.started_at AS "startedAt", i.last_seen_at AS "lastSeenAt", i.acknowledged_at AS "acknowledgedAt",
-              i.resolved_at AS "resolvedAt", i.resolution, i.evidence, i.created_at AS "createdAt",
+              i.resolved_at AS "resolvedAt", i.resolution, i.assignee_user_id AS "assigneeUserId", i.evidence, i.created_at AS "createdAt",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.state='AFFECTED'),0)::int AS "affectedResources",
+              COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='ROUTER' AND ii.state='AFFECTED'),0)::int AS "affectedDevices",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='CUSTOMER' AND ii.state='AFFECTED'),0)::int AS "affectedCustomers",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='SESSION' AND ii.state='AFFECTED'),0)::int AS "affectedSessions",
               COALESCE(SUM(ii.estimated_revenue) FILTER (WHERE ii.resource_type='REVENUE' AND ii.state='AFFECTED'),0)::numeric AS "estimatedRevenue"
        FROM incidents i
+       JOIN tenants t ON t.id=i.tenant_id
        LEFT JOIN incident_impacts ii ON ii.incident_id=i.id AND ii.tenant_id=i.tenant_id
        WHERE i.tenant_id=$1 AND ($2::text IS NULL OR i.status=$2)
        GROUP BY i.id
@@ -38,7 +40,7 @@ export class IncidentsService {
       `SELECT id, fingerprint, category, severity, status, title, summary,
               root_resource_type AS "rootResourceType", root_resource_id AS "rootResourceId",
               started_at AS "startedAt", last_seen_at AS "lastSeenAt", acknowledged_at AS "acknowledgedAt",
-              resolved_at AS "resolvedAt", resolution, evidence, created_at AS "createdAt", updated_at AS "updatedAt"
+              resolved_at AS "resolvedAt", resolution, assignee_user_id AS "assigneeUserId", evidence, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM incidents WHERE tenant_id=$1 AND id=$2`,
       [tenantId, id],
     );
@@ -215,4 +217,24 @@ export class IncidentsService {
     await this.audit.record(tenantId, 'INCIDENT_RESOLVED', 'incident', id, { resolution: resolution.trim() }, context);
     return this.get(tenantId, id);
   }
+  async assign(tenantId: string, id: string, assigneeUserId: string | null, context: AuditContext = {}) {
+    if (assigneeUserId) {
+      const user = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true', [tenantId, assigneeUserId]);
+      if (!user.rowCount) throw new NotFoundException('Active assignee not found in tenant');
+    }
+    const result = await this.db.query('UPDATE incidents SET assignee_user_id=$3, updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING id', [tenantId, id, assigneeUserId]);
+    if (!result.rowCount) throw new NotFoundException('Incident not found');
+    await this.audit.record(tenantId, assigneeUserId ? 'INCIDENT_ASSIGNED' : 'INCIDENT_UNASSIGNED', 'incident', id, { assigneeUserId }, context);
+    return this.get(tenantId, id);
+  }
+
+  async auditTrail(tenantId: string, id: string, limit = 100) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 500);
+    const result = await this.db.query(
+      "SELECT a.id,a.action,a.actor_user_id AS \"actorUserId\",u.full_name AS \"actorName\",a.request_id AS \"requestId\",a.correlation_id AS \"correlationId\",a.metadata,a.created_at AS \"createdAt\" FROM audit_logs a LEFT JOIN users u ON u.tenant_id=a.tenant_id AND u.id=a.actor_user_id WHERE a.tenant_id=$1 AND a.resource_type='incident' AND a.resource_id=$2 ORDER BY a.created_at ASC LIMIT $3",
+      [tenantId, id, safeLimit],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
 }

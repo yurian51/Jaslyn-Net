@@ -12,6 +12,8 @@ const nav = read('apps/web/app/landing-nav.tsx');
 const chrome = read('apps/web/app/console-chrome.tsx');
 const dashboard = read('apps/web/app/dashboard/page.tsx');
 const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
+const network = read('apps/web/app/network/page.tsx');
+const sessions = read('apps/web/app/sessions/page.tsx');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
@@ -37,7 +39,20 @@ const required = [
   ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
+  ['NOC command center', dashboard.includes('noc-command-center') && dashboard.includes('/overview/command-center') && dashboard.includes('NOC COMMAND CENTER')],
+  ['NOC real state guardrails', dashboard.includes('current schema does not report those values') && dashboard.includes('does not manufacture them')],
+  ['incident assignment/audit', read('apps/web/app/incidents/page.tsx').includes('/assign') && read('apps/web/app/incidents/page.tsx').includes('/audit-trail')],
+  ['command evidence controls', read('apps/web/app/network-commands/page.tsx').includes('Risk level') && read('apps/web/app/network-commands/page.tsx').includes('Authorization') && read('apps/web/app/network-commands/page.tsx').includes('Confirmation')],
+  ['device operational detail', network.includes('/overview/command-center') && network.includes('RECENT COMMANDS') && network.includes('RECENT INCIDENTS')],
+  ['session disconnect action', sessions.includes('/sessions/\\${id}/end') && sessions.includes('Disconnect session')],
+  ['session evidence state', sessions.includes('authenticationState') && sessions.includes('accountingState') && sessions.includes('durationSeconds')],
+  ['incident impact state', read('apps/web/app/incidents/page.tsx').includes('tenantName') && read('apps/web/app/incidents/page.tsx').includes('affectedDevices') && read('apps/web/app/incidents/page.tsx').includes('resolvedAt')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
+  ['operator shell health', chrome.includes('/health/ready') && chrome.includes('console-system-health')],
+  ['workspace context', chrome.includes('console-chrome-workspace') && chrome.includes('/account')],
+  ['context breadcrumbs', chrome.includes('console-breadcrumbs') && chrome.includes('aria-label="Breadcrumb"')],
+  ['notification center', chrome.includes('/notifications') && chrome.includes('console-notification-link')],
+  ['operator presence state', chrome.includes('operator-presence') && chrome.includes('navigator.onLine')],
   ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
 
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],

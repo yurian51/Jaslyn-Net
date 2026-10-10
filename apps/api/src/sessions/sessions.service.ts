@@ -25,13 +25,28 @@ export class SessionsService {
   async list(tenantId: string, status?: SessionStatus, limit = 100) {
     const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 500);
     const result = await this.db.query(
-      `SELECT id, customer_id AS "customerId", router_id AS "routerId", username,
-              ip_address AS "ipAddress", mac_address::text AS "macAddress",
-              started_at AS "startedAt", ended_at AS "endedAt", bytes_in AS "bytesIn",
-              bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status, created_at AS "createdAt"
-       FROM sessions
-       WHERE tenant_id=$1 AND ($2::text IS NULL OR status=$2)
-       ORDER BY started_at DESC LIMIT $3`,
+      `SELECT s.id, s.customer_id AS "customerId", s.router_id AS "routerId", s.username,
+              s.ip_address AS "ipAddress", s.mac_address::text AS "macAddress",
+              s.started_at AS "startedAt", s.ended_at AS "endedAt",
+              EXTRACT(EPOCH FROM (COALESCE(s.ended_at,now())-s.started_at))::bigint AS "durationSeconds",
+              s.bytes_in AS "bytesIn", s.bytes_out AS "bytesOut", s.bytes_total AS "bytesTotal", s.status, s.created_at AS "createdAt",
+              COALESCE(auth.result,'NOT_REPORTED') AS "authenticationState",
+              CASE WHEN EXISTS (SELECT 1 FROM traffic_samples ts WHERE ts.tenant_id=s.tenant_id AND ts.session_id=s.id)
+                     OR EXISTS (SELECT 1 FROM radius_accounting_events ra WHERE ra.tenant_id=s.tenant_id AND ra.username=COALESCE(s.username,c.username) AND ra.received_at >= s.started_at)
+                   THEN 'REPORTED' ELSE 'NOT_REPORTED' END AS "accountingState"
+       FROM sessions s
+       LEFT JOIN customers c ON c.tenant_id=s.tenant_id AND c.id=s.customer_id
+       LEFT JOIN LATERAL (
+         SELECT re.result
+         FROM radius_events re
+         WHERE re.tenant_id=s.tenant_id
+           AND re.username=COALESCE(s.username,c.username)
+           AND re.created_at >= s.started_at
+         ORDER BY re.created_at DESC
+         LIMIT 1
+       ) auth ON true
+       WHERE s.tenant_id=$1 AND ($2::text IS NULL OR s.status=$2)
+       ORDER BY s.started_at DESC LIMIT $3`,
       [tenantId, status ?? null, safeLimit],
     );
     return { data: result.rows, count: result.rowCount ?? 0 };
@@ -39,11 +54,27 @@ export class SessionsService {
 
   async get(tenantId: string, id: string) {
     const result = await this.db.query(
-      `SELECT id, customer_id AS "customerId", router_id AS "routerId", username,
-              ip_address AS "ipAddress", mac_address::text AS "macAddress",
-              started_at AS "startedAt", ended_at AS "endedAt", bytes_in AS "bytesIn",
-              bytes_out AS "bytesOut", bytes_total AS "bytesTotal", status, created_at AS "createdAt"
-       FROM sessions WHERE tenant_id=$1 AND id=$2`,
+      `SELECT s.id, s.customer_id AS "customerId", s.router_id AS "routerId", s.username,
+              s.ip_address AS "ipAddress", s.mac_address::text AS "macAddress",
+              s.started_at AS "startedAt", s.ended_at AS "endedAt",
+              EXTRACT(EPOCH FROM (COALESCE(s.ended_at,now())-s.started_at))::bigint AS "durationSeconds",
+              s.bytes_in AS "bytesIn", s.bytes_out AS "bytesOut", s.bytes_total AS "bytesTotal", s.status, s.created_at AS "createdAt",
+              COALESCE(auth.result,'NOT_REPORTED') AS "authenticationState",
+              CASE WHEN EXISTS (SELECT 1 FROM traffic_samples ts WHERE ts.tenant_id=s.tenant_id AND ts.session_id=s.id)
+                     OR EXISTS (SELECT 1 FROM radius_accounting_events ra WHERE ra.tenant_id=s.tenant_id AND ra.username=COALESCE(s.username,c.username) AND ra.received_at >= s.started_at)
+                   THEN 'REPORTED' ELSE 'NOT_REPORTED' END AS "accountingState"
+       FROM sessions s
+       LEFT JOIN customers c ON c.tenant_id=s.tenant_id AND c.id=s.customer_id
+       LEFT JOIN LATERAL (
+         SELECT re.result
+         FROM radius_events re
+         WHERE re.tenant_id=s.tenant_id
+           AND re.username=COALESCE(s.username,c.username)
+           AND re.created_at >= s.started_at
+         ORDER BY re.created_at DESC
+         LIMIT 1
+       ) auth ON true
+       WHERE s.tenant_id=$1 AND s.id=$2`,
       [tenantId, id],
     );
     if (!result.rowCount) throw new NotFoundException('Session not found');

@@ -13,6 +13,7 @@ import { CommunicationPlatformService } from './communication.platform';
 import { CommunicationSuperAppService } from './communication.superapp';
 import { CommunicationDomainEventsService } from './communication.domain-events';
 import { CommunicationDomainBridge } from './communication.domain-bridge';
+import { NetworkAiToolsService } from './network-ai-tools';
 
 @Module({
   imports: [AuditModule, TrafficModule],
@@ -22,6 +23,7 @@ import { CommunicationDomainBridge } from './communication.domain-bridge';
     CommunicationPlatformService,
     CommunicationCommandService,
     CommunicationAiService,
+    NetworkAiToolsService,
     CommunicationBotService,
     CommunicationRealtime,
     CommunicationScheduler,

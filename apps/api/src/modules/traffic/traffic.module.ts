@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { SecureNetworkCredentials } from '../../common/secure-network-credentials';
 import { AuditModule } from '../../audit/audit.module';
+import { RadiusModule } from '../../radius/radius.module';
 import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
 import { MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { MerakiTrafficEnforcementAdapter } from './meraki.adapter';
 import { NetworkDeviceAdapterRegistry } from './network-device.adapter';
+import { MikroTikCapabilityAdapter, OpenWrtCapabilityAdapter, FreeRadiusCapabilityAdapter, NetworkCapabilityRegistry } from './network-capability-fabric';
 import { TrafficSamplesController } from './traffic-samples.controller';
 import { TrafficSamplesService } from './traffic-samples.service';
 import { TrafficOrchestratorService } from './traffic-orchestrator.service';
@@ -19,7 +21,7 @@ import { LoadBalancingService } from './load-balancing.service';
 import { LoadBalancingEngine } from './load-balancing.engine';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, RadiusModule],
   controllers: [TrafficSamplesController, TrafficOrchestratorController, NetworkCommandController, LoadBalancingController],
   providers: [
     SecureNetworkCredentials,
@@ -29,6 +31,10 @@ import { LoadBalancingEngine } from './load-balancing.engine';
     MikroTikTrafficEnforcementAdapter,
     MerakiTrafficEnforcementAdapter,
     NetworkDeviceAdapterRegistry,
+    MikroTikCapabilityAdapter,
+    OpenWrtCapabilityAdapter,
+    FreeRadiusCapabilityAdapter,
+    NetworkCapabilityRegistry,
     {
       provide: TrafficEnforcementService,
       useFactory: (
@@ -48,6 +54,6 @@ import { LoadBalancingEngine } from './load-balancing.engine';
     LoadBalancingEngine,
     LoadBalancingService,
   ],
-  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCommandService, LoadBalancingService],
+  exports: [FairnessService, TrafficEnforcementService, TrafficSamplesService, TrafficOrchestratorService, NetworkDeviceAdapterRegistry, NetworkCapabilityRegistry, NetworkCommandService, LoadBalancingService],
 })
 export class TrafficModule {}
