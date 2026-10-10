@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     type: 'website',
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'JASLYN NET | Connectivity Operations Platform',
     description: 'Connect customer, billing, access and network operations in one control plane.',
   },
