@@ -315,7 +315,7 @@ export default function Home() {
 
           <div className="jn-integration-note">
             <span>INTEGRATION MODEL</span>
-            <b>Native API / controller</b><i>+</i><b>RADIUS / AAA</b><i>+</i><b>Gateway operations</b>
+            <b>Controller / API pathways</b><i>+</i><b>RADIUS / AAA</b><i>+</i><b>Gateway pathways</b>
           </div>
         </div>
       </section>
