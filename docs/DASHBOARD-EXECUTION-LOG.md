@@ -16,7 +16,7 @@
 
 ## Validation status
 
-The changes above are committed to the working branch. The UI verification script has been extended but **has not been executed in a functioning repository runtime in this session**. Typecheck, lint, unit tests, production build, and browser tests are not claimed as passing. Previous GitHub Actions runs reported `startup_failure` before jobs were created, and direct clone attempts failed because repository DNS/network access was unavailable.
+The changes above are committed to the working branch. A separate source review checked 17 cross-file conditions and confirmed that all 29 extracted console navigation destinations match a page route in the repository tree. This is a manual/source-level inspection, **not execution of the UI verification script**. The UI verification script has been extended but **has not been executed in a functioning repository runtime in this session**. Typecheck, lint, unit tests, production build, and browser tests are not claimed as passing. Latest GitHub Actions runs still report `startup_failure` before jobs are created (zero jobs returned), and direct clone attempts failed because repository DNS/network access was unavailable.
 
 ## Operational invariants preserved
 
