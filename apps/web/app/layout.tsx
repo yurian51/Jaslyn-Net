@@ -8,6 +8,7 @@ import './overview.css';
 import './auth.css';
 import './legal/legal.css';
 import './console-system-ui.css';
+import './plan-catalogue.css';
 import './landing.css';
 import './premium.css';
 import './enterprise-presence.css';
