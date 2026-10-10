@@ -57,3 +57,19 @@ Router management and enforcement are capability-driven. A catalog entry is not 
 - Network mutations use idempotent command state and verified execution.
 - Access reconciliation fails closed when network enforcement cannot be verified.
 - Real integrations are never represented as connected until verified.
+
+
+## Capability truth and AI safety
+
+Every externally visible integration or advanced capability must have an explicit operational status:
+- **Native + Tested:** executable implementation with repeatable automated tests and recorded integration evidence.
+- **Beta / Limited:** executable, but only a documented subset or non-production validation is available.
+- **Catalogue only:** metadata/discovery entry exists; no claim of working operational integration.
+- **Unavailable:** not executable in the current deployment.
+
+For AI/NOC features:
+- Start with read-only evidence retrieval and diagnosis.
+- Every finding should include evidence source and observation time; label missing/stale data.
+- Enforce tenant scope and RBAC before retrieval and before any proposed action.
+- State-changing actions require policy evaluation, an explicit preview, approval when risky, audit logging and verification; provide rollback where supported.
+- A language model's output is not authoritative evidence of payment, session, router or customer state.
