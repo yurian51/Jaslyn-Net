@@ -87,8 +87,8 @@ function ProductPreview() {
           <small className="jn-preview-label">ACCESS</small>
           {['Hotspot', 'Packages', 'Vouchers', 'RADIUS / AAA'].map(item => <span key={item}><i>·</i>{item}</span>)}
           <div className="jn-preview-sidebar-foot">
-            <span className="status-dot" /> Workspace session
-            <small>Authenticated operator</small>
+            <span className="jn-preview-example-dot" aria-hidden="true" /> Illustrative session
+            <small>Example operator view</small>
           </div>
         </aside>
 
@@ -103,9 +103,9 @@ function ProductPreview() {
           </div>
 
           <div className="jn-preview-metrics">
-            <article><small>CUSTOMER</small><strong>Service state</strong><span>Entitled</span></article>
-            <article><small>PAYMENT</small><strong>Verified event</strong><span>Reconciled</span></article>
-            <article><small>NETWORK</small><strong>Access policy</strong><span>Applied</span></article>
+            <article><small>CUSTOMER</small><strong>Service state</strong><span>Example state</span></article>
+            <article><small>PAYMENT</small><strong>Payment event</strong><span>Illustrative only</span></article>
+            <article><small>NETWORK</small><strong>Access policy</strong><span>Example policy</span></article>
           </div>
 
           <div className="jn-preview-grid">
