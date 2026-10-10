@@ -71,7 +71,7 @@ function ProductPreview() {
       <div className="jn-preview-topline">
         <div className="jn-window-dots" aria-hidden="true"><i /><i /><i /></div>
         <span>JASLYN NET / OPERATIONS</span>
-        <b>CONTROL PLANE</b>
+        <b>PRODUCT PREVIEW</b>
       </div>
 
       <div className="jn-preview-body">
@@ -99,7 +99,7 @@ function ProductPreview() {
               <h3>Customer to connectivity</h3>
               <p>One operational context from purchase to active session.</p>
             </div>
-            <span>LIVE WORKSPACE</span>
+            <span>ILLUSTRATIVE WORKSPACE</span>
           </div>
 
           <div className="jn-preview-metrics">
@@ -128,10 +128,10 @@ function ProductPreview() {
               <div className="jn-panel-kicker">CONTROL LAYERS</div>
               <h4>Operational state</h4>
               {[
-                ['Commercial', 'Configured', 'good'],
-                ['Access', 'Policy ready', 'good'],
-                ['Network', 'Connected', 'good'],
-                ['Incidents', 'No sample data', 'neutral'],
+                ['Commercial', 'Workflow example', 'neutral'],
+                ['Access', 'Policy example', 'neutral'],
+                ['Network', 'Adapter-dependent', 'neutral'],
+                ['Incidents', 'Workspace data only', 'neutral'],
               ].map(([label, state, kind]) => (
                 <div className="jn-health-row" key={label}>
                   <span><i className={kind} />{label}</span><b>{state}</b>
@@ -180,7 +180,25 @@ export default function Home() {
       </section>
 
       <section className="jn-proof-strip" aria-label="JASLYN NET product scope">
-        <div><span>ONE CONTROL PLANE</span><b>Customer</b><b>Commerce</b><b>Entitlement</b><b>Network</b><b>Operations</b></div>
+        <div><span>ONE CONNECTED OPERATING MODEL</span><b>Customer</b><b>Commerce</b><b>Entitlement</b><b>Network</b><b>Operations</b></div>
+      </section>
+
+
+
+      <section className="jn-outcomes" aria-labelledby="jn-outcomes-title">
+        <div className="jn-outcomes-inner">
+          <div className="jn-outcomes-heading">
+            <small className="jn-kicker">DESIGNED FOR DAILY OPERATIONS</small>
+            <h2 id="jn-outcomes-title">Less context switching.<br /><span>Clearer operational decisions.</span></h2>
+            <p>Connect the commercial journey to the network workflow without pretending every adapter or payment path is already enabled.</p>
+          </div>
+          <div className="jn-outcomes-grid">
+            <article><span>01 / SELL</span><div className="jn-outcome-icon" aria-hidden="true">↗</div><h3>Make access understandable</h3><p>Keep WiFi bundles, prices, validity, data allowances and device limits clear to customers before they buy.</p><Link href="/packages">Explore WiFi packages <ArrowIcon /></Link></article>
+            <article><span>02 / CONTROL</span><div className="jn-outcome-icon" aria-hidden="true">⌁</div><h3>Connect purchase to service</h3><p>Model purchases, payment verification, access entitlement and session state as related parts of one customer lifecycle.</p><a href="#architecture">See the workflow <ArrowIcon /></a></article>
+            <article><span>03 / OPERATE</span><div className="jn-outcome-icon" aria-hidden="true">◎</div><h3>Work from evidence</h3><p>Bring network inventory, incidents, session context and audit history into the operator's decision-making process.</p><a href="#operations">Explore operations <ArrowIcon /></a></article>
+          </div>
+          <p className="jn-outcomes-note">Integration availability and payment automation depend on the configured adapter, provider and deployment.</p>
+        </div>
       </section>
 
       <section id="platform" className="jn-section jn-platform">
@@ -270,7 +288,7 @@ export default function Home() {
               <h2>Keep the infrastructure<br /><span>you already operate.</span></h2>
             </div>
             <p>
-              JASLYN NET is structured around vendor adapters and standards. Native controller/API integrations can coexist with RADIUS and gateway workflows without forcing one hardware stack onto every deployment.
+              JASLYN NET is designed around vendor adapters and standards. The integration path and supported operations depend on each adapter and deployment; confirm compatibility before planning a production cutover.
             </p>
           </div>
 
@@ -389,7 +407,7 @@ export default function Home() {
         <div className="jn-section">
           <small className="jn-kicker">09 / START OPERATING</small>
           <h2>Bring the network,<br /><em>the customer and the transaction together.</em></h2>
-          <p>Create a workspace and move from disconnected tools to one operational control plane.</p>
+          <p>Explore the product model, verify the integrations your network needs, then create a workspace when you are ready to configure your operation.</p>
           <div className="jn-final-actions">
             <Link href="/register" className="jn-btn jn-btn-primary">Create a JASLYN NET workspace <ArrowIcon /></Link>
             <Link href="/login" className="jn-btn jn-btn-secondary">Sign in to the console</Link>
@@ -403,7 +421,7 @@ export default function Home() {
             <BrandLogo alt="" loading="lazy" />
             <b>JASLYN NET</b>
           </Link>
-          <p>Connectivity operations, billing and network control in one system.</p>
+          <p>A clearer operating model for WiFi, ISP and managed network teams.</p>
         </div>
         <nav aria-label="Footer">
           <a href="#platform">Platform</a>
