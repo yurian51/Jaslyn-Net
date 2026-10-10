@@ -11,7 +11,9 @@
 - Added `docs/PRODUCT-STRATEGY-AND-ROADMAP.md` consolidating the ten-competitor benchmark, product positioning, user jobs, feature roadmap, pricing hypotheses and 90-day plan.
 - Corrected stale NEXORA branding in `docs/production-readiness.md`.
 - Created draft PR #63: https://github.com/yurian51/Jaslyn-Net/pull/63
-- No runtime code was changed in this documentation pass. Tests and live router/payment-provider verification have not been run.
+- Updated `apps/api/src/payments/payments.service.spec.ts` to inject the required domain-events mock and added regression tests for missing/malformed webhook signatures.
+- No production runtime code was changed. Tests and live router/payment-provider verification have not been run.
+- GitHub Actions runs currently report `startup_failure` with zero jobs created; this is infrastructure/startup evidence, not a passing or failing test result.
 
 ## Product direction agreed in discussion
 
