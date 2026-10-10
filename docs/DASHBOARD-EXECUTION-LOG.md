@@ -24,3 +24,6 @@ The changes above are committed to the working branch. A separate source review 
 - Financial totals must not combine different currencies into one amount.
 - Dashboard health summaries must not imply success without a successful telemetry snapshot.
 - These UI changes do not prove that external payment providers, routers, RADIUS, or production entitlements are live or verified.
+
+- `apps/web/app/customers/page.tsx`: customer purchase history now distinguishes loading, unavailable, verified-empty, and populated states; the customer directory distinguishes unverified counts from confirmed totals, adds active-only filtering and a refresh action, and avoids representing live connectivity as a customer count. Purchase-history failures no longer masquerade as an empty period.
+- `apps/web/scripts/verify-ui-surface.mjs`: added source-level assertions for customer-history truth states, active-only filtering, and count availability.
