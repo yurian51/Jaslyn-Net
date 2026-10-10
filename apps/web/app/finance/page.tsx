@@ -6,7 +6,7 @@ import { getAccessToken } from '../../lib/auth';
 import './finance.css';
 
 type Row = Record<string, any>;
-const money=(v:any,c='TZS')=>new Intl.NumberFormat('en-TZ',{style:'currency',currency:c,maximumFractionDigits:2}).format(Number(v||0));
+const money=(v:any,c='TZS')=>{const amount=Number(v||0);if(!Number.isFinite(amount))return '—';try{return new Intl.NumberFormat('en-TZ',{style:'currency',currency:c||'TZS',maximumFractionDigits:2}).format(amount)}catch{return `${c||'Unknown currency'} ${amount.toLocaleString()}`}};
 
 export default function FinancePage(){
   const [invoices,setInvoices]=useState<Row[]>([]),[resellers,setResellers]=useState<Row[]>([]),[commissions,setCommissions]=useState<Row[]>([]);
