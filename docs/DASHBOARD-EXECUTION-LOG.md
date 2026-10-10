@@ -31,3 +31,16 @@ The changes above are committed to the working branch. A separate source review 
 - `apps/web/scripts/verify-ui-surface.mjs`: added source-level checks for independent voucher/package loading, truthful ledger states, generation gating, and print-output escaping.
 - `apps/web/app/network/page.tsx`: registered-device, online/degraded/offline, and connected-user metrics now remain unavailable until the network API has returned an inventory snapshot. A failed initial fetch no longer produces a misleading “No network devices registered” empty state.
 - `apps/web/scripts/verify-ui-surface.mjs`: added a source-level regression assertion for network snapshot gating.
+
+
+## SMS delivery implementation pass (2026-10-10)
+
+- Added a Beem SMS provider adapter using HTTPS, Basic authentication, a bounded request timeout, input validation and secret-safe error reporting. SMS remains disabled unless `SMS_ENABLED=true`, provider credentials and sender ID are present.
+- Added migration `060_sms_delivery_provider.sql` for provider receipt IDs, message categories, marketing consent storage and a partial SMS claim index.
+- Added a queue API with Tanzania mobile-number normalization, tenant-scoped records, idempotency keys and a marketing opt-in gate. Marketing messages are rejected unless opt-in is recorded for the same tenant and normalized recipient.
+- Added a worker using `FOR UPDATE SKIP LOCKED`, bounded exponential retry delay, stale-lock recovery support and an eight-attempt ceiling. The worker does not claim SMS while provider configuration is disabled.
+- Purchase settlement queues a payment receipt in the same PostgreSQL transaction as payment settlement and access activation. The expiry reconciler queues deduplicated near-expiry reminders and a final expiry notice when service is suspended.
+- The Notifications UI now shows provider readiness, SMS category and provider acknowledgement IDs. It explicitly labels provider acceptance separately from confirmed handset delivery; delivery-receipt callbacks are not yet implemented.
+- Added provider, queue-consent and worker tests plus static regression assertions.
+
+**Important limits:** no provider credentials or sender ID have been supplied, so no real SMS has been sent. Typecheck, Jest, migration execution, end-to-end delivery and handset delivery-report validation have not been run in a working runtime. Beem API credentials and a registered sender ID must be configured in deployment secrets; marketing consent must be captured through a genuine customer opt-in flow before campaigns are used.
