@@ -45,11 +45,18 @@ const required = [
   ['subscription catalogue error differs from unpublished pricing', platformSubscription.includes('Platform plans are temporarily unavailable.') && platformSubscription.includes('Platform pricing has not been published yet.')],
   ['dashboard does not report clean health without telemetry', dashboard.includes('No health conclusion can be drawn without an API snapshot') && dashboard.includes('API UNAVAILABLE')],
   ['payment ledger and provider methods fail independently', payments.includes('paymentResult') && payments.includes('methodResult') && payments.includes('failures.join')],
+  ['payment ledger empty state requires a successful response', payments.includes('paymentsLoaded') && payments.includes('Payment ledger unavailable')],
+  ['payment-method empty state requires a successful response', payments.includes('methodsLoaded') && payments.includes('Payment-method configuration could not be loaded.')],
+  ['payment currency formatter tolerates unknown codes', payments.includes('catch{return `${c||\'Unknown currency\'}')],
+
   ['payment totals respect currency boundaries', payments.includes('totalByCurrency') && payments.includes('Object.entries(totalByCurrency)')],
   ['payment ledger search and status filter', payments.includes('visiblePayments') && payments.includes('statusFilter') && payments.includes('Search payments')],
   ['session inventory supports operational search', sessions.includes('visibleSessions') && sessions.includes('Search sessions')],
   ['session empty state distinguishes search filtering', sessions.includes('No sessions match this search and status filter.')],
   ['finance domains survive partial endpoint failures', finance.includes('const results=await Promise.all(endpoints.map') && finance.includes('failures.join')],
+  ['finance empty states require successful domain reads', finance.includes('loadedDomains.includes(\'Invoices\')') && finance.includes('Invoice data unavailable; an empty result cannot be confirmed.')],
+  ['purchase ledger does not show false zero metrics', purchases.includes('loadedDomains.includes(\'Purchases\')') && purchases.includes('Purchase ledger unavailable')],
+
   ['purchase domains load independently', purchases.includes('const [purchaseResult, methodsResult, packageResult, customerResult, routerResult] = requests') && purchases.includes('failures.join')],
 
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
