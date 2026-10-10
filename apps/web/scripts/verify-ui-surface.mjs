@@ -29,12 +29,12 @@ const routeExists = (route) => {
     const exact = path.join(directory, segments[index]);
     if (fs.existsSync(exact) && fs.statSync(exact).isDirectory() && visit(exact, index + 1)) return true;
     return fs.readdirSync(directory, { withFileTypes: true })
-      .some((entry) => entry.isDirectory() && /^\\[.+\\]$/.test(entry.name) && visit(path.join(directory, entry.name), index + 1));
+      .some((entry) => entry.isDirectory() && /^\[.+\]$/.test(entry.name) && visit(path.join(directory, entry.name), index + 1));
   };
   return visit('apps/web/app', 0);
 };
 
-const consoleNavigationRoutes = [...chrome.matchAll(/\\['[^']+',\\s*'[^']+',\\s*'([^']+)'\\]/g)].map((match) => match[1]);
+const consoleNavigationRoutes = [...chrome.matchAll(/\['[^']+',\s*'[^']+',\s*'([^']+)'\]/g)].map((match) => match[1]);
 const payments = read('apps/web/app/payments/page.tsx');
 const sessions = read('apps/web/app/sessions/page.tsx');
 const finance = read('apps/web/app/finance/page.tsx');
