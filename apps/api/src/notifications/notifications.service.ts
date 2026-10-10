@@ -55,7 +55,7 @@ export class NotificationsService {
     if (category === 'MARKETING') {
       const consent = await this.db.query(
         `SELECT id FROM customers
-          WHERE tenant_id=$1 AND regexp_replace(coalesce(phone,''),'[^0-9]','','g') = $2
+          WHERE tenant_id=$1 AND CASE WHEN regexp_replace(coalesce(phone,''),'[^0-9]','','g') LIKE '0%' THEN '255'||substring(regexp_replace(coalesce(phone,''),'[^0-9]','','g') FROM 2) ELSE regexp_replace(coalesce(phone,''),'[^0-9]','','g') END = $2
             AND sms_marketing_consent=true
           LIMIT 1`,
         [tenantId, recipient],
