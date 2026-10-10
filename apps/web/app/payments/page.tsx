@@ -8,7 +8,7 @@ type Payment = { id:string; customerId?:string|null; purchaseId?:string|null; pr
 type Method = { code:string; name?:string; currencies?:string[]; configured?:boolean; enabled?:boolean };
 
 function fmtDate(v?:string){ if(!v)return '—'; const d=new Date(v); return Number.isNaN(d.getTime())?'Invalid timestamp':d.toLocaleString(); }
-function money(v:number|string,c:string){ const n=Number(v); return Number.isFinite(n)?new Intl.NumberFormat(undefined,{style:'currency',currency:c==='TZS'?'TZS':c,maximumFractionDigits:2}).format(n):'—'; }
+function money(v:number|string,c:string){ const amount=Number(v); if(!Number.isFinite(amount))return '—'; try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c||'TZS',maximumFractionDigits:2}).format(amount);}catch{return `${c||'Unknown currency'} ${amount.toLocaleString()}`;} }
 
 export default function PaymentsPage(){
  const [payments,setPayments]=useState<Payment[]>([]); const [methods,setMethods]=useState<Method[]>([]);
