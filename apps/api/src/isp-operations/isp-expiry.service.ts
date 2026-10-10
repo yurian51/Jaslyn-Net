@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { SessionsService } from '../sessions/sessions.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const RECONCILIATION_INTERVAL_MS = 60_000;
 
@@ -29,6 +30,7 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly sessions: SessionsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit() {
@@ -121,6 +123,52 @@ export class IspExpiryService implements OnModuleInit, OnModuleDestroy {
       );
 
       await client.query('COMMIT');
+
+      // Queue near-expiry reminders with a stable key so the minute scheduler cannot duplicate them.
+      try {
+        const reminders = await this.db.query(
+          `SELECT s.tenant_id AS "tenantId",s.customer_id AS "customerId",c.full_name AS "fullName",c.phone,s.expires_at AS "expiresAt"
+             FROM customer_service_state s
+             JOIN customers c ON c.tenant_id=s.tenant_id AND c.id=s.customer_id AND c.is_active=true
+            WHERE s.state='ACTIVE' AND s.expires_at>now() AND s.expires_at<=now()+interval '24 hours'
+              AND c.phone IS NOT NULL
+            ORDER BY s.expires_at ASC LIMIT 200`,
+        );
+        for (const row of reminders.rows) {
+          try {
+            const expiry = new Date(row.expiresAt);
+            await this.notifications.enqueueSms(row.tenantId, {
+              recipient: row.phone,
+              category: 'EXPIRY',
+              message: `Habari ${row.fullName}, kifurushi chako kinakaribia kuisha tarehe ${expiry.toLocaleString('en-GB', { timeZone: 'Africa/Dar_es_Salaam' })}. Nunua kifurushi kingine kuendelea kutumia huduma.`,
+              idempotencyKey: `expiry-reminder:${row.customerId}:${expiry.toISOString()}`,
+            });
+          } catch (error: unknown) {
+            this.logger.warn(error instanceof Error ? error.message : 'Unable to queue expiry reminder');
+          }
+        }
+      } catch (error: unknown) {
+        this.logger.warn(error instanceof Error ? error.message : 'Unable to query expiry reminders');
+      }
+
+      // A suspension transition happens once; use it to enqueue a final expiry notice.
+      for (const row of suspendedCustomers.rows) {
+        try {
+          const customer = await this.db.query(
+            `SELECT full_name AS "fullName",phone FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true`,
+            [row.tenantId, row.customerId],
+          );
+          if (!customer.rowCount || !customer.rows[0].phone) continue;
+          await this.notifications.enqueueSms(row.tenantId, {
+            recipient: customer.rows[0].phone,
+            category: 'EXPIRY',
+            message: `Habari ${customer.rows[0].fullName}, kifurushi chako kimeisha na huduma imesitishwa. Tafadhali nunua kifurushi kingine ili kuendelea.`,
+            idempotencyKey: `expiry-final:${row.customerId}`,
+          });
+        } catch (error: unknown) {
+          this.logger.warn(error instanceof Error ? error.message : 'Unable to queue final expiry notice');
+        }
+      }
 
       const affectedTenantIds = new Set<string>([
         ...expiredBindings.rows.map((row) => row.tenantId),
