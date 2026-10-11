@@ -8,7 +8,7 @@ type Permission={permissionKey:string;description:string;defaultRoles:string[]};
 type RoleOverride={role:string;permissionKey:string;allowed:boolean;updatedAt:string};
 type UserOverride={userId:string;permissionKey:string;allowed:boolean;updatedAt:string};
 type Data={catalog:Permission[];roleOverrides:RoleOverride[];userOverrides:UserOverride[]};
-const roles=['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER','NETWORK_ADMIN','ACCOUNTANT','TECHNICIAN','CASHIER'];
+const roles=['OWNER','ADMIN','AGENT','READ_ONLY','CASHIER'];
 const input={width:'100%',border:'1px solid #cbd5e1',borderRadius:8,padding:10,fontSize:13} as const;
 export default function AccessControlPage(){
  const [data,setData]=useState<Data>({catalog:[],roleOverrides:[],userOverrides:[]});const [role,setRole]=useState('AGENT');const [userId,setUserId]=useState('');const [permissionKey,setPermissionKey]=useState('field.write');const [userAllowed,setUserAllowed]=useState(true);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState<string|null>(null);const [notice,setNotice]=useState<string|null>(null);
