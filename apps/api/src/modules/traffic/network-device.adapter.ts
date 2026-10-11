@@ -5,13 +5,15 @@ import { isIP } from 'node:net';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
 import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
+import { OmadaNetworkAdapter } from './omada.adapter';
+import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
 
 export interface NetworkDeviceConnection { routerId: string; protocol: NetworkManagementProtocol; endpoint?: string; controllerEndpoint?: string; capabilities?: Record<string, unknown>; credentials?: NetworkCredentials; }
 export interface NormalizedWifiClient { username?: string; address?: string; macAddress?: string; bytesIn: string; bytesOut: string; }
 
 @Injectable()
 export class NetworkDeviceAdapterRegistry {
-  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter) {}
+  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter, private readonly omada: OmadaNetworkAdapter, private readonly ruijie: RuijieReyeeNetworkAdapter) {}
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     switch (connection.protocol) {
@@ -19,14 +21,14 @@ export class NetworkDeviceAdapterRegistry {
         const records = await this.mikrotik.readHotspotActive(connection.endpoint ?? '', connection.credentials);
         return records.map((record: MikroTikHotspotActiveRecord) => ({ username: record.user, address: record.address, macAddress: record['mac-address'], bytesIn: record['bytes-in'] ?? '0', bytesOut: record['bytes-out'] ?? '0' }));
       }
+      case 'OMADA_CONTROLLER_API': return this.omada.readClients(connection);
+      case 'RUIJIE_REYEE_CLOUD_API': return this.ruijie.readClients(connection);
       case 'UNIFI_NETWORK_API': return this.readUniFi(connection);
       case 'MERAKI_DASHBOARD_API': return this.readMeraki(connection);
       case 'OPENWRT_UBUS': return this.readOpenWrt(connection);
       case 'CAMBIUM_CNMAESTRO':
-      case 'OMADA_CONTROLLER_API':
       case 'ARUBA_CENTRAL_API':
       case 'GRANDSTREAM_GWN_API':
-      case 'RUIJIE_REYEE_CLOUD_API':
       case 'RUCKUS_SMARTZONE_API':
       case 'TELTONIKA_RMS_API':
       case 'PEPLINK_INCONTROL_API':
