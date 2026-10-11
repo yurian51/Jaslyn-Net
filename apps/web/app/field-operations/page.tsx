@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { BrowserQRCodeReader } from '@zxing/browser';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
 type Job = { id:string; title:string; status:string; priority:string; jobType:string; description?:string|null; siteName?:string|null; scheduledAt?:string|null };
+type RouterAsset = { id:string; name:string; vendor?:string|null; model?:string|null; ipAddress?:string|null; status?:string|null; managementProtocol?:string|null; managementEnabled?:boolean; lastSeenAt?:string|null };
 type ChecklistItem = { id?:string; itemKey:string; label:string; checked:boolean };
 type Operation = { operationId:string; jobId:string; operationType:'NOTE_ADDED'|'STATUS_CHANGED'|'CHECKLIST_ITEM_SET'; status?:string; expectedStatus?:string; note?:string; itemKey?:string; itemLabel?:string; checked?:boolean; clientOccurredAt:string; queuedAt:number };
 type Photo = { id:string; jobId:string; file:File; fileName:string; contentType:string; queuedAt:number };
@@ -45,8 +47,30 @@ export default function FieldOperationsPage(){
  const [syncing,setSyncing]=useState(false);
  const [error,setError]=useState<string|null>(null);
  const [notice,setNotice]=useState<string|null>(null);
+ const [scanning,setScanning]=useState(false);
+ const [scannedAsset,setScannedAsset]=useState<RouterAsset|null>(null);
+ const videoRef=useRef<HTMLVideoElement|null>(null);
  const autoSyncAttempted=useRef(false);
 
+ const resolveAsset=useCallback(async(assetId:string)=>{
+  const token=getAccessToken();if(!token){setError('Sign in to resolve a QR asset.');return;}
+  try{const asset=await apiFetch<RouterAsset>('/routers/'+encodeURIComponent(assetId),{headers:{Authorization:'Bearer '+token}});setScannedAsset(asset);setNotice('QR asset matched to the authenticated tenant inventory.');}
+  catch(cause:unknown){setError(cause instanceof Error?cause.message:'Asset not found in this tenant.');}
+ },[]);
+ useEffect(()=>{
+  if(!scanning)return;
+  const reader=new BrowserQRCodeReader();let controls:{stop:()=>void}|undefined;let disposed=false;
+  if(!videoRef.current){setError('Camera preview is unavailable.');setScanning(false);return;}
+  void reader.decodeFromVideoDevice(undefined,videoRef.current,(result,_error,activeControls)=>{
+   controls=activeControls;
+   if(disposed||!result)return;
+   const decoded=result.getText();
+   const match=decoded.match(/^JASLYN-NET:ROUTER:([0-9a-f]{8}-[0-9a-f-]{27})$/i);
+   if(!match){setError('This QR code is not a recognized Jaslyn-Net router asset.');return;}
+   disposed=true;controls?.stop();setScanning(false);void resolveAsset(match[1]);
+  }).catch((cause:unknown)=>{if(!disposed){setError(cause instanceof Error?cause.message:'Unable to start the device camera.');setScanning(false);}});
+  return()=>{disposed=true;controls?.stop();reader.reset();};
+ },[scanning,resolveAsset]);
  const refreshQueue=useCallback(async()=>{setQueue(await readAll<Operation>('operations'));setPhotos(await readAll<Photo>('photos'));},[]);
  const loadJobs=useCallback(async()=>{
   setLoading(true);setError(null);setOnline(navigator.onLine);
@@ -153,10 +177,12 @@ export default function FieldOperationsPage(){
  return <main style={{maxWidth:1120,margin:'0 auto',padding:'28px 18px',color:'#172033'}}>
   <header style={{display:'flex',justifyContent:'space-between',alignItems:'start',gap:16,flexWrap:'wrap'}}>
    <div><p style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:'#64748b'}}>JASLYN NET / FIELD OPERATIONS</p><h1 style={{fontSize:34,margin:'8px 0'}}>Field work orders</h1><p style={{color:'#64748b',maxWidth:650}}>Inspect sites, record work, check maintenance items and capture photos. Work is stored on this device while offline.</p></div>
-   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><span style={{borderRadius:99,padding:'7px 10px',background:online?'#dcfce7':'#fef3c7',color:online?'#166534':'#92400e',fontSize:12,fontWeight:800}}>{online?'ONLINE':'OFFLINE'}</span><button onClick={()=>void syncQueue()} disabled={!online||syncing||pendingCount===0}>{syncing?'Syncing…':'Sync queue ('+pendingCount+')'}</button><button onClick={()=>void loadJobs()} disabled={loading}>Refresh jobs</button></div>
+   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><span style={{borderRadius:99,padding:'7px 10px',background:online?'#dcfce7':'#fef3c7',color:online?'#166534':'#92400e',fontSize:12,fontWeight:800}}>{online?'ONLINE':'OFFLINE'}</span><button onClick={()=>setScanning(true)} disabled={loading||scanning}>Scan asset QR</button><button onClick={()=>void syncQueue()} disabled={!online||syncing||pendingCount===0}>{syncing?'Syncing…':'Sync queue ('+pendingCount+')'}</button><button onClick={()=>void loadJobs()} disabled={loading}>Refresh jobs</button></div>
   </header>
   {error&&<p role="alert" style={{padding:12,borderRadius:8,background:'#fff1f2',color:'#9f1239'}}>{error}</p>}
   {notice&&<p role="status" style={{padding:12,borderRadius:8,background:'#f0fdf4',color:'#166534'}}>{notice}</p>}
+  {scannedAsset&&<section style={{margin:'14px 0',padding:16,border:'1px solid #cbd5e1',borderRadius:12,background:'#fff',display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><p style={{fontSize:10,fontWeight:800,letterSpacing:'.1em',color:'#64748b'}}>SCANNED ASSET</p><h2 style={{fontSize:18,margin:'4px 0'}}>{scannedAsset.name}</h2><p style={{fontSize:12,color:'#64748b',margin:'4px 0'}}>{scannedAsset.vendor||'Unknown vendor'} {scannedAsset.model||''} · {scannedAsset.status||'Unknown status'}</p><p style={{fontSize:11,color:'#64748b',overflowWrap:'anywhere'}}>{scannedAsset.id}</p><p style={{fontSize:12,color:'#64748b'}}>Last seen {scannedAsset.lastSeenAt?new Date(scannedAsset.lastSeenAt).toLocaleString():'—'}</p></div><button onClick={()=>setScannedAsset(null)}>Close asset</button></section>}
+  {scanning&&<div role="dialog" aria-modal="true" aria-label="Scan equipment QR code" style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(15,23,42,.75)',display:'grid',placeItems:'center',padding:18}}><section style={{width:'min(100%,520px)',background:'#fff',borderRadius:16,padding:18}}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><div><h2 style={{margin:'0 0 5px',fontSize:19}}>Scan router asset QR</h2><p style={{margin:0,fontSize:12,color:'#64748b'}}>Point the camera at a Jaslyn-Net asset label.</p></div><button onClick={()=>setScanning(false)}>Close</button></div><video ref={videoRef} autoPlay muted playsInline style={{display:'block',width:'100%',maxHeight:380,objectFit:'cover',background:'#0f172a',borderRadius:10,marginTop:14}}/><p style={{fontSize:11,color:'#64748b',lineHeight:1.6}}>Camera access requires browser permission and a secure context (HTTPS or localhost). You can still use the inventory UUID manually when scanning is unavailable.</p></section></div>}
   <section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,margin:'22px 0'}}><article style={{padding:16,border:'1px solid #e2e8f0',borderRadius:12}}>Open work orders<h2>{activeJobs.length}</h2></article><article style={{padding:16,border:'1px solid #e2e8f0',borderRadius:12}}>Queued operations<h2>{queue.length}</h2></article><article style={{padding:16,border:'1px solid #e2e8f0',borderRadius:12}}>Queued photos<h2>{photos.length}</h2></article></section>
   {loading?<p>Loading work orders…</p>:jobs.length===0?<p>No cached or assigned work orders are available.</p>:<section style={{display:'grid',gap:14}}>{jobs.map(job=>{const status=effectiveStatus(job);const items=checklists[job.id];return <article key={job.id} style={{border:'1px solid #e2e8f0',borderRadius:14,padding:18,background:'#fff'}}>
    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><p style={{fontSize:11,fontWeight:800,color:'#64748b',margin:'0 0 6px'}}>{job.jobType} · {job.priority}</p><h2 style={{fontSize:19,margin:'0 0 8px'}}>{job.title}</h2><p style={{fontSize:13,color:'#64748b',margin:'0 0 8px'}}>{job.siteName||'Site not specified'} · {status.replaceAll('_',' ')}</p>{job.description&&<p style={{fontSize:13,lineHeight:1.5}}>{job.description}</p>}</div>
