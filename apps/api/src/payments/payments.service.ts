@@ -100,8 +100,8 @@ export class PaymentsService {
   }
 
   async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
-    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string; correlationId: string | null }>(
-      `SELECT status, amount, currency, provider, correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
+    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string; purchaseId: string | null; correlationId: string | null }>(
+      `SELECT status, amount, currency, provider, purchase_id AS "purchaseId", correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
       [tenantId, paymentId],
     );
     const settledPayment = payment.rows[0];
@@ -166,6 +166,24 @@ export class PaymentsService {
         [tenantId, transactionId, cashAccount.rows[0]?.id, currency, amount, revenueAccount.rows[0]?.id],
       );
     }
+    // Update canonical invoice balances in the same transaction as verified payment settlement.
+    if (settledPayment.purchaseId) {
+      await client.query(
+        `UPDATE invoices i SET
+           amount_paid=LEAST(i.total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.tenant_id=i.tenant_id AND p.purchase_id=i.purchase_id AND p.status='PAID' AND p.currency=i.currency),0)),
+           status=CASE
+             WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.tenant_id=i.tenant_id AND p.purchase_id=i.purchase_id AND p.status='PAID' AND p.currency=i.currency),0)>=i.total THEN 'PAID'
+             WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.tenant_id=i.tenant_id AND p.purchase_id=i.purchase_id AND p.status='PAID' AND p.currency=i.currency),0)>0 THEN 'PARTIALLY_PAID'
+             ELSE i.status END,
+           updated_at=now()
+         WHERE i.tenant_id=$1 AND i.purchase_id=$2 AND i.status<>'VOID'`,
+        [tenantId,settledPayment.purchaseId],
+      );
+    }
+    await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+      SELECT e.tenant_id,e.id,$2::uuid,'payment.settled',jsonb_build_object('paymentId',$2,'amount',$3,'currency',$4,'provider',$5)
+      FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'payment.settled'=ANY(e.event_types)
+      ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,paymentId,String(amount),currency,provider]);
     return transactionId;
   }
 
