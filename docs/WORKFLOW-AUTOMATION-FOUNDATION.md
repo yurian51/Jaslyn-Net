@@ -1,6 +1,6 @@
 # JASLYN NET Workflow Automation Foundation
 
-**Status:** Implementation specification and acceptance contract. This document does not claim the runtime feature is already implemented or production-ready.
+**Status:** Scope and acceptance contract. PR #83 implements a subset of this contract (safe TRANSFORM node, visual editor support, immutable workflow version history, execution snapshots, import/export and guarded run controls). Remaining capabilities still require implementation and verification; this document is not a production-readiness claim.
 **Scope:** Core workflow automation capabilities inspired by n8n, Activepieces, Make, Zapier, Pipedream, Windmill, Node-RED, Microsoft Power Automate, Workato and Temporal.
 **Product constraint:** No AI features are included in this scope.
 
@@ -100,6 +100,16 @@ Use existing repository migration conventions and tenant-key constraints rather 
 - Permission-denied and approval-required operations fail closed.
 - Network mutations verify actual device state through the existing adapter fabric.
 - Unit, integration, migration, API authorization and UI tests pass; production deployment and provider/device tests are separately evidenced.
+
+## Implemented in PR #83 (verification pending)
+
+- Safe `TRANSFORM` step with 1–30 bounded field mappings, dotted-path validation and prototype-key rejection.
+- Visual editor controls for transformation mappings.
+- Workflow definition version history and versioned definition updates.
+- Execution step snapshots captured when a run is queued, so later edits do not silently replace steps for an already-queued run.
+- Tenant-scoped definition export/import; imported workflows are disabled by default and webhook tokens are never exported.
+- Execution detail endpoint and guarded cancellation/replay controls. Replay is restricted to failed runs at step zero to avoid knowingly repeating completed side effects.
+- Tests added for safe/unsafe transformation paths. CI and PostgreSQL migration smoke verification are still pending because the observed Actions run ended in startup failure without jobs.
 
 ## Delivery sequence
 
