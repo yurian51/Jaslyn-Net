@@ -44,6 +44,7 @@ jobs:
           test -f apps/api/migrations/067_synthetic_monitoring.sql
           test -f apps/api/migrations/068_revenue_assurance_reconciliation.sql
           test -f apps/api/migrations/069_tenant_secrets_vault.sql
+          test -f apps/api/migrations/070_fine_grained_permissions.sql
           test -f apps/api/migrations/028_connectivity_incidents.sql
           test -f apps/api/migrations/029_wan_load_balancing.sql
           test -f apps/api/migrations/030_isp_field_operations.sql
