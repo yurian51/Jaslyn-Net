@@ -22,6 +22,7 @@ type Notification = {
 };
 
 type SmsProviderStatus = { provider: string; enabled: boolean; configured: boolean; credentialsPresent: boolean; senderIdConfigured: boolean; mode: string };
+type SmsCampaign = { id: string; name: string; category: string; status: string; recipientCount: number; queuedCount: number; pending: number; processing: number; accepted: number; failed: number; createdAt: string };
 
 type Stats = {
   PENDING: number;
@@ -60,6 +61,15 @@ export default function NotificationsPage() {
   const [query, setQuery] = useState('');
   const [smsProvider, setSmsProvider] = useState<SmsProviderStatus | null>(null);
   const [smsStatusError, setSmsStatusError] = useState<string | null>(null);
+  const [bulkName, setBulkName] = useState('');
+  const [bulkRecipients, setBulkRecipients] = useState('');
+  const [bulkMessage, setBulkMessage] = useState('');
+  const [bulkCategory, setBulkCategory] = useState<'TRANSACTIONAL' | 'EXPIRY' | 'PAYMENT' | 'PURCHASE' | 'MARKETING'>('EXPIRY');
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<SmsCampaign[]>([]);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -102,6 +112,48 @@ export default function NotificationsPage() {
       setSmsStatusError(err instanceof Error ? err.message : 'SMS provider status unavailable.');
     });
   }, []);
+
+  const loadCampaigns = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) return;
+    try {
+      const result = await apiFetch<{ data: SmsCampaign[] }>('/notifications/sms/campaigns?limit=20', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCampaigns(Array.isArray(result.data) ? result.data : []);
+    } catch {
+      // Campaign history is an independent surface; keep the outbox usable if it is unavailable.
+    }
+  }, []);
+
+  useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
+
+  async function queueBulkCampaign(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = getAccessToken();
+    if (!token) { setBulkError('Authentication required.'); return; }
+    const recipients = [...new Set(bulkRecipients.split(/[\\s,;]+/).map((value) => value.trim()).filter(Boolean))];
+    if (!recipients.length) { setBulkError('Add at least one phone number.'); return; }
+    if (recipients.length > 1000) { setBulkError('A campaign can contain at most 1,000 unique recipients.'); return; }
+    if (!bulkMessage.trim()) { setBulkError('Write the SMS message before queueing.'); return; }
+    if (!bulkConfirmed) { setBulkError('Confirm that this campaign and recipient list are correct.'); return; }
+    setBulkSending(true); setBulkError(null); setBulkSuccess(null);
+    try {
+      const key = `web-bulk-${crypto.randomUUID()}`;
+      const result = await apiFetch<SmsCampaign>('/notifications/sms/bulk', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ name: bulkName.trim() || undefined, recipients, message: bulkMessage.trim(), category: bulkCategory, idempotencyKey: key }),
+      });
+      setBulkSuccess(`Campaign queued: ${result.queuedCount ?? recipients.length} recipient(s). Messages will only be submitted when the SMS provider is enabled and configured.`);
+      setBulkName(''); setBulkRecipients(''); setBulkMessage(''); setBulkConfirmed(false);
+      await Promise.all([load(), loadCampaigns()]);
+    } catch (err: unknown) {
+      setBulkError(err instanceof ApiError || err instanceof Error ? err.message : 'Unable to queue this SMS campaign.');
+    } finally {
+      setBulkSending(false);
+    }
+  }
 
   async function recover() {
     const token = getAccessToken();
@@ -180,6 +232,69 @@ export default function NotificationsPage() {
         <span className={`notifications-sms-state ${smsProvider?.configured ? 'ready' : 'disabled'}`}>
           {smsStatusError ? 'STATUS UNKNOWN' : smsProvider?.configured ? 'CONFIGURED' : 'DISABLED'}
         </span>
+      </section>
+
+      <section className="notifications-surface notifications-bulk-surface" aria-labelledby="bulk-sms-title">
+        <div className="notifications-surface-head">
+          <div>
+            <span>CAMPAIGN COMPOSER</span>
+            <h2 id="bulk-sms-title">Bulk SMS</h2>
+            <p>Queue up to 1,000 unique Tanzanian mobile numbers. No SMS is submitted until provider delivery is enabled.</p>
+          </div>
+        </div>
+        <form className="notifications-bulk-form" onSubmit={(event) => void queueBulkCampaign(event)}>
+          <div className="notifications-bulk-fields">
+            <label>Campaign name
+              <input value={bulkName} onChange={(event) => setBulkName(event.target.value)} maxLength={120} placeholder="e.g. October expiry reminders" />
+            </label>
+            <label>Message category
+              <select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value as typeof bulkCategory)}>
+                <option value="EXPIRY">Expiry reminder</option>
+                <option value="PAYMENT">Payment update</option>
+                <option value="PURCHASE">Purchase confirmation</option>
+                <option value="TRANSACTIONAL">Transactional</option>
+                <option value="MARKETING">Marketing (opt-in required)</option>
+              </select>
+            </label>
+          </div>
+          <label className="notifications-bulk-wide">Recipients
+            <textarea value={bulkRecipients} onChange={(event) => setBulkRecipients(event.target.value)} rows={4} placeholder="255712345678&#10;0712345678&#10;Separate numbers with a new line, comma or semicolon." />
+            <small>{new Set(bulkRecipients.split(/[\\s,;]+/).map((value) => value.trim()).filter(Boolean)).size} unique recipient(s), maximum 1,000. Numbers are normalized and validated by the API.</small>
+          </label>
+          <label className="notifications-bulk-wide">SMS message
+            <textarea value={bulkMessage} onChange={(event) => setBulkMessage(event.target.value)} rows={4} maxLength={1600} placeholder="Write the message to send…" required />
+            <small>{bulkMessage.length}/1,600 characters. Longer messages may use multiple SMS segments and increase cost.</small>
+          </label>
+          {bulkError ? <div className="notifications-error" role="alert"><Icon name="alert" /><span>{bulkError}</span></div> : null}
+          {bulkSuccess ? <div className="notifications-bulk-success" role="status">{bulkSuccess}</div> : null}
+          <label className="notifications-bulk-confirm">
+            <input type="checkbox" checked={bulkConfirmed} onChange={(event) => setBulkConfirmed(event.target.checked)} />
+            <span>I have permission to contact these recipients and have checked the campaign content. Marketing messages will be queued only for numbers with recorded opt-in for this tenant.</span>
+          </label>
+          <div className="notifications-bulk-submit">
+            <span>Queueing is not proof of handset delivery. Provider credentials and an approved sender ID are required for dispatch.</span>
+            <button className="notifications-action primary" type="submit" disabled={bulkSending || !bulkConfirmed}>
+              {bulkSending ? 'Queueing campaign…' : 'Queue bulk SMS'}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="notifications-surface notifications-campaigns-surface">
+        <div className="notifications-surface-head">
+          <div><span>CAMPAIGN HISTORY</span><h2>Recent bulk campaigns</h2><p>Progress is based on tenant-scoped outbox rows and provider acceptance.</p></div>
+        </div>
+        {campaigns.length ? (
+          <div className="notifications-table-wrap">
+            <table className="notifications-table">
+              <thead><tr><th>Campaign</th><th>Category</th><th>Recipients</th><th>Queued</th><th>Waiting</th><th>Accepted</th><th>Failed</th><th>Created</th></tr></thead>
+              <tbody>{campaigns.map((campaign) => <tr key={campaign.id}>
+                <td><strong>{campaign.name}</strong><small>{campaign.id.slice(0, 8)}…</small></td>
+                <td>{campaign.category}</td><td>{campaign.recipientCount}</td><td>{campaign.queuedCount}</td><td>{campaign.pending + campaign.processing}</td><td>{campaign.accepted}</td><td>{campaign.failed}</td><td>{fmt(campaign.createdAt)}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        ) : <div className="notifications-empty"><strong>No bulk campaigns yet</strong><span>Queued campaigns for this tenant will appear here.</span></div>}
       </section>
 
       <section className="notifications-overview" aria-label="Notification status">
