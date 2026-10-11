@@ -20,6 +20,8 @@ export class SecretsVaultService {
 
   async create(tenantId:string,actorUserId:string,input:CreateTenantSecretDto,context:AuditContext={}){
     const metadataText=JSON.stringify(input.metadata??{});
+    if(metadataText.length>4096)throw new BadRequestException('Secret metadata exceeds the 4 KB limit');
+    if(input.displayName.trim().length<2||input.purpose.trim().length<2)throw new BadRequestException('Display name and purpose must contain at least two non-space characters');
     if(/\"(secret|token|password|apiKey|accessKey|credential|privateKey)\"/i.test(metadataText))throw new BadRequestException('Secret values must not be stored in metadata');
     const encrypted=this.vault.encrypt(input.secretValue);
     const client=await this.db.connect();
