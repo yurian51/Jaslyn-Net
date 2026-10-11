@@ -18,7 +18,7 @@ describe('additional vendor read-only telemetry adapters', () => {
   const config = { get: jest.fn((_key: string, fallback?: string) => fallback) } as unknown as ConfigService;
   beforeEach(() => { jest.clearAllMocks(); global.fetch = fetchMock as unknown as typeof fetch; });
 
-  const response = { data: [{ name: 'client-1', ipAddress: '192.0.2.10', macAddress: 'AA:BB:CC:DD:EE:FF', rxBytes: '1234', txBytes: '5678' }] };
+  const response = { data: [{ user_name: 'client-1', ip_address: '192.0.2.10', mac_address: 'AA:BB:CC:DD:EE:FF', rx_bytes: '1234', tx_bytes: '5678' }] };
   const connection = (protocol: NetworkDeviceConnection['protocol'], credentials: NetworkCredentials): NetworkDeviceConnection => ({
     routerId: 'router-1', protocol, controllerEndpoint: 'https://api.vendor.example/documented/client-session-resource', credentials,
   });
