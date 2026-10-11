@@ -49,7 +49,7 @@ export class OperationsIntelligenceService {
       WHERE tenant_id=$1 AND metric_type IN ('UTILIZATION_PCT','CHANNEL_UTILIZATION_PCT') AND sampled_at>=now()-interval '30 days'
       ORDER BY sampled_at ASC LIMIT 20000`,[tenantId]);
     const groups=new Map<string,{type:string;id:string;points:{x:number;y:number}[]}>();
-    for(const row of r.rows){const key=row.resource_type+':'+row.resource_id;const g=groups.get(key)??{type:row.resource_type,id:row.resource_id,points:[]};g.points.push({x:new Date(row.sampled_at).getTime()/86400000,y:Number(row.metric_value)});groups.set(key,g);}
+    for(const row of r.rows){const key=row.resource_type+':'+row.resource_id;const g:{type:string;id:string;points:{x:number;y:number}[]} = groups.get(key)??{type:row.resource_type,id:row.resource_id,points:[]};g.points.push({x:new Date(row.sampled_at).getTime()/86400000,y:Number(row.metric_value)});groups.set(key,g);}
     const data=[...groups.values()].map(g=>{
       const pts=g.points;const n=pts.length;const first=pts[0];const last=pts[n-1];
       if(n<3||!first||!last)return {resourceType:g.type,resourceId:g.id,samples:n,currentUtilizationPct:last?.y??null,projected30DayPct:null,trend:'INSUFFICIENT_DATA'};
