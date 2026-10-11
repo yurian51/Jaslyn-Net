@@ -20,6 +20,12 @@ export class RoutersController {
     return this.routers.list(req.user!.tenantId);
   }
 
+  @Get('change-intelligence')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  changeIntelligence(@Req() req: AuthenticatedRequest, @Query('routerId') routerId?: string, @Query('limit') limit?: string) {
+    return this.routers.changeIntelligence(req.user!.tenantId, routerId, Number(limit) || 100);
+  }
+
   @Get(':id')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.routers.get(req.user!.tenantId, id);
