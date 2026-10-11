@@ -162,7 +162,7 @@ describe('IspOperationsService', () => {
   it('rejects an image whose MIME type does not match its file signature', async () => {
     const connect = jest.fn();
     const service = new IspOperationsService({ connect } as any, {} as any, audit as any);
-    await expect(service.uploadJobAttachment('tenant-1', 'job-1', 'user-1', {
+    await expect(service.uploadJobAttachment('tenant-1', 'job-1', 'user-1', '00000000-0000-4000-8000-000000000003', {
       originalname: 'fake.png', mimetype: 'image/png', buffer: Buffer.from('not a png'), size: 9,
     })).rejects.toThrow('Only valid JPEG, PNG or WebP image files are accepted');
     expect(connect).not.toHaveBeenCalled();
