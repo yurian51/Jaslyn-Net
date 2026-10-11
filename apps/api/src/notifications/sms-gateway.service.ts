@@ -5,6 +5,13 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { BeemSmsProvider, SmsDelivery } from './sms.provider';
 
+export class SmsProviderError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+    this.name = 'SmsProviderError';
+  }
+}
+
 export type SmsProviderKind = 'beem' | 'custom_rest';
 export type SmsAuthType = 'none' | 'bearer' | 'api_key' | 'basic';
 export type SmsProviderInput = {
@@ -175,10 +182,10 @@ export class SmsGatewayService {
       const body = { source_addr: row.sender_id, encoding: 0, schedule_time: '', message, recipients: [{ recipient_id: idempotencyKey.slice(0, 32), dest_addr: to }] };
       const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(15000) });
       const data = await response.json().catch(() => null) as Record<string, unknown> | null;
-      if (!response.ok) throw new Error(`SMS provider request failed with HTTP ${response.status}`);
+      if (!response.ok) throw new SmsProviderError(`SMS provider request failed with HTTP ${response.status}`, response.status >= 500 || [408, 425, 429].includes(response.status));
       const id = String(data?.request_id ?? data?.requestId ?? data?.message_id ?? '');
-      if (data?.successful === false || (typeof data?.code === 'number' && data.code >= 400)) throw new Error('SMS provider rejected the request');
-      if (!id && data?.successful !== true && data?.code !== 100) throw new Error('SMS provider returned an unrecognized acknowledgement');
+      if (data?.successful === false || (typeof data?.code === 'number' && data.code >= 400)) throw new SmsProviderError('SMS provider rejected the request', false);
+      if (!id && data?.successful !== true && data?.code !== 100) throw new SmsProviderError('SMS provider returned an unrecognized acknowledgement; check provider logs before retrying', false);
       return { providerMessageId: id || idempotencyKey, accepted: true };
     }
     const body: Record<string, unknown> = {};
@@ -188,9 +195,9 @@ export class SmsGatewayService {
     if (!response.ok) throw new Error(`SMS provider request failed with HTTP ${response.status}`);
     const providerMessageId = String(this.getPath(data, row.response_id_field) ?? '');
     if (row.response_success_field && String(this.getPath(data, row.response_success_field)).toLowerCase() !== String(row.response_success_value || 'true').toLowerCase()) {
-      throw new Error('SMS provider rejected the request');
+      throw new SmsProviderError('SMS provider rejected the request', false);
     }
-    if (!providerMessageId) throw new Error('SMS provider response did not include the configured message ID field');
+    if (!providerMessageId) throw new SmsProviderError('SMS provider response did not include the configured message ID field; check provider logs before retrying', false);
     return { providerMessageId, accepted: true };
   }
 
