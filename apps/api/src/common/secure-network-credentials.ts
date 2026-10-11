@@ -13,6 +13,9 @@ export interface NetworkCredentials {
   clientSecret?: string;
   accessToken?: string;
   refreshToken?: string;
+  omadacId?: string;
+  siteId?: string;
+  groupId?: string;
 }
 
 export class SecureNetworkCredentials {
