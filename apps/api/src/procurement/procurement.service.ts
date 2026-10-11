@@ -68,7 +68,7 @@ export class ProcurementService {
       if(!order.rowCount) throw new NotFoundException('Purchase order not found');
       if(order.rows[0].status!=='DRAFT') throw new ConflictException('Purchase order lines are locked after approval or receipt');
       const q=Number(d.quantityOrdered), cost=Number(d.unitCost), taxRate=Number(d.taxRate??0);
-      if(!Number.isFinite(q)||q<=0||!Number.isFinite(cost)||cost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100) throw new BadRequestException('Invalid quantity, cost or tax rate');
+      if(!Number.isFinite(q)||q<=0||!Number.isFinite(suppliedCost)||suppliedCost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100) throw new BadRequestException('Invalid quantity, cost or tax rate');
       const line=await client.query(`INSERT INTO purchase_order_lines(tenant_id,purchase_order_id,item_code,description,quantity_ordered,unit_cost,tax_rate)
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,orderId,d.itemCode.trim().toUpperCase(),d.description.trim(),q,cost,taxRate]);
       await client.query(`UPDATE purchase_orders SET
@@ -159,7 +159,7 @@ export class ProcurementService {
     return {data:r.rows};
   }
   async postStockMovement(tenantId:string,actorId:string,itemId:string,d:CreateStockMovementDto) {
-    const delta=Number(d.quantityDelta), cost=Number(d.unitCost);
+    const delta=Number(d.quantityDelta), suppliedCost=Number(d.unitCost);
     if(!Number.isFinite(delta)||delta===0||!Number.isFinite(cost)||cost<0) throw new BadRequestException('Quantity must be non-zero and unit cost must be non-negative');
     if(['RECEIPT','RETURN'].includes(d.movementType)&&delta<0) throw new BadRequestException('Receipt and return movements must increase stock');
     if(d.movementType==='ISSUE'&&delta>0) throw new BadRequestException('Issue movements must decrease stock');
@@ -169,13 +169,15 @@ export class ProcurementService {
       const prior=await client.query('SELECT * FROM inventory_stock_movements WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE',[tenantId,d.idempotencyKey.trim()]);
       if(prior.rowCount) {
         const old=prior.rows[0];
-        if(old.item_id!==itemId||Number(old.quantity_delta)!==delta||old.movement_type!==d.movementType||Number(old.unit_cost)!==cost||old.currency!==d.currency||old.reference_type!==d.referenceType.trim()||(old.reference_id??null)!==(d.referenceId??null)) throw new ConflictException('Idempotency key was already used for a different stock movement');
+        if(old.item_id!==itemId||Number(old.quantity_delta)!==delta||old.movement_type!==d.movementType||(!['ISSUE','ADJUSTMENT'].includes(d.movementType)&&Number(old.unit_cost)!==suppliedCost)||old.currency!==d.currency||old.reference_type!==d.referenceType.trim()||(old.reference_id??null)!==(d.referenceId??null)) throw new ConflictException('Idempotency key was already used for a different stock movement');
         await client.query('COMMIT');
         return {duplicate:true,data:old};
       }
       const item=await client.query('SELECT * FROM inventory_items WHERE tenant_id=$1 AND id=$2 AND active=true FOR UPDATE',[tenantId,itemId]);
       if(!item.rowCount) throw new NotFoundException('Inventory item not found');
       const before=Number(item.rows[0].quantity_on_hand), after=before+delta;
+      let cost=suppliedCost;
+      if(delta<0||d.movementType==='ADJUSTMENT')cost=Number(item.rows[0].average_unit_cost);
       if(item.rows[0].valuation_currency&&item.rows[0].valuation_currency!==d.currency)throw new ConflictException('Inventory valuation currency cannot change after the first stock movement');
       if(after<0) throw new ConflictException('Stock movement would make inventory negative');
       let avg=Number(item.rows[0].average_unit_cost);
