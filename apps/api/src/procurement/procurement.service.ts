@@ -167,7 +167,7 @@ export class ProcurementService {
       const prior=await client.query('SELECT * FROM inventory_stock_movements WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE',[tenantId,d.idempotencyKey.trim()]);
       if(prior.rowCount) {
         const old=prior.rows[0];
-        if(old.item_id!==itemId||Number(old.quantity_delta)!==delta||old.movement_type!==d.movementType) throw new ConflictException('Idempotency key was already used for a different stock movement');
+        if(old.item_id!==itemId||Number(old.quantity_delta)!==delta||old.movement_type!==d.movementType||Number(old.unit_cost)!==cost||old.currency!==d.currency||old.reference_type!==d.referenceType.trim()||(old.reference_id??null)!==(d.referenceId??null)) throw new ConflictException('Idempotency key was already used for a different stock movement');
         await client.query('COMMIT');
         return {duplicate:true,data:old};
       }
