@@ -79,8 +79,10 @@ export class SmsGatewayService {
     else if (input.endpoint?.trim()) endpoint = this.validateEndpoint(input.endpoint).toString();
 
     const current = await this.db.query<StoredConfig>('SELECT * FROM sms_provider_configs WHERE tenant_id=$1', [tenantId]);
-    let credentials = current.rows[0]?.credentials_ciphertext
-      ? JSON.parse(this.decrypt(current.rows[0].credentials_ciphertext)) as { apiKey?: string; apiSecret?: string }
+    const previous = current.rows[0];
+    // Never carry credentials across provider changes; a new provider must receive its own credentials.
+    let credentials = previous?.provider === input.provider && previous.credentials_ciphertext
+      ? JSON.parse(this.decrypt(previous.credentials_ciphertext)) as { apiKey?: string; apiSecret?: string }
       : {};
     if (input.apiKey?.trim()) credentials.apiKey = input.apiKey.trim();
     if (input.apiSecret?.trim()) credentials.apiSecret = input.apiSecret.trim();
