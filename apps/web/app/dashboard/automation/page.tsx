@@ -119,6 +119,47 @@ export default function AutomationWorkspacePage() {
     finally{setBusy(false);}
   }
 
+  async function exportWorkflow(w:Workflow) {
+    setError(null);
+    try {
+      const definition=await apiFetch<Record<string,unknown>>(`/automation/workflows/${w.id}/export`,{headers:headers()});
+      const blob=new Blob([JSON.stringify(definition,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);const anchor=document.createElement('a');
+      anchor.href=url;anchor.download=`jaslyn-workflow-${w.name.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.json`;
+      document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
+      setNotice('Workflow definition exported. Secret values are not included.');
+    } catch(e){setError(e instanceof Error?e.message:'Workflow export failed.');}
+  }
+
+  async function importWorkflow(file:File|null) {
+    if(!file)return;
+    setBusy(true);setError(null);setNotice(null);
+    try {
+      const parsed:unknown=JSON.parse(await file.text());
+      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Import file must be a workflow JSON object.');
+      const record=parsed as Record<string,unknown>;
+      const definition=(record.kind==='jaslyn-workflow'&&record.definition&&typeof record.definition==='object')?record.definition:record;
+      const imported=await apiFetch<Workflow>('/automation/workflows/import',{method:'POST',headers:headers(),body:JSON.stringify(definition)});
+      setNotice(`Imported "${imported.name}" as disabled. Review it before enabling.`);
+      await load();
+    } catch(e){setError(e instanceof Error?e.message:'Workflow import failed.');}
+    finally{setBusy(false);}
+  }
+
+  async function replayRun(run:Run) {
+    setBusy(true);setError(null);setNotice(null);
+    try{const result=await apiFetch<{id:string;status:string}>(`/automation/workflows/runs/${run.id}/replay`,{method:'POST',headers:headers()});setNotice(`Replay queued: ${result.id} (${result.status}).`);await load();}
+    catch(e){setError(e instanceof Error?e.message:'Unable to replay run.');}
+    finally{setBusy(false);}
+  }
+
+  async function cancelRun(run:Run) {
+    setBusy(true);setError(null);setNotice(null);
+    try{await apiFetch(`/automation/workflows/runs/${run.id}/cancel`,{method:'PATCH',headers:headers()});setNotice('Queued workflow run cancelled.');await load();}
+    catch(e){setError(e instanceof Error?e.message:'Unable to cancel run.');}
+    finally{setBusy(false);}
+  }
+
   async function changeEnabled(w:Workflow,enabled:boolean) {
     setBusy(true);setError(null);
     try{await apiFetch(`/automation/workflows/${w.id}/enabled`,{method:'PATCH',headers:headers(),body:JSON.stringify({enabled})});await load();}
@@ -211,12 +252,12 @@ export default function AutomationWorkspacePage() {
     </section>
 
     <section style={styles.panel}>
-      <h2 style={{marginTop:0}}>Workflows <small style={{fontSize:14,color:'#64748b'}}>({workflows.length})</small></h2>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><h2 style={{marginTop:0}}>Workflows <small style={{fontSize:14,color:'#64748b'}}>({workflows.length})</small></h2><label style={{...styles.button,display:'inline-flex',alignItems:'center',gap:8}}>Import JSON<input type="file" accept="application/json,.json" disabled={busy} onChange={e=>{void importWorkflow(e.target.files?.[0]??null);e.currentTarget.value='';}} style={{maxWidth:190}}/></label></div>
       {workflows.length===0?<p style={{color:'#64748b'}}>No workflows returned for this tenant yet.</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12}}>{workflows.map(w=><article key={w.id} style={{border:'1px solid #dfe5ed',borderRadius:12,padding:16}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:12}}><strong>{w.name}</strong><span style={{fontSize:11,fontWeight:700,color:w.enabled?'#236347':'#64748b'}}>{w.enabled?'ENABLED':'DISABLED'}</span></div>
         <p style={{color:'#64748b',fontSize:13,lineHeight:1.5}}>{w.description||'No description'}<br/>Trigger: {w.triggerType} · {w.steps.length} steps</p>
         {w.nextRunAt&&<p style={{fontSize:12}}>Next scheduled: {new Date(w.nextRunAt).toLocaleString()}</p>}
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={styles.button} disabled={busy} onClick={()=>void changeEnabled(w,!w.enabled)}>{w.enabled?'Disable':'Enable'}</button><button style={styles.primary} disabled={busy||!w.enabled} onClick={()=>void runWorkflow(w)}>Run now</button></div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={styles.button} disabled={busy} onClick={()=>void exportWorkflow(w)}>Export</button><button style={styles.button} disabled={busy} onClick={()=>void changeEnabled(w,!w.enabled)}>{w.enabled?'Disable':'Enable'}</button><button style={styles.primary} disabled={busy||!w.enabled} onClick={()=>void runWorkflow(w)}>Run now</button></div>
       </article>)}</div>}
     </section>
 
@@ -245,7 +286,7 @@ export default function AutomationWorkspacePage() {
 
     <section style={styles.panel}>
       <h2 style={{marginTop:0}}>Execution history <small style={{fontSize:14,color:'#64748b'}}>({runs.length})</small></h2>
-      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{['Created','Workflow ID','Trigger','Status','Step','Attempts','Last error'].map(x=><th key={x} style={{textAlign:'left',padding:'10px 8px',borderBottom:'1px solid #dfe5ed',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead><tbody>{runs.slice(0,100).map(r=><tr key={r.id}>{[new Date(r.createdAt).toLocaleString(),r.workflowId,r.triggerType,r.status,String(r.currentStep),String(r.attempts),r.lastError||'—'].map((v,i)=><td key={i} style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',maxWidth:240,overflowWrap:'anywhere'}}>{v}</td>)}</tr>)}{runs.length===0&&<tr><td colSpan={7} style={{padding:16,color:'#64748b'}}>No workflow runs returned.</td></tr>}</tbody></table></div>
+      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{['Created','Workflow ID','Trigger','Status','Step','Attempts','Last error','Actions'].map(x=><th key={x} style={{textAlign:'left',padding:'10px 8px',borderBottom:'1px solid #dfe5ed',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead><tbody>{runs.slice(0,100).map(r=><tr key={r.id}>{[new Date(r.createdAt).toLocaleString(),r.workflowId,r.triggerType,r.status,String(r.currentStep),String(r.attempts),r.lastError||'—'].map((v,i)=><td key={i} style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',maxWidth:240,overflowWrap:'anywhere'}}>{v}</td>)}<td style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',whiteSpace:'nowrap'}}><button style={styles.button} disabled={busy||!['FAILED','CANCELLED','SUCCEEDED'].includes(r.status)} onClick={()=>void replayRun(r)}>Replay</button>{['QUEUED','WAITING_APPROVAL'].includes(r.status)&&<button style={{...styles.button,marginLeft:6}} disabled={busy} onClick={()=>void cancelRun(r)}>Cancel</button>}</td></tr>)}{runs.length===0&&<tr><td colSpan={8} style={{padding:16,color:'#64748b'}}>No workflow runs returned.</td></tr>}</tbody></table></div>
     </section>
   </main>;
 }
