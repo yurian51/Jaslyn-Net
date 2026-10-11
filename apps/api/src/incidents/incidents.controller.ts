@@ -33,6 +33,13 @@ export class IncidentsController {
     return this.incidents.list(req.user!.tenantId, query.status);
   }
 
+  @Get('reports/sla')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'CASHIER')
+  @Permissions('incident.read')
+  slaReport(@Req() req:AuthenticatedRequest,@Query('from') from?:string,@Query('to') to?:string) {
+    return this.incidents.getSlaReport(req.user!.tenantId,from,to);
+  }
+
   @Get('maintenance-windows')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
   @Permissions('maintenance.read')
