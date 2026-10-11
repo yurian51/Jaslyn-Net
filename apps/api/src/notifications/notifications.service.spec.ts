@@ -53,6 +53,7 @@ describe('NotificationsService SMS queue', () => {
 describe('NotificationsService bulk SMS campaigns', () => {
   it('normalizes and deduplicates recipients before queueing tenant-scoped rows', async () => {
     const client = { query: jest.fn(async (sql: string, args?: unknown[]) => {
+      void args;
       if (sql.includes('INSERT INTO sms_campaigns')) return { rows: [{ id: 'campaign-1', tenantId: 'tenant-a', status: 'QUEUED', queuedCount: 0, name: 'Expiry', category: 'EXPIRY', recipientCount: 2 }] };
       if (sql.includes('SELECT count(*)::int AS queued_count')) return { rows: [{ queued_count: 2 }] };
       if (sql.includes('UPDATE sms_campaigns')) return { rows: [{ id: 'campaign-1', tenantId: 'tenant-a', status: 'QUEUED', queuedCount: 2, name: 'Expiry', category: 'EXPIRY', recipientCount: 2 }] };
@@ -70,8 +71,8 @@ describe('NotificationsService bulk SMS campaigns', () => {
     expect(result.queuedCount).toBe(2);
     const inserts = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO notification_outbox'));
     expect(inserts).toHaveLength(2);
-    expect(inserts.map(([, args]) => args[1]).sort()).toEqual(['255712345678', '255755123456']);
-    expect(inserts.every(([, args]) => args[0] === 'tenant-a')).toBe(true);
+    expect(inserts.map(([, args]) => (args as unknown[] | undefined)?.[1]).sort()).toEqual(['255712345678', '255755123456']);
+    expect(inserts.every(([, args]) => (args as unknown[] | undefined)?.[0] === 'tenant-a')).toBe(true);
     expect(client.query).toHaveBeenCalledWith('COMMIT');
     expect(client.release).toHaveBeenCalled();
   });
