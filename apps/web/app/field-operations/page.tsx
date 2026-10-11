@@ -103,7 +103,7 @@ export default function FieldOperationsPage(){
    const pendingPhotos=(await readAll<Photo>('photos')).sort((a,b)=>a.queuedAt-b.queuedAt);
    for(const photo of pendingPhotos){
     const form=new FormData();form.append('file',photo.file,photo.fileName);
-    await apiFetch('/isp/jobs/'+encodeURIComponent(photo.jobId)+'/attachments',{method:'POST',headers:{Authorization:'Bearer '+token},body:form});
+    await apiFetch('/isp/jobs/'+encodeURIComponent(photo.jobId)+'/attachments',{method:'POST',headers:{Authorization:'Bearer '+token,'Idempotency-Key':photo.id},body:form});
     await deleteRecord('photos',photo.id);
    }
    const pending=(await readAll<Operation>('operations')).sort((a,b)=>a.queuedAt-b.queuedAt);
