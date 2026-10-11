@@ -15,8 +15,8 @@ export class TenantUsageService {
       UNION ALL SELECT 'inventory_items',count(*)::bigint FROM inventory_items WHERE tenant_id=$1
       UNION ALL SELECT 'suppliers',count(*)::bigint FROM suppliers WHERE tenant_id=$1
       UNION ALL SELECT 'purchase_orders',count(*)::bigint FROM purchase_orders WHERE tenant_id=$1
-      UNION ALL SELECT 'api_keys',count(*)::bigint FROM platform_api_keys WHERE tenant_id=$1 AND revoked_at IS NULL
-      UNION ALL SELECT 'webhook_endpoints',count(*)::bigint FROM tenant_webhook_endpoints WHERE tenant_id=$1 AND enabled=true`,[tenantId]);
+      UNION ALL SELECT 'api_keys',count(*)::bigint FROM platform_api_keys WHERE tenant_id=$1
+      UNION ALL SELECT 'webhook_endpoints',count(*)::bigint FROM tenant_webhook_endpoints WHERE tenant_id=$1`,[tenantId]);
     return new Map<string,number>(r.rows.map(x=>[x.metric_key,Number(x.usage)]));
   }
   async overview(tenantId:string){
