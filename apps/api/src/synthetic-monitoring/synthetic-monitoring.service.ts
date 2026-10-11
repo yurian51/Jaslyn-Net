@@ -69,32 +69,37 @@ export class SyntheticMonitoringService {
     if(!r.rowCount)throw new NotFoundException('Synthetic monitor not found');return this.checkAndRecord(r.rows[0]);
   }
   private async syncSyntheticIncident(monitor:Monitor,result:CheckResult){
-    const recent=await this.db.query(`SELECT status FROM synthetic_check_results WHERE tenant_id=$1 AND monitor_id=$2 ORDER BY checked_at DESC LIMIT 2`,[monitor.tenant_id,monitor.id]);
-    const consecutiveFailures=recent.rows.length===2&&recent.rows.every(row=>row.status==='FAIL');
-    const active=await this.db.query(`SELECT id FROM incidents WHERE tenant_id=$1 AND fingerprint=$2 AND status IN ('OPEN','ACKNOWLEDGED') FOR UPDATE`,[monitor.tenant_id,'synthetic-monitor:'+monitor.id]);
-    let incidentId:string|undefined;
-    if(result.status==='FAIL'&&consecutiveFailures){
-      if(active.rowCount){
-        incidentId=active.rows[0].id;
-        await this.db.query(`UPDATE incidents SET last_seen_at=now(),severity='WARNING',summary=$3,evidence=evidence || $4::jsonb,updated_at=now() WHERE tenant_id=$1 AND id=$2`,
-          [monitor.tenant_id,incidentId,monitor.name+' failed its synthetic check: '+(result.error??'Check failed'),JSON.stringify({monitorId:monitor.id,checkType:monitor.check_type,consecutiveFailures:2,lastLatencyMs:result.latencyMs,responseCode:result.responseCode})]);
-      }else{
-        const created=await this.db.query(`INSERT INTO incidents(tenant_id,fingerprint,category,severity,status,title,summary,root_resource_type,root_resource_id,evidence)
-          VALUES($1,$2,'SYNTHETIC_CHECK_FAILED','WARNING','OPEN',$3,$4,'SYNTHETIC_MONITOR',$5,$6::jsonb) RETURNING id`,
-          [monitor.tenant_id,'synthetic-monitor:'+monitor.id,monitor.name+' synthetic check failing',monitor.name+' failed two consecutive synthetic checks: '+(result.error??'Check failed'),monitor.id,JSON.stringify({monitorId:monitor.id,checkType:monitor.check_type,consecutiveFailures:2,lastLatencyMs:result.latencyMs,responseCode:result.responseCode})]);
-        incidentId=created.rows[0].id;
+    const client=await this.db.connect();let event:{type:'OPENED'|'RESOLVED';incidentId:string;title:string;summary:string;severity:string}|null=null;
+    try{
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))',[monitor.tenant_id,monitor.id]);
+      const recent=await client.query(`SELECT status FROM synthetic_check_results WHERE tenant_id=$1 AND monitor_id=$2 ORDER BY checked_at DESC LIMIT 2`,[monitor.tenant_id,monitor.id]);
+      const consecutiveFailures=recent.rows.length===2&&recent.rows.every(row=>row.status==='FAIL');
+      const active=await client.query(`SELECT id FROM incidents WHERE tenant_id=$1 AND fingerprint=$2 AND status IN ('OPEN','ACKNOWLEDGED') FOR UPDATE`,[monitor.tenant_id,'synthetic-monitor:'+monitor.id]);
+      if(result.status==='FAIL'&&consecutiveFailures){
+        let incidentId:string;
+        if(active.rowCount){
+          incidentId=active.rows[0].id;
+          await client.query(`UPDATE incidents SET last_seen_at=now(),severity='WARNING',summary=$3,evidence=evidence || $4::jsonb,updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+            [monitor.tenant_id,incidentId,monitor.name+' failed its synthetic check: '+(result.error??'Check failed'),JSON.stringify({monitorId:monitor.id,checkType:monitor.check_type,consecutiveFailures:2,lastLatencyMs:result.latencyMs,responseCode:result.responseCode})]);
+        }else{
+          const created=await client.query(`INSERT INTO incidents(tenant_id,fingerprint,category,severity,status,title,summary,root_resource_type,root_resource_id,evidence)
+            VALUES($1,$2,'SYNTHETIC_CHECK_FAILED','WARNING','OPEN',$3,$4,'SYNTHETIC_MONITOR',$5,$6::jsonb) RETURNING id`,
+            [monitor.tenant_id,'synthetic-monitor:'+monitor.id,monitor.name+' synthetic check failing',monitor.name+' failed two consecutive synthetic checks: '+(result.error??'Check failed'),monitor.id,JSON.stringify({monitorId:monitor.id,checkType:monitor.check_type,consecutiveFailures:2,lastLatencyMs:result.latencyMs,responseCode:result.responseCode})]);
+          incidentId=created.rows[0].id;
+        }
+        event={type:'OPENED',incidentId,title:monitor.name+' synthetic check failing',summary:result.error??'Two consecutive synthetic checks failed.',severity:'WARNING'};
+      }else if(result.status==='PASS'&&active.rowCount){
+        const incidentId=active.rows[0].id;
+        await client.query(`UPDATE incidents SET status='RESOLVED',resolved_at=now(),resolution='Synthetic monitoring recovered',last_seen_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[monitor.tenant_id,incidentId]);
+        event={type:'RESOLVED',incidentId,title:monitor.name+' synthetic check recovered',summary:'The synthetic check passed again.',severity:'INFO'};
       }
-      if(incidentId){
-        try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.opened:'+incidentId,eventType:'INCIDENT.OPENED',aggregateType:'incident',aggregateId:incidentId,payload:{title:monitor.name+' synthetic check failing',summary:result.error??'Two consecutive synthetic checks failed.',severity:'WARNING',incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN']}});}
-        catch(error){this.logger.error('Unable to enqueue synthetic incident notification '+incidentId,error instanceof Error?error.stack:undefined);}
-      }
-      return;
-    }
-    if(result.status==='PASS'&&active.rowCount){
-      incidentId=active.rows[0].id;
-      await this.db.query(`UPDATE incidents SET status='RESOLVED',resolved_at=now(),resolution='Synthetic monitoring recovered',last_seen_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[monitor.tenant_id,incidentId]);
-      try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.resolved:'+incidentId,eventType:'INCIDENT.RESOLVED',aggregateType:'incident',aggregateId:incidentId,payload:{title:monitor.name+' synthetic check recovered',summary:'The synthetic check passed again.',severity:'INFO',incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN']}});}
-      catch(error){this.logger.error('Unable to enqueue synthetic recovery notification '+incidentId,error instanceof Error?error.stack:undefined);}
+      await client.query('COMMIT');
+    }catch(error){await client.query('ROLLBACK').catch(()=>undefined);throw error;}
+    finally{client.release();}
+    if(event){
+      try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.'+event.type.toLowerCase()+':'+event.incidentId,eventType:event.type==='OPENED'?'INCIDENT.OPENED':'INCIDENT.RESOLVED',aggregateType:'incident',aggregateId:event.incidentId,payload:{title:event.title,summary:event.summary,severity:event.severity,incidentId:event.incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN']}});}
+      catch(error){this.logger.error('Unable to enqueue synthetic incident notification '+event.incidentId,error instanceof Error?error.stack:undefined);}
     }
   }
 
