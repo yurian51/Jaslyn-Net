@@ -297,7 +297,7 @@ export class WorkflowsService {
   async createIntegration(tenantId:string,actorId:string,d:CreateIntegrationDto) {
     let url:string|null=null;
     if(d.baseUrl){
-      try { const parsed=new URL(d.baseUrl); if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.hostname==='localhost'||parsed.hostname.endsWith('.local')) throw new Error('unsafe'); url=parsed.toString(); }
+      try { const parsed=new URL(d.baseUrl); if(parsed.protocol!=='https:'||parsed.username||parsed.password||isIP(parsed.hostname)||parsed.hostname==='localhost'||parsed.hostname.endsWith('.local')||parsed.hostname.endsWith('.internal')||parsed.hostname==='metadata.google.internal') throw new Error('unsafe'); url=parsed.toString(); }
       catch { throw new BadRequestException('Integration baseUrl must be a valid HTTPS URL without embedded credentials or local hostnames'); }
     }
     if(['WEBHOOK','REST_API'].includes(d.providerType)&&!url) throw new BadRequestException('This integration type requires an HTTPS baseUrl');
@@ -324,6 +324,7 @@ export class WorkflowsService {
       if(a===169&&b===254) return false;
       if(a===172&&b>=16&&b<=31) return false;
       if(a===192&&(b===0||b===168)) return false;
+      if(a===192&&b===88&&parts[2]===99) return false;
       if(a===198&&(b===18||b===19||b===51)) return false;
       if(a===203&&b===0) return false;
       if(a===192&&b===0) return false;
@@ -340,7 +341,7 @@ export class WorkflowsService {
   }
 
   private async executeIntegrationRequest(tenantId:string,workflowId:string,runId:string,stepIndex:number,step:Step) {
-    const integration=await this.db.query(`SELECT id,base_url,secret_ref FROM automation_integrations
+    const integration=await this.db.query(`SELECT id,base_url,secret_ref,config FROM automation_integrations
       WHERE tenant_id=$1 AND id=$2 AND enabled=true AND provider_type='REST_API'`,[tenantId,step.integrationId]);
     if(!integration.rowCount||!integration.rows[0].base_url) throw new BadRequestException('HTTP_REQUEST requires an enabled tenant-owned REST_API integration');
     const base=new URL(integration.rows[0].base_url);
@@ -354,7 +355,11 @@ export class WorkflowsService {
       if(options.all) callback(null,[{address:selected.address,family:selected.family}]);
       else callback(null,selected.address,selected.family);
     };
+    const integrationConfig=integration.rows[0].config&&typeof integration.rows[0].config==='object'?integration.rows[0].config as Record<string,unknown>:{};
+    const method=String(step.method);
+    if(method!=='GET'&&integrationConfig.supportsIdempotency!==true) throw new BadRequestException('Write-capable HTTP_REQUEST requires an integration explicitly marked supportsIdempotency');
     const headers:Record<string,string>={'accept':'application/json','user-agent':'Jaslyn-Net-Workflow/1.0'};
+    if(method!=='GET') headers['idempotency-key']=`jaslyn-${runId}-${stepIndex}`;
     if(step.method!=='GET'&&step.method!=='DELETE') headers['content-type']='application/json';
     if(integration.rows[0].secret_ref){
       const secret=await this.db.query('SELECT secret_key FROM tenant_secrets WHERE tenant_id=$1 AND id=$2',[tenantId,integration.rows[0].secret_ref]);
