@@ -41,7 +41,7 @@ services:
       - key: NODE_VERSION
         value: "24.21.0"
       - key: NEXT_PUBLIC_API_URL
-        value: "https://jaslyn-net-api.onrender.com/api/v1"
+        value: "https://jaslyn-net-api-18o7.onrender.com/api/v1"
 
 databases:
   - name: jaslyn-net-db
