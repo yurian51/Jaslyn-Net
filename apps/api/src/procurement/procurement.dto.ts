@@ -88,3 +88,9 @@ export class RecordSupplierInvoicePaymentDto {
   @IsString() @MinLength(8) @MaxLength(200) idempotencyKey!: string;
   @IsOptional() @IsString() @MaxLength(180) paymentReference?: string;
 }
+
+export class ReceivePurchaseOrderLineDto {
+  @IsUUID() lineId!: string;
+  @IsNumber() @Min(0.0001) quantityReceived!: number;
+  @IsString() @MinLength(8) @MaxLength(200) idempotencyKey!: string;
+}
