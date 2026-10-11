@@ -21,6 +21,8 @@ export class WorkflowsController {
   run(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:TriggerWorkflowDto){return this.workflows.triggerManual(r.user!.tenantId,r.user!.id,id,d.payload??{},d.idempotencyKey);}
   @Get('runs') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
   runs(@Req() r:AuthenticatedRequest){return this.workflows.listRuns(r.user!.tenantId);}
+  @Get('alerts') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
+  alerts(@Req() r:AuthenticatedRequest){return this.workflows.listAlerts(r.user!.tenantId);}
   @Get('approvals') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
   approvals(@Req() r:AuthenticatedRequest){return this.workflows.listApprovals(r.user!.tenantId);}
   @Post('approvals/:id/decision') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.approve')
