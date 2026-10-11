@@ -49,6 +49,26 @@ export class NotificationsController {
     });
   }
 
+  @Get('sms/campaigns')
+  listSmsCampaigns(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
+    return this.notifications.listSmsCampaigns(req.user!.tenantId, Number(limit) || 50);
+  }
+
+  @Post('sms/bulk')
+  enqueueBulkSms(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { recipients?: string[]; message?: string; category?: SmsCategory; idempotencyKey?: string; name?: string },
+    @Headers('idempotency-key') headerKey?: string,
+  ) {
+    return this.notifications.enqueueBulkSms(req.user!.tenantId, {
+      recipients: body.recipients || [],
+      message: body.message || '',
+      category: body.category || 'TRANSACTIONAL',
+      idempotencyKey: body.idempotencyKey || headerKey || '',
+      name: body.name,
+    });
+  }
+
   @Post('recover-stale')
   recoverStale(@Req() req: AuthenticatedRequest, @Query('maxAgeMinutes') maxAgeMinutes?: string) {
     return this.notifications.recoverStaleProcessing(req.user!.tenantId, Number(maxAgeMinutes) || 15);
