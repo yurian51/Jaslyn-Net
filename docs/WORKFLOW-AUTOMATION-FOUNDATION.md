@@ -104,6 +104,7 @@ Use existing repository migration conventions and tenant-key constraints rather 
 ## Implemented in PR #83 (verification pending)
 
 - Safe `TRANSFORM` step with 1–30 bounded field mappings, dotted-path validation and prototype-key rejection.
+- Bounded conditional branch routing (`STOP` or skip 1–29 following nodes) with validation and visual editor controls.
 - Visual editor controls for transformation mappings.
 - Workflow definition version history and versioned definition updates.
 - Execution step snapshots captured when a run is queued, so later edits do not silently replace steps for an already-queued run.
