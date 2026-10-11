@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   reorder_level numeric(20,4) NOT NULL DEFAULT 0 CHECK (reorder_level >= 0),
   quantity_on_hand numeric(20,4) NOT NULL DEFAULT 0 CHECK (quantity_on_hand >= 0),
   average_unit_cost numeric(20,4) NOT NULL DEFAULT 0 CHECK (average_unit_cost >= 0),
-  valuation_currency char(3) CHECK (valuation_currency IS NULL OR valuation_currency ~ '^[A-Z]{3}
+  valuation_currency char(3) CHECK (valuation_currency IS NULL OR valuation_currency ~ '^[A-Z]{3}$'),
   active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
