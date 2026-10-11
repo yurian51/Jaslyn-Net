@@ -38,6 +38,41 @@ export default function AutomationWorkspacePage() {
   const [eventType,setEventType]=useState('PAYMENT.CONFIRMED');
   const [intervalSeconds,setIntervalSeconds]=useState('3600');
   const [steps,setSteps]=useState(defaultSteps);
+  const [stepDraftType,setStepDraftType]=useState('CONDITION');
+
+  let visualSteps: Record<string,unknown>[] = [];
+  try {
+    const parsed: unknown = JSON.parse(steps);
+    if (Array.isArray(parsed)) visualSteps = parsed.filter((item): item is Record<string,unknown> => !!item && typeof item === 'object' && !Array.isArray(item));
+  } catch { /* Keep the JSON editor available to correct malformed input. */ }
+
+  function writeSteps(next: Record<string,unknown>[]) { setSteps(JSON.stringify(next,null,2)); }
+  function addStep(type=stepDraftType) {
+    const templates: Record<string,Record<string,unknown>> = {
+      CONDITION:{type:'CONDITION',path:'payment.status',op:'eq',value:'CONFIRMED'},
+      CREATE_ALERT:{type:'CREATE_ALERT',severity:'HIGH',title:'Operator attention required',details:{}},
+      APPROVAL:{type:'APPROVAL',title:'Approve sensitive operation',details:{}},
+      EMIT_WEBHOOK:{type:'EMIT_WEBHOOK',eventType:'workflow.completed',payload:{}},
+      WAIT:{type:'WAIT',seconds:60},
+      LOG:{type:'LOG',message:'Workflow step completed'},
+    };
+    writeSteps([...visualSteps,templates[type]??templates.CONDITION]);
+  }
+  function updateStep(index:number,key:string,value:unknown) {
+    writeSteps(visualSteps.map((step,i)=>i===index?{...step,[key]:value}:step));
+  }
+  function updateStepValue(index:number,raw:string) {
+    let value:unknown=raw;
+    try { value=JSON.parse(raw); } catch { /* Unquoted text remains a string. */ }
+    updateStep(index,'value',value);
+  }
+  function moveStep(index:number,delta:number) {
+    const next=[...visualSteps], target=index+delta;
+    if(target<0||target>=next.length)return;
+    [next[index],next[target]]=[next[target],next[index]];
+    writeSteps(next);
+  }
+  function removeStep(index:number) { writeSteps(visualSteps.filter((_,i)=>i!==index)); }
   const [integrationName,setIntegrationName]=useState('');
   const [integrationType,setIntegrationType]=useState('WEBHOOK');
   const [integrationUrl,setIntegrationUrl]=useState('');
@@ -136,7 +171,28 @@ export default function AutomationWorkspacePage() {
         {triggerType==='EVENT'&&<label>Event type<input required value={eventType} onChange={e=>setEventType(e.target.value)} style={styles.input}/></label>}
         {triggerType==='SCHEDULE'&&<label>Interval (60–86400 seconds)<input required type="number" min={60} max={86400} value={intervalSeconds} onChange={e=>setIntervalSeconds(e.target.value)} style={styles.input}/></label>}
         <label style={{gridColumn:'1 / -1'}}>Description<input value={description} onChange={e=>setDescription(e.target.value)} style={styles.input} maxLength={1000} placeholder="What this workflow safely automates"/></label>
-        <label style={{gridColumn:'1 / -1'}}>Workflow steps (JSON)<textarea required rows={12} value={steps} onChange={e=>setSteps(e.target.value)} style={{...styles.input,fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace',fontSize:13}} spellCheck={false}/></label>
+        <div style={{gridColumn:'1 / -1',border:'1px solid #dfe5ed',borderRadius:12,padding:14,background:'#f8fafc'}}>
+          <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+            <div><h3 style={{margin:'0 0 4px'}}>Visual step builder</h3><p style={{margin:0,fontSize:13,color:'#64748b'}}>Add nodes, edit their fields, reorder the flow, or remove steps. The JSON below stays synchronised.</p></div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><select aria-label="Node type to add" value={stepDraftType} onChange={e=>setStepDraftType(e.target.value)} style={{...styles.input,marginTop:0,width:'auto'}}>{['CONDITION','CREATE_ALERT','APPROVAL','EMIT_WEBHOOK','WAIT','LOG'].map(t=><option key={t}>{t}</option>)}</select><button type="button" style={styles.primary} onClick={()=>addStep()}>+ Add node</button></div>
+          </div>
+          <div style={{display:'grid',gap:10,marginTop:14}}>
+            {visualSteps.map((step,index)=><article key={index} style={{background:'#fff',border:'1px solid #d7e0eb',borderRadius:10,padding:12,boxShadow:'0 2px 8px rgba(15,23,42,.03)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}><span style={{display:'grid',placeItems:'center',width:28,height:28,borderRadius:8,background:'#e8eef8',fontSize:12,fontWeight:800}}>{index+1}</span><div><strong>{String(step.type??'NODE')}</strong><div style={{fontSize:12,color:'#64748b'}}>{step.type==='CONDITION'?'Branch condition':step.type==='APPROVAL'?'Human approval gate':step.type==='CREATE_ALERT'?'Create operational alert':step.type==='EMIT_WEBHOOK'?'Queue subscribed webhook event':step.type==='WAIT'?'Delay before next step':'Execution log entry'}</div></div></div>
+                <div style={{display:'flex',gap:5}}><button type="button" aria-label="Move node up" style={styles.button} disabled={index===0} onClick={()=>moveStep(index,-1)}>↑</button><button type="button" aria-label="Move node down" style={styles.button} disabled={index===visualSteps.length-1} onClick={()=>moveStep(index,1)}>↓</button><button type="button" style={{...styles.button,color:'#9f1239'}} onClick={()=>removeStep(index)}>Remove</button></div>
+              </div>
+              {step.type==='CONDITION'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10}}><label>Payload path<input value={String(step.path??'')} onChange={e=>updateStep(index,'path',e.target.value)} style={styles.input} placeholder="payment.status"/></label><label>Operator<select value={String(step.op??'eq')} onChange={e=>updateStep(index,'op',e.target.value)} style={styles.input}>{['eq','neq','gt','gte','lt','lte','contains','exists'].map(op=><option key={op}>{op}</option>)}</select></label><label>Expected value<input value={step.value===undefined?'':typeof step.value==='string'?step.value:JSON.stringify(step.value)} onChange={e=>updateStepValue(index,e.target.value)} style={styles.input} placeholder={'CONFIRMED or 100'}/></label></div>}
+              {step.type==='CREATE_ALERT'&&<div style={{display:'grid',gridTemplateColumns:'minmax(150px,220px) 1fr',gap:10}}><label>Severity<select value={String(step.severity??'HIGH')} onChange={e=>updateStep(index,'severity',e.target.value)} style={styles.input}>{['CRITICAL','HIGH','MEDIUM','LOW','INFO'].map(v=><option key={v}>{v}</option>)}</select></label><label>Alert title<input value={String(step.title??'')} onChange={e=>updateStep(index,'title',e.target.value)} style={styles.input} maxLength={180}/></label></div>}
+              {step.type==='APPROVAL'&&<label>Approval prompt<input value={String(step.title??'')} onChange={e=>updateStep(index,'title',e.target.value)} style={styles.input} maxLength={180}/></label>}
+              {step.type==='EMIT_WEBHOOK'&&<label>Event type<input value={String(step.eventType??'')} onChange={e=>updateStep(index,'eventType',e.target.value.toUpperCase())} style={styles.input} placeholder="workflow.completed"/></label>}
+              {step.type==='WAIT'&&<label>Wait seconds (1–86400)<input type="number" min={1} max={86400} value={String(step.seconds??60)} onChange={e=>updateStep(index,'seconds',Number(e.target.value))} style={styles.input}/></label>}
+              {step.type==='LOG'&&<label>Log message<input value={String(step.message??'')} onChange={e=>updateStep(index,'message',e.target.value)} style={styles.input} maxLength={500}/></label>}
+            </article>)}
+            {visualSteps.length===0&&<div style={{padding:18,border:'1px dashed #cbd5e1',borderRadius:8,color:'#64748b',textAlign:'center'}}>No nodes yet. Add a node to begin the workflow.</div>}
+          </div>
+        </div>
+        <label style={{gridColumn:'1 / -1'}}>Advanced JSON (synchronised with visual nodes)<textarea required rows={10} value={steps} onChange={e=>setSteps(e.target.value)} style={{...styles.input,fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace',fontSize:13}} spellCheck={false}/></label>
         <div style={{gridColumn:'1 / -1',display:'flex',justifyContent:'flex-end'}}><button disabled={busy} style={styles.primary} type="submit">{busy?'Saving…':'Create workflow'}</button></div>
       </form>
     </section>
