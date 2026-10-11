@@ -11,12 +11,14 @@ import { TenantHierarchyController } from './tenant-hierarchy.controller';
 import { TenantHierarchyService } from './tenant-hierarchy.service';
 import { ProcurementWorkflowController } from './procurement-workflow.controller';
 import { ProcurementWorkflowService } from './procurement-workflow.service';
+import { TenantUsageController } from './tenant-usage.controller';
+import { TenantUsageService } from './tenant-usage.service';
 import { SecretsVaultModule } from '../secrets-vault/secrets-vault.module';
 
 @Module({
   imports:[AuditModule,SecretsVaultModule],
-  controllers:[ProcurementController,PlatformIntegrationsController,PublicApiController,TenantHierarchyController,ProcurementWorkflowController],
-  providers:[ProcurementService,PlatformIntegrationsService,ApiKeyGuard,WebhookDeliveryWorker,TenantHierarchyService,ProcurementWorkflowService],
+  controllers:[ProcurementController,PlatformIntegrationsController,PublicApiController,TenantHierarchyController,ProcurementWorkflowController,TenantUsageController],
+  providers:[ProcurementService,PlatformIntegrationsService,ApiKeyGuard,WebhookDeliveryWorker,TenantHierarchyService,ProcurementWorkflowService,TenantUsageService],
   exports:[ProcurementService],
 })
 export class ProcurementModule {}
