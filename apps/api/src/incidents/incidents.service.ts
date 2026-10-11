@@ -406,7 +406,7 @@ export class IncidentsService {
       : components.rows.some(row => row.status === 'PARTIAL_OUTAGE') ? 'PARTIAL_OUTAGE'
       : components.rows.some(row => row.status === 'DEGRADED') ? 'DEGRADED'
       : components.rows.some(row => row.status === 'MAINTENANCE') ? 'MAINTENANCE' : 'OPERATIONAL';
-    return { ...settings.rows[0], overallStatus, components: components.rows, incidents: incidents.rows, maintenanceWindows: maintenance.rows, generatedAt: new Date().toISOString() };
+    return { slug: settings.rows[0].slug, displayName: settings.rows[0].displayName, description: settings.rows[0].description, overallStatus, components: components.rows, incidents: incidents.rows, maintenanceWindows: maintenance.rows, generatedAt: new Date().toISOString() };
   }
 
 }
