@@ -6,7 +6,7 @@ JASLYN NET uses tenant-scoped provider configuration with a shared outbox and ca
 
 ## Migration and environment
 
-Apply `apps/api/migrations/062_sms_provider_configs.sql` after migrations 060 and 061. Set `SMS_ENABLED=false`, `JASLYN_SMS_CREDENTIAL_ENCRYPTION_KEY` to a fresh 32-byte random key encoded as 64 hex characters, and `SMS_CUSTOM_ALLOWED_HOSTS` to comma-separated exact approved hostnames in the API secret manager. Never commit secrets. Back up the encryption key securely; losing it makes saved credentials unreadable.
+Apply `apps/api/migrations/062_sms_provider_configs.sql` after migrations 060 and 061. Set `SMS_ENABLED=false`, `SMS_ALLOW_LEGACY_GLOBAL_PROVIDER=false`, `JASLYN_SMS_CREDENTIAL_ENCRYPTION_KEY` to a fresh 32-byte random key encoded as 64 hex characters, and `SMS_CUSTOM_ALLOWED_HOSTS` to comma-separated exact approved hostnames in the API secret manager. Never commit secrets. Back up the encryption key securely; losing it makes saved credentials unreadable. Shared legacy environment credentials are disabled by default; enable `SMS_ALLOW_LEGACY_GLOBAL_PROVIDER=true` only as a temporary migration compatibility measure.
 
 ## Operator workflow
 
