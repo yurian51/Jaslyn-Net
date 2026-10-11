@@ -186,7 +186,7 @@ export class RoutersService {
          context.ipAddress ?? null, context.userAgent ?? null, JSON.stringify({ rotatedCount, activeKeyId })],
       );
       await client.query('COMMIT');
-      return { rotatedCount, activeKeyId, verified: true };
+      return { rotatedCount, activeKeyId, completed: true };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
