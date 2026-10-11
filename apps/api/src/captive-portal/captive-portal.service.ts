@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, TooManyRequestsException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -65,7 +65,7 @@ export class CaptivePortalService {
       [tenantId, fingerprint],
     );
     if (attempt.rows[0]?.attemptCount >= 10 || (attempt.rows[0]?.blockedUntil && new Date(attempt.rows[0].blockedUntil).getTime() > Date.now())) {
-      throw new TooManyRequestsException('Too many voucher attempts. Wait 15 minutes and try again.');
+      throw new HttpException('Too many voucher attempts. Wait 15 minutes and try again.', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     const customerResult = await this.db.query<{ id: string }>(
