@@ -93,7 +93,6 @@ const content: Record<PageKey, {
 
 export default function MarketingPage({ page }: { page: PageKey }) {
   const item = content[page];
-  const next = content[item.next];
   const nextLabel = navItems.find(([key]) => key === item.next)?.[1] ?? 'Next';
   return (
     <main className="jn-detail">
