@@ -5,8 +5,8 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: corepack pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && corepack pnpm --filter @jaslyn-net/api build
-    startCommand: corepack pnpm --filter @jaslyn-net/api migrate && corepack pnpm --filter @jaslyn-net/api start
+    buildCommand: pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && pnpm --filter @jaslyn-net/api build
+    startCommand: pnpm --filter @jaslyn-net/api migrate && pnpm --filter @jaslyn-net/api start
     healthCheckPath: /api/v1/health/ready
     envVars:
       - key: NODE_VERSION
@@ -35,8 +35,8 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: corepack pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && corepack pnpm --filter @jaslyn-net/web build
-    startCommand: corepack pnpm --filter @jaslyn-net/web start
+    buildCommand: pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && pnpm --filter @jaslyn-net/web build
+    startCommand: pnpm --filter @jaslyn-net/web start
     envVars:
       - key: NODE_VERSION
         value: "24.21.0"
