@@ -39,7 +39,9 @@ export class CaptivePortalService {
   async redeemPublicVoucher(slugInput: string, input: PublicVoucherRedemptionDto, clientIp: string) {
     const slug = slugInput.trim().toLowerCase();
     if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug)) throw new NotFoundException('Portal not found');
-    const phone = input.phone.trim().replace(/[\s().-]/g, '');
+    let phone = input.phone.trim().replace(/[\s().-]/g, '');
+    if (/^0\d{9}$/.test(phone)) phone = `+255${phone.slice(1)}`;
+    else if (/^255\d{9}$/.test(phone)) phone = `+${phone}`;
     if (!/^\+?[1-9]\d{6,14}$/.test(phone)) throw new BadRequestException('Enter a valid phone number including country code when needed');
     const tenant = await this.db.query(
       `SELECT t.id FROM tenants t JOIN captive_portal_settings s ON s.tenant_id=t.id
@@ -81,7 +83,7 @@ export class CaptivePortalService {
       customerId = created.rows[0]?.id;
     }
     if (!customerId) throw new BadRequestException('Could not create a customer profile for voucher redemption');
-    const result = await this.vouchers.redeem(tenantId, input.code, { customerId, routerId: input.routerId });
+    const result = await this.vouchers.redeem(tenantId, input.code, { customerId });
     return { ...result, message: 'Voucher accepted. Network access is being provisioned; wait for your device to connect.' };
   }
 
