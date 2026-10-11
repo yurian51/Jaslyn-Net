@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
@@ -8,7 +8,7 @@ type Row = Record<string, unknown>;
 type Domain = 'suppliers'|'orders'|'supplierInvoices'|'inventory'|'aging'|'audit'|'branding';
 const label=(v:unknown)=>v===null||v===undefined||v===''?'—':String(v);
 const money=(v:unknown,c='TZS')=>{const n=Number(v??0);try{return new Intl.NumberFormat('en-TZ',{style:'currency',currency:c,maximumFractionDigits:2}).format(n)}catch{return c+' '+n.toLocaleString();}};
-const inputStyle:React.CSSProperties={padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:'100%',boxSizing:'border-box'};
+const inputStyle:CSSProperties={padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:'100%',boxSizing:'border-box'};
 const buttonStyle:React.CSSProperties={padding:'10px 14px',border:0,borderRadius:8,background:'#174ea6',color:'#fff',fontWeight:700,cursor:'pointer'};
 const panelStyle:React.CSSProperties={background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:16,marginBottom:16};
 const tableStyle:React.CSSProperties={width:'100%',borderCollapse:'collapse',fontSize:13};
@@ -26,12 +26,11 @@ export default function ProcurementPage(){
  const [brandName,setBrandName]=useState(''),[brandColor,setBrandColor]=useState('#174ea6'),[brandDomain,setBrandDomain]=useState('');
  const token=()=>getAccessToken();
  const headers=()=>({Authorization:'Bearer '+(token()??''),'Content-Type':'application/json'});
- const endpoints:Record<Domain,string>={suppliers:'/procurement/suppliers',orders:'/procurement/purchase-orders',supplierInvoices:'/procurement/supplier-invoices',inventory:'/inventory/items',aging:'/finance-ops/accounts-receivable/aging',audit:'/finance-ops/audit',branding:'/msp/branding'};
  const load=useCallback(async()=>{
-  if(!token()){setError('Ingia kwenye akaunti ili kuona data ya tenant yako.');return;}
+  if(!getAccessToken()){setError('Ingia kwenye akaunti ili kuona data ya tenant yako.');return;}
   setLoading(true);setError('');
   const domains:Domain[]=['suppliers','orders','supplierInvoices','inventory','aging','audit','branding'];
-  const result=await Promise.all(domains.map(async d=>{try{return {d,value:await apiFetch<unknown>(endpoints[d],{headers:{Authorization:'Bearer '+token()}})}}catch(e){return {d,error:e instanceof Error?e.message:'Request failed'}}}));
+  const result=await Promise.all(domains.map(async d=>{try{return {d,value:await apiFetch<unknown>(endpoints[d],{headers:{Authorization:'Bearer '+getAccessToken()}})}}catch(e){return {d,error:e instanceof Error?e.message:'Request failed'}}}));
   setRows(old=>{const next={...old};for(const item of result){if('value' in item){const v=item.value as {data?:unknown};if(item.d==='branding'){next.branding=v&&typeof v==='object'?[v as Row]:[];const b=(v??{}) as Row;setBrandName(label(b.displayName)==='—'?'':label(b.displayName));setBrandColor(label(b.primaryColor)==='—'?'#174ea6':label(b.primaryColor));setBrandDomain(label(b.portalDomain)==='—'?'':label(b.portalDomain));}else next[item.d]=Array.isArray(v?.data)?v.data as Row[]:[];}}return next;});
   const failures=result.filter((x):x is {d:Domain,error:string}=>'error' in x);
   if(failures.length)setError('Baadhi ya sehemu hazijapakiwa: '+failures.map(x=>x.d+': '+x.error).join(' · '));
