@@ -6,7 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
 type Step = { type: 'CONDITION'|'TRANSFORM'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
-type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; current_step:number; attempts:number; run_id:string };
+type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
@@ -82,6 +82,9 @@ export class WorkflowsService {
         VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,CASE WHEN $4='SCHEDULE' AND $7 THEN now()+make_interval(secs=>$9::int) ELSE NULL END,$10,$10)
         RETURNING id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,next_run_at AS "nextRunAt",created_at AS "createdAt"`,
         [tenantId,d.name.trim(),(d.description??'').trim(),d.triggerType,JSON.stringify(config),JSON.stringify(steps),d.enabled===true,tokenHash,d.triggerType==='SCHEDULE'?Number(config.intervalSeconds):null,actorId]);
+      await this.db.query(`INSERT INTO automation_workflow_versions(tenant_id,workflow_id,version,definition,created_by)
+        VALUES($1,$2,1,$3::jsonb,$4) ON CONFLICT(tenant_id,workflow_id,version) DO NOTHING`,
+        [tenantId,r.rows[0].id,JSON.stringify({name:d.name.trim(),description:(d.description??'').trim(),triggerType:d.triggerType,triggerConfig:config,steps}),actorId]);
       await this.audit.record(tenantId,'CREATE','automation_workflow',r.rows[0].id,{name:d.name,triggerType:d.triggerType,enabled:d.enabled===true},{userId:actorId});
       return {...r.rows[0],...(rawToken?{webhookToken:rawToken,webhookPath:`/api/v1/automation/workflows/${r.rows[0].id}/webhook`}:{})};
     } catch(e:unknown) {
@@ -117,10 +120,49 @@ export class WorkflowsService {
   }
 
   private async enqueue(tenantId:string,workflowId:string,triggerType:string,key:string,payload:Record<string,unknown>) {
-    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload)
-      VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(tenant_id,workflow_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
+    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload,steps_snapshot)
+      SELECT $1,$2,$3,$4,$5::jsonb,w.steps FROM automation_workflows w WHERE w.tenant_id=$1 AND w.id=$2
+      ON CONFLICT(tenant_id,workflow_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
       RETURNING id,status,workflow_id AS "workflowId",created_at AS "createdAt"`,[tenantId,workflowId,key,triggerType,JSON.stringify(payload)]);
     return r.rows[0];
+  }
+
+  async listVersions(tenantId:string,id:string) {
+    const exists=await this.db.query('SELECT id FROM automation_workflows WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+    if(!exists.rowCount) throw new NotFoundException('Workflow not found');
+    const r=await this.db.query(`SELECT version,definition,created_by AS "createdBy",created_at AS "createdAt"
+      FROM automation_workflow_versions WHERE tenant_id=$1 AND workflow_id=$2 ORDER BY version DESC LIMIT 100`,[tenantId,id]);
+    return {data:r.rows};
+  }
+
+  async updateDefinition(tenantId:string,actorId:string,id:string,d:CreateWorkflowDto) {
+    const steps=this.validateSteps(d.steps);
+    const config=d.triggerConfig??{};
+    if(d.triggerType==='EVENT'&&!/^[A-Z][A-Z0-9_.-]{1,119}$/.test(String(config.eventType??''))) throw new BadRequestException('EVENT trigger requires triggerConfig.eventType');
+    if(d.triggerType==='SCHEDULE'){
+      const interval=Number(config.intervalSeconds);
+      if(!Number.isInteger(interval)||interval<60||interval>86400) throw new BadRequestException('SCHEDULE intervalSeconds must be 60–86400');
+    }
+    if(d.triggerType==='WEBHOOK'&&Object.keys(config).length) throw new BadRequestException('WEBHOOK trigger configuration is managed by Jaslyn Net');
+    const client=await this.db.connect();
+    let updated:Record<string,unknown>;
+    try{
+      await client.query('BEGIN');
+      const current=await client.query('SELECT trigger_type FROM automation_workflows WHERE tenant_id=$1 AND id=$2 FOR UPDATE',[tenantId,id]);
+      if(!current.rowCount) throw new NotFoundException('Workflow not found');
+      if(current.rows[0].trigger_type!==d.triggerType) throw new ConflictException('Changing a workflow trigger type requires creating a new workflow');
+      const result=await client.query(`UPDATE automation_workflows SET name=$3,description=$4,trigger_config=$5::jsonb,steps=$6::jsonb,version=version+1,
+        updated_by=$7,updated_at=now(),next_run_at=CASE WHEN trigger_type='SCHEDULE' AND enabled THEN now()+make_interval(secs=>COALESCE(NULLIF($5::jsonb->>'intervalSeconds','')::int,3600)) ELSE NULL END
+        WHERE tenant_id=$1 AND id=$2 RETURNING id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,version,updated_at AS "updatedAt"`,
+        [tenantId,id,d.name.trim(),(d.description??'').trim(),JSON.stringify(config),JSON.stringify(steps),actorId]);
+      updated=result.rows[0];
+      await client.query(`INSERT INTO automation_workflow_versions(tenant_id,workflow_id,version,definition,created_by)
+        VALUES($1,$2,$3,$4::jsonb,$5)`,
+        [tenantId,id,updated.version,JSON.stringify({name:d.name.trim(),description:(d.description??'').trim(),triggerType:d.triggerType,triggerConfig:config,steps}),actorId]);
+      await client.query('COMMIT');
+    }catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;}finally{client.release();}
+    await this.audit.record(tenantId,'UPDATE_DEFINITION','automation_workflow',id,{version:updated.version,name:d.name},{userId:actorId});
+    return updated;
   }
 
   async exportDefinition(tenantId:string,id:string) {
@@ -288,12 +330,12 @@ export class WorkflowsService {
         OR (status='RUNNING' AND locked_at<now()-interval '10 minutes' AND attempts<8)
       ORDER BY next_attempt_at,created_at FOR UPDATE SKIP LOCKED LIMIT 25
     ) UPDATE automation_workflow_runs r SET status='RUNNING',attempts=r.attempts+1,locked_at=now(),started_at=COALESCE(r.started_at,now())
-      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload`);
+      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload,r.steps_snapshot`);
     for(const run of claimed.rows) {
       try {
         const w=await this.db.query('SELECT steps FROM automation_workflows WHERE tenant_id=$1 AND id=$2 AND enabled=true',[run.tenant_id,run.id]);
         if(!w.rowCount) { await this.finish(run.tenant_id,run.run_id,'CANCELLED',run.current_step,[],'WORKFLOW_DISABLED_OR_MISSING'); continue; }
-        const steps=this.validateSteps(w.rows[0].steps);
+        const steps=this.validateSteps(run.steps_snapshot??w.rows[0].steps);
         const payload=run.trigger_payload??{}; const results:Record<string,unknown>[]=[];
         let index=run.current_step; let waiting=false; let completed=false;
         while(index<steps.length) {
