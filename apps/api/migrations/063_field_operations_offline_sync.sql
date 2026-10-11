@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS network_job_attachments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   job_id uuid NOT NULL,
+  client_photo_id uuid NOT NULL,
   file_name text NOT NULL CHECK (length(file_name) BETWEEN 1 AND 180),
   content_type text NOT NULL CHECK (content_type IN ('image/jpeg','image/png','image/webp')),
   content bytea NOT NULL,
@@ -47,6 +48,7 @@ CREATE TABLE IF NOT EXISTS network_job_attachments (
   created_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id,id),
+  UNIQUE (tenant_id,job_id,client_photo_id),
   FOREIGN KEY (tenant_id,job_id) REFERENCES network_jobs(tenant_id,id) ON DELETE CASCADE,
   FOREIGN KEY (tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
 );
