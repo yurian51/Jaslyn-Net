@@ -8,7 +8,8 @@ describe('WorkflowsService safety and tenant boundaries', () => {
   const db = { query: jest.fn(), connect: jest.fn() };
   const audit = { record: jest.fn() };
   const notifications = { enqueue: jest.fn(), enqueueSms: jest.fn() };
-  const service = new WorkflowsService(db as unknown as Pool, audit as unknown as AuditService, notifications as never);
+  const secrets = { getSecretValue: jest.fn() };
+  const service = new WorkflowsService(db as unknown as Pool, audit as unknown as AuditService, notifications as never, secrets as never);
   beforeEach(() => { jest.clearAllMocks(); });
 
   it('accepts safe dotted TRANSFORM source and destination paths', async () => {
@@ -25,6 +26,15 @@ describe('WorkflowsService safety and tenant boundaries', () => {
   it('rejects unsafe notification recipient paths before persistence', async () => {
     await expect(service.create('tenant-a','user-a',{
       name:'unsafe notification',triggerType:'MANUAL',steps:[{type:'NOTIFY',channel:'SMS',recipientPath:'__proto__.phone',message:'hello',category:'TRANSACTIONAL'}],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsafe HTTP integration paths before persistence', async () => {
+    await expect(service.create('tenant-a','user-a',{
+      name:'unsafe HTTP request',triggerType:'MANUAL',steps:[{
+        type:'HTTP_REQUEST',integrationId:'11111111-1111-4111-8111-111111111111',method:'POST',path:'//169.254.169.254/latest/meta-data',body:{},
+      }],
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(db.query).not.toHaveBeenCalled();
   });
