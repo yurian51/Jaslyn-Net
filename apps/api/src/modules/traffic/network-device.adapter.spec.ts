@@ -70,10 +70,10 @@ describe('NetworkDeviceAdapterRegistry', () => {
     const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
     await expect(registry.readClients({ routerId: 'r7', protocol: 'SNMP', endpoint: 'https://1.1.1.1' })).rejects.toThrow('SNMP telemetry requires');
   });
-  it('does not pretend catalogue-only vendors have a working native adapter', async () => {
+  it('fails closed when a native vendor adapter is not registered in a test or custom module', async () => {
     const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
-    await expect(registry.readClients({ routerId: 'r11', protocol: 'ARUBA_CENTRAL_API', endpoint: 'https://1.1.1.1' })).rejects.toThrow('Native telemetry adapter is not implemented');
-    await expect(registry.readClients({ routerId: 'r12', protocol: 'PFSENSE_API', endpoint: 'https://1.1.1.1' })).rejects.toThrow('Native telemetry adapter is not implemented');
+    await expect(registry.readClients({ routerId: 'r11', protocol: 'ARUBA_CENTRAL_API', endpoint: 'https://1.1.1.1' })).rejects.toThrow('Aruba Central adapter is not registered');
+    await expect(registry.readClients({ routerId: 'r12', protocol: 'PFSENSE_API', endpoint: 'https://1.1.1.1' })).rejects.toThrow('pfSense/OPNsense adapter is not registered');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
