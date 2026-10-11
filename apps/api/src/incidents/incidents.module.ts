@@ -5,11 +5,12 @@ import { IncidentsController } from './incidents.controller';
 import { IncidentsService } from './incidents.service';
 import { PublicStatusController } from './public-status.controller';
 import { IncidentEscalationWorker } from './incident-escalation.worker';
+import { MaintenanceWindowWorker } from './maintenance-window.worker';
 
 @Module({
   imports: [AuditModule, CommunicationModule],
   controllers: [IncidentsController, PublicStatusController],
-  providers: [IncidentsService, IncidentEscalationWorker],
+  providers: [IncidentsService, IncidentEscalationWorker, MaintenanceWindowWorker],
   exports: [IncidentsService],
 })
 export class IncidentsModule {}
