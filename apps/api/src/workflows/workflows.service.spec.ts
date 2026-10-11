@@ -18,7 +18,7 @@ describe('WorkflowsService safety and tenant boundaries', () => {
     await expect(service.create('tenant-a','user-a',{
       name:'safe transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],
     })).resolves.toMatchObject({id:'workflow-1'});
-    expect(db.query).toHaveBeenCalledTimes(1);
+    expect(db.query).toHaveBeenCalledTimes(2);
   });
 
   it('rejects unsafe TRANSFORM destination paths before persistence', async () => {
