@@ -157,20 +157,20 @@ export default function Home() {
 
       <section className="jn-hero">
         <div className="jn-hero-copy">
-          <div className="jn-eyebrow"><span /> CONNECTIVITY OPERATING SYSTEM</div>
-          <h1>One workspace for Wi-Fi billing, subscriber access, and network operations.</h1>
+          <div className="jn-eyebrow"><span /> FOR WI-FI OPERATORS · ISPs · MANAGED NETWORKS</div>
+          <h1>Run your Wi-Fi and ISP operations <em>from one place.</em></h1>
           <p className="jn-hero-lead">
-            JASLYN NET connects customer records, internet packages, payment status, access control and network operations for Wi-Fi operators, ISPs and managed network teams.
+            Sell internet packages, track payment status, manage subscriber access and coordinate network operations in one workspace—without jumping between disconnected tools.
           </p>
           <p className="jn-hero-plain">
-            Sell internet packages, verify payments, manage subscriber access, and investigate network issues from one place.
+            Connect customer lifecycle, billing, access policy and network operations in one clear workflow.
           </p>
           <div className="jn-hero-actions">
-            <Link href="/register" className="jn-btn jn-btn-primary">Create a workspace <ArrowIcon /></Link>
+            <Link href="/register" className="jn-btn jn-btn-primary">Create your workspace <ArrowIcon /></Link>
             <Link href="/architecture" className="jn-btn jn-btn-secondary">See how it works</Link>
           </div>
           <div className="jn-hero-meta">
-            <span>WiFi</span><i /><span>ISP</span><i /><span>RADIUS</span><i /><span>Billing</span><i /><span>Network operations</span>
+            <span>Hotspot</span><i /><span>ISP billing</span><i /><span>RADIUS / AAA</span><i /><span>Network operations</span>
           </div>
         </div>
         <div className="jn-hero-visual">
