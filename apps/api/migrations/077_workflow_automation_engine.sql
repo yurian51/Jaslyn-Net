@@ -67,6 +67,26 @@ CREATE TABLE IF NOT EXISTS automation_workflow_approvals (
 );
 CREATE INDEX IF NOT EXISTS automation_workflow_approvals_pending_idx ON automation_workflow_approvals(tenant_id,status,requested_at DESC);
 
+CREATE TABLE IF NOT EXISTS automation_workflow_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  run_id uuid NOT NULL,
+  step_index integer NOT NULL,
+  severity text NOT NULL CHECK (severity IN ('CRITICAL','HIGH','MEDIUM','LOW','INFO')),
+  title text NOT NULL CHECK (length(title) BETWEEN 3 AND 180),
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','ACKNOWLEDGED','RESOLVED')),
+  resolution_note text,
+  resolved_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  resolved_at timestamptz,
+  UNIQUE(tenant_id,id),
+  UNIQUE(tenant_id,run_id,step_index),
+  FOREIGN KEY(tenant_id,run_id) REFERENCES automation_workflow_runs(tenant_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY(tenant_id,resolved_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS automation_workflow_alerts_open_idx ON automation_workflow_alerts(tenant_id,status,severity,created_at DESC);
+
 CREATE TABLE IF NOT EXISTS automation_integrations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
@@ -83,14 +103,15 @@ CREATE TABLE IF NOT EXISTS automation_integrations (
   UNIQUE(tenant_id,id),
   UNIQUE(tenant_id,name),
   FOREIGN KEY(tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT,
-  FOREIGN KEY(tenant_id,updated_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
+  FOREIGN KEY(tenant_id,updated_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY(tenant_id,secret_ref) REFERENCES tenant_secrets(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS automation_integrations_tenant_idx ON automation_integrations(tenant_id,created_at DESC);
 
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['automation_workflows','automation_workflow_runs','automation_workflow_approvals','automation_integrations'] LOOP
+  FOREACH t IN ARRAY ARRAY['automation_workflows','automation_workflow_runs','automation_workflow_approvals','automation_workflow_alerts','automation_integrations'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_financial_audit ON %I',t);
     EXECUTE format('CREATE TRIGGER jaslyn_financial_audit AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION jaslyn_financial_audit_trigger()',t);
   END LOOP;
