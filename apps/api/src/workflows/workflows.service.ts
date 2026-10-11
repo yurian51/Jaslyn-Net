@@ -123,7 +123,9 @@ export class WorkflowsService {
     if(!w.rowCount) throw new NotFoundException('Workflow not found');
     if(!w.rows[0].enabled) throw new ConflictException('Enable this workflow before running it');
     if(!['MANUAL','EVENT','SCHEDULE','WEBHOOK'].includes(w.rows[0].trigger_type)) throw new BadRequestException('Unsupported workflow trigger');
-    const run=await this.enqueue(tenantId,id,'MANUAL',key??`manual:${randomBytes(16).toString('hex')}`,payload);
+    const normalizedKey=key?.trim();
+    if(normalizedKey!==undefined&&(!normalizedKey||normalizedKey.length>180)) throw new BadRequestException('Idempotency key must contain 1–180 characters');
+    const run=await this.enqueue(tenantId,id,'MANUAL',normalizedKey??`manual:${randomBytes(16).toString('hex')}`,payload);
     await this.audit.record(tenantId,'TRIGGER','automation_workflow',id,{runId:run.id},{userId:actorId});
     return run;
   }
@@ -133,7 +135,9 @@ export class WorkflowsService {
     if(!found.rowCount||!token||!found.rows[0].webhook_token_hash) throw new NotFoundException('Webhook workflow not found');
     const actual=createHash('sha256').update(token).digest(); const expected=Buffer.from(found.rows[0].webhook_token_hash,'hex');
     if(actual.length!==expected.length||!timingSafeEqual(actual,expected)) throw new ForbiddenException('Invalid workflow webhook token');
-    const eventId=typeof payload.eventId==='string'?payload.eventId:randomBytes(16).toString('hex');
+    const suppliedEventId=payload.eventId;
+    if(typeof suppliedEventId==='string'&&suppliedEventId.length>180) throw new BadRequestException('Webhook eventId must not exceed 180 characters');
+    const eventId=typeof suppliedEventId==='string'&&suppliedEventId.trim()?suppliedEventId.trim():randomBytes(16).toString('hex');
     return this.enqueue(found.rows[0].tenant_id,id,'WEBHOOK',`webhook:${eventId}`,payload);
   }
 
