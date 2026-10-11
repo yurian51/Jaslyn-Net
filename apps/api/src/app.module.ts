@@ -38,6 +38,7 @@ import { ProcurementModule } from './procurement/procurement.module';
 import { OperationsIntelligenceModule } from './operations-intelligence/operations-intelligence.module';
 import { AutomationModule } from './automation/automation.module';
 import { WorkflowsModule } from './workflows/workflows.module';
+import { CaptivePortalModule } from './captive-portal/captive-portal.module';
 
 @Module({
   imports: [
@@ -45,7 +46,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule,
   ],
 })
 export class AppModule implements NestModule {
