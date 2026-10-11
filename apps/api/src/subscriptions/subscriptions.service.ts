@@ -12,9 +12,9 @@ export class SubscriptionsService {
               p.billing_interval AS "billingInterval", p.max_routers AS "maxRouters",
               p.max_sites AS "maxSites", p.max_customers AS "maxCustomers",
               p.pricing_mode AS "pricingMode", p.limits, p.features, p.sort_order AS "sortOrder"
-       FROM saas_plans
-       WHERE is_active = true
-       ORDER BY sort_order ASC, price ASC, billing_interval ASC, name ASC`,
+       FROM saas_plans p
+       WHERE p.is_active = true
+       ORDER BY p.sort_order ASC, p.price ASC, p.billing_interval ASC, p.name ASC`,
     );
     return { data: result.rows };
   }
