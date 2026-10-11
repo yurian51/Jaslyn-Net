@@ -158,13 +158,16 @@ export default function Home() {
       <section className="jn-hero">
         <div className="jn-hero-copy">
           <div className="jn-eyebrow"><span /> CONNECTIVITY OPERATING SYSTEM</div>
-          <h1>The control plane for <em>connected businesses.</em></h1>
+          <h1>One workspace for Wi-Fi billing, subscriber access, and network operations.</h1>
           <p className="jn-hero-lead">
-            JASLYN NET brings customers, billing, access, network infrastructure and operations into one system, so the commercial state and the technical state of connectivity stay connected.
+            JASLYN NET connects customer records, internet packages, payment status, access control and network operations for Wi-Fi operators, ISPs and managed network teams.
+          </p>
+          <p className="jn-hero-plain">
+            Sell internet packages, verify payments, manage subscriber access, and investigate network issues from one place.
           </p>
           <div className="jn-hero-actions">
             <Link href="/register" className="jn-btn jn-btn-primary">Create a workspace <ArrowIcon /></Link>
-            <a href="#platform" className="jn-btn jn-btn-secondary">Explore the platform</a>
+            <Link href="/architecture" className="jn-btn jn-btn-secondary">See how it works</Link>
           </div>
           <div className="jn-hero-meta">
             <span>WiFi</span><i /><span>ISP</span><i /><span>RADIUS</span><i /><span>Billing</span><i /><span>Network operations</span>
@@ -194,8 +197,8 @@ export default function Home() {
           </div>
           <div className="jn-outcomes-grid">
             <article><span>01 / SELL</span><div className="jn-outcome-icon" aria-hidden="true">↗</div><h3>Make access understandable</h3><p>Keep WiFi bundles, prices, validity, data allowances and device limits clear to customers before they buy.</p><Link href="/packages">Explore WiFi packages <ArrowIcon /></Link></article>
-            <article><span>02 / CONTROL</span><div className="jn-outcome-icon" aria-hidden="true">⌁</div><h3>Connect purchase to service</h3><p>Model purchases, payment verification, access entitlement and session state as related parts of one customer lifecycle.</p><a href="#architecture">See the workflow <ArrowIcon /></a></article>
-            <article><span>03 / OPERATE</span><div className="jn-outcome-icon" aria-hidden="true">◎</div><h3>Work from evidence</h3><p>Bring network inventory, incidents, session context and audit history into the operator's decision-making process.</p><a href="#operations">Explore operations <ArrowIcon /></a></article>
+            <article><span>02 / CONTROL</span><div className="jn-outcome-icon" aria-hidden="true">⌁</div><h3>Connect purchase to service</h3><p>Model purchases, payment verification, access entitlement and session state as related parts of one customer lifecycle.</p><Link href="/architecture">See how it works <ArrowIcon /></Link></article>
+            <article><span>03 / OPERATE</span><div className="jn-outcome-icon" aria-hidden="true">◎</div><h3>Work from evidence</h3><p>Bring network inventory, incidents, session context and audit history into the operator's decision-making process.</p><Link href="/operations">Explore operations <ArrowIcon /></Link></article>
           </div>
           <p className="jn-outcomes-note">Integration availability and payment automation depend on the configured adapter, provider and deployment.</p>
         </div>
@@ -424,11 +427,11 @@ export default function Home() {
           <p>A clearer operating model for WiFi, ISP and managed network teams.</p>
         </div>
         <nav aria-label="Footer">
-          <a href="#platform">Platform</a>
-          <a href="#architecture">Architecture</a>
-          <a href="#operations">Operations</a>
-          <a href="#integrations">Integrations</a>
-          <a href="#faq">FAQ</a>
+          <Link href="/platform">Platform</Link>
+          <Link href="/architecture">How it works</Link>
+          <Link href="/operations">Operations</Link>
+          <Link href="/integrations">Integrations</Link>
+          <Link href="/faq">FAQ</Link>
         </nav>
         <div className="jn-footer-end">
           <Link href="/register">Create workspace</Link>

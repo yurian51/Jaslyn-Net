@@ -5,11 +5,12 @@ import Link from 'next/link';
 import BrandLogo from './brand-logo';
 
 const sectionLinks: ReadonlyArray<[string, string]> = [
-  ['#platform', 'Platform'],
-  ['#architecture', 'Architecture'],
-  ['#operations', 'Operations'],
-  ['#integrations', 'Integrations'],
-  ['#modules', 'Product'],
+  ['/platform', 'Platform'],
+  ['/architecture', 'How it works'],
+  ['/operations', 'Operations'],
+  ['/integrations', 'Integrations'],
+  ['/product', 'Features'],
+  ['/faq', 'FAQ'],
 ];
 
 export default function LandingNav() {
@@ -58,7 +59,7 @@ export default function LandingNav() {
         <b>JASLYN NET</b>
       </Link>
       <div className="landing-links">
-        {sectionLinks.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
+        {sectionLinks.map(([href, label]) => <Link key={href} href={href}>{label}</Link>)}
       </div>
       <div className="landing-actions">
         <Link href="/login" className="landing-signin">Sign in</Link>
@@ -78,7 +79,7 @@ export default function LandingNav() {
       {open && (
         <div className="landing-mobile-menu" id="landing-mobile-menu" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Site menu">
           <div className="landing-mobile-menu-links">
-            {sectionLinks.map(([href, label]) => <a key={href} href={href} onClick={() => setOpen(false)}>{label}</a>)}
+            {sectionLinks.map(([href, label]) => <Link key={href} href={href} onClick={() => setOpen(false)}>{label}</Link>)}
           </div>
           <div className="landing-mobile-menu-actions">
             <Link href="/login" onClick={() => setOpen(false)}>Sign in</Link>

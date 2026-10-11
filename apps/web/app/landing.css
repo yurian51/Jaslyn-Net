@@ -159,3 +159,5 @@
 .landing-mobile-menu-actions a:last-child{background:#2f6fed;color:#fff}
 @media(max-width:720px){.landing-nav{position:sticky!important;top:0!important;z-index:1000!important;overflow:visible!important}.landing-menu-toggle{display:inline-flex;position:relative;z-index:10001}.landing-mobile-menu{display:flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}}
 @media(prefers-reduced-motion:reduce){.landing-menu-toggle span,.landing-menu-toggle span::before,.landing-menu-toggle span::after{transition:none}}
+
+.jn-hero-plain{max-width:590px;margin:12px 0 0;color:#53647b;font-size:12px;line-height:1.75}.jn-hero-plain::before{content:'IN PLAIN LANGUAGE';display:block;margin-bottom:5px;color:#4774bd;font-size:8px;font-weight:800;letter-spacing:.12em}
