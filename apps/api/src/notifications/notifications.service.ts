@@ -1,8 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
 type NotificationChannel = 'SMS' | 'EMAIL' | 'WHATSAPP' | 'WEBHOOK';
+export type SmsCategory = 'TRANSACTIONAL' | 'EXPIRY' | 'PAYMENT' | 'PURCHASE' | 'MARKETING';
+
+function normalizeTanzaniaPhone(input: string) {
+  const digits = input.trim().replace(/[\s().-]/g, '').replace(/^\+/, '');
+  const normalized = digits.startsWith('0') ? `255${digits.slice(1)}` : digits;
+  if (!/^255\d{9}$/.test(normalized)) {
+    throw new BadRequestException('Phone number must be a Tanzanian mobile number, for example 255712345678');
+  }
+  return normalized;
+}
 
 @Injectable()
 export class NotificationsService {
@@ -27,6 +37,138 @@ export class NotificationsService {
       [tenantId, channel, recipient.trim(), eventType.trim().toUpperCase(), payload, availableAt ?? new Date(), dedupeKey?.trim() || null],
     );
     return result.rows[0];
+  }
+
+  async enqueueSms(
+    tenantId: string,
+    input: { recipient: string; message: string; category: SmsCategory; idempotencyKey: string; availableAt?: Date },
+  ) {
+    const recipient = normalizeTanzaniaPhone(input.recipient);
+    const message = input.message.trim();
+    const category = input.category;
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (!message || message.length > 1600) throw new BadRequestException('SMS message must contain 1-1600 characters');
+    if (!idempotencyKey || idempotencyKey.length > 180) throw new BadRequestException('An idempotency key of 1-180 characters is required');
+    if (!['TRANSACTIONAL', 'EXPIRY', 'PAYMENT', 'PURCHASE', 'MARKETING'].includes(category)) {
+      throw new BadRequestException('Unsupported SMS category');
+    }
+    if (category === 'MARKETING') {
+      const consent = await this.db.query(
+        `SELECT id FROM customers
+          WHERE tenant_id=$1 AND CASE WHEN regexp_replace(coalesce(phone,''),'[^0-9]','','g') LIKE '0%' THEN '255'||substring(regexp_replace(coalesce(phone,''),'[^0-9]','','g') FROM 2) ELSE regexp_replace(coalesce(phone,''),'[^0-9]','','g') END = $2
+            AND sms_marketing_consent=true
+          LIMIT 1`,
+        [tenantId, recipient],
+      );
+      if (!consent.rowCount) throw new ForbiddenException('Marketing SMS requires recorded customer opt-in for this tenant and number');
+    }
+    const result = await this.db.query(
+      `INSERT INTO notification_outbox
+        (tenant_id,channel,recipient,event_type,payload,available_at,dedupe_key,category)
+       VALUES ($1,'SMS',$2,$3,$4::jsonb,$5,$6,$7)
+       ON CONFLICT (tenant_id,dedupe_key) WHERE dedupe_key IS NOT NULL
+       DO UPDATE SET updated_at=notification_outbox.updated_at
+       RETURNING id,status,attempts,available_at AS "availableAt",created_at AS "createdAt",
+                 dedupe_key AS "dedupeKey",category`,
+      [tenantId, recipient, category, JSON.stringify({ message }), input.availableAt ?? new Date(), idempotencyKey, category],
+    );
+    return result.rows[0];
+  }
+
+  async enqueueBulkSms(
+    tenantId: string,
+    input: { recipients: string[]; message: string; category: SmsCategory; idempotencyKey: string; name?: string },
+  ) {
+    const message = input.message.trim();
+    const idempotencyKey = input.idempotencyKey.trim();
+    const category = input.category;
+    if (!message || message.length > 1600) throw new BadRequestException('SMS message must contain 1-1600 characters');
+    if (!idempotencyKey || idempotencyKey.length > 160) throw new BadRequestException('An idempotency key of 1-160 characters is required');
+    if (!['TRANSACTIONAL', 'EXPIRY', 'PAYMENT', 'PURCHASE', 'MARKETING'].includes(category)) {
+      throw new BadRequestException('Unsupported SMS category');
+    }
+    if (!Array.isArray(input.recipients) || input.recipients.length === 0 || input.recipients.length > 1000) {
+      throw new BadRequestException('Bulk SMS requires between 1 and 1000 recipients');
+    }
+    const recipients = [...new Set(input.recipients.map(normalizeTanzaniaPhone))];
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      if (category === 'MARKETING') {
+        const consent = await client.query(
+          `SELECT DISTINCT CASE WHEN regexp_replace(coalesce(phone,''),'[^0-9]','','g') LIKE '0%'
+                    THEN '255'||substring(regexp_replace(coalesce(phone,''),'[^0-9]','','g') FROM 2)
+                    ELSE regexp_replace(coalesce(phone,''),'[^0-9]','','g') END AS phone
+             FROM customers
+            WHERE tenant_id=$1 AND sms_marketing_consent=true
+              AND CASE WHEN regexp_replace(coalesce(phone,''),'[^0-9]','','g') LIKE '0%'
+                       THEN '255'||substring(regexp_replace(coalesce(phone,''),'[^0-9]','','g') FROM 2)
+                       ELSE regexp_replace(coalesce(phone,''),'[^0-9]','','g') END = ANY($2::text[])`,
+          [tenantId, recipients],
+        );
+        const consented = new Set(consent.rows.map((row: { phone: string }) => row.phone));
+        const missing = recipients.filter((phone) => !consented.has(phone));
+        if (missing.length) throw new ForbiddenException(`Marketing SMS requires recorded opt-in for every recipient; ${missing.length} recipient(s) are not opted in`);
+      }
+      const campaign = await client.query(
+        `INSERT INTO sms_campaigns (tenant_id,name,category,message,recipient_count,queued_count,idempotency_key)
+         VALUES ($1,$2,$3,$4,$5,0,$6)
+         ON CONFLICT (tenant_id,idempotency_key) DO UPDATE SET updated_at=sms_campaigns.updated_at
+         RETURNING id,tenant_id AS "tenantId",name,category,status,recipient_count AS "recipientCount",
+                   queued_count AS "queuedCount",created_at AS "createdAt",idempotency_key AS "idempotencyKey"`,
+        [tenantId, (input.name || `SMS ${category.toLowerCase()} campaign`).trim().slice(0,120), category, message, recipients.length, idempotencyKey],
+      );
+      const row = campaign.rows[0];
+      if (row.queuedCount > 0 || row.status !== 'QUEUED') {
+        await client.query('COMMIT');
+        return row;
+      }
+      for (const recipient of recipients) {
+        await client.query(
+          `INSERT INTO notification_outbox
+             (tenant_id,channel,recipient,event_type,payload,available_at,dedupe_key,category,campaign_id)
+           VALUES ($1,'SMS',$2,$3,$4::jsonb,now(),$5,$3,$6)
+           ON CONFLICT (tenant_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+          [tenantId, recipient, category, JSON.stringify({ message }), `campaign:${row.id}:${recipient}`, row.id],
+        );
+      }
+      const counts = await client.query(
+        `SELECT count(*)::int AS queued_count FROM notification_outbox WHERE tenant_id=$1 AND campaign_id=$2`,
+        [tenantId, row.id],
+      );
+      const updated = await client.query(
+        `UPDATE sms_campaigns SET queued_count=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2
+         RETURNING id,tenant_id AS "tenantId",name,category,status,recipient_count AS "recipientCount",
+                   queued_count AS "queuedCount",created_at AS "createdAt",idempotency_key AS "idempotencyKey"`,
+        [tenantId, row.id, counts.rows[0].queued_count],
+      );
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listSmsCampaigns(tenantId: string, limit = 50) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 50), 1), 200);
+    const result = await this.db.query(
+      `SELECT c.id,c.name,c.category,c.status,c.recipient_count AS "recipientCount",
+              c.queued_count AS "queuedCount",c.created_at AS "createdAt",
+              count(o.id) FILTER (WHERE o.status='PENDING')::int AS pending,
+              count(o.id) FILTER (WHERE o.status='PROCESSING')::int AS processing,
+              count(o.id) FILTER (WHERE o.status='SENT')::int AS accepted,
+              count(o.id) FILTER (WHERE o.status='FAILED')::int AS failed
+         FROM sms_campaigns c LEFT JOIN notification_outbox o
+           ON o.tenant_id=c.tenant_id AND o.campaign_id=c.id
+        WHERE c.tenant_id=$1
+        GROUP BY c.id
+        ORDER BY c.created_at DESC LIMIT $2`,
+      [tenantId, safeLimit],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
   }
 
   async claim(limit = 25) {
@@ -54,6 +196,38 @@ export class NotificationsService {
       }
       await client.query('COMMIT');
       return result.rows;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async claimSms(limit = 25) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 25), 1), 100);
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `SELECT id,tenant_id AS "tenantId",recipient,payload,attempts,dedupe_key AS "dedupeKey"
+           FROM notification_outbox
+          WHERE channel='SMS' AND status='PENDING' AND available_at<=now() AND attempts<8
+          ORDER BY available_at,created_at
+          FOR UPDATE SKIP LOCKED
+          LIMIT $1`,
+        [safeLimit],
+      );
+      if (result.rowCount) {
+        await client.query(
+          `UPDATE notification_outbox
+              SET status='PROCESSING',locked_at=now(),attempts=attempts+1,updated_at=now()
+            WHERE id=ANY($1::uuid[])`,
+          [result.rows.map((row) => row.id)],
+        );
+      }
+      await client.query('COMMIT');
+      return result.rows.map((row) => ({ ...row, attempts: Number(row.attempts) + 1 }));
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -94,13 +268,13 @@ export class NotificationsService {
     return totals;
   }
 
-  async markSent(id: string) {
+  async markSent(id: string, providerMessageId?: string) {
     const result = await this.db.query(
       `UPDATE notification_outbox
-       SET status = 'SENT', sent_at = now(), locked_at = NULL, updated_at = now()
+       SET status = 'SENT', sent_at = now(), locked_at = NULL, provider_message_id=$2, last_error=NULL, updated_at = now()
        WHERE id = $1 AND status = 'PROCESSING'
-       RETURNING id, status, sent_at AS "sentAt"`,
-      [id],
+       RETURNING id, status, sent_at AS "sentAt", provider_message_id AS "providerMessageId"`,
+      [id, providerMessageId ?? null],
     );
     return result.rows[0] ?? null;
   }
@@ -127,7 +301,7 @@ export class NotificationsService {
       `SELECT id, channel, recipient, event_type AS "eventType", payload, status, attempts,
               available_at AS "availableAt", locked_at AS "lockedAt", sent_at AS "sentAt",
               last_error AS "lastError", created_at AS "createdAt", updated_at AS "updatedAt",
-              dedupe_key AS "dedupeKey"
+              dedupe_key AS "dedupeKey", category, provider_message_id AS "providerMessageId"
        FROM notification_outbox
        WHERE tenant_id = $1
        ORDER BY created_at DESC
