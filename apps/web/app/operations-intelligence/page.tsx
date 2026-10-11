@@ -10,6 +10,7 @@ const field:CSSProperties={width:'100%',boxSizing:'border-box',padding:10,border
 const button:CSSProperties={padding:'10px 14px',border:0,borderRadius:8,background:'#174ea6',color:'#fff',fontWeight:700};
 const panel:CSSProperties={background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:16,marginBottom:16};
 const label=(v:unknown)=>v===null||v===undefined||v===''?'—':String(v);
+const routes:Record<Tab,string>={wifi:'/network-experience/wifi',capacity:'/network-capacity/forecast',power:'/power/status',lifecycle:'/device-lifecycle',sla:'/service-sla/policies',telemetry:'/operations-intelligence/telemetry'};
 export default function OperationsIntelligencePage(){
  const [tab,setTab]=useState<Tab>('wifi'),[data,setData]=useState<Record<Tab,Row[]>>({wifi:[],capacity:[],power:[],lifecycle:[],sla:[],telemetry:[]});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -17,7 +18,6 @@ export default function OperationsIntelligencePage(){
  const [siteId,setSiteId]=useState(''),[assetId,setAssetId]=useState(''),[powerMetric,setPowerMetric]=useState('UPS_BATTERY_PCT'),[powerValue,setPowerValue]=useState('100'),[powerUnit,setPowerUnit]=useState('%');
  const [vendor,setVendor]=useState(''),[model,setModel]=useState(''),[firmware,setFirmware]=useState(''),[supportDate,setSupportDate]=useState(''),[vulnerability,setVulnerability]=useState('UNKNOWN');
  const [slaName,setSlaName]=useState(''),[uptime,setUptime]=useState('99.9'),[response,setResponse]=useState('30'),[resolution,setResolution]=useState('240'),[credit,setCredit]=useState('0');
- const routes:Record<Tab,string>={wifi:'/network-experience/wifi',capacity:'/network-capacity/forecast',power:'/power/status',lifecycle:'/device-lifecycle',sla:'/service-sla/policies',telemetry:'/operations-intelligence/telemetry'};
  const load=useCallback(async()=>{const t=getAccessToken();if(!t){setError('Ingia kwanza.');return;}setLoading(true);setError('');const tabs:Tab[]=['wifi','capacity','power','lifecycle','sla'];const result=await Promise.all(tabs.map(async k=>{try{return {k,value:await apiFetch<unknown>(routes[k],{headers:{Authorization:'Bearer '+t}})}}catch(e){return {k,error:e instanceof Error?e.message:'Request failed'}}}));setData(old=>{const next={...old};for(const r of result)if('value'in r){const v=r.value as {data?:unknown};next[r.k]=Array.isArray(v?.data)?v.data as Row[]:[]}return next;});const failures=result.filter((r):r is {k:Tab,error:string}=>'error'in r);if(failures.length)setError('Baadhi ya data hazijapatikana: '+failures.map(x=>x.k+': '+x.error).join(' · '));setLoading(false);},[]);
  useEffect(()=>{void load()},[load]);
  async function send(path:string,body:unknown,msg:string){setBusy(true);setError('');setNotice('');try{const t=getAccessToken();await apiFetch(path,{method:'POST',headers:{Authorization:'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify(body)});setNotice(msg);await load();}catch(e){setError(e instanceof ApiError||e instanceof Error?e.message:'Ombi limeshindwa');}finally{setBusy(false);}}
