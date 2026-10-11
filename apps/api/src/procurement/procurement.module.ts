@@ -6,11 +6,13 @@ import { PlatformIntegrationsController } from './platform-integrations.controll
 import { PlatformIntegrationsService } from './platform-integrations.service';
 import { ApiKeyGuard } from './api-key.guard';
 import { PublicApiController } from './public-api.controller';
+import { WebhookDeliveryWorker } from './webhook-delivery.worker';
+import { SecretsVaultModule } from '../secrets-vault/secrets-vault.module';
 
 @Module({
-  imports:[AuditModule],
+  imports:[AuditModule,SecretsVaultModule],
   controllers:[ProcurementController,PlatformIntegrationsController,PublicApiController],
-  providers:[ProcurementService,PlatformIntegrationsService,ApiKeyGuard],
+  providers:[ProcurementService,PlatformIntegrationsService,ApiKeyGuard,WebhookDeliveryWorker],
   exports:[ProcurementService],
 })
 export class ProcurementModule {}
