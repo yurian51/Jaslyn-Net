@@ -36,7 +36,7 @@ export class SyntheticMonitoringService {
       return value.toLowerCase();
     }
     let url:URL;try{url=new URL(value);}catch{throw new BadRequestException('HTTP monitor target must be a valid HTTPS URL');}
-    if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||(url.port&&url.port!=='443')||isIP(url.hostname.replace(/^\\[|\\]$/g,''))||url.hostname==='localhost'||url.hostname.endsWith('.local'))throw new BadRequestException('Monitor URLs must use HTTPS, contain no credentials/query/fragment, and use a hostname rather than an IP literal');
+    if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||(url.port&&url.port!=='443')||isIP(url.hostname.replace(/^\[|\]$/g,''))||url.hostname==='localhost'||url.hostname.endsWith('.local'))throw new BadRequestException('Monitor URLs must use HTTPS, contain no credentials/query/fragment, and use a hostname rather than an IP literal');
     return url.toString();
   }
   private async resolveAllowed(host:string){
