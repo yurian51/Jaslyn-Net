@@ -112,20 +112,26 @@ export class WorkflowsService {
     if(d.triggerType==='WEBHOOK'&&Object.keys(config).length) throw new BadRequestException('WEBHOOK trigger configuration is managed by Jaslyn Net');
     const rawToken=d.triggerType==='WEBHOOK'?randomBytes(32).toString('base64url'):null;
     const tokenHash=rawToken?createHash('sha256').update(rawToken).digest('hex'):null;
+    const client=await this.db.connect();
+    let created:{id:string;[key:string]:unknown};
     try {
-      const r=await this.db.query(`INSERT INTO automation_workflows(tenant_id,name,description,trigger_type,trigger_config,steps,enabled,webhook_token_hash,next_run_at,created_by,updated_by)
+      await client.query('BEGIN');
+      const r=await client.query(`INSERT INTO automation_workflows(tenant_id,name,description,trigger_type,trigger_config,steps,enabled,webhook_token_hash,next_run_at,created_by,updated_by)
         VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,CASE WHEN $4='SCHEDULE' AND $7 THEN now()+make_interval(secs=>$9::int) ELSE NULL END,$10,$10)
         RETURNING id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,next_run_at AS "nextRunAt",created_at AS "createdAt"`,
         [tenantId,d.name.trim(),(d.description??'').trim(),d.triggerType,JSON.stringify(config),JSON.stringify(steps),d.enabled===true,tokenHash,d.triggerType==='SCHEDULE'?Number(config.intervalSeconds):null,actorId]);
-      await this.db.query(`INSERT INTO automation_workflow_versions(tenant_id,workflow_id,version,definition,created_by)
+      created=r.rows[0] as {id:string;[key:string]:unknown};
+      await client.query(`INSERT INTO automation_workflow_versions(tenant_id,workflow_id,version,definition,created_by)
         VALUES($1,$2,1,$3::jsonb,$4) ON CONFLICT(tenant_id,workflow_id,version) DO NOTHING`,
-        [tenantId,r.rows[0].id,JSON.stringify({name:d.name.trim(),description:(d.description??'').trim(),triggerType:d.triggerType,triggerConfig:config,steps}),actorId]);
-      await this.audit.record(tenantId,'CREATE','automation_workflow',r.rows[0].id,{name:d.name,triggerType:d.triggerType,enabled:d.enabled===true},{userId:actorId});
-      return {...r.rows[0],...(rawToken?{webhookToken:rawToken,webhookPath:`/api/v1/automation/workflows/${r.rows[0].id}/webhook`}:{})};
+        [tenantId,created.id,JSON.stringify({name:d.name.trim(),description:(d.description??'').trim(),triggerType:d.triggerType,triggerConfig:config,steps}),actorId]);
+      await client.query('COMMIT');
     } catch(e:unknown) {
+      await client.query('ROLLBACK').catch(()=>undefined);
       if(typeof e==='object'&&e!==null&&'code'in e&&(e as {code?:string}).code==='23505') throw new ConflictException('Workflow name already exists in this tenant');
       throw e;
-    }
+    } finally { client.release(); }
+    await this.audit.record(tenantId,'CREATE','automation_workflow',created.id,{name:d.name,triggerType:d.triggerType,enabled:d.enabled===true},{userId:actorId});
+    return {...created,...(rawToken?{webhookToken:rawToken,webhookPath:`/api/v1/automation/workflows/${created.id}/webhook`}:{})};
   }
 
   async setEnabled(tenantId:string,actorId:string,id:string,enabled:boolean) {
