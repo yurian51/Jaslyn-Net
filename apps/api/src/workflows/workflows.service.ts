@@ -1,16 +1,21 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
+import { lookup as lookupAddress } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService, SmsCategory } from '../notifications/notifications.service';
+import { SecretsVaultService } from '../secrets-vault/secrets-vault.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
-type Step = { type: 'CONDITION'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
-type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; current_step:number; attempts:number; run_id:string };
+type Step = { type: 'CONDITION'|'TRANSFORM'|'NOTIFY'|'HTTP_REQUEST'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
+type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; execution_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; workflow_version?:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
-  constructor(@Inject(PG_POOL) private readonly db:Pool, private readonly audit:AuditService) {}
+  constructor(@Inject(PG_POOL) private readonly db:Pool, private readonly audit:AuditService, private readonly notifications:NotificationsService, private readonly secrets:SecretsVaultService) {}
 
   private validateSteps(raw:unknown[]):Step[] {
     if(!Array.isArray(raw)||raw.length<1||raw.length>30) throw new BadRequestException('Workflow must contain 1–30 steps');
@@ -22,7 +27,44 @@ export class WorkflowsService {
         if(!/^[A-Za-z0-9_.-]{1,120}$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p))) throw new BadRequestException('Condition path is invalid');
         if(!['eq','neq','gt','gte','lt','lte','exists','contains'].includes(op)) throw new BadRequestException('Condition operator is unsupported');
         if(op!=='exists'&&!Object.prototype.hasOwnProperty.call(s,'value')) throw new BadRequestException('Condition value is required');
-        return {type:'CONDITION',path,op,value:s.value};
+        const onFalse=String(s.onFalse??'STOP').toUpperCase();
+        if(!['STOP','SKIP'].includes(onFalse)) throw new BadRequestException('Condition onFalse must be STOP or SKIP');
+        const skipSteps=Number(s.skipSteps??1);
+        if(onFalse==='SKIP'&&(!Number.isInteger(skipSteps)||skipSteps<1||skipSteps>29)) throw new BadRequestException('Condition skipSteps must be 1–29 when onFalse is SKIP');
+        return {type:'CONDITION',path,op,value:s.value,onFalse,skipSteps};
+      }
+      if(type==='TRANSFORM'){
+        const mappings=s.mappings;
+        if(!Array.isArray(mappings)||mappings.length<1||mappings.length>30) throw new BadRequestException('TRANSFORM requires 1–30 field mappings');
+        const safePath=(raw:unknown,label:string)=>{const path=String(raw??'');if(!/^[A-Za-z0-9_-]{1,80}(\.[A-Za-z0-9_-]{1,80})*$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p)))throw new BadRequestException(`TRANSFORM ${label} path is invalid`);return path;};
+        const normalized=mappings.map((raw)=>{if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('Each TRANSFORM mapping must be an object');const m=raw as Record<string,unknown>;return {from:safePath(m.from,'source'),to:safePath(m.to,'target')};});
+        return {type:'TRANSFORM',mappings:normalized};
+      }
+      if(type==='HTTP_REQUEST'){
+        const integrationId=String(s.integrationId??'');
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(integrationId)) throw new BadRequestException('HTTP_REQUEST requires an integration UUID');
+        const method=String(s.method??'GET').toUpperCase();
+        if(!['GET','POST','PUT','PATCH','DELETE'].includes(method)) throw new BadRequestException('HTTP_REQUEST method is unsupported');
+        const path=String(s.path??'');
+        if(!path.startsWith('/')||path.startsWith('//')||path.split(/[?#]/,1)[0].split('/').some(part=>part==='..')) throw new BadRequestException('HTTP_REQUEST path must be a safe relative path beginning with /');
+        const body=s.body===undefined?{}:s.body;
+        if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>16384) throw new BadRequestException('HTTP_REQUEST body must be a JSON object no larger than 16 KB');
+        const outputKey=String(s.outputKey??'');
+        if(outputKey&&!/^[A-Za-z0-9_-]{1,80}$/.test(outputKey)) throw new BadRequestException('HTTP_REQUEST outputKey is invalid');
+        return {type:'HTTP_REQUEST',integrationId,method,path,body,outputKey};
+      }
+      if(type==='NOTIFY'){
+        const channel=String(s.channel??'').toUpperCase();
+        if(!['SMS','EMAIL','WHATSAPP','WEBHOOK'].includes(channel)) throw new BadRequestException('NOTIFY channel is unsupported');
+        const recipientPath=String(s.recipientPath??'');
+        if(!/^[A-Za-z0-9_-]{1,80}(\.[A-Za-z0-9_-]{1,80})*$/.test(recipientPath)||recipientPath.split('.').some(p=>['__proto__','prototype','constructor'].includes(p))) throw new BadRequestException('NOTIFY recipientPath is invalid');
+        const eventType=String(s.eventType??'WORKFLOW.NOTIFICATION').trim().toUpperCase();
+        if(!/^[A-Z][A-Z0-9_.-]{1,119}$/.test(eventType)) throw new BadRequestException('NOTIFY eventType is invalid');
+        const message=String(s.message??'').trim();
+        if(!message||message.length>1600) throw new BadRequestException('NOTIFY message must be 1–1600 characters');
+        const category=String(s.category??'TRANSACTIONAL').toUpperCase();
+        if(!['TRANSACTIONAL','EXPIRY','PAYMENT','PURCHASE','MARKETING'].includes(category)) throw new BadRequestException('NOTIFY SMS category is unsupported');
+        return {type:'NOTIFY',channel,recipientPath,eventType,message,category};
       }
       if(type==='CREATE_ALERT'){
         const severity=String(s.severity??'HIGH').toUpperCase(); const title=String(s.title??'').trim();
@@ -50,12 +92,12 @@ export class WorkflowsService {
         if(message.length<1||message.length>500) throw new BadRequestException('LOG message must be 1–500 characters');
         return {type:'LOG',message};
       }
-      throw new BadRequestException('Allowed workflow steps: CONDITION, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
+      throw new BadRequestException('Allowed workflow steps: CONDITION, TRANSFORM, HTTP_REQUEST, NOTIFY, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
     });
   }
 
   async list(tenantId:string) {
-    const r=await this.db.query(`SELECT id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,next_run_at AS "nextRunAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM automation_workflows WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
+    const r=await this.db.query(`SELECT id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,version,next_run_at AS "nextRunAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM automation_workflows WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
   }
 
@@ -70,17 +112,26 @@ export class WorkflowsService {
     if(d.triggerType==='WEBHOOK'&&Object.keys(config).length) throw new BadRequestException('WEBHOOK trigger configuration is managed by Jaslyn Net');
     const rawToken=d.triggerType==='WEBHOOK'?randomBytes(32).toString('base64url'):null;
     const tokenHash=rawToken?createHash('sha256').update(rawToken).digest('hex'):null;
+    const client=await this.db.connect();
+    let created:{id:string;[key:string]:unknown};
     try {
-      const r=await this.db.query(`INSERT INTO automation_workflows(tenant_id,name,description,trigger_type,trigger_config,steps,enabled,webhook_token_hash,next_run_at,created_by,updated_by)
+      await client.query('BEGIN');
+      const r=await client.query(`INSERT INTO automation_workflows(tenant_id,name,description,trigger_type,trigger_config,steps,enabled,webhook_token_hash,next_run_at,created_by,updated_by)
         VALUES($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,CASE WHEN $4='SCHEDULE' AND $7 THEN now()+make_interval(secs=>$9::int) ELSE NULL END,$10,$10)
         RETURNING id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,next_run_at AS "nextRunAt",created_at AS "createdAt"`,
         [tenantId,d.name.trim(),(d.description??'').trim(),d.triggerType,JSON.stringify(config),JSON.stringify(steps),d.enabled===true,tokenHash,d.triggerType==='SCHEDULE'?Number(config.intervalSeconds):null,actorId]);
-      await this.audit.record(tenantId,'CREATE','automation_workflow',r.rows[0].id,{name:d.name,triggerType:d.triggerType,enabled:d.enabled===true},{userId:actorId});
-      return {...r.rows[0],...(rawToken?{webhookToken:rawToken,webhookPath:`/api/v1/automation/workflows/${r.rows[0].id}/webhook`}:{})};
+      created=r.rows[0] as {id:string;[key:string]:unknown};
+      await client.query(`INSERT INTO automation_workflow_versions(tenant_id,workflow_id,version,definition,created_by)
+        VALUES($1,$2,1,$3::jsonb,$4) ON CONFLICT(tenant_id,workflow_id,version) DO NOTHING`,
+        [tenantId,created.id,JSON.stringify({name:d.name.trim(),description:(d.description??'').trim(),triggerType:d.triggerType,triggerConfig:config,steps}),actorId]);
+      await client.query('COMMIT');
     } catch(e:unknown) {
+      await client.query('ROLLBACK').catch(()=>undefined);
       if(typeof e==='object'&&e!==null&&'code'in e&&(e as {code?:string}).code==='23505') throw new ConflictException('Workflow name already exists in this tenant');
       throw e;
-    }
+    } finally { client.release(); }
+    await this.audit.record(tenantId,'CREATE','automation_workflow',created.id,{name:d.name,triggerType:d.triggerType,enabled:d.enabled===true},{userId:actorId});
+    return {...created,...(rawToken?{webhookToken:rawToken,webhookPath:`/api/v1/automation/workflows/${created.id}/webhook`}:{})};
   }
 
   async setEnabled(tenantId:string,actorId:string,id:string,enabled:boolean) {
@@ -95,7 +146,9 @@ export class WorkflowsService {
     if(!w.rowCount) throw new NotFoundException('Workflow not found');
     if(!w.rows[0].enabled) throw new ConflictException('Enable this workflow before running it');
     if(!['MANUAL','EVENT','SCHEDULE','WEBHOOK'].includes(w.rows[0].trigger_type)) throw new BadRequestException('Unsupported workflow trigger');
-    const run=await this.enqueue(tenantId,id,'MANUAL',key??`manual:${randomBytes(16).toString('hex')}`,payload);
+    const normalizedKey=key?.trim();
+    if(normalizedKey!==undefined&&(!normalizedKey||normalizedKey.length>180)) throw new BadRequestException('Idempotency key must contain 1–180 characters');
+    const run=await this.enqueue(tenantId,id,'MANUAL',normalizedKey??`manual:${randomBytes(16).toString('hex')}`,payload);
     await this.audit.record(tenantId,'TRIGGER','automation_workflow',id,{runId:run.id},{userId:actorId});
     return run;
   }
@@ -105,19 +158,108 @@ export class WorkflowsService {
     if(!found.rowCount||!token||!found.rows[0].webhook_token_hash) throw new NotFoundException('Webhook workflow not found');
     const actual=createHash('sha256').update(token).digest(); const expected=Buffer.from(found.rows[0].webhook_token_hash,'hex');
     if(actual.length!==expected.length||!timingSafeEqual(actual,expected)) throw new ForbiddenException('Invalid workflow webhook token');
-    const eventId=typeof payload.eventId==='string'?payload.eventId:randomBytes(16).toString('hex');
+    const suppliedEventId=payload.eventId;
+    if(typeof suppliedEventId==='string'&&suppliedEventId.length>180) throw new BadRequestException('Webhook eventId must not exceed 180 characters');
+    const eventId=typeof suppliedEventId==='string'&&suppliedEventId.trim()?suppliedEventId.trim():randomBytes(16).toString('hex');
     return this.enqueue(found.rows[0].tenant_id,id,'WEBHOOK',`webhook:${eventId}`,payload);
   }
 
   private async enqueue(tenantId:string,workflowId:string,triggerType:string,key:string,payload:Record<string,unknown>) {
-    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload)
-      VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(tenant_id,workflow_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
+    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload,execution_payload,workflow_version,steps_snapshot)
+      SELECT $1,$2,$3,$4,$5::jsonb,$5::jsonb,w.version,w.steps FROM automation_workflows w WHERE w.tenant_id=$1 AND w.id=$2
+      ON CONFLICT(tenant_id,workflow_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
       RETURNING id,status,workflow_id AS "workflowId",created_at AS "createdAt"`,[tenantId,workflowId,key,triggerType,JSON.stringify(payload)]);
     return r.rows[0];
   }
 
+  async listVersions(tenantId:string,id:string) {
+    const exists=await this.db.query('SELECT id FROM automation_workflows WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+    if(!exists.rowCount) throw new NotFoundException('Workflow not found');
+    const r=await this.db.query(`SELECT version,definition,created_by AS "createdBy",created_at AS "createdAt"
+      FROM automation_workflow_versions WHERE tenant_id=$1 AND workflow_id=$2 ORDER BY version DESC LIMIT 100`,[tenantId,id]);
+    return {data:r.rows};
+  }
+
+  async updateDefinition(tenantId:string,actorId:string,id:string,d:CreateWorkflowDto) {
+    const steps=this.validateSteps(d.steps);
+    const config=d.triggerConfig??{};
+    if(d.triggerType==='EVENT'&&!/^[A-Z][A-Z0-9_.-]{1,119}$/.test(String(config.eventType??''))) throw new BadRequestException('EVENT trigger requires triggerConfig.eventType');
+    if(d.triggerType==='SCHEDULE'){
+      const interval=Number(config.intervalSeconds);
+      if(!Number.isInteger(interval)||interval<60||interval>86400) throw new BadRequestException('SCHEDULE intervalSeconds must be 60–86400');
+    }
+    if(d.triggerType==='WEBHOOK'&&Object.keys(config).length) throw new BadRequestException('WEBHOOK trigger configuration is managed by Jaslyn Net');
+    const client=await this.db.connect();
+    let updated:Record<string,unknown>;
+    try{
+      await client.query('BEGIN');
+      const current=await client.query('SELECT trigger_type FROM automation_workflows WHERE tenant_id=$1 AND id=$2 FOR UPDATE',[tenantId,id]);
+      if(!current.rowCount) throw new NotFoundException('Workflow not found');
+      if(current.rows[0].trigger_type!==d.triggerType) throw new ConflictException('Changing a workflow trigger type requires creating a new workflow');
+      const result=await client.query(`UPDATE automation_workflows SET name=$3,description=$4,trigger_config=$5::jsonb,steps=$6::jsonb,version=version+1,
+        updated_by=$7,updated_at=now(),next_run_at=CASE WHEN trigger_type='SCHEDULE' AND enabled THEN now()+make_interval(secs=>COALESCE(NULLIF($5::jsonb->>'intervalSeconds','')::int,3600)) ELSE NULL END
+        WHERE tenant_id=$1 AND id=$2 RETURNING id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,version,updated_at AS "updatedAt"`,
+        [tenantId,id,d.name.trim(),(d.description??'').trim(),JSON.stringify(config),JSON.stringify(steps),actorId]);
+      updated=result.rows[0];
+      await client.query(`INSERT INTO automation_workflow_versions(tenant_id,workflow_id,version,definition,created_by)
+        VALUES($1,$2,$3,$4::jsonb,$5)`,
+        [tenantId,id,updated.version,JSON.stringify({name:d.name.trim(),description:(d.description??'').trim(),triggerType:d.triggerType,triggerConfig:config,steps}),actorId]);
+      await client.query('COMMIT');
+    }catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;}finally{client.release();}
+    await this.audit.record(tenantId,'UPDATE_DEFINITION','automation_workflow',id,{version:updated.version,name:d.name},{userId:actorId});
+    return updated;
+  }
+
+  async exportDefinition(tenantId:string,id:string) {
+    const r=await this.db.query(`SELECT name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps
+      FROM automation_workflows WHERE tenant_id=$1 AND id=$2`,[tenantId,id]);
+    if(!r.rowCount) throw new NotFoundException('Workflow not found');
+    return {schemaVersion:1,kind:'jaslyn-workflow',exportedAt:new Date().toISOString(),definition:r.rows[0]};
+  }
+
+  async importDefinition(tenantId:string,actorId:string,d:CreateWorkflowDto) {
+    // Imports are always disabled; operators must review and explicitly enable them.
+    return this.create(tenantId,actorId,{...d,enabled:false});
+  }
+
+  async getRun(tenantId:string,id:string) {
+    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",workflow_version AS "workflowVersion",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt"
+      FROM automation_workflow_runs WHERE tenant_id=$1 AND id=$2`,[tenantId,id]);
+    if(!r.rowCount) throw new NotFoundException('Workflow run not found');
+    return r.rows[0];
+  }
+
+  async replayRun(tenantId:string,actorId:string,id:string) {
+    const r=await this.db.query(`SELECT r.workflow_id,r.trigger_type,r.trigger_payload,r.steps_snapshot,r.status,r.current_step,w.enabled
+      FROM automation_workflow_runs r JOIN automation_workflows w ON w.tenant_id=r.tenant_id AND w.id=r.workflow_id
+      WHERE r.tenant_id=$1 AND r.id=$2`,[tenantId,id]);
+    if(!r.rowCount) throw new NotFoundException('Workflow run not found');
+    if(!r.rows[0].enabled) throw new ConflictException('Enable the workflow before replaying this run');
+    // A new run has a new idempotency scope. Only replay pure first steps until true checkpoint-resume exists.
+    const snapshot=r.rows[0].steps_snapshot;
+    const firstStep=Array.isArray(snapshot)?snapshot[0] as Record<string,unknown>|undefined:undefined;
+    if(r.rows[0].status!=='FAILED'||Number(r.rows[0].current_step)!==0||!firstStep||!['CONDITION','TRANSFORM','LOG'].includes(String(firstStep.type))) {
+      throw new ConflictException('Safe replay is only available for failed runs at step zero when the first step has no external side effects');
+    }
+    const run=await this.enqueue(tenantId,r.rows[0].workflow_id,'REPLAY',`replay:${id}:${randomBytes(12).toString('hex')}`,r.rows[0].trigger_payload??{});
+    await this.audit.record(tenantId,'REPLAY','automation_workflow_run',id,{newRunId:run.id},{userId:actorId});
+    return run;
+  }
+
+  async cancelRun(tenantId:string,actorId:string,id:string) {
+    const r=await this.db.query(`UPDATE automation_workflow_runs SET status='CANCELLED',completed_at=now(),locked_at=NULL,last_error='CANCELLED_BY_OPERATOR'
+      WHERE tenant_id=$1 AND id=$2 AND status IN ('QUEUED','WAITING_APPROVAL') RETURNING id,status`,[tenantId,id]);
+    if(!r.rowCount) {
+      const found=await this.db.query('SELECT status FROM automation_workflow_runs WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+      if(!found.rowCount) throw new NotFoundException('Workflow run not found');
+      throw new ConflictException('Only queued or approval-waiting runs can be cancelled safely');
+    }
+    await this.audit.record(tenantId,'CANCEL','automation_workflow_run',id,{status:r.rows[0].status},{userId:actorId});
+    return r.rows[0];
+  }
+
   async listRuns(tenantId:string) {
-    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM automation_workflow_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
+    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",workflow_version AS "workflowVersion",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM automation_workflow_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
   }
 
@@ -164,7 +306,7 @@ export class WorkflowsService {
   async createIntegration(tenantId:string,actorId:string,d:CreateIntegrationDto) {
     let url:string|null=null;
     if(d.baseUrl){
-      try { const parsed=new URL(d.baseUrl); if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.hostname==='localhost'||parsed.hostname.endsWith('.local')) throw new Error('unsafe'); url=parsed.toString(); }
+      try { const parsed=new URL(d.baseUrl); if(parsed.protocol!=='https:'||parsed.username||parsed.password||isIP(parsed.hostname)||parsed.hostname==='localhost'||parsed.hostname.endsWith('.local')||parsed.hostname.endsWith('.internal')||parsed.hostname==='metadata.google.internal') throw new Error('unsafe'); url=parsed.toString(); }
       catch { throw new BadRequestException('Integration baseUrl must be a valid HTTPS URL without embedded credentials or local hostnames'); }
     }
     if(['WEBHOOK','REST_API'].includes(d.providerType)&&!url) throw new BadRequestException('This integration type requires an HTTPS baseUrl');
@@ -181,11 +323,103 @@ export class WorkflowsService {
     return r.rows[0];
   }
 
+  private isPublicAddress(address:string,family:number) {
+    if(family===4){
+      const parts=address.split('.').map(Number);
+      if(parts.length!==4||parts.some(n=>!Number.isInteger(n)||n<0||n>255)) return false;
+      const [a,b]=parts;
+      if(a===0||a===10||a===127||a>=224) return false;
+      if(a===100&&b>=64&&b<=127) return false;
+      if(a===169&&b===254) return false;
+      if(a===172&&b>=16&&b<=31) return false;
+      if(a===192&&(b===0||b===168)) return false;
+      if(a===192&&b===88&&parts[2]===99) return false;
+      if(a===198&&(b===18||b===19||b===51)) return false;
+      if(a===203&&b===0) return false;
+      if(a===192&&b===0) return false;
+      return true;
+    }
+    if(family===6){
+      const normalized=address.toLowerCase().split('%')[0];
+      // Only global-unicast IPv6 is allowed; reject mapped, loopback, link-local,
+      // unique-local, multicast, unspecified and documentation ranges.
+      if(!/^[23]/.test(normalized)||normalized==='::1'||normalized==='::'||normalized.startsWith('2001:db8:')||normalized.startsWith('2001:10:')||normalized.startsWith('2002:')) return false;
+      return !normalized.startsWith('::ffff:');
+    }
+    return false;
+  }
+
+  private async executeIntegrationRequest(tenantId:string,runId:string,stepIndex:number,step:Step) {
+    const integration=await this.db.query(`SELECT id,base_url,secret_ref,config FROM automation_integrations
+      WHERE tenant_id=$1 AND id=$2 AND enabled=true AND provider_type='REST_API'`,[tenantId,step.integrationId]);
+    if(!integration.rowCount||!integration.rows[0].base_url) throw new BadRequestException('HTTP_REQUEST requires an enabled tenant-owned REST_API integration');
+    const base=new URL(integration.rows[0].base_url);
+    if(base.protocol!=='https:'||base.username||base.password||isIP(base.hostname)) throw new BadRequestException('Integration URL is not an approved HTTPS hostname');
+    const url=new URL(String(step.path),base);
+    if(url.origin!==base.origin||url.username||url.password||url.hash) throw new BadRequestException('HTTP_REQUEST path escapes its configured integration origin');
+    const records=await lookupAddress(url.hostname,{all:true,verbatim:true});
+    if(!records.length||records.some(record=>!this.isPublicAddress(record.address,record.family))) throw new BadRequestException('Integration hostname resolves to a non-public address and was blocked');
+    const selected=records[0];
+    const pinnedLookup:NonNullable<import('node:https').RequestOptions['lookup']>=(_hostname,options,callback)=>{
+      if(options.all) callback(null,[{address:selected.address,family:selected.family}]);
+      else callback(null,selected.address,selected.family);
+    };
+    const integrationConfig=integration.rows[0].config&&typeof integration.rows[0].config==='object'?integration.rows[0].config as Record<string,unknown>:{};
+    const method=String(step.method);
+    if(method!=='GET'&&integrationConfig.supportsIdempotency!==true) throw new BadRequestException('Write-capable HTTP_REQUEST requires an integration explicitly marked supportsIdempotency');
+    const headers:Record<string,string>={'accept':'application/json','user-agent':'Jaslyn-Net-Workflow/1.0'};
+    if(method!=='GET') headers['idempotency-key']=`jaslyn-${runId}-${stepIndex}`;
+    if(step.method!=='GET'&&step.method!=='DELETE') headers['content-type']='application/json';
+    if(integration.rows[0].secret_ref){
+      const secret=await this.db.query('SELECT secret_key FROM tenant_secrets WHERE tenant_id=$1 AND id=$2',[tenantId,integration.rows[0].secret_ref]);
+      if(!secret.rowCount) throw new BadRequestException('Integration secret is no longer available in this tenant');
+      const value=await this.secrets.getSecretValue(tenantId,secret.rows[0].secret_key);
+      headers.authorization=`Bearer ${value}`;
+    }
+    const body=step.method==='GET'||step.method==='DELETE'?undefined:JSON.stringify(step.body??{});
+    const result=await new Promise<{statusCode:number;responseBytes:number;json?:unknown}>((resolve,reject)=>{
+      const request=httpsRequest(url,{method:String(step.method),headers,servername:url.hostname,lookup:pinnedLookup},response=>{
+        const chunks:Buffer[]=[];let size=0;
+        response.on('data',(chunk:Buffer|string)=>{
+          const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);size+=bytes.length;
+          if(size>65536){request.destroy(new Error('Integration response exceeds 64 KB'));return;}
+          chunks.push(bytes);
+        });
+        response.on('error',reject);
+        response.on('end',()=>{
+          const statusCode=response.statusCode??0;
+          if(statusCode<200||statusCode>=300){reject(new Error(`Integration returned HTTP ${statusCode}`));return;}
+          const raw=Buffer.concat(chunks).toString('utf8');
+          const contentType=String(response.headers['content-type']??'').toLowerCase();
+          let json:unknown=undefined;
+          if(raw&&contentType.includes('application/json')){try{json=JSON.parse(raw);}catch{reject(new Error('Integration returned invalid JSON'));return;}}
+          resolve({statusCode,responseBytes:size,...(json!==undefined?{json}:{})});
+        });
+      });
+      request.setTimeout(10000,()=>request.destroy(new Error('Integration request timed out')));
+      request.on('error',reject);
+      if(body)request.write(body);
+      request.end();
+    });
+    return result;
+  }
+
   private valueAt(payload:Record<string,unknown>,path:string) {
     let v:unknown=payload;
     for(const part of path.split('.')) { if(!v||typeof v!=='object'||Array.isArray(v)||!Object.prototype.hasOwnProperty.call(v,part)) return {exists:false,value:undefined}; v=(v as Record<string,unknown>)[part]; }
     return {exists:true,value:v};
   }
+  private setValueAt(payload:Record<string,unknown>,path:string,value:unknown) {
+    const parts=path.split('.');
+    let target:Record<string,unknown>=payload;
+    for(const part of parts.slice(0,-1)){
+      const current=target[part];
+      if(!current||typeof current!=='object'||Array.isArray(current)) target[part]={};
+      target=target[part] as Record<string,unknown>;
+    }
+    target[parts[parts.length-1]]=value;
+  }
+
   private condition(payload:Record<string,unknown>,step:Step) {
     const actual=this.valueAt(payload,String(step.path));
     switch(step.op){
@@ -225,19 +459,46 @@ export class WorkflowsService {
         OR (status='RUNNING' AND locked_at<now()-interval '10 minutes' AND attempts<8)
       ORDER BY next_attempt_at,created_at FOR UPDATE SKIP LOCKED LIMIT 25
     ) UPDATE automation_workflow_runs r SET status='RUNNING',attempts=r.attempts+1,locked_at=now(),started_at=COALESCE(r.started_at,now())
-      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload`);
+      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload,r.execution_payload,r.workflow_version,r.steps_snapshot`);
     for(const run of claimed.rows) {
       try {
         const w=await this.db.query('SELECT steps FROM automation_workflows WHERE tenant_id=$1 AND id=$2 AND enabled=true',[run.tenant_id,run.id]);
         if(!w.rowCount) { await this.finish(run.tenant_id,run.run_id,'CANCELLED',run.current_step,[],'WORKFLOW_DISABLED_OR_MISSING'); continue; }
-        const steps=this.validateSteps(w.rows[0].steps);
-        const payload=run.trigger_payload??{}; const results:Record<string,unknown>[]=[];
+        const steps=this.validateSteps(run.steps_snapshot??w.rows[0].steps);
+        const payload=run.execution_payload??run.trigger_payload??{}; const results:Record<string,unknown>[]=[];
         let index=run.current_step; let waiting=false; let completed=false;
         while(index<steps.length) {
           const step=steps[index];
-          if(step.type==='CONDITION') {
-            const matched=this.condition(payload,step); results.push({index,type:step.type,matched});
-            if(!matched) { completed=true; index=steps.length; break; }
+          if(step.type==='TRANSFORM') {
+            const changed:string[]=[];
+            for(const mapping of step.mappings as Array<{from:string;to:string}>){
+              const source=this.valueAt(payload,mapping.from);
+              if(source.exists){this.setValueAt(payload,mapping.to,source.value);changed.push(mapping.to);}
+            }
+            results.push({index,type:step.type,changedFields:changed});
+          } else if(step.type==='CONDITION') {
+            const matched=this.condition(payload,step); results.push({index,type:step.type,matched,onFalse:step.onFalse??'STOP'});
+            if(!matched) {
+              if(step.onFalse==='SKIP') { index+=Number(step.skipSteps??1); }
+              else { completed=true; index=steps.length; break; }
+            }
+          } else if(step.type==='HTTP_REQUEST') {
+            const response=await this.executeIntegrationRequest(run.tenant_id,run.run_id,index,step);
+            if(response.json!==undefined){
+              const existing=payload.integrationResponses;
+              if(!existing||typeof existing!=='object'||Array.isArray(existing)) payload.integrationResponses={};
+              (payload.integrationResponses as Record<string,unknown>)[String(step.outputKey||`step${index}`)]=response.json;
+            }
+            results.push({index,type:step.type,statusCode:response.statusCode,responseBytes:response.responseBytes,outputKey:String(step.outputKey||`step${index}`)});
+          } else if(step.type==='NOTIFY') {
+            const target=this.valueAt(payload,String(step.recipientPath));
+            if(!target.exists||typeof target.value!=='string'||!target.value.trim()) throw new BadRequestException('NOTIFY recipient path must resolve to a non-empty string');
+            const recipient=target.value.trim();
+            const dedupeKey=`workflow:${run.run_id}:${index}`;
+            const notification=step.channel==='SMS'
+              ? await this.notifications.enqueueSms(run.tenant_id,{recipient,message:String(step.message),category:String(step.category) as SmsCategory,idempotencyKey:dedupeKey})
+              : await this.notifications.enqueue(run.tenant_id,String(step.channel) as 'EMAIL'|'WHATSAPP'|'WEBHOOK',recipient,String(step.eventType),{message:String(step.message),workflowId:run.id,runId:run.run_id,stepIndex:index},undefined,dedupeKey);
+            results.push({index,type:step.type,channel:step.channel,status:notification.status,notificationId:notification.id});
           } else if(step.type==='CREATE_ALERT') {
             const alert=await this.db.query(`INSERT INTO automation_workflow_alerts(tenant_id,run_id,step_index,severity,title,details)
               VALUES($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT(tenant_id,run_id,step_index) DO UPDATE SET run_id=EXCLUDED.run_id RETURNING id,status`,
@@ -249,18 +510,19 @@ export class WorkflowsService {
               [run.tenant_id,run.run_id,index,String(step.title),JSON.stringify(step.details??{})]);
             if(a.rows[0].status==='REJECTED') { await this.finish(run.tenant_id,run.run_id,'CANCELLED',index,results,'APPROVAL_REJECTED'); waiting=true; break; }
             if(a.rows[0].status==='PENDING') {
-              await this.db.query(`UPDATE automation_workflow_runs SET status='WAITING_APPROVAL',current_step=$3,step_results=step_results||$4::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,JSON.stringify(results)]);
+              await this.db.query(`UPDATE automation_workflow_runs SET status='WAITING_APPROVAL',current_step=$3,step_results=step_results||$4::jsonb,execution_payload=$5::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,JSON.stringify(results),JSON.stringify(payload)]);
               waiting=true; break;
             }
             results.push({index,type:step.type,status:'APPROVED',approvalId:a.rows[0].id});
           } else if(step.type==='WAIT') {
             index++;
-            await this.db.query(`UPDATE automation_workflow_runs SET status='QUEUED',current_step=$3,next_attempt_at=now()+make_interval(secs=>$4::int),step_results=step_results||$5::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,Number(step.seconds),JSON.stringify([{index:index-1,type:step.type,seconds:step.seconds,status:'WAITING'}])]);
+            await this.db.query(`UPDATE automation_workflow_runs SET status='QUEUED',current_step=$3,next_attempt_at=now()+make_interval(secs=>$4::int),step_results=step_results||$5::jsonb,execution_payload=$6::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,Number(step.seconds),JSON.stringify([{index:index-1,type:step.type,seconds:step.seconds,status:'WAITING'}]),JSON.stringify(payload)]);
             waiting=true; break;
           } else if(step.type==='EMIT_WEBHOOK') {
             const emitted=await this.emitWebhook(run.tenant_id,run.id,run.run_id,index,String(step.eventType),payload,step.payload??{});
             results.push({index,type:step.type,status:emitted.status,deliveries:emitted.deliveries,eventType:step.eventType});
           } else if(step.type==='LOG') results.push({index,type:step.type,message:step.message});
+          await this.db.query('UPDATE automation_workflow_runs SET execution_payload=$3::jsonb WHERE tenant_id=$1 AND id=$2 AND status=\'RUNNING\'',[run.tenant_id,run.run_id,JSON.stringify(payload)]);
           index++;
         }
         if(!waiting) await this.finish(run.tenant_id,run.run_id,'SUCCEEDED',index,results,completed?'CONDITION_NOT_MET':null);

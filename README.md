@@ -79,6 +79,7 @@ Production credentials and secrets are never part of the repository. Use environ
 - [Enterprise platform execution roadmap (cloud/SaaS + self-hosted)](docs/ENTERPRISE-PLATFORM-ROADMAP.md)
 
 - [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)
+- [Workflow automation foundation, benchmark mapping and release gates](docs/WORKFLOW-AUTOMATION-FOUNDATION.md)
 - [Platform subscription vs WiFi subscriber plan UX and ownership rules](docs/PLAN-CATALOGUE-UX-AND-OWNERSHIP.md)
 - [Platform subscription API and UI implementation](docs/PLATFORM-SUBSCRIPTION-IMPLEMENTATION.md)
 - [Landing page quality and conversion update](docs/LANDING-PAGE-QUALITY-UPDATE.md)
