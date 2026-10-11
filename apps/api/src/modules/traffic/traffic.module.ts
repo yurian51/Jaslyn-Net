@@ -7,8 +7,8 @@ import { MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { MerakiTrafficEnforcementAdapter } from './meraki.adapter';
 import { OmadaNetworkAdapter } from './omada.adapter';
 import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
+import { ArubaCentralNetworkAdapter } from './aruba-central.adapter';
 import {
-  ArubaCentralNetworkAdapter,
   CambiumCnMaestroNetworkAdapter,
   GrandstreamGwnNetworkAdapter,
   PeplinkInControlNetworkAdapter,
