@@ -147,7 +147,11 @@ export class WorkflowsService {
       catch { throw new BadRequestException('Integration baseUrl must be a valid HTTPS URL without embedded credentials or local hostnames'); }
     }
     if(['WEBHOOK','REST_API'].includes(d.providerType)&&!url) throw new BadRequestException('This integration type requires an HTTPS baseUrl');
-    if(d.secretRef&&!/^[0-9a-f-]{36}$/i.test(d.secretRef)) throw new BadRequestException('secretRef must reference a credential in the tenant secrets vault');
+    if(d.secretRef){
+      if(!/^[0-9a-f-]{36}$/i.test(d.secretRef)) throw new BadRequestException('secretRef must reference a credential in the tenant secrets vault');
+      const secret=await this.db.query('SELECT id FROM tenant_secrets WHERE tenant_id=$1 AND id=$2',[tenantId,d.secretRef]);
+      if(!secret.rowCount) throw new BadRequestException('Secret reference does not exist in this tenant');
+    }
     const r=await this.db.query(`INSERT INTO automation_integrations(tenant_id,name,provider_type,base_url,secret_ref,config,enabled,created_by,updated_by)
       VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$8)
       RETURNING id,name,provider_type AS "providerType",base_url AS "baseUrl",secret_ref AS "secretRef",config,enabled,created_at AS "createdAt"`,
