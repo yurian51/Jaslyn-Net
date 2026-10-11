@@ -41,6 +41,7 @@ export default function AutomationWorkspacePage() {
   const [integrationName,setIntegrationName]=useState('');
   const [integrationType,setIntegrationType]=useState('WEBHOOK');
   const [integrationUrl,setIntegrationUrl]=useState('');
+  const [integrationSecretRef,setIntegrationSecretRef]=useState('');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
@@ -74,9 +75,9 @@ export default function AutomationWorkspacePage() {
       let parsed:unknown;try{parsed=JSON.parse(steps);}catch{throw new Error('Steps must be valid JSON.');}
       if(!Array.isArray(parsed))throw new Error('Steps must be a JSON array.');
       const triggerConfig=triggerType==='EVENT'?{eventType:eventType.trim().toUpperCase()}:triggerType==='SCHEDULE'?{intervalSeconds:Number(intervalSeconds)}:{};
-      const result=await apiFetch<Workflow>('/automation/workflows',{method:'POST',headers:headers(),body:JSON.stringify({name,description,triggerType,triggerConfig,steps:parsed,enabled:true})});
+      const result=await apiFetch<Workflow>('/automation/workflows',{method:'POST',headers:headers(),body:JSON.stringify({name,description,triggerType,triggerConfig,steps:parsed,enabled:false})});
       if(result.webhookToken)setNewWebhook(result);
-      setName('');setDescription('');setNotice('Workflow created. Review its trigger and execution results before using it for production actions.');
+      setName('');setDescription('');setNotice('Workflow created disabled. Review the trigger, steps and permissions, then enable it when ready.');
       await load();
     } catch(e){setError(e instanceof Error?e.message:'Workflow creation failed.');}
     finally{setBusy(false);}
@@ -112,7 +113,7 @@ export default function AutomationWorkspacePage() {
 
   async function createIntegration(e:React.FormEvent<HTMLFormElement>) {
     e.preventDefault();setBusy(true);setError(null);setNotice(null);
-    try{await apiFetch('/automation/workflows/integrations',{method:'POST',headers:headers(),body:JSON.stringify({name:integrationName,providerType:integrationType,baseUrl:integrationUrl||undefined,enabled:false,config:{createdFrom:'automation-console'}})});setIntegrationName('');setIntegrationUrl('');setNotice('Integration saved disabled. Credentials must remain in the tenant secrets vault; this record does not test provider connectivity.');await load();}
+    try{await apiFetch('/automation/workflows/integrations',{method:'POST',headers:headers(),body:JSON.stringify({name:integrationName,providerType:integrationType,baseUrl:integrationUrl||undefined,secretRef:integrationSecretRef||undefined,enabled:false,config:{createdFrom:'automation-console'}})});setIntegrationName('');setIntegrationUrl('');setIntegrationSecretRef('');setNotice('Integration saved disabled. Credentials must remain in the tenant secrets vault; this record does not test provider connectivity.');await load();}
     catch(e){setError(e instanceof Error?e.message:'Unable to save integration.');}
     finally{setBusy(false);}
   }
@@ -167,6 +168,7 @@ export default function AutomationWorkspacePage() {
         <label>Name<input required value={integrationName} onChange={e=>setIntegrationName(e.target.value)} style={styles.input}/></label>
         <label>Type<select value={integrationType} onChange={e=>setIntegrationType(e.target.value)} style={styles.input}><option>WEBHOOK</option><option>REST_API</option><option>SMS</option><option>PAYMENT</option><option>NETWORK_CONTROLLER</option></select></label>
         <label>HTTPS base URL<input value={integrationUrl} onChange={e=>setIntegrationUrl(e.target.value)} style={styles.input} placeholder="https://hooks.example.com"/></label>
+        <label>Tenant secret UUID<input value={integrationSecretRef} onChange={e=>setIntegrationSecretRef(e.target.value)} style={styles.input} placeholder="Optional: UUID from Secrets Vault"/></label>
         <div style={{display:'flex',alignItems:'end'}}><button style={styles.primary} disabled={busy} type="submit">Save disabled integration</button></div>
       </form>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10,marginTop:14}}>{integrations.map(i=><div key={i.id} style={{border:'1px solid #dfe5ed',borderRadius:10,padding:12}}><strong>{i.name}</strong><p style={{margin:'5px 0',fontSize:12,color:'#64748b'}}>{i.providerType} · {i.enabled?'Enabled':'Disabled'}</p>{i.baseUrl&&<code style={{fontSize:11,overflowWrap:'anywhere'}}>{i.baseUrl}</code>}<div style={{marginTop:10}}><button style={styles.button} disabled={busy} onClick={()=>void changeIntegrationEnabled(i,!i.enabled)}>{i.enabled?'Disable':'Enable'}</button></div></div>)}</div>
