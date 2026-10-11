@@ -73,11 +73,11 @@ abstract class VendorReadOnlyApiAdapter {
   protected normalize(row: JsonRecord): NormalizedWifiClient {
     const usage = this.isRecord(row.usage) ? row.usage : {};
     return {
-      username: this.string(row, ['username', 'userName', 'user', 'name', 'clientName', 'description']),
-      address: this.string(row, ['ipAddress', 'ip', 'ipAddr', 'address']),
-      macAddress: this.string(row, ['macAddress', 'mac', 'macAddr', 'mac-address']),
-      bytesIn: this.counter(row, ['bytesIn', 'bytes_in', 'rxBytes', 'uploadBytes', 'trafficUp', 'flowUp']) || this.counter(usage, ['recv', 'rx', 'upload']) || '0',
-      bytesOut: this.counter(row, ['bytesOut', 'bytes_out', 'txBytes', 'downloadBytes', 'trafficDown', 'flowDown']) || this.counter(usage, ['sent', 'tx', 'download']) || '0',
+      username: this.string(row, ['username', 'userName', 'user_name', 'user', 'name', 'clientName', 'client_name', 'description']),
+      address: this.string(row, ['ipAddress', 'ip_address', 'clientIp', 'client_ip', 'ip', 'ipAddr', 'address']),
+      macAddress: this.string(row, ['macAddress', 'mac_address', 'clientMac', 'client_mac', 'mac', 'macAddr', 'mac-address']),
+      bytesIn: this.counter(row, ['bytesIn', 'bytes_in', 'rxBytes', 'rx_bytes', 'uploadBytes', 'upload_bytes', 'trafficUp', 'flowUp']) || this.counter(usage, ['recv', 'rx', 'upload']) || '0',
+      bytesOut: this.counter(row, ['bytesOut', 'bytes_out', 'txBytes', 'tx_bytes', 'downloadBytes', 'download_bytes', 'trafficDown', 'flowDown']) || this.counter(usage, ['sent', 'tx', 'download']) || '0',
     };
   }
   protected isRecord(value: unknown): value is JsonRecord { return typeof value === 'object' && value !== null && !Array.isArray(value); }
