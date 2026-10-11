@@ -110,4 +110,62 @@ describe('IspOperationsService', () => {
     await expect(service.updateJob('tenant-a', 'missing', { status: 'COMPLETED' }, 'user-a')).rejects.toThrow('Network job not found');
     expect(txQuery).toHaveBeenCalledWith('ROLLBACK'); expect(release).toHaveBeenCalledTimes(1);
   });
+  it('syncs offline job updates idempotently in a tenant-scoped transaction', async () => {
+    const tenantId = '00000000-0000-4000-8000-000000000001';
+    const jobId = '00000000-0000-4000-8000-000000000002';
+    const operationId = '00000000-0000-4000-8000-000000000003';
+    const txQuery = jest.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [{ operation_id: operationId }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: jobId, status: 'OPEN' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({});
+    const release = jest.fn();
+    const service = new IspOperationsService({ connect: jest.fn().mockResolvedValue({ query: txQuery, release }) } as any, {} as any, audit as any);
+
+    const result = await service.syncOfflineOperations(tenantId, '00000000-0000-4000-8000-000000000004', {
+      operations: [{ operationId, jobId, operationType: 'STATUS_CHANGED' as any, expectedStatus: 'OPEN' as any, status: 'IN_PROGRESS' as any }],
+    }, { requestId: 'sync-1' });
+
+    expect(result).toMatchObject({ acceptedCount: 1, replayedCount: 0, results: [{ operationId, jobId, accepted: true, replayed: false }] });
+    expect(txQuery).toHaveBeenNthCalledWith(1, 'BEGIN');
+    expect(txQuery.mock.calls.some(([sql]) => String(sql).includes('WHERE tenant_id=$1 AND id=$2 FOR UPDATE'))).toBe(true);
+    expect(txQuery.mock.calls.some(([sql]) => String(sql).includes('UPDATE network_jobs'))).toBe(true);
+    expect(txQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO audit_logs'))).toBe(true);
+    expect(txQuery).toHaveBeenLastCalledWith('COMMIT');
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a prior receipt for a replayed offline operation without reapplying it', async () => {
+    const tenantId = '00000000-0000-4000-8000-000000000001';
+    const jobId = '00000000-0000-4000-8000-000000000002';
+    const operationId = '00000000-0000-4000-8000-000000000003';
+    const txQuery = jest.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ jobId, operationType: 'NOTE_ADDED', result: { operationId, jobId, accepted: true } }], rowCount: 1 })
+      .mockResolvedValueOnce({});
+    const release = jest.fn();
+    const service = new IspOperationsService({ connect: jest.fn().mockResolvedValue({ query: txQuery, release }) } as any, {} as any, audit as any);
+
+    const result = await service.syncOfflineOperations(tenantId, '00000000-0000-4000-8000-000000000004', {
+      operations: [{ operationId, jobId, operationType: 'NOTE_ADDED' as any, note: 'Photo taken at site' }],
+    });
+
+    expect(result).toMatchObject({ acceptedCount: 0, replayedCount: 1, results: [{ operationId, replayed: true }] });
+    expect(txQuery.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO network_job_events'))).toBe(false);
+    expect(txQuery).toHaveBeenLastCalledWith('COMMIT');
+  });
+
+  it('rejects an image whose MIME type does not match its file signature', async () => {
+    const connect = jest.fn();
+    const service = new IspOperationsService({ connect } as any, {} as any, audit as any);
+    await expect(service.uploadJobAttachment('tenant-1', 'job-1', 'user-1', {
+      originalname: 'fake.png', mimetype: 'image/png', buffer: Buffer.from('not a png'), size: 9,
+    })).rejects.toThrow('Only valid JPEG, PNG or WebP image files are accepted');
+    expect(connect).not.toHaveBeenCalled();
+  });
+
 });
