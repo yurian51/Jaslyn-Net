@@ -45,6 +45,8 @@ export class ProcurementController {
   applyCreditNote(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.service.transitionCreditNote(r.user!.tenantId,r.user!.id,id,'APPLIED');}
   @Get('finance-ops/accounts-receivable/aging') @Roles('OWNER','ADMIN','CASHIER','READ_ONLY') @Permissions('revenue.read')
   arAging(@Req() r:AuthenticatedRequest){return this.service.arAging(r.user!.tenantId);}
+  @Get('finance-ops/audit/verify') @Roles('OWNER','ADMIN') @Permissions('platform.audit.read')
+  verifyFinancialAudit(@Req() r:AuthenticatedRequest){return this.service.verifyFinancialAuditChain(r.user!.tenantId);}
   @Get('finance-ops/audit') @Roles('OWNER','ADMIN') @Permissions('platform.audit.read')
   financialAudit(@Req() r:AuthenticatedRequest,@Query('limit') limit?:string){return this.service.listFinancialAudit(r.user!.tenantId,Number(limit??100));}
   @Get('msp/branding') @Roles('OWNER','ADMIN') @Permissions('msp.branding.manage')
