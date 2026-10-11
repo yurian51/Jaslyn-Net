@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { API_URL, apiFetch, ApiError } from '../../lib/api';
+import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
 type WindowRecord={id:string;title:string;description?:string|null;scopeType:string;scopeId?:string|null;startsAt:string;endsAt:string;status:string;isPublic:boolean;publicSummary?:string|null};
@@ -98,7 +98,7 @@ export default function IncidentOperationsPage(){
     <label style={labelStyle}>Description<textarea maxLength={1000} rows={3} style={fieldStyle} value={settings.description??''} onChange={e=>setSettings(s=>({...s,description:e.target.value}))}/></label>
     <label style={{display:'flex',alignItems:'center',gap:9,fontSize:13}}><input type="checkbox" checked={settings.isPublished} onChange={e=>setSettings(s=>({...s,isPublished:e.target.checked}))}/> Publish status page</label>
     <button type="submit" disabled={busy||loading}>{busy?'Saving…':'Save status page'}</button>
-    {settings.isPublished&&<a href={API_URL+'/public/status/'+encodeURIComponent(settings.slug)} target="_blank" rel="noreferrer" style={{fontSize:13,color:'#1d4ed8',overflowWrap:'anywhere'}}>Open public status page ↗</a>}
+    {settings.isPublished&&<a href={'/status/'+encodeURIComponent(settings.slug)} target="_blank" rel="noreferrer" style={{fontSize:13,color:'#1d4ed8',overflowWrap:'anywhere'}}>Open public status page ↗</a>}
     <div style={{borderTop:'1px solid #e2e8f0',paddingTop:12}}><strong style={{fontSize:13}}>Components</strong>{components.length?components.map(component=><p key={component.id} style={{fontSize:12,color:'#64748b',margin:'7px 0'}}>{component.name} · {component.status}</p>):<p style={{fontSize:12,color:'#64748b'}}>No components configured yet. Components can be managed through the status-page component API.</p>}</div>
    </form>
   </section>
