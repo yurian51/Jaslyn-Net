@@ -4,7 +4,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
-import { RecordSupplierInvoicePaymentDto } from './procurement.dto';
+import { ReceivePurchaseOrderLineDto, RecordSupplierInvoicePaymentDto } from './procurement.dto';
 import { ProcurementWorkflowService } from './procurement-workflow.service';
 
 @Controller()
@@ -17,6 +17,8 @@ export class ProcurementWorkflowController {
   supplierInvoicePayments(@Req() r:AuthenticatedRequest,@Query('invoiceId') id?:string){return this.workflow.listSupplierInvoicePayments(r.user!.tenantId,id);}
   @Get('finance-ops/accounts-payable/aging') @Roles('OWNER','ADMIN','CASHIER','READ_ONLY') @Permissions('procurement.read')
   apAging(@Req() r:AuthenticatedRequest){return this.workflow.apAging(r.user!.tenantId);}
+  @Post('procurement/purchase-orders/:id/receive') @Roles('OWNER','ADMIN','AGENT') @Permissions('inventory.manage')
+  receive(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:ReceivePurchaseOrderLineDto){return this.workflow.receivePurchaseOrderLine(r.user!.tenantId,r.user!.id,id,d);}
   @Post('procurement/purchase-orders/:id/request-approval') @Roles('OWNER','ADMIN') @Permissions('procurement.manage')
   requestApproval(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflow.requestPurchaseOrderApproval(r.user!.tenantId,r.user!.id,id);}
   @Post('procurement/purchase-orders/:id/approve') @Roles('OWNER','ADMIN') @Permissions('procurement.manage')
