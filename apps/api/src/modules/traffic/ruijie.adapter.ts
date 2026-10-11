@@ -18,8 +18,8 @@ export class RuijieReyeeNetworkAdapter {
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     const endpoint = connection.controllerEndpoint ?? connection.endpoint;
     const meta = connection.capabilities ?? {};
-    const groupId = connection.credentials?.groupId ?? this.value(meta, ['groupId', 'group_id', 'projectId']) ?? this.config.get<string>('JASLYN_RUIJIE_GROUP_ID');
-    const token = connection.credentials?.accessToken ?? connection.credentials?.apiKey ?? this.config.get<string>('JASLYN_RUIJIE_ACCESS_TOKEN');
+    const groupId = connection.credentials?.groupId ?? this.value(meta, ['groupId', 'group_id', 'projectId']);
+    const token = connection.credentials?.accessToken ?? connection.credentials?.apiKey;
     if (!endpoint || !groupId || !token) throw new ServiceUnavailableException('Ruijie/Reyee requires Cloud API endpoint, groupId and access token');
     const url = new URL(endpoint);
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new ServiceUnavailableException('Ruijie Cloud endpoint must be HTTPS without embedded credentials, query or fragment');
