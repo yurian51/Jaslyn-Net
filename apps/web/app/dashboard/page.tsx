@@ -141,7 +141,6 @@ export default function DashboardPage() {
   };
   const integrityIssues = operations.networkCommands.failed + operations.sessions.stale + operations.sessions.activeWithoutAccounting + operations.sessions.accountingLagging + operations.access.expiredButActive;
   const attentionItems = network.offline + network.degraded + operations.networkCommands.failed + operations.access.expiredButActive + operations.access.expiring24h;
-  const traffic = (data?.sessions ?? []).reduce((sum, session) => sum + (session.bytesIn ?? 0) + (session.bytesOut ?? 0), 0);
   const availability = data?.kpis?.networkAvailability;
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
   const locations = data?.locations ?? [];
@@ -270,23 +269,6 @@ export default function DashboardPage() {
         </article>
       </section>
 
-      <section className="panel overview-panel">
-        <div className="panel-head"><div><div className="panel-kicker">OPERATOR SHORTCUTS</div><h2>Control surfaces</h2><p>Jump directly into the operational domains that can change network or customer state.</p></div></div>
-        <div className="shortcut-grid">
-          <a href="/customers"><b>Customers</b><span>Subscriber accounts and customer operations →</span></a>
-          <a href="/sessions"><b>Sessions</b><span>Inspect active, stale and ended connections →</span></a>
-          <a href="/network"><b>Network</b><span>Routers, gateways and management state →</span></a>
-          <a href="/packages"><b>Plans &amp; Products</b><span>Access packages and catalogue operations →</span></a>
-          <a href="/dashboard/packages"><b>Jaslyn Tiers</b><span>Eight premium package tiers and feature flags →</span></a>
-          <a href="/dashboard/platform-subscription"><b>Workspace billing</b><span>Current Jaslyn Net plan, billing period and workspace limits →</span></a>
-          <a href="/purchases"><b>Purchases</b><span>Payment, voucher and access operations →</span></a>
-          <a href="/customer-commerce"><b>Customer Commerce</b><span>Wallet, beneficiaries, saved purchases, rewards and renewals →</span></a>
-          <a href="/communication"><b>Communication</b><span>Telegram-style conversations, search and operator commands →</span></a>
-          <a href="/audit"><b>Security &amp; Audit</b><span>Tenant-scoped operational event trail →</span></a>
-          <a href="/dashboard/automation"><b>Workflow Automation</b><span>Triggers, schedules, approvals, integrations and run history →</span></a>
-        </div>
-        <div className="overview-footer-metrics"><span><b>{bytes(traffic)}</b> observed traffic in returned sessions</span><span>Timezone: {data?.tenant?.timezone ?? 'tenant configured'}</span></div>
-      </section>
     </main>
   );
 }
