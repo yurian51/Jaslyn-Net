@@ -136,7 +136,7 @@ describe('RoutersService', () => {
     );
 
     await expect(service.rotateCredentials('tenant-a', { userId: 'owner-1' })).resolves.toEqual({
-      rotatedCount: 1, activeKeyId: '2', verified: true,
+      rotatedCount: 1, activeKeyId: '2', completed: true,
     });
     expect(clientQuery).toHaveBeenNthCalledWith(1, 'BEGIN');
     expect(clientQuery).toHaveBeenNthCalledWith(3, expect.stringContaining('management_credentials_version=2'), ['tenant-a', 'router-1', expect.stringMatching(/^2\.2\./)]);
