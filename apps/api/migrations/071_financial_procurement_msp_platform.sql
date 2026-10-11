@@ -1,6 +1,7 @@
 BEGIN;
 
 -- Reuse the existing invoices/invoice_lines domain as the canonical customer billing source.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS amount_paid numeric(20,2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0);
 CREATE UNIQUE INDEX IF NOT EXISTS invoices_tenant_id_id_uq ON invoices(tenant_id,id);
 
 CREATE TABLE IF NOT EXISTS customer_credit_notes (
