@@ -220,6 +220,25 @@ export class ProcurementService {
       GROUP BY bucket,currency ORDER BY currency,CASE bucket WHEN 'CURRENT' THEN 0 WHEN '1-30 DAYS' THEN 1 WHEN '31-60 DAYS' THEN 2 WHEN '61-90 DAYS' THEN 3 ELSE 4 END`,[tenantId]);
     return {data:r.rows};
   }
+
+  async verifyFinancialAuditChain(tenantId:string){
+    const r=await this.db.query(`SELECT chain_sequence,previous_hash,entry_hash,
+      encode(digest(convert_to(previous_hash||':'||jsonb_build_object(
+        'tenantId',tenant_id,'actorUserId',actor_user_id,'requestId',request_id,
+        'entityType',entity_type,'entityId',entity_id,'operation',operation,
+        'before',before_data,'after',after_data,'sequence',chain_sequence
+      )::text,'UTF8'),'sha256'),'hex') AS calculated_hash
+      FROM financial_change_audit WHERE tenant_id=$1 ORDER BY chain_sequence ASC`,[tenantId]);
+    let previous='0'.repeat(64);let expectedSequence=1;let mismatch:number|null=null;
+    for(const row of r.rows){
+      if(Number(row.chain_sequence)!==expectedSequence||row.previous_hash!==previous||row.entry_hash!==row.calculated_hash){mismatch=Number(row.chain_sequence);break;}
+      previous=String(row.entry_hash);expectedSequence++;
+    }
+    const head=await this.db.query('SELECT last_sequence,last_hash FROM financial_audit_chain_heads WHERE tenant_id=$1',[tenantId]);
+    const headValid=r.rowCount===0?!head.rowCount||Number(head.rows[0].last_sequence)===0:Number(head.rows[0]?.last_sequence)===r.rowCount&&head.rows[0]?.last_hash===previous;
+    return {valid:mismatch===null&&headValid,checkedEntries:r.rowCount??0,firstMismatchSequence:mismatch,headValid,verifiedAt:new Date().toISOString()};
+  }
+
   async listFinancialAudit(tenantId:string,limit=100) {
     const r=await this.db.query('SELECT id,actor_user_id,request_id,entity_type,entity_id,operation,before_data,after_data,chain_sequence,previous_hash,entry_hash,occurred_at FROM financial_change_audit WHERE tenant_id=$1 ORDER BY occurred_at DESC LIMIT $2',[tenantId,Number.isFinite(limit)?Math.max(1,Math.min(500,Math.trunc(limit))):100]);
     return {data:r.rows};
