@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createSocket, Socket } from 'node:dgram';
 import { PG_POOL } from '../database/database.module';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 import { AuditService } from '../audit/audit.service';
 import { SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { CreateRadiusNasDto, DisconnectRadiusSessionDto, SetRadiusCredentialDto } from './radius.dto';
@@ -20,6 +21,7 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly secure: SecureNetworkCredentials,
+    private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
   async onModuleInit() {
@@ -125,7 +127,18 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     const binding = username ? await this.db.query(`SELECT correlation_id AS "correlationId" FROM customer_access_bindings WHERE tenant_id=$1 AND username=$2 LIMIT 1`,[tenantId,username]) : { rows: [] as Array<{ correlationId: string | null }> };
     const packetFingerprint = packet.authenticator.toString('hex');
     const correlationId = binding.rows[0]?.correlationId ?? `radius:${tenantId}:${nasId}:${packet.identifier}:${packetFingerprint}`;
-    await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null,uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')}))),correlationId]); 
+    const inputOctets=uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null;
+    const outputOctets=uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null;
+    const sessionTime=uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null;
+    await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,inputOctets,outputOctets,sessionTime,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')}))),correlationId]);
+    await this.domainEvents.enqueue({
+      tenantId,
+      eventKey: `radius-accounting:${nasId}:${packetFingerprint}`,
+      eventType: statusType === 'STOP' ? 'RADIUS.SESSION_STOPPED' : statusType === 'START' ? 'RADIUS.SESSION_STARTED' : 'RADIUS.USAGE_UPDATED',
+      aggregateType: 'radius_session',
+      aggregateId: sessionId ?? undefined,
+      payload: { nasClientId: nasId, username, sessionId, statusType, inputOctets, outputOctets, sessionTime, callingStationId: stringAttribute(packet,ATTR.CALLING_STATION_ID) ?? null },
+    });
     const response=encodeResponse(RADIUS_CODES.ACCOUNTING_RESPONSE,packet.identifier,packet.authenticator,[],secret); this.accountingSocket?.send(response,0,response.length,nasPort,nasAddress);
   }
 }
