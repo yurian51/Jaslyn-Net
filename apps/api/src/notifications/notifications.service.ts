@@ -75,6 +75,102 @@ export class NotificationsService {
     return result.rows[0];
   }
 
+  async enqueueBulkSms(
+    tenantId: string,
+    input: { recipients: string[]; message: string; category: SmsCategory; idempotencyKey: string; name?: string },
+  ) {
+    const message = input.message.trim();
+    const idempotencyKey = input.idempotencyKey.trim();
+    const category = input.category;
+    if (!message || message.length > 1600) throw new BadRequestException('SMS message must contain 1-1600 characters');
+    if (!idempotencyKey || idempotencyKey.length > 160) throw new BadRequestException('An idempotency key of 1-160 characters is required');
+    if (!['TRANSACTIONAL', 'EXPIRY', 'PAYMENT', 'PURCHASE', 'MARKETING'].includes(category)) {
+      throw new BadRequestException('Unsupported SMS category');
+    }
+    if (!Array.isArray(input.recipients) || input.recipients.length === 0 || input.recipients.length > 1000) {
+      throw new BadRequestException('Bulk SMS requires between 1 and 1000 recipients');
+    }
+    const recipients = [...new Set(input.recipients.map(normalizeTanzaniaPhone))];
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      if (category === 'MARKETING') {
+        const consent = await client.query(
+          `SELECT DISTINCT CASE WHEN regexp_replace(coalesce(phone,''),'[^0-9]','','g') LIKE '0%'
+                    THEN '255'||substring(regexp_replace(coalesce(phone,''),'[^0-9]','','g') FROM 2)
+                    ELSE regexp_replace(coalesce(phone,''),'[^0-9]','','g') END AS phone
+             FROM customers
+            WHERE tenant_id=$1 AND sms_marketing_consent=true
+              AND CASE WHEN regexp_replace(coalesce(phone,''),'[^0-9]','','g') LIKE '0%'
+                       THEN '255'||substring(regexp_replace(coalesce(phone,''),'[^0-9]','','g') FROM 2)
+                       ELSE regexp_replace(coalesce(phone,''),'[^0-9]','','g') END = ANY($2::text[])`,
+          [tenantId, recipients],
+        );
+        const consented = new Set(consent.rows.map((row: { phone: string }) => row.phone));
+        const missing = recipients.filter((phone) => !consented.has(phone));
+        if (missing.length) throw new ForbiddenException(`Marketing SMS requires recorded opt-in for every recipient; ${missing.length} recipient(s) are not opted in`);
+      }
+      const campaign = await client.query(
+        `INSERT INTO sms_campaigns (tenant_id,name,category,message,recipient_count,queued_count,idempotency_key)
+         VALUES ($1,$2,$3,$4,$5,0,$6)
+         ON CONFLICT (tenant_id,idempotency_key) DO UPDATE SET updated_at=sms_campaigns.updated_at
+         RETURNING id,tenant_id AS "tenantId",name,category,status,recipient_count AS "recipientCount",
+                   queued_count AS "queuedCount",created_at AS "createdAt",idempotency_key AS "idempotencyKey"`,
+        [tenantId, (input.name || `SMS ${category.toLowerCase()} campaign`).trim().slice(0,120), category, message, recipients.length, idempotencyKey],
+      );
+      const row = campaign.rows[0];
+      if (row.queuedCount > 0 || row.status !== 'QUEUED') {
+        await client.query('COMMIT');
+        return row;
+      }
+      for (const recipient of recipients) {
+        await client.query(
+          `INSERT INTO notification_outbox
+             (tenant_id,channel,recipient,event_type,payload,available_at,dedupe_key,category,campaign_id)
+           VALUES ($1,'SMS',$2,$3,$4::jsonb,now(),$5,$3,$6)
+           ON CONFLICT (tenant_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+          [tenantId, recipient, category, JSON.stringify({ message }), `campaign:${row.id}:${recipient}`, row.id],
+        );
+      }
+      const counts = await client.query(
+        `SELECT count(*)::int AS queued_count FROM notification_outbox WHERE tenant_id=$1 AND campaign_id=$2`,
+        [tenantId, row.id],
+      );
+      const updated = await client.query(
+        `UPDATE sms_campaigns SET queued_count=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2
+         RETURNING id,tenant_id AS "tenantId",name,category,status,recipient_count AS "recipientCount",
+                   queued_count AS "queuedCount",created_at AS "createdAt",idempotency_key AS "idempotencyKey"`,
+        [tenantId, row.id, counts.rows[0].queued_count],
+      );
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listSmsCampaigns(tenantId: string, limit = 50) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 50), 1), 200);
+    const result = await this.db.query(
+      `SELECT c.id,c.name,c.category,c.status,c.recipient_count AS "recipientCount",
+              c.queued_count AS "queuedCount",c.created_at AS "createdAt",
+              count(o.id) FILTER (WHERE o.status='PENDING')::int AS pending,
+              count(o.id) FILTER (WHERE o.status='PROCESSING')::int AS processing,
+              count(o.id) FILTER (WHERE o.status='SENT')::int AS accepted,
+              count(o.id) FILTER (WHERE o.status='FAILED')::int AS failed
+         FROM sms_campaigns c LEFT JOIN notification_outbox o
+           ON o.tenant_id=c.tenant_id AND o.campaign_id=c.id
+        WHERE c.tenant_id=$1
+        GROUP BY c.id
+        ORDER BY c.created_at DESC LIMIT $2`,
+      [tenantId, safeLimit],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
   async claim(limit = 25) {
     const safeLimit = Math.min(Math.max(Math.trunc(limit || 25), 1), 100);
     const client = await this.db.connect();
