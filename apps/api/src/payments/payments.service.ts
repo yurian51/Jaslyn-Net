@@ -180,6 +180,10 @@ export class PaymentsService {
         [tenantId,settledPayment.purchaseId],
       );
     }
+    await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+      SELECT e.tenant_id,e.id,$2::uuid,'payment.settled',jsonb_build_object('paymentId',$2,'amount',$3,'currency',$4,'provider',$5)
+      FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'payment.settled'=ANY(e.event_types)
+      ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,paymentId,String(amount),currency,provider]);
     return transactionId;
   }
 
