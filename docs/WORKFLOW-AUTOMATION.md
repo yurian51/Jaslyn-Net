@@ -16,6 +16,7 @@ Webhook tokens are generated with high entropy, shown once at workflow creation,
 ```json
 [
   { "type": "CONDITION", "path": "payment.status", "op": "eq", "value": "CONFIRMED" },
+  { "type": "CREATE_ALERT", "severity": "HIGH", "title": "Payment needs operator attention" },
   { "type": "APPROVAL", "title": "Approve access change", "details": { "risk": "medium" } },
   { "type": "EMIT_WEBHOOK", "eventType": "payment.workflow.completed", "payload": { "source": "jaslyn-net" } },
   { "type": "WAIT", "seconds": 60 },
@@ -46,5 +47,7 @@ Conditions support `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, and `exist
 - `GET /api/v1/automation/workflows/approvals`
 - `POST /api/v1/automation/workflows/approvals/:id/decision`
 - `GET/POST /api/v1/automation/workflows/integrations`
+- `PATCH /api/v1/automation/workflows/integrations/:id/enabled`
+- `GET /api/v1/automation/workflows/alerts`
 
 The console is at `/dashboard/automation`.
