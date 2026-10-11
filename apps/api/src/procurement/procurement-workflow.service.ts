@@ -100,7 +100,7 @@ export class ProcurementWorkflowService {
   }
 
   async requestPurchaseOrderApproval(tenantId:string,actorId:string,id:string){
-    const r=await this.db.query(`UPDATE purchase_orders SET status='PENDING_APPROVAL',updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='DRAFT' RETURNING id,po_number,status`,[tenantId,id]);
+    const r=await this.db.query(`UPDATE purchase_orders SET status='PENDING_APPROVAL',updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='DRAFT' AND EXISTS(SELECT 1 FROM purchase_order_lines l WHERE l.tenant_id=$1 AND l.purchase_order_id=$2) RETURNING id,po_number,status`,[tenantId,id]);
     if(!r.rowCount)throw new ConflictException('Only draft purchase orders can be submitted for approval');
     await this.audit.record(tenantId,'REQUEST_APPROVAL','purchase_order',id,{poNumber:r.rows[0].po_number},{userId:actorId});return r.rows[0];
   }
