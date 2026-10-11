@@ -30,6 +30,18 @@ describe('SmsGatewayService', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects query parameters so credentials cannot leak through the endpoint URL', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [] }) } as any;
+    const gateway = new SmsGatewayService(db, configFor({
+      SMS_CUSTOM_ALLOWED_HOSTS: 'sms-approved.example',
+      JASLYN_SMS_CREDENTIAL_ENCRYPTION_KEY: 'a'.repeat(64),
+    }), beem);
+    await expect(gateway.save('tenant-a', {
+      provider: 'custom_rest', endpoint: 'https://sms-approved.example/send?api_key=secret', senderId: 'TEST',
+      authType: 'none', enabled: false,
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects non-HTTPS endpoints even when the hostname is approved', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [] }) } as any;
     const gateway = new SmsGatewayService(db, configFor({
