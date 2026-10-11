@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, TooManyRequestsException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { CaptivePortalService } from './captive-portal.service';
 import { VouchersService } from '../vouchers/vouchers.service';
@@ -35,5 +35,33 @@ describe('CaptivePortalService', () => {
   it('requires usable terms before changing settings', async () => {
     await expect(service.updateSettings('tenant-1', 'user-1', { enabled: true, termsText: ' ' })).rejects.toBeInstanceOf(BadRequestException);
     expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid phone numbers before making database changes', async () => {
+    await expect(service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '123', code: 'ABC12345' }, '127.0.0.1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+    expect(vouchers.redeem).not.toHaveBeenCalled();
+  });
+
+  it('does not redeem vouchers when the tenant attempt limit is reached', async () => {
+    db.query
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'tenant-1' }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ attemptCount: 10, blockedUntil: new Date(Date.now() + 60_000) }] });
+    await expect(service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '+255712345678', code: 'ABC12345' }, '127.0.0.1'))
+      .rejects.toBeInstanceOf(TooManyRequestsException);
+    expect(vouchers.redeem).not.toHaveBeenCalled();
+  });
+
+  it('creates or reuses a tenant customer and delegates actual voucher redemption', async () => {
+    db.query
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'tenant-1' }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ attemptCount: 1, blockedUntil: null }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'customer-1' }] });
+    vouchers.redeem.mockResolvedValueOnce({ redeemed: true, purchaseId: 'purchase-1', deviceLimit: 1 });
+    const result = await service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '+255712345678', code: 'abc12345' }, '127.0.0.1');
+    expect(vouchers.redeem).toHaveBeenCalledWith('tenant-1', 'abc12345', { customerId: 'customer-1', routerId: undefined });
+    expect(result).toMatchObject({ redeemed: true, purchaseId: 'purchase-1' });
+    expect(result.message).toContain('Network access is being provisioned');
   });
 });
