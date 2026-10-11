@@ -2,13 +2,15 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { Permissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { EnforceRouterPolicyDto } from './enforce-router-policy.dto';
 import { CreateRouterDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
 import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
 
 @Controller('routers')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
 export class RoutersController {
   constructor(
     private readonly routers: RoutersService,
@@ -22,6 +24,7 @@ export class RoutersController {
 
   @Get('change-intelligence')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  @Permissions('network.changes.read')
   changeIntelligence(@Req() req: AuthenticatedRequest, @Query('routerId') routerId?: string, @Query('limit') limit?: string) {
     return this.routers.changeIntelligence(req.user!.tenantId, routerId, Number(limit) || 100);
   }
