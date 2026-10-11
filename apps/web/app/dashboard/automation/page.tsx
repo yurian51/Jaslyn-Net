@@ -103,6 +103,13 @@ export default function AutomationWorkspacePage() {
     finally{setBusy(false);}
   }
 
+  async function changeIntegrationEnabled(i:Integration,enabled:boolean) {
+    setBusy(true);setError(null);setNotice(null);
+    try{await apiFetch(`/automation/workflows/integrations/${i.id}/enabled`,{method:'PATCH',headers:headers(),body:JSON.stringify({enabled})});setNotice('Integration state updated. Provider connectivity has not been tested.');await load();}
+    catch(e){setError(e instanceof Error?e.message:'Unable to update integration.');}
+    finally{setBusy(false);}
+  }
+
   async function createIntegration(e:React.FormEvent<HTMLFormElement>) {
     e.preventDefault();setBusy(true);setError(null);setNotice(null);
     try{await apiFetch('/automation/workflows/integrations',{method:'POST',headers:headers(),body:JSON.stringify({name:integrationName,providerType:integrationType,baseUrl:integrationUrl||undefined,enabled:false,config:{createdFrom:'automation-console'}})});setIntegrationName('');setIntegrationUrl('');setNotice('Integration saved disabled. Credentials must remain in the tenant secrets vault; this record does not test provider connectivity.');await load();}
@@ -162,7 +169,7 @@ export default function AutomationWorkspacePage() {
         <label>HTTPS base URL<input value={integrationUrl} onChange={e=>setIntegrationUrl(e.target.value)} style={styles.input} placeholder="https://hooks.example.com"/></label>
         <div style={{display:'flex',alignItems:'end'}}><button style={styles.primary} disabled={busy} type="submit">Save disabled integration</button></div>
       </form>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10,marginTop:14}}>{integrations.map(i=><div key={i.id} style={{border:'1px solid #dfe5ed',borderRadius:10,padding:12}}><strong>{i.name}</strong><p style={{margin:'5px 0',fontSize:12,color:'#64748b'}}>{i.providerType} · {i.enabled?'Enabled':'Disabled'}</p>{i.baseUrl&&<code style={{fontSize:11,overflowWrap:'anywhere'}}>{i.baseUrl}</code>}</div>)}</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10,marginTop:14}}>{integrations.map(i=><div key={i.id} style={{border:'1px solid #dfe5ed',borderRadius:10,padding:12}}><strong>{i.name}</strong><p style={{margin:'5px 0',fontSize:12,color:'#64748b'}}>{i.providerType} · {i.enabled?'Enabled':'Disabled'}</p>{i.baseUrl&&<code style={{fontSize:11,overflowWrap:'anywhere'}}>{i.baseUrl}</code>}<div style={{marginTop:10}}><button style={styles.button} disabled={busy} onClick={()=>void changeIntegrationEnabled(i,!i.enabled)}>{i.enabled?'Disable':'Enable'}</button></div></div>)}</div>
     </section>
 
     <section style={styles.panel}>
