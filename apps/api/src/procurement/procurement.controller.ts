@@ -17,6 +17,8 @@ export class ProcurementController {
   createSupplier(@Req() r:AuthenticatedRequest,@Body() d:CreateSupplierDto){return this.service.createSupplier(r.user!.tenantId,r.user!.id,d);}
   @Get('procurement/purchase-orders') @Roles('OWNER','ADMIN','CASHIER','AGENT','READ_ONLY') @Permissions('procurement.read')
   purchaseOrders(@Req() r:AuthenticatedRequest){return this.service.listPurchaseOrders(r.user!.tenantId);}
+  @Get('procurement/purchase-orders/:id/lines') @Roles('OWNER','ADMIN','CASHIER','AGENT','READ_ONLY') @Permissions('procurement.read')
+  purchaseOrderLines(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.service.listPurchaseOrderLines(r.user!.tenantId,id);}
   @Post('procurement/purchase-orders') @Roles('OWNER','ADMIN') @Permissions('procurement.manage')
   createPurchaseOrder(@Req() r:AuthenticatedRequest,@Body() d:CreatePurchaseOrderDto){return this.service.createPurchaseOrder(r.user!.tenantId,r.user!.id,d);}
   @Post('procurement/purchase-orders/:id/lines') @Roles('OWNER','ADMIN') @Permissions('procurement.manage')
