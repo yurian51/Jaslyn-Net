@@ -23,6 +23,10 @@ export class ProcurementWorkflowService {
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,invoiceId,d.idempotencyKey.trim(),d.amount,d.currency,d.paymentReference?.trim()||null,actorId]);
       const paid=Number(i.amount_paid)+Number(d.amount);
       await client.query(`UPDATE supplier_invoices SET amount_paid=$3,status=CASE WHEN $3>=total THEN 'PAID' ELSE 'PARTIALLY_PAID' END,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,invoiceId,paid]);
+      await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+        SELECT e.tenant_id,e.id,$2::uuid,'supplier_invoice.payment_recorded',jsonb_build_object('supplierInvoiceId',$3,'paymentId',$2,'amount',$4,'currency',$5,'amountPaid',$6)
+        FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'supplier_invoice.payment_recorded'=ANY(e.event_types)
+        ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,payment.rows[0].id,invoiceId,d.amount,d.currency,paid]);
       await client.query('COMMIT');
       await this.audit.record(tenantId,'RECORD_PAYMENT','supplier_invoice',invoiceId,{paymentId:payment.rows[0].id,amount:d.amount,currency:d.currency,idempotencyKey:d.idempotencyKey},{userId:actorId});
       return {duplicate:false,data:payment.rows[0],amountPaid:paid,outstanding:Math.max(0,Number(i.total)-paid)};
