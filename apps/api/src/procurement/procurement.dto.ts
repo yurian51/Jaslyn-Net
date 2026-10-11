@@ -11,7 +11,7 @@ export class CreatePurchaseOrderDto {
   @IsUUID() supplierId!: string;
   @IsString() @MinLength(2) @MaxLength(60) poNumber!: string;
   @IsString() @Matches(/^[A-Z]{3}$/) currency!: string;
-  @IsOptional() @IsString() expectedAt?: string;
+  @IsOptional() @IsDateString() expectedAt?: string;
 }
 export class CreatePurchaseOrderLineDto {
   @IsString() @MinLength(2) @MaxLength(500) description!: string;
@@ -27,8 +27,8 @@ export class CreateSupplierInvoiceDto {
   @IsString() @Matches(/^[A-Z]{3}$/) currency!: string;
   @IsNumber() @Min(0) subtotal!: number;
   @IsOptional() @IsNumber() @Min(0) taxTotal?: number;
-  @IsString() invoiceDate!: string;
-  @IsOptional() @IsString() dueDate?: string;
+  @IsDateString() invoiceDate!: string;
+  @IsOptional() @IsDateString() dueDate?: string;
 }
 export class CreateInventoryItemDto {
   @IsString() @MinLength(1) @MaxLength(80) sku!: string;
