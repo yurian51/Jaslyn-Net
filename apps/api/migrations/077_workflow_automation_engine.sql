@@ -123,7 +123,7 @@ CREATE INDEX IF NOT EXISTS automation_integrations_tenant_idx ON automation_inte
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['automation_workflows','automation_workflow_runs','automation_workflow_approvals','automation_workflow_alerts','automation_workflow_action_receipts','automation_integrations'] LOOP
+  FOREACH t IN ARRAY ARRAY['automation_workflows','automation_workflow_runs','automation_workflow_approvals','automation_workflow_alerts','automation_integrations'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_financial_audit ON %I',t);
     EXECUTE format('CREATE TRIGGER jaslyn_financial_audit AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION jaslyn_financial_audit_trigger()',t);
   END LOOP;
