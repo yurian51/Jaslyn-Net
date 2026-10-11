@@ -30,7 +30,7 @@ export class BillingService {
       providerReference: dto.providerReference,
       purchaseId: undefined,
       paymentId: dto.paymentId,
-      status: dto.status,
+      status: dto.status === 'SUCCESS' ? 'PAID' : dto.status,
       payload: {
         ...dto,
         tenantId: undefined,
