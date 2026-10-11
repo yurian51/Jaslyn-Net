@@ -52,7 +52,7 @@ describe('NotificationsService SMS queue', () => {
 
 describe('NotificationsService bulk SMS campaigns', () => {
   it('normalizes and deduplicates recipients before queueing tenant-scoped rows', async () => {
-    const client = { query: jest.fn(async (sql: string) => {
+    const client = { query: jest.fn(async (sql: string, args?: unknown[]) => {
       if (sql.includes('INSERT INTO sms_campaigns')) return { rows: [{ id: 'campaign-1', tenantId: 'tenant-a', status: 'QUEUED', queuedCount: 0, name: 'Expiry', category: 'EXPIRY', recipientCount: 2 }] };
       if (sql.includes('SELECT count(*)::int AS queued_count')) return { rows: [{ queued_count: 2 }] };
       if (sql.includes('UPDATE sms_campaigns')) return { rows: [{ id: 'campaign-1', tenantId: 'tenant-a', status: 'QUEUED', queuedCount: 2, name: 'Expiry', category: 'EXPIRY', recipientCount: 2 }] };
