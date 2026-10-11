@@ -26,7 +26,7 @@ Review these against a disposable PostgreSQL database first. Migration files exi
 | Inventory | Tenant-scoped SKUs, stock movement ledger, non-negative stock checks, idempotency, weighted-average valuation and PO receiving into inventory | FIFO is intentionally not advertised; physical counts and live warehouse/device sources need integration |
 | Financial audit | Database-triggered append-only audit rows, per-tenant SHA-256 chain and a verification endpoint/UI | Execute tamper, concurrency, actor attribution and restore tests |
 | CSV/PDF reports | Tenant-scoped current-domain CSV export with spreadsheet-formula neutralization; print-to-PDF | Validate print layouts and data export permissions in browser tests |
-| White label | Per-tenant branding, primary color and unique portal-domain configuration | Domain ownership verification, TLS issuance and full branding propagation remain deployment work |
+| White label | Per-tenant branding, primary color, HTTPS logo URL, support details and notification-template storage | Domain ownership verification, TLS issuance, full branding propagation and consumption of stored templates by SMS/email delivery workers remain outstanding |
 | Tenant hierarchy | Child tenant can request a parent; parent tenant owner/admin approves; cycle checks prevent circular hierarchy | No automatic inheritance of user permissions; delegated admin scopes need separate policy tests |
 | API marketplace | One-time API key issuance, digest-only storage, revocation, expiry and per-minute rate limit; public v1 read endpoints for invoices, payments, inventory and purchase orders | API write scopes are not exposed through the public API yet; run abuse/rate-limit and tenant-isolation tests |
 | Webhooks | HTTPS/public-host validation, tenant-vault signing secret reference, disabled-by-default endpoints, HMAC signatures, pinned public DNS resolution, bounded retries and dead-letter status | Delivery worker and provider callback behaviour need network integration tests |
@@ -57,6 +57,7 @@ Authenticated application APIs use the global `/api/v1` prefix:
 - `GET /finance-ops/audit` and `GET /finance-ops/audit/verify`
 - `GET/POST /inventory/items`, `GET /inventory/movements`, and `POST /inventory/items/:id/movements`
 - `GET/POST /msp/branding` and `GET/POST /msp/hierarchy` request/approval routes
+- `GET /msp/usage`, `GET /msp/usage/limits`, and `PUT /msp/usage/limits/:metricKey`
 - `GET/POST /platform-integrations/api-keys`, key revocation, and webhook endpoint configuration
 - `GET /public/v1/invoices`, `/payments`, `/inventory`, `/purchase-orders` using a tenant-scoped `Bearer jn_live_...` API key
 - `POST /operations-intelligence/telemetry`, `GET/POST /network-experience/wifi`, `GET /network-capacity/forecast`, `GET/POST /power/status` / `samples`, `GET/POST /device-lifecycle`, `GET/POST /service-sla/policies`
