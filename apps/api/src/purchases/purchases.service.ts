@@ -6,6 +6,7 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
 import { ConfirmPurchasePaymentDto, CreatePurchaseDto, CreatePurchaseFromTierDto } from './purchases.dto';
 import { getCorrelationId } from '../common/correlation-context';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 
 @Injectable()
 export class PurchasesService {
@@ -13,6 +14,7 @@ export class PurchasesService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly payments: PaymentsService,
     private readonly promotions: PromotionsService,
+    private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
   async list(tenantId: string, customerId?: string) {
@@ -211,6 +213,7 @@ export class PurchasesService {
         });
         await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
         await this.recordPromoRedemption(client, tenantId, current, correlationId!);
+        await this.domainEvents.enqueue({ tenantId, eventKey: `purchase-paid:${purchaseId}`, eventType: 'PAYMENT.SETTLED', aggregateType: 'wifi_plan_purchase', aggregateId: purchaseId, payload: { purchaseId, paymentId: existing.id, customerId: current.customer_id, packageId: current.package_id, routerId: current.router_id ?? null, amount: current.price, currency: current.currency, provider } }, client);
         await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
         await client.query('COMMIT');
         return { purchase: await this.get(tenantId, purchaseId), paymentId: existing.id };
@@ -261,6 +264,7 @@ export class PurchasesService {
       });
       await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
       await this.recordPromoRedemption(client, tenantId, current, correlationId!);
+      await this.domainEvents.enqueue({ tenantId, eventKey: `purchase-paid:${purchaseId}`, eventType: 'PAYMENT.SETTLED', aggregateType: 'wifi_plan_purchase', aggregateId: purchaseId, payload: { purchaseId, paymentId, customerId: current.customer_id, packageId: current.package_id, routerId: current.router_id ?? null, amount: current.price, currency: current.currency, provider } }, client);
       await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
       await client.query('COMMIT');
       return { purchase: await this.get(tenantId, purchaseId), paymentId };
