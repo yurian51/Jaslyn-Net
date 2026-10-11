@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, ArrayMaxSize, IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString() @MinLength(2) @MaxLength(40) supplierCode!: string;
@@ -62,4 +62,17 @@ export class CreateCustomerCreditNoteDto {
   @IsString() @Matches(/^[A-Z]{3}$/) currency!: string;
   @IsNumber() @Min(0.01) amount!: number;
   @IsString() @MinLength(3) @MaxLength(500) reason!: string;
+}
+
+export class CreatePlatformApiKeyDto {
+  @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @IsArray() @ArrayMaxSize(30) scopes!: string[];
+  @IsOptional() @IsNumber() @Min(1) @Max(60000) rateLimitPerMinute?: number;
+  @IsOptional() @IsString() expiresAt?: string;
+}
+export class CreateWebhookEndpointDto {
+  @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @IsString() @MinLength(10) @MaxLength(2048) endpointUrl!: string;
+  @IsUUID() secretReference!: string;
+  @IsArray() @ArrayMaxSize(50) eventTypes!: string[];
 }
