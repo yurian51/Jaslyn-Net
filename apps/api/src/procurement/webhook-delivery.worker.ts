@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Inject } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns/promises';
-import type { LookupAddress, LookupFunction } from 'node:dns';
+import type { LookupAddress } from 'node:dns';
+import type { LookupFunction } from 'node:net';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
 import { Pool } from 'pg';
