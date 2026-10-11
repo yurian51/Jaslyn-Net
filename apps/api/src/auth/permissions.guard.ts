@@ -5,8 +5,8 @@ import { PG_POOL } from '../database/database.module';
 import { PERMISSIONS_KEY } from './permissions.decorator';
 import { AuthenticatedRequest } from './auth.guard';
 
-const DEFAULT_ROLES:Record<string,string[]>={
- 'secrets.read':['OWNER','ADMIN'],'secrets.write':['OWNER'],
+export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
+ 'secrets.read':['OWNER','ADMIN'],'secrets.write':['OWNER','ADMIN'],
  'network.policy.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER','NETWORK_ADMIN'],
  'network.policy.write':['OWNER','ADMIN','NETWORK_ADMIN'],'network.policy.evaluate':['OWNER','ADMIN','AGENT','NOC_ENGINEER','NETWORK_ADMIN'],
  'compliance.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER'],'compliance.scan':['OWNER','ADMIN','NOC_ENGINEER'],'compliance.manage':['OWNER','ADMIN'],
@@ -31,7 +31,7 @@ export class PermissionsGuard implements CanActivate {
    if(userOverride.rowCount){if(userOverride.rows[0].allowed!==true)return false;continue;}
    const roleOverride=await this.db.query('SELECT allowed FROM tenant_role_permissions WHERE tenant_id=$1 AND role=$2 AND permission_key=$3',[user.tenantId,user.role,permission]);
    if(roleOverride.rowCount){if(roleOverride.rows[0].allowed!==true)return false;continue;}
-   if(!(DEFAULT_ROLES[permission]??[]).includes(user.role))return false;
+   if(!(DEFAULT_PERMISSION_ROLES[permission]??[]).includes(user.role))return false;
   }
   return true;
  }
