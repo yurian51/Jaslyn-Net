@@ -82,7 +82,7 @@ export class AutomationService {
     await this.db.query(`INSERT INTO automation_event_receipts(tenant_id,event_id,event_type)
       SELECT e.tenant_id,e.id,e.event_type FROM communication_domain_events e
       WHERE e.status='PROCESSED' AND e.created_at>=now()-interval '7 days'
-        AND EXISTS(SELECT 1 FROM automation_rules r WHERE r.tenant_id=e.tenant_id AND r.enabled=true AND (r.event_type=e.event_type OR r.event_type='*'))
+        AND EXISTS(SELECT 1 FROM automation_rules r WHERE r.tenant_id=e.tenant_id AND r.enabled=true AND e.created_at>=r.updated_at AND (r.event_type=e.event_type OR r.event_type='*'))
       ORDER BY e.created_at DESC LIMIT 5000 ON CONFLICT(tenant_id,event_id) DO NOTHING`);
     const claimed=await this.db.query<EventRecord>(`WITH due AS (
       SELECT tenant_id,event_id FROM automation_event_receipts
@@ -125,7 +125,7 @@ export class AutomationService {
         await this.db.query(`UPDATE automation_event_receipts SET status='COMPLETED',completed_at=now(),locked_at=NULL,last_error=NULL WHERE tenant_id=$1 AND event_id=$2`,[event.tenant_id,event.event_id]);
       }catch(e){
         const msg=e instanceof Error?e.message:'AUTOMATION_FAILED';
-        await this.db.query(`UPDATE automation_event_receipts SET status=CASE WHEN attempts>=8 THEN 'FAILED' ELSE 'FAILED' END,next_attempt_at=now()+make_interval(secs=>$3),locked_at=NULL,last_error=$4 WHERE tenant_id=$1 AND event_id=$2`,[event.tenant_id,event.event_id,Math.min(3600,15*Math.pow(2,Math.min(event.attempts-1,8))),msg.slice(0,1000)]);
+        await this.db.query(`UPDATE automation_event_receipts SET status='FAILED',next_attempt_at=now()+make_interval(secs=>$3),locked_at=NULL,last_error=$4 WHERE tenant_id=$1 AND event_id=$2`,[event.tenant_id,event.event_id,Math.min(3600,15*Math.pow(2,Math.min(event.attempts-1,8))),msg.slice(0,1000)]);
       }
     }
     return {claimed:claimed.rowCount??0};
