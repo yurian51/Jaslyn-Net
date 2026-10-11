@@ -6,7 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
 type Step = { type: 'CONDITION'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
-type WorkflowRow = { id:string; tenant_id:string; steps:Step[]; trigger_payload?:Record<string,unknown>; current_step:number; attempts:number; run_id?:string };
+type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; current_step:number; attempts:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
