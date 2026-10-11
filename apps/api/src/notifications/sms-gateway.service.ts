@@ -50,7 +50,7 @@ export class SmsGatewayService {
   private validateEndpoint(raw: string): URL {
     let url: URL;
     try { url = new URL(raw); } catch { throw new BadRequestException('Provider endpoint must be a valid HTTPS URL'); }
-    if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw new BadRequestException('Provider endpoint must use HTTPS and cannot include credentials or a fragment');
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash || (url.port && url.port !== '443')) throw new BadRequestException('Provider endpoint must use HTTPS on the standard port and cannot include credentials or a fragment');
     const hostname = url.hostname.toLowerCase();
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.test') || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.startsWith('[')) {
       throw new BadRequestException('Provider endpoint host is not allowed');
