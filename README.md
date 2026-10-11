@@ -75,6 +75,7 @@ Production credentials and secrets are never part of the repository. Use environ
 - [Enterprise operations capabilities and verification status](docs/ENTERPRISE-CAPABILITIES-IMPLEMENTATION.md)
 - [Enterprise financial, procurement, MSP and operations feature execution](docs/ENTERPRISE-FEATURES-EXECUTION.md)
 - [PostgreSQL backup, restore drills and disaster-recovery gates](docs/DISASTER-RECOVERY.md)
+- [Public API keys and signed webhook contract](docs/PUBLIC-API-WEBHOOKS.md)
 
 - [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)
 - [Platform subscription vs WiFi subscriber plan UX and ownership rules](docs/PLAN-CATALOGUE-UX-AND-OWNERSHIP.md)
