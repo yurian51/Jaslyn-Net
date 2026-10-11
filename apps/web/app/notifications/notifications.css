@@ -705,3 +705,22 @@
 .notifications-sms-state.ready{color:#28684d;background:#edf7f1}
 .notifications-sms-state.disabled{color:#8b642d;background:#fbf4e8}
 @media(max-width:700px){.notifications-sms-provider{align-items:flex-start;flex-direction:column;gap:10px}}
+
+
+/* Bulk SMS campaign composer and progress ledger */
+.notifications-bulk-surface,.notifications-campaigns-surface{margin:0 auto 18px}
+.notifications-bulk-form{padding:18px;display:grid;gap:15px}
+.notifications-bulk-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.notifications-bulk-form label{display:grid;gap:7px;color:#42546b;font-size:11px;font-weight:750}
+.notifications-bulk-form input:not([type=checkbox]),.notifications-bulk-form select,.notifications-bulk-form textarea{width:100%;box-sizing:border-box;border:1px solid #dce4ec;border-radius:9px;background:#fbfcfe;color:#233750;padding:11px 12px;font:inherit;font-size:12px;font-weight:450;outline:none}
+.notifications-bulk-form textarea{resize:vertical;min-height:78px;line-height:1.55}
+.notifications-bulk-form input:focus,.notifications-bulk-form select:focus,.notifications-bulk-form textarea:focus{border-color:#7198cf;box-shadow:0 0 0 3px rgba(47,104,187,.09)}
+.notifications-bulk-wide{min-width:0}
+.notifications-bulk-form small{color:#8492a3;font-size:10px;font-weight:450;line-height:1.5}
+.notifications-bulk-confirm{display:flex!important;grid-template-columns:18px minmax(0,1fr);align-items:start;gap:9px!important;padding:12px;border:1px solid #e2e8ef;border-radius:9px;background:#f8fafc;font-weight:500!important;line-height:1.5}
+.notifications-bulk-confirm input{width:16px;height:16px;margin:1px 0 0;accent-color:#2f68bb}
+.notifications-bulk-submit{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.notifications-bulk-submit>span{max-width:600px;color:#8492a3;font-size:10px;line-height:1.55}
+.notifications-bulk-submit .notifications-action{flex:0 0 auto}
+.notifications-bulk-success{padding:11px 13px;border:1px solid #cfe5d8;border-radius:9px;background:#f2faf5;color:#28704b;font-size:11px;line-height:1.5}
+@media(max-width:760px){.notifications-bulk-fields{grid-template-columns:1fr}.notifications-bulk-submit{align-items:stretch;flex-direction:column}.notifications-bulk-submit .notifications-action{width:100%}.notifications-bulk-form{padding:14px}}
