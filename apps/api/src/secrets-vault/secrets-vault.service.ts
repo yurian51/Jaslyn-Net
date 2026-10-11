@@ -37,6 +37,19 @@ export class SecretsVaultService {
     finally{client.release();}
   }
 
+  async deleteSecret(tenantId:string,actorUserId:string,id:string,context:AuditContext={}){
+    const client=await this.db.connect();
+    try{
+      await client.query('BEGIN');
+      const deleted=await client.query(`DELETE FROM tenant_secrets WHERE tenant_id=$1 AND id=$2 RETURNING secret_key,display_name`,[tenantId,id]);
+      if(!deleted.rowCount)throw new NotFoundException('Secret not found in this tenant vault');
+      await client.query(`INSERT INTO audit_logs(tenant_id,actor_user_id,action,resource_type,resource_id,request_id,correlation_id,ip_address,user_agent,metadata)
+        VALUES($1,$2,'TENANT_SECRET_DELETED','tenant_secret',$3,$4,$5,$6,$7,$8::jsonb)`,
+        [tenantId,actorUserId,id,context.requestId??null,context.correlationId??null,context.ipAddress??null,context.userAgent??null,JSON.stringify({secretKey:deleted.rows[0].secret_key,displayName:deleted.rows[0].display_name})]);
+      await client.query('COMMIT');return {deleted:true,id};
+    }catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;}finally{client.release();}
+  }
+
   async rotateAll(tenantId:string,actorUserId:string,context:AuditContext={}){
     const activeKeyId=this.vault.activeKeyId();const client=await this.db.connect();let rotatedCount=0;let skippedCount=0;
     try{
