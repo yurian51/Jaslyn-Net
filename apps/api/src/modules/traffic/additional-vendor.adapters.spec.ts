@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import type { NetworkDeviceConnection } from './network-device.adapter';
 import {
   ArubaCentralNetworkAdapter,
   CambiumCnMaestroNetworkAdapter,
@@ -17,11 +18,11 @@ describe('additional vendor read-only telemetry adapters', () => {
   beforeEach(() => { jest.clearAllMocks(); global.fetch = fetchMock as unknown as typeof fetch; });
 
   const response = { data: [{ name: 'client-1', ipAddress: '192.0.2.10', macAddress: 'AA:BB:CC:DD:EE:FF', rxBytes: '1234', txBytes: '5678' }] };
-  const connection = (protocol: string, credentials: Record<string, string>) => ({
+  const connection = (protocol: NetworkDeviceConnection['protocol'], credentials: Record<string, string>): NetworkDeviceConnection => ({
     routerId: 'router-1', protocol, controllerEndpoint: 'https://api.vendor.example/documented/client-session-resource', credentials,
   });
 
-  it.each([
+  const adapterCases: Array<[string, new (config: ConfigService) => { readClients(connection: NetworkDeviceConnection): Promise<unknown> }, NetworkDeviceConnection['protocol'], Record<string, string>, Record<string, string>]> = [
     ['Aruba Central', ArubaCentralNetworkAdapter, 'ARUBA_CENTRAL_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['Cambium cnMaestro', CambiumCnMaestroNetworkAdapter, 'CAMBIUM_CNMAESTRO', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['Grandstream GWN', GrandstreamGwnNetworkAdapter, 'GRANDSTREAM_GWN_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
@@ -29,7 +30,9 @@ describe('additional vendor read-only telemetry adapters', () => {
     ['Teltonika RMS', TeltonikaRmsNetworkAdapter, 'TELTONIKA_RMS_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['Peplink InControl', PeplinkInControlNetworkAdapter, 'PEPLINK_INCONTROL_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['pfSense/OPNsense', PfSenseOpnSenseNetworkAdapter, 'PFSENSE_API', { apiKey: 'api-key', clientSecret: 'api-secret' }, { Authorization: `Basic ${Buffer.from('api-key:api-secret').toString('base64')}` }],
-  ])('%s sends its expected auth and normalizes client counters', async (_name, Adapter, protocol, credentials, expectedHeaders) => {
+  ];
+
+  it.each(adapterCases)('%s sends its expected auth and normalizes client counters', async (_name, Adapter, protocol, credentials, expectedHeaders) => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 200, headers: { 'content-type': 'application/json' } }));
     const adapter = new Adapter(config);
     await expect(adapter.readClients(connection(protocol, credentials))).resolves.toEqual([{
