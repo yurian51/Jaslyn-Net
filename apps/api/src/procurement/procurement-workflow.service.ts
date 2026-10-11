@@ -23,6 +23,24 @@ export class ProcurementWorkflowService {
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,invoiceId,d.idempotencyKey.trim(),d.amount,d.currency,d.paymentReference?.trim()||null,actorId]);
       const paid=Number(i.amount_paid)+Number(d.amount);
       await client.query(`UPDATE supplier_invoices SET amount_paid=$3,status=CASE WHEN $3>=total THEN 'PAID' ELSE 'PARTIALLY_PAID' END,updated_at=now() WHERE tenant_id=$1 AND id=$2`,[tenantId,invoiceId,paid]);
+      const cashCode=('CASH:AP:'+d.currency).slice(0,64);
+      const payableCode=('ACCOUNTS_PAYABLE:'+d.currency).slice(0,64);
+      const cash=await client.query(`INSERT INTO financial_ledger_accounts(tenant_id,code,name,account_type,currency)
+        VALUES($1,$2,'Supplier payment cash account','ASSET',$3)
+        ON CONFLICT(tenant_id,code) DO UPDATE SET name=EXCLUDED.name,currency=EXCLUDED.currency RETURNING id`,[tenantId,cashCode,d.currency]);
+      const payable=await client.query(`INSERT INTO financial_ledger_accounts(tenant_id,code,name,account_type,currency)
+        VALUES($1,$2,'Accounts payable','LIABILITY',$3)
+        ON CONFLICT(tenant_id,code) DO UPDATE SET name=EXCLUDED.name,currency=EXCLUDED.currency RETURNING id`,[tenantId,payableCode,d.currency]);
+      const ledger=await client.query(`INSERT INTO financial_ledger_transactions(tenant_id,transaction_type,reference_type,reference_id,description)
+        VALUES($1,'SUPPLIER_PAYMENT','SUPPLIER_INVOICE_PAYMENT',$2,$3)
+        ON CONFLICT(tenant_id,transaction_type,reference_type,reference_id) WHERE reference_id IS NOT NULL DO NOTHING RETURNING id`,
+        [tenantId,payment.rows[0].id,'Supplier invoice payment '+String(invoiceId)]);
+      let ledgerId=ledger.rows[0]?.id;
+      if(!ledgerId){const oldLedger=await client.query(`SELECT id FROM financial_ledger_transactions WHERE tenant_id=$1 AND transaction_type='SUPPLIER_PAYMENT' AND reference_type='SUPPLIER_INVOICE_PAYMENT' AND reference_id=$2 LIMIT 1`,[tenantId,payment.rows[0].id]);ledgerId=oldLedger.rows[0]?.id;}
+      if(!ledgerId)throw new ConflictException('Supplier payment ledger transaction could not be created');
+      const entries=await client.query('SELECT 1 FROM financial_ledger_entries WHERE tenant_id=$1 AND transaction_id=$2 LIMIT 1',[tenantId,ledgerId]);
+      if(!entries.rowCount)await client.query(`INSERT INTO financial_ledger_entries(tenant_id,transaction_id,account_id,currency,debit,credit)
+        VALUES($1,$2,$3,$4,$5,0),($1,$2,$6,$4,0,$5)`,[tenantId,ledgerId,payable.rows[0].id,d.currency,d.amount,cash.rows[0].id]);
       await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
         SELECT e.tenant_id,e.id,$2::uuid,'supplier_invoice.payment_recorded',jsonb_build_object('supplierInvoiceId',$3,'paymentId',$2,'amount',$4,'currency',$5,'amountPaid',$6)
         FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'supplier_invoice.payment_recorded'=ANY(e.event_types)
