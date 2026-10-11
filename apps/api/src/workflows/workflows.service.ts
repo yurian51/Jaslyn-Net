@@ -340,13 +340,13 @@ export class WorkflowsService {
       const normalized=address.toLowerCase().split('%')[0];
       // Only global-unicast IPv6 is allowed; reject mapped, loopback, link-local,
       // unique-local, multicast, unspecified and documentation ranges.
-      if(!/^[23]/.test(normalized)||normalized==='::1'||normalized==='::'||normalized.startsWith('2001:db8:')) return false;
+      if(!/^[23]/.test(normalized)||normalized==='::1'||normalized==='::'||normalized.startsWith('2001:db8:')||normalized.startsWith('2001:10:')||normalized.startsWith('2002:')) return false;
       return !normalized.startsWith('::ffff:');
     }
     return false;
   }
 
-  private async executeIntegrationRequest(tenantId:string,workflowId:string,runId:string,stepIndex:number,step:Step) {
+  private async executeIntegrationRequest(tenantId:string,runId:string,stepIndex:number,step:Step) {
     const integration=await this.db.query(`SELECT id,base_url,secret_ref,config FROM automation_integrations
       WHERE tenant_id=$1 AND id=$2 AND enabled=true AND provider_type='REST_API'`,[tenantId,step.integrationId]);
     if(!integration.rowCount||!integration.rows[0].base_url) throw new BadRequestException('HTTP_REQUEST requires an enabled tenant-owned REST_API integration');
@@ -480,7 +480,7 @@ export class WorkflowsService {
               else { completed=true; index=steps.length; break; }
             }
           } else if(step.type==='HTTP_REQUEST') {
-            const response=await this.executeIntegrationRequest(run.tenant_id,run.id,run.run_id,index,step);
+            const response=await this.executeIntegrationRequest(run.tenant_id,run.run_id,index,step);
             if(response.json!==undefined){
               const existing=payload.integrationResponses;
               if(!existing||typeof existing!=='object'||Array.isArray(existing)) payload.integrationResponses={};
