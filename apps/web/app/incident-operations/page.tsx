@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { API_URL, apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
@@ -9,8 +9,8 @@ type StatusSettings={slug:string;displayName:string;description?:string|null;isP
 type ComponentRecord={id:string;componentKey:string;name:string;status:string;publicSummary?:string|null};
 type SettingsResponse={configured:boolean;settings:StatusSettings|null;components:ComponentRecord[]};
 
-const fieldStyle:React.CSSProperties={width:'100%',border:'1px solid #cbd5e1',borderRadius:9,padding:'10px 11px',fontSize:13,background:'#fff',color:'#172033'};
-const labelStyle:React.CSSProperties={display:'grid',gap:6,fontSize:12,fontWeight:700,color:'#475569'};
+const fieldStyle:CSSProperties={width:'100%',border:'1px solid #cbd5e1',borderRadius:9,padding:'10px 11px',fontSize:13,background:'#fff',color:'#172033'};
+const labelStyle:CSSProperties={display:'grid',gap:6,fontSize:12,fontWeight:700,color:'#475569'};
 
 export default function IncidentOperationsPage(){
  const [windows,setWindows]=useState<WindowRecord[]>([]);
@@ -28,8 +28,6 @@ export default function IncidentOperationsPage(){
  const [error,setError]=useState<string|null>(null);
  const [notice,setNotice]=useState<string|null>(null);
 
- const token=()=>getAccessToken();
- const headers=()=>({Authorization:'Bearer '+(token()??''),'Content-Type':'application/json'});
  const load=useCallback(async()=>{
   const accessToken=getAccessToken();if(!accessToken){setError('Authentication required.');setLoading(false);return;}
   setLoading(true);setError(null);
