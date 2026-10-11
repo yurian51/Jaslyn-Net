@@ -18,6 +18,8 @@ export class NetworkAdapterRegistry {
       lifecycle: 'NATIVE',
       capabilities: ['bandwidth_enforcement', 'client_sessions', 'device_inventory'],
     },
+    { protocol: 'OMADA_CONTROLLER_API', lifecycle: 'NATIVE', capabilities: ['client_sessions', 'device_inventory'] },
+    { protocol: 'RUIJIE_REYEE_CLOUD_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
     {
       protocol: 'UNIFI_NETWORK_API',
       lifecycle: 'NATIVE',
