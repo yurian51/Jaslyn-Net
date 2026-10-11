@@ -170,7 +170,7 @@ export class SmsGatewayService {
     if (row.auth_type === 'bearer') headers.Authorization = `Bearer ${credentials.apiKey}`;
     if (row.auth_type === 'api_key') headers[row.api_key_header || 'X-API-Key'] = credentials.apiKey || '';
     if (row.auth_type === 'basic') headers.Authorization = `Basic ${Buffer.from(`${credentials.apiKey || ''}:${credentials.apiSecret || ''}`).toString('base64')}`;
-    const endpoint = row.provider === 'beem' ? (row.endpoint || 'https://apisms.beem.africa/v1/send') : this.validateEndpoint(row.endpoint || '').toString();
+    const endpoint = row.provider === 'beem' ? (row.endpoint || this.config.get<string>('BEEM_SMS_ENDPOINT') || 'https://apisms.beem.africa/v1/send') : this.validateEndpoint(row.endpoint || '').toString();
     if (row.provider === 'beem') {
       const body = { source_addr: row.sender_id, encoding: 0, schedule_time: '', message, recipients: [{ recipient_id: idempotencyKey.slice(0, 32), dest_addr: to }] };
       const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(15000) });
