@@ -25,7 +25,7 @@ export class IspOperationsController {
   @Get('jobs') listJobs(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listJobs(req.user!.tenantId,query);}
   @Post('jobs') @Roles('OWNER','ADMIN','AGENT') createJob(@Req() req:AuthenticatedRequest,@Body() dto:CreateNetworkJobDto){return this.isp.createJob(req.user!.tenantId,dto,req.user!.id);}
   @Put('jobs/:id') @Roles('OWNER','ADMIN','AGENT') updateJob(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:UpdateNetworkJobDto){return this.isp.updateJob(req.user!.tenantId,id,dto,req.user!.id);}
-  @Post('jobs/offline-sync') @Roles('OWNER','ADMIN','AGENT','TECHNICIAN') @Permissions('field.sync')
+  @Post('jobs/offline-sync') @Roles('OWNER','ADMIN','AGENT') @Permissions('field.sync')
   syncOfflineOperations(@Req() req:AuthenticatedRequest,@Body() dto:SyncOfflineOperationsDto) {
     return this.isp.syncOfflineOperations(req.user!.tenantId,req.user!.id,dto,{
       userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip,
@@ -40,7 +40,7 @@ export class IspOperationsController {
   jobAttachments(@Req() req:AuthenticatedRequest,@Param('id') id:string) {
     return this.isp.listJobAttachments(req.user!.tenantId,id);
   }
-  @Post('jobs/:id/attachments') @Roles('OWNER','ADMIN','AGENT','TECHNICIAN') @Permissions('field.write')
+  @Post('jobs/:id/attachments') @Roles('OWNER','ADMIN','AGENT') @Permissions('field.write')
   @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024}}))
   uploadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Headers('idempotency-key') idempotencyKey:string|undefined,@UploadedFile() file:{originalname:string;mimetype:string;buffer:Buffer;size:number}) {
     return this.isp.uploadJobAttachment(req.user!.tenantId,id,req.user!.id,idempotencyKey??'',file,{
