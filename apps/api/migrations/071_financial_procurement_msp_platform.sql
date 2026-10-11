@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS tenant_reseller_relationships (
   tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE RESTRICT,
   parent_tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   relationship_type text NOT NULL DEFAULT 'RESELLER' CHECK (relationship_type IN ('RESELLER','MANAGED_OPERATOR','FRANCHISE')),
-  status text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED','ENDED')),
+  status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACTIVE','SUSPENDED','ENDED')),
   created_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (tenant_id <> parent_tenant_id),
