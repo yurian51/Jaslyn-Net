@@ -143,11 +143,14 @@ export class WorkflowsService {
   }
 
   async replayRun(tenantId:string,actorId:string,id:string) {
-    const r=await this.db.query(`SELECT r.workflow_id,r.trigger_type,r.trigger_payload,w.enabled
+    const r=await this.db.query(`SELECT r.workflow_id,r.trigger_type,r.trigger_payload,r.status,r.current_step,w.enabled
       FROM automation_workflow_runs r JOIN automation_workflows w ON w.tenant_id=r.tenant_id AND w.id=r.workflow_id
       WHERE r.tenant_id=$1 AND r.id=$2`,[tenantId,id]);
     if(!r.rowCount) throw new NotFoundException('Workflow run not found');
     if(!r.rows[0].enabled) throw new ConflictException('Enable the workflow before replaying this run');
+    // A full replay can repeat completed side effects. Until checkpoint-resume is implemented,
+    // only permit replay when no step has completed and the run failed before progress.
+    if(r.rows[0].status!=='FAILED'||Number(r.rows[0].current_step)!==0) throw new ConflictException('Safe replay is only available for failed runs that have not advanced beyond step zero');
     const run=await this.enqueue(tenantId,r.rows[0].workflow_id,'REPLAY',`replay:${id}:${randomBytes(12).toString('hex')}`,r.rows[0].trigger_payload??{});
     await this.audit.record(tenantId,'REPLAY','automation_workflow_run',id,{newRunId:run.id},{userId:actorId});
     return run;
