@@ -107,7 +107,7 @@ export class IncidentEscalationWorker implements OnModuleInit, OnModuleDestroy {
               incidentId: incident.id,
               escalationLevel: incident.escalation_level,
               ownerUserId: incident.owner_user_id,
-              targetRoles: ['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN'],
+              targetRoles: ['OWNER','ADMIN','AGENT'],
             },
           });
         } catch (error) {
