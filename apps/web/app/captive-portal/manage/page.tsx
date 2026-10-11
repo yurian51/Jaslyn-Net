@@ -48,7 +48,7 @@ export default function CaptivePortalSettingsPage() {
         method: 'PUT', headers: headers(),
         body: JSON.stringify({
           enabled: form.enabled, title: form.title || '', welcomeMessage: form.welcomeMessage || '',
-          termsText: form.termsText, supportPhone: form.supportPhone || '', supportEmail: form.supportEmail || '',
+          termsText: form.termsText, supportPhone: form.supportPhone || '', supportEmail: form.supportEmail?.trim() || undefined,
         }),
       });
       setForm({ ...defaults, ...result });
