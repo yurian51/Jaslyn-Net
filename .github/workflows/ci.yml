@@ -81,6 +81,10 @@ jobs:
         run: pnpm --filter @jaslyn-net/api test
       - name: Typecheck Web
         run: pnpm --filter @jaslyn-net/web typecheck
+      - name: Verify brand assets
+        run: pnpm --filter @jaslyn-net/web verify:assets
+      - name: Verify UI surface
+        run: pnpm --filter @jaslyn-net/web verify:ui
       - name: Build API
         run: pnpm --filter @jaslyn-net/api build
       - name: Build Web
@@ -94,7 +98,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: jaslyn
           POSTGRES_PASSWORD: jaslyn_test_password
