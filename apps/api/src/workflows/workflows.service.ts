@@ -3,14 +3,15 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService, SmsCategory } from '../notifications/notifications.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
-type Step = { type: 'CONDITION'|'TRANSFORM'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
+type Step = { type: 'CONDITION'|'TRANSFORM'|'NOTIFY'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
 type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
-  constructor(@Inject(PG_POOL) private readonly db:Pool, private readonly audit:AuditService) {}
+  constructor(@Inject(PG_POOL) private readonly db:Pool, private readonly audit:AuditService, private readonly notifications:NotificationsService) {}
 
   private validateSteps(raw:unknown[]):Step[] {
     if(!Array.isArray(raw)||raw.length<1||raw.length>30) throw new BadRequestException('Workflow must contain 1–30 steps');
@@ -34,6 +35,19 @@ export class WorkflowsService {
         const safePath=(raw:unknown,label:string)=>{const path=String(raw??'');if(!/^[A-Za-z0-9_-]{1,80}(\.[A-Za-z0-9_-]{1,80})*$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p)))throw new BadRequestException(`TRANSFORM ${label} path is invalid`);return path;};
         const normalized=mappings.map((raw)=>{if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('Each TRANSFORM mapping must be an object');const m=raw as Record<string,unknown>;return {from:safePath(m.from,'source'),to:safePath(m.to,'target')};});
         return {type:'TRANSFORM',mappings:normalized};
+      }
+      if(type==='NOTIFY'){
+        const channel=String(s.channel??'').toUpperCase();
+        if(!['SMS','EMAIL','WHATSAPP','WEBHOOK'].includes(channel)) throw new BadRequestException('NOTIFY channel is unsupported');
+        const recipientPath=String(s.recipientPath??'');
+        if(!/^[A-Za-z0-9_-]{1,80}(\\.[A-Za-z0-9_-]{1,80})*$/.test(recipientPath)||recipientPath.split('.').some(p=>['__proto__','prototype','constructor'].includes(p))) throw new BadRequestException('NOTIFY recipientPath is invalid');
+        const eventType=String(s.eventType??'WORKFLOW.NOTIFICATION').trim().toUpperCase();
+        if(!/^[A-Z][A-Z0-9_.-]{1,119}$/.test(eventType)) throw new BadRequestException('NOTIFY eventType is invalid');
+        const message=String(s.message??'').trim();
+        if(!message||message.length>1600) throw new BadRequestException('NOTIFY message must be 1–1600 characters');
+        const category=String(s.category??'TRANSACTIONAL').toUpperCase();
+        if(!['TRANSACTIONAL','EXPIRY','PAYMENT','PURCHASE','MARKETING'].includes(category)) throw new BadRequestException('NOTIFY SMS category is unsupported');
+        return {type:'NOTIFY',channel,recipientPath,eventType,message,category};
       }
       if(type==='CREATE_ALERT'){
         const severity=String(s.severity??'HIGH').toUpperCase(); const title=String(s.title??'').trim();
@@ -61,7 +75,7 @@ export class WorkflowsService {
         if(message.length<1||message.length>500) throw new BadRequestException('LOG message must be 1–500 characters');
         return {type:'LOG',message};
       }
-      throw new BadRequestException('Allowed workflow steps: CONDITION, TRANSFORM, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
+      throw new BadRequestException('Allowed workflow steps: CONDITION, TRANSFORM, NOTIFY, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
     });
   }
 
@@ -357,6 +371,15 @@ export class WorkflowsService {
               if(step.onFalse==='SKIP') { index+=Number(step.skipSteps??1); }
               else { completed=true; index=steps.length; break; }
             }
+          } else if(step.type==='NOTIFY') {
+            const target=this.valueAt(payload,String(step.recipientPath));
+            if(!target.exists||typeof target.value!=='string'||!target.value.trim()) throw new BadRequestException('NOTIFY recipient path must resolve to a non-empty string');
+            const recipient=target.value.trim();
+            const dedupeKey=`workflow:${run.run_id}:${index}`;
+            const notification=step.channel==='SMS'
+              ? await this.notifications.enqueueSms(run.tenant_id,{recipient,message:String(step.message),category:String(step.category) as SmsCategory,idempotencyKey:dedupeKey})
+              : await this.notifications.enqueue(run.tenant_id,String(step.channel) as 'EMAIL'|'WHATSAPP'|'WEBHOOK',recipient,String(step.eventType),{message:String(step.message),workflowId:run.id,runId:run.run_id,stepIndex:index},undefined,dedupeKey);
+            results.push({index,type:step.type,channel:step.channel,status:notification.status,notificationId:notification.id});
           } else if(step.type==='CREATE_ALERT') {
             const alert=await this.db.query(`INSERT INTO automation_workflow_alerts(tenant_id,run_id,step_index,severity,title,details)
               VALUES($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT(tenant_id,run_id,step_index) DO UPDATE SET run_id=EXCLUDED.run_id RETURNING id,status`,
