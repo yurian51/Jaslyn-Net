@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, Inject, TooManyRequestsException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { SetMetadata } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { Request } from 'express';
 import { Pool } from 'pg';
@@ -7,7 +8,7 @@ import { PG_POOL } from '../database/database.module';
 
 export const API_KEY_SCOPES='jaslyn:api-key-scopes';
 export type ApiKeyRequest=Request & {headers:{authorization?:string};apiKey?:{id:string;tenantId:string;scopes:string[]}};
-export const ApiKeyScopes=(...scopes:string[])=>Reflector.createDecorator<string[]>({key:API_KEY_SCOPES})();
+export const ApiKeyScopes=(...scopes:string[])=>SetMetadata(API_KEY_SCOPES,scopes);
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
