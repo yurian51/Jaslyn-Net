@@ -1,10 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Inject } from '@nestjs/common';
-import { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module';
 import { jwtVerify } from 'jose';
 import type { Request } from 'express';
+import { Pool } from 'pg';
+import { PG_POOL } from '../database/database.module';
 
 export type AuthenticatedRequest = Request & {
   headers: { authorization?: string; 'user-agent'?: string | string[] };
@@ -35,33 +34,41 @@ export class AuthGuard implements CanActivate {
     const secret = this.config.get<string>('JWT_SECRET');
     if (!secret || secret.length < 32) throw new UnauthorizedException('Authentication is not configured');
 
+    let payload;
     try {
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      const verified = await jwtVerify(token, new TextEncoder().encode(secret), {
         issuer: ISSUER,
         audience: AUDIENCE,
         algorithms: ['HS256'],
       });
-      if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
-        throw new Error('Invalid claims');
-      }
-      const sessionId = payload.sid;
-      const session = await this.db.query(
-        `SELECT id FROM auth_sessions
-         WHERE id=$1 AND tenant_id=$2 AND user_id=$3
-           AND revoked_at IS NULL AND expires_at>now()`,
-        [sessionId, payload.tenantId, payload.sub],
-      );
-      if (!session.rowCount) throw new UnauthorizedException('Session has been revoked or expired');
-      request.user = {
-        id: payload.sub,
-        tenantId: payload.tenantId,
-        role: payload.role,
-        email: typeof payload.email === 'string' ? payload.email : '',
-        sessionId,
-      };
-      return true;
+      payload = verified.payload;
     } catch {
       throw new UnauthorizedException('Invalid or expired access token');
     }
+
+    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
+      || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
+      throw new UnauthorizedException('Access token is missing required session claims');
+    }
+
+    // This database check makes revocation effective immediately rather than
+    // waiting for the short-lived JWT to expire. Database outages remain server
+    // errors and are not disguised as invalid credentials.
+    const session = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+         AND revoked_at IS NULL AND expires_at>now()`,
+      [payload.sid, payload.tenantId, payload.sub],
+    );
+    if (!session.rowCount) throw new UnauthorizedException('Session has been revoked or expired');
+
+    request.user = {
+      id: payload.sub,
+      tenantId: payload.tenantId,
+      role: payload.role,
+      email: typeof payload.email === 'string' ? payload.email : '',
+      sessionId: payload.sid,
+    };
+    return true;
   }
 }
