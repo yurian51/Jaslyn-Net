@@ -15,10 +15,20 @@ export class WorkflowsController {
   list(@Req() r:AuthenticatedRequest){return this.workflows.list(r.user!.tenantId);}
   @Post() @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
   create(@Req() r:AuthenticatedRequest,@Body() d:CreateWorkflowDto){return this.workflows.create(r.user!.tenantId,r.user!.id,d);}
+  @Get(':id/export') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
+  exportDefinition(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflows.exportDefinition(r.user!.tenantId,id);}
+  @Post('import') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
+  importDefinition(@Req() r:AuthenticatedRequest,@Body() d:CreateWorkflowDto){return this.workflows.importDefinition(r.user!.tenantId,r.user!.id,d);}
   @Patch(':id/enabled') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
   setEnabled(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:SetWorkflowEnabledDto){return this.workflows.setEnabled(r.user!.tenantId,r.user!.id,id,d.enabled);}
   @Post(':id/run') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.workflow.manage')
   run(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:TriggerWorkflowDto){return this.workflows.triggerManual(r.user!.tenantId,r.user!.id,id,d.payload??{},d.idempotencyKey);}
+  @Get('runs/:id') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
+  runDetail(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflows.getRun(r.user!.tenantId,id);}
+  @Post('runs/:id/replay') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
+  replayRun(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflows.replayRun(r.user!.tenantId,r.user!.id,id);}
+  @Patch('runs/:id/cancel') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
+  cancelRun(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflows.cancelRun(r.user!.tenantId,r.user!.id,id);}
   @Get('runs') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
   runs(@Req() r:AuthenticatedRequest){return this.workflows.listRuns(r.user!.tenantId);}
   @Get('alerts') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
