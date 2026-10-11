@@ -522,24 +522,6 @@
 .bad-text{color:var(--ov-red)!important}
 .warn-text{color:var(--ov-amber)!important}
 
-.shortcut-grid{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:0;
-  margin-top:15px;
-  border-top:1px solid var(--ov-border-soft);
-}
-.shortcut-grid a{
-  min-height:89px;
-  padding:14px 12px;
-  border-right:1px solid var(--ov-border-soft);
-  border-bottom:1px solid var(--ov-border-soft);
-  transition:background .15s ease;
-}
-.shortcut-grid a:nth-child(3n){border-right:0}
-.shortcut-grid a:hover{background:#fafbfd}
-.shortcut-grid b{display:block;color:#31445e;font-size:9px}
-.shortcut-grid span{display:block;margin-top:7px;color:#8b97a6;font-size:7px;line-height:1.5}
 .overview-footer-metrics{
   display:flex;
   justify-content:space-between;
@@ -556,9 +538,7 @@
   .overview-kpis{grid-template-columns:repeat(2,1fr)}
   .overview-kpi:nth-child(2){border-right:0}
   .overview-kpi:nth-child(-n+2){border-bottom:1px solid var(--ov-border)}
-  .shortcut-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .shortcut-grid a:nth-child(3n){border-right:1px solid var(--ov-border-soft)}
-  .shortcut-grid a:nth-child(2n){border-right:0}
+
 }
 
 @media(max-width:820px){
@@ -581,9 +561,7 @@
   .health-meter{width:148px;height:148px}
   .location-row{grid-template-columns:minmax(150px,1.3fr) minmax(86px,.8fr) 44px;gap:9px}
   .location-row>span:nth-child(3){display:none}
-  .shortcut-grid{grid-template-columns:1fr 1fr}
-  .shortcut-grid a:nth-child(3n){border-right:1px solid var(--ov-border-soft)}
-  .shortcut-grid a:nth-child(2n){border-right:0}
+
   .overview-footer-metrics{align-items:flex-start;flex-direction:column}
 }
 
@@ -607,12 +585,9 @@
   .location-row{grid-template-columns:minmax(120px,1fr) 54px 40px;gap:7px}
   .location-row>span:nth-child(2){font-size:6.5px}
   .location-row strong{font-size:7.5px}
-  .shortcut-grid{grid-template-columns:1fr}
-  .shortcut-grid a,
-  .shortcut-grid a:nth-child(3n),
-  .shortcut-grid a:nth-child(2n){border-right:0}
+
 }
 
 @media(prefers-reduced-motion:reduce){
-  .commandbar-primary a,.shortcut-grid a{transition:none}
+  .commandbar-primary a{transition:none}
 }
