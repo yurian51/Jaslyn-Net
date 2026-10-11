@@ -15,6 +15,16 @@ export class AuditController {
     return this.audit.list(req.user!.tenantId, Number(limit) || 100);
   }
 
+  @Get('integrity')
+  verifyIntegrity(@Req() req: AuthenticatedRequest) {
+    return this.audit.verifyIntegrity(req.user!.tenantId);
+  }
+
+  @Get('security-alerts')
+  listSecurityAlerts(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
+    return this.audit.listSecurityAlerts(req.user!.tenantId, Number(limit) || 100);
+  }
+
   @Get('trace/:correlationId')
   trace(@Req() req: AuthenticatedRequest, @Param('correlationId') correlationId: string) {
     return this.audit.trace(req.user!.tenantId, correlationId);
