@@ -27,7 +27,7 @@ export class IncidentsController {
   constructor(private readonly incidents: IncidentsService) {}
 
   @Get()
-  @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT', 'READ_ONLY')
+  @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT', 'READ_ONLY', 'NOC_ENGINEER')
   @Permissions('incident.read')
   list(@Req() req: AuthenticatedRequest, @Query() query: IncidentListQuery) {
     return this.incidents.list(req.user!.tenantId, query.status);
@@ -105,7 +105,7 @@ export class IncidentsController {
   }
 
   @Put(':id/owner')
-  @Roles('OWNER', 'ADMIN')
+  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
   @Permissions('incident.manage')
   assignOwner(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AssignIncidentOwnerDto) {
     return this.incidents.assignOwner(req.user!.tenantId, id, dto, {
@@ -123,7 +123,7 @@ export class IncidentsController {
   }
 
   @Post(':id/acknowledge')
-  @Roles('OWNER', 'ADMIN', 'AGENT')
+  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
   @Permissions('incident.manage')
   acknowledge(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.incidents.acknowledge(req.user!.tenantId, id, { userId: req.user!.id, requestId: req.requestId });
