@@ -150,6 +150,17 @@ export class WorkflowsService {
     return {data:r.rows};
   }
 
+  async setIntegrationEnabled(tenantId:string,actorId:string,id:string,enabled:boolean) {
+    const found=await this.db.query('SELECT id,name,provider_type,base_url,secret_ref FROM automation_integrations WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+    if(!found.rowCount) throw new NotFoundException('Integration not found');
+    const item=found.rows[0];
+    if(enabled&&['WEBHOOK','REST_API'].includes(item.provider_type)&&!item.base_url) throw new BadRequestException('Configure an HTTPS base URL before enabling this integration');
+    if(enabled&&['SMS','PAYMENT','NETWORK_CONTROLLER'].includes(item.provider_type)&&!item.secret_ref) throw new BadRequestException('Attach a tenant-owned secret in Secrets Vault before enabling this integration');
+    const updated=await this.db.query('UPDATE automation_integrations SET enabled=$3,updated_by=$4,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING id,name,provider_type AS "providerType",enabled,updated_at AS "updatedAt"',[tenantId,id,enabled,actorId]);
+    await this.audit.record(tenantId,enabled?'ENABLE':'DISABLE','automation_integration',id,{name:item.name,providerType:item.provider_type},{userId:actorId});
+    return updated.rows[0];
+  }
+
   async createIntegration(tenantId:string,actorId:string,d:CreateIntegrationDto) {
     let url:string|null=null;
     if(d.baseUrl){
