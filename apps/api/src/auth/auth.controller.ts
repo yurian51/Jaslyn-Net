@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from './auth.guard';
 import { AuthService } from './auth.service';
 import { LegalAcceptanceDto, LoginDto, RegisterDto } from './auth.dto';
@@ -47,7 +47,7 @@ export class AuthController {
 
   @Post('sessions/:id/revoke')
   @UseGuards(AuthGuard)
-  revokeSession(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+  revokeSession(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: AuthenticatedRequest) {
     return this.auth.revokeSession(request.user!, id, {
       ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
     });
