@@ -54,7 +54,22 @@ CREATE TABLE IF NOT EXISTS automation_alerts (
 );
 CREATE INDEX IF NOT EXISTS automation_alerts_open_idx ON automation_alerts(tenant_id,status,severity,created_at DESC);
 
-DO $$
+CREATE TABLE IF NOT EXISTS automation_event_receipts (
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  event_id uuid NOT NULL REFERENCES communication_domain_events(id) ON DELETE RESTRICT,
+  event_type text NOT NULL,
+  status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','PROCESSING','COMPLETED','FAILED')),
+  attempts integer NOT NULL DEFAULT 0 CHECK (attempts>=0),
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  locked_at timestamptz,
+  last_error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  PRIMARY KEY(tenant_id,event_id)
+);
+CREATE INDEX IF NOT EXISTS automation_event_receipts_due_idx ON automation_event_receipts(status,next_attempt_at,created_at);
+
+DO $
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['automation_rules','automation_rule_runs','automation_alerts'] LOOP
