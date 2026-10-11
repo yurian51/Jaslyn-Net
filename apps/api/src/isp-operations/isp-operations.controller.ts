@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { ChangeAccessStateDto, ChangeCustomerServiceStateDto, CreateAccessBindingDto, CreateFiberLineDto, CreateNetworkJobDto, CreateNetworkSiteDto, ListQueryDto, SetFiberStatusDto, UpdateNetworkJobDto } from './isp-operations.dto';
+import { ChangeAccessStateDto, ChangeCustomerServiceStateDto, CreateAccessBindingDto, CreateFiberLineDto, CreateNetworkJobDto, CreateNetworkSiteDto, ListQueryDto, SetFiberStatusDto, UpdateNetworkJobDto, SyncOfflineOperationsDto } from './isp-operations.dto';
 import { CustomerServiceStateService } from './customer-service-state.service';
 import { FiberLinesService } from './fiber-lines.service';
 import { IspOperationsService } from './isp-operations.service';
@@ -21,6 +23,39 @@ export class IspOperationsController {
   @Get('jobs') listJobs(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listJobs(req.user!.tenantId,query);}
   @Post('jobs') @Roles('OWNER','ADMIN','AGENT') createJob(@Req() req:AuthenticatedRequest,@Body() dto:CreateNetworkJobDto){return this.isp.createJob(req.user!.tenantId,dto,req.user!.id);}
   @Put('jobs/:id') @Roles('OWNER','ADMIN','AGENT') updateJob(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:UpdateNetworkJobDto){return this.isp.updateJob(req.user!.tenantId,id,dto,req.user!.id);}
+  @Post('jobs/offline-sync') @Roles('OWNER','ADMIN','AGENT')
+  syncOfflineOperations(@Req() req:AuthenticatedRequest,@Body() dto:SyncOfflineOperationsDto) {
+    return this.isp.syncOfflineOperations(req.user!.tenantId,req.user!.id,dto,{
+      userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip,
+      userAgent:Array.isArray(req.headers['user-agent'])?req.headers['user-agent'][0]:req.headers['user-agent'],
+    });
+  }
+  @Get('jobs/:id/checklist')
+  jobChecklist(@Req() req:AuthenticatedRequest,@Param('id') id:string) {
+    return this.isp.listJobChecklist(req.user!.tenantId,id);
+  }
+  @Get('jobs/:id/attachments')
+  jobAttachments(@Req() req:AuthenticatedRequest,@Param('id') id:string) {
+    return this.isp.listJobAttachments(req.user!.tenantId,id);
+  }
+  @Post('jobs/:id/attachments') @Roles('OWNER','ADMIN','AGENT')
+  @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024}}))
+  uploadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@UploadedFile() file:{originalname:string;mimetype:string;buffer:Buffer;size:number}) {
+    return this.isp.uploadJobAttachment(req.user!.tenantId,id,req.user!.id,file,{
+      userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip,
+      userAgent:Array.isArray(req.headers['user-agent'])?req.headers['user-agent'][0]:req.headers['user-agent'],
+    });
+  }
+  @Get('jobs/:id/attachments/:attachmentId')
+  async downloadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Param('attachmentId') attachmentId:string,@Res() response:Response) {
+    const file=await this.isp.getJobAttachment(req.user!.tenantId,id,attachmentId);
+    response.setHeader('Content-Type',file.contentType);
+    response.setHeader('Content-Length',String(file.byteSize));
+    response.setHeader('Content-Disposition',`inline; filename="${file.fileName.replace(/["\\\\]/g,'_')}"`);
+    response.setHeader('Cache-Control','private, no-store');
+    response.setHeader('X-Content-Type-Options','nosniff');
+    return response.status(200).send(file.content);
+  }
   @Get('jobs/:id/events') jobEvents(@Req() req:AuthenticatedRequest,@Param('id') id:string){return this.isp.jobEvents(req.user!.tenantId,id);}
   @Get('sites') listSites(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listSites(req.user!.tenantId,query);}
   @Post('sites') @Roles('OWNER','ADMIN','AGENT') createSite(@Req() req:AuthenticatedRequest,@Body() dto:CreateNetworkSiteDto){return this.isp.createSite(req.user!.tenantId,dto);}
