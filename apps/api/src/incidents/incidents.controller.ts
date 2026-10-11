@@ -27,14 +27,14 @@ export class IncidentsController {
   constructor(private readonly incidents: IncidentsService) {}
 
   @Get()
-  @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT', 'READ_ONLY', 'NOC_ENGINEER')
+  @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT', 'READ_ONLY')
   @Permissions('incident.read')
   list(@Req() req: AuthenticatedRequest, @Query() query: IncidentListQuery) {
     return this.incidents.list(req.user!.tenantId, query.status);
   }
 
   @Get('reports/sla')
-  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'CASHIER', 'NOC_ENGINEER')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'CASHIER')
   @Permissions('incident.read')
   slaReport(@Req() req:AuthenticatedRequest,@Query('from') from?:string,@Query('to') to?:string) {
     return this.incidents.getSlaReport(req.user!.tenantId,from,to);
@@ -99,14 +99,14 @@ export class IncidentsController {
   }
 
   @Post('routers/:routerId/sync-offline')
-  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
   @Permissions('incident.manage')
   syncRouterOffline(@Req() req: AuthenticatedRequest, @Param('routerId') routerId: string) {
     return this.incidents.syncRouterOffline(req.user!.tenantId, routerId, { userId: req.user!.id, requestId: req.requestId });
   }
 
   @Put(':id/owner')
-  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
   @Permissions('incident.manage')
   assignOwner(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AssignIncidentOwnerDto) {
     return this.incidents.assignOwner(req.user!.tenantId, id, dto, {
@@ -124,14 +124,14 @@ export class IncidentsController {
   }
 
   @Post(':id/acknowledge')
-  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
   @Permissions('incident.manage')
   acknowledge(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.incidents.acknowledge(req.user!.tenantId, id, { userId: req.user!.id, requestId: req.requestId });
   }
 
   @Post(':id/resolve')
-  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
   @Permissions('incident.manage')
   resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveIncidentDto) {
     return this.incidents.resolve(req.user!.tenantId, id, dto.resolution, { userId: req.user!.id, requestId: req.requestId });
