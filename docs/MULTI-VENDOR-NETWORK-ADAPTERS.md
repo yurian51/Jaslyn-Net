@@ -28,7 +28,7 @@ The following seven protocol identifiers now dispatch to dedicated adapter class
 
 Credential expectations:
 - Aruba Central, Cambium cnMaestro, Ruckus SmartZone, Teltonika RMS and Peplink InControl: per-device encrypted `accessToken` (or `apiKey` for bearer-token deployments).
-- Grandstream GWN: provider-issued `accessToken`, or API Developer credentials where the deployment's documented endpoint supports that auth mode.
+- Grandstream GWN: provider-issued `accessToken`; API Developer App ID/Secret exchange is not implemented yet because GWN.Cloud and GWN Manager auth flows need version-specific confirmation.
 - pfSense/OPNsense: per-device encrypted API key and secret; API key may be stored in `apiKey` (or `username`) and secret in `clientSecret` (or `password`).
 
 **Release boundary:** these are read-only endpoint adapters, not yet verified end-to-end integrations for every controller release. Ruckus SmartZone deployments that require session-cookie login need a version-aware login flow; Peplink requires its approved InControl OAuth client/token workflow; and Grandstream/Cambium/Teltonika endpoint paths and auth permissions must be confirmed against each account's official API guide. Do not enable production traffic collection until a connection test and provider-specific smoke tests confirm the exact endpoint and response schema. None of these adapters claims bandwidth enforcement, verified disconnect, voucher creation, or captive-portal control.
