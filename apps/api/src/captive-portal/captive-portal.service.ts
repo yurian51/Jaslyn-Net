@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
@@ -37,8 +37,8 @@ export class CaptivePortalService {
     enabled: boolean; title?: string; welcomeMessage?: string; termsText: string;
     supportPhone?: string; supportEmail?: string;
   }) {
-    if (input.title && input.title.trim().length > 120) throw new ServiceUnavailableException('Portal title is too long');
-    if (!input.termsText.trim() || input.termsText.length > 10000) throw new ServiceUnavailableException('Portal terms are required and must be under 10,000 characters');
+    if (input.title && input.title.trim().length > 120) throw new BadRequestException('Portal title is too long');
+    if (!input.termsText.trim() || input.termsText.length > 10000) throw new BadRequestException('Portal terms are required and must be under 10,000 characters');
     const result = await this.db.query(
       `INSERT INTO captive_portal_settings(tenant_id,enabled,title,welcome_message,terms_text,support_phone,support_email,updated_by,updated_at)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())
