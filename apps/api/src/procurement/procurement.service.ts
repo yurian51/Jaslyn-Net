@@ -97,11 +97,13 @@ export class ProcurementService {
       if(d.purchaseOrderId){
         const po=await client.query("SELECT id,supplier_id,currency,total,status FROM purchase_orders WHERE tenant_id=$1 AND id=$2 FOR SHARE",[tenantId,d.purchaseOrderId]);
         if(!po.rowCount)throw new NotFoundException('Purchase order not found');
+        if(!['APPROVED','PARTIALLY_RECEIVED','RECEIVED'].includes(po.rows[0].status))throw new ConflictException('Supplier invoices can only be linked to approved purchase orders');
         if(po.rows[0].supplier_id!==d.supplierId)throw new BadRequestException('Supplier invoice and purchase order suppliers do not match');
         if(po.rows[0].currency!==d.currency)throw new BadRequestException('Supplier invoice and purchase order currencies do not match');
         if(Number(d.subtotal)+Number(d.taxTotal??0)>Number(po.rows[0].total)&&Number(po.rows[0].total)>0)throw new ConflictException('Supplier invoice exceeds purchase order total');
       }
       const total=Number(d.subtotal)+Number(d.taxTotal??0);
+      if(!Number.isFinite(total)||total<=0)throw new BadRequestException('Supplier invoice total must be greater than zero');
       const invoice=await client.query(`INSERT INTO supplier_invoices(tenant_id,supplier_id,purchase_order_id,invoice_number,currency,subtotal,tax_total,total,status,invoice_date,due_date,created_by)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,'RECEIVED',$9::date,$10::date,$11) RETURNING *`,
         [tenantId,d.supplierId,d.purchaseOrderId??null,d.invoiceNumber.trim(),d.currency,Number(d.subtotal),Number(d.taxTotal??0),total,d.invoiceDate,d.dueDate??null,actorId]);
