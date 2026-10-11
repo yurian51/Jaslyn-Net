@@ -162,9 +162,6 @@ export default function Home() {
           <p className="jn-hero-lead">
             Sell internet packages, track payment status, manage subscriber access and coordinate network operations in one workspace—without jumping between disconnected tools.
           </p>
-          <p className="jn-hero-plain">
-            Connect customer lifecycle, billing, access policy and network operations in one clear workflow.
-          </p>
           <div className="jn-hero-actions">
             <Link href="/register" className="jn-btn jn-btn-primary">Create your workspace <ArrowIcon /></Link>
             <Link href="/architecture" className="jn-btn jn-btn-secondary">See how it works</Link>
