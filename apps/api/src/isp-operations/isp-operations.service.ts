@@ -316,7 +316,8 @@ export class IspOperationsService {
     return { data: result.rows, count: result.rowCount ?? 0 };
   }
 
-  async uploadJobAttachment(tenantId: string, jobId: string, actorUserId: string, file: { originalname: string; mimetype: string; buffer: Buffer; size: number }, context: AuditContext = {}) {
+  async uploadJobAttachment(tenantId: string, jobId: string, actorUserId: string, idempotencyKey: string, file: { originalname: string; mimetype: string; buffer: Buffer; size: number }, context: AuditContext = {}) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) throw new BadRequestException('A UUID Idempotency-Key header is required for photo uploads');
     if (!file?.buffer?.length || file.buffer.length > 5 * 1024 * 1024) {
       throw new BadRequestException('A photo between 1 byte and 5 MB is required');
     }
@@ -334,12 +335,21 @@ export class IspOperationsService {
       await client.query('BEGIN');
       const job = await client.query('SELECT id FROM network_jobs WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, jobId]);
       if (!job.rowCount) throw new NotFoundException('Network job not found');
+      const prior = await client.query(
+        `SELECT id,file_name AS "fileName",content_type AS "contentType",byte_size AS "byteSize",sha256,created_at AS "createdAt"
+         FROM network_job_attachments WHERE tenant_id=$1 AND job_id=$2 AND client_photo_id=$3`,
+        [tenantId, jobId, idempotencyKey],
+      );
+      if (prior.rowCount) {
+        await client.query('COMMIT');
+        return { ...prior.rows[0], replayed: true };
+      }
       const inserted = await client.query(
         `INSERT INTO network_job_attachments
-          (tenant_id,job_id,file_name,content_type,content,byte_size,sha256,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          (tenant_id,job_id,client_photo_id,file_name,content_type,content,byte_size,sha256,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING id,file_name AS "fileName",content_type AS "contentType",byte_size AS "byteSize",sha256,created_at AS "createdAt"`,
-        [tenantId, jobId, safeName, contentType, file.buffer, file.buffer.length, checksum, actorUserId],
+        [tenantId, jobId, idempotencyKey, safeName, contentType, file.buffer, file.buffer.length, checksum, actorUserId],
       );
       await client.query(
         `INSERT INTO audit_logs
