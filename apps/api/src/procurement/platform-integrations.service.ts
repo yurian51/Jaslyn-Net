@@ -64,7 +64,7 @@ export class PlatformIntegrationsService {
     const target=await this.validateTarget(d.endpointUrl);
     const secret=await this.db.query('SELECT id FROM tenant_secrets WHERE tenant_id=$1 AND id=$2',[tenantId,d.secretReference]);
     if(!secret.rowCount)throw new NotFoundException('Webhook signing secret must exist in this tenant vault');
-    const allowed=new Set(['payment.settled','invoice.issued','refund.updated','purchase_order.created','supplier_invoice.created','inventory.movement','incident.updated','network.device.updated']);
+    const allowed=new Set(['payment.settled','invoice.issued','refund.updated','purchase_order.created','supplier_invoice.created','inventory.movement','incident.updated','network.device.updated','automation.rule.matched']);
     const events=[...new Set(d.eventTypes.map(x=>String(x).trim()).filter(Boolean))];
     if(!events.length||events.some(x=>!allowed.has(x)))throw new BadRequestException('Webhook event list contains unsupported event types');
     const r=await this.db.query(`INSERT INTO tenant_webhook_endpoints(tenant_id,name,endpoint_url,secret_reference,event_types,enabled,created_by) VALUES($1,$2,$3,$4,$5,false,$6) RETURNING id,name,endpoint_url AS "endpointUrl",secret_reference AS "secretReference",event_types AS "eventTypes",enabled,created_at AS "createdAt"`,[tenantId,d.name.trim(),target.toString(),d.secretReference,events,actorId]);
