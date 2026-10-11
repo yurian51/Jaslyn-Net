@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
+import QRCode from 'qrcode';
+import './network.css';
 import BrandLogo from '../brand-logo';
 
 type Router = {
@@ -98,6 +100,9 @@ export default function NetworkPage() {
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<DeviceForm>(INITIAL_FORM);
+  const [qrRouter, setQrRouter] = useState<Router | null>(null);
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -125,6 +130,16 @@ export default function NetworkPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!qrRouter) { setQrData(null); setQrError(null); return; }
+    let cancelled = false;
+    setQrData(null); setQrError(null);
+    void QRCode.toDataURL('JASLYN-NET:ROUTER:' + qrRouter.id, { errorCorrectionLevel: 'M', margin: 2, width: 360 })
+      .then((data) => { if (!cancelled) setQrData(data); })
+      .catch(() => { if (!cancelled) setQrError('Unable to generate this asset QR code.'); });
+    return () => { cancelled = true; };
+  }, [qrRouter]);
 
   function setField<K extends keyof DeviceForm>(key: K, value: DeviceForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -356,6 +371,7 @@ export default function NetworkPage() {
                 <th>Management</th>
                 <th>Last seen</th>
                 <th>Status</th>
+                <th>Asset QR</th>
               </tr>
             </thead>
             <tbody>
@@ -371,6 +387,7 @@ export default function NetworkPage() {
                     <span className={`network-status ${(router.status ?? 'UNKNOWN').toLowerCase()}`}><i />{router.status ?? 'UNKNOWN'}</span>
                     {router.syncError ? <small className="network-sync-error">{router.syncError}</small> : null}
                   </td>
+                  <td><button type="button" className="network-button secondary network-qr-button" onClick={() => setQrRouter(router)}>QR / Print</button></td>
                 </tr>
               ))}
             </tbody>
@@ -394,6 +411,24 @@ export default function NetworkPage() {
           ) : null}
         </div>
       </section>
+
+      {qrRouter ? (
+        <div className="network-qr-backdrop" role="dialog" aria-modal="true" aria-labelledby="network-qr-title">
+          <section className="network-qr-card">
+            <button type="button" className="network-qr-close" onClick={() => setQrRouter(null)} aria-label="Close QR dialog">×</button>
+            <span className="network-qr-kicker">JASLYN NET · ASSET IDENTIFICATION</span>
+            <h2 id="network-qr-title">{qrRouter.name}</h2>
+            <p>{qrRouter.vendor ?? 'Unknown vendor'}{qrRouter.model ? ' · '+qrRouter.model : ''}</p>
+            {qrError ? <p role="alert">{qrError}</p> : qrData ? <img className="network-qr-image" src={qrData} alt={'QR code for '+qrRouter.name} /> : <p>Generating QR code…</p>}
+            <code>{qrRouter.id}</code>
+            <p className="network-qr-note">Scan with Jaslyn-Net Field Operations to identify this router. The QR contains only the asset type and UUID, never credentials.</p>
+            <div className="network-qr-actions">
+              <button type="button" className="network-button primary" onClick={() => window.print()} disabled={!qrData}>Print QR</button>
+              {qrData ? <a className="network-button secondary" href={qrData} download={'jaslyn-router-'+qrRouter.id+'.png'}>Download PNG</a> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <footer className="network-footer">
         <span>JASLYN NET · Network Operations</span>

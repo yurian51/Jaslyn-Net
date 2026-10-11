@@ -2,12 +2,13 @@ import { BadRequestException, ConflictException, Injectable, UnauthorizedExcepti
 import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { SignJWT } from 'jose';
 import { PG_POOL } from '../database/database.module';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthenticatedRequest } from './auth.guard';
+import { AuditService } from '../audit/audit.service';
 
 const scrypt = promisify(scryptCallback);
 const PASSWORD_KEY_LENGTH = 64;
@@ -21,7 +22,7 @@ interface TenantTokenRecord { id: string; name: string; slug: string; status: st
 
 @Injectable()
 export class AuthService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly config: ConfigService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly config: ConfigService, private readonly audit: AuditService) {}
 
   async register(input: RegisterDto, context: { ip?: string; userAgent?: string } = {}) {
     if (input.acceptTerms !== true || input.acceptPrivacy !== true) {
@@ -46,7 +47,7 @@ export class AuthService {
         [tenant.rows[0].id, user.rows[0].id, TERMS_VERSION, context.ip ?? null, context.userAgent?.slice(0, 500) ?? null, PRIVACY_VERSION],
       );
       await client.query('COMMIT');
-      return this.issueTokens(user.rows[0], tenant.rows[0]);
+      return this.issueTokens(user.rows[0], tenant.rows[0], context);
     } catch (error) {
       await client.query('ROLLBACK');
       if (isUniqueViolation(error)) throw new ConflictException('Business slug or email already exists');
@@ -90,7 +91,7 @@ export class AuthService {
     };
   }
 
-  async login(input: LoginDto) {
+  async login(input: LoginDto, context: { ip?: string; userAgent?: string } = {}) {
     const result = await this.db.query<UserTokenRecord & { is_active: boolean; password_hash: string; tenant_name: string; tenant_slug: string; tenant_status: string; currency: string; timezone: string }>(
       `SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.is_active, u.password_hash,
               t.name AS tenant_name, t.slug AS tenant_slug, t.status AS tenant_status, t.currency, t.timezone
@@ -100,15 +101,65 @@ export class AuthService {
     const user = result.rows[0];
     if (!user || !user.is_active || user.tenant_status === 'SUSPENDED' || user.tenant_status === 'ARCHIVED') throw new UnauthorizedException('Invalid credentials');
     if (!(await this.verifyPassword(input.password, user.password_hash))) throw new UnauthorizedException('Invalid credentials');
-    return this.issueTokens(user, { id: user.tenant_id, name: user.tenant_name, slug: user.tenant_slug, status: user.tenant_status, currency: user.currency, timezone: user.timezone });
+    return this.issueTokens(user, { id: user.tenant_id, name: user.tenant_name, slug: user.tenant_slug, status: user.tenant_status, currency: user.currency, timezone: user.timezone }, context);
   }
 
-  private async issueTokens(user: UserTokenRecord, tenant: TenantTokenRecord) {
+  private async issueTokens(user: UserTokenRecord, tenant: TenantTokenRecord, context: { ip?: string; userAgent?: string } = {}) {
     const secret = this.config.get<string>('JWT_SECRET');
     if (!secret || secret.length < 32) throw new Error('JWT_SECRET must be configured with at least 32 characters');
-    const accessToken = await new SignJWT({ sub: user.id, tenantId: tenant.id, role: user.role, email: user.email })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setIssuer(ISSUER).setAudience(AUDIENCE).setIssuedAt().setExpirationTime('15m').sign(new TextEncoder().encode(secret));
-    return { accessToken, tokenType: 'Bearer', expiresIn: 900, user: { id: user.id, tenantId: tenant.id, email: user.email, fullName: user.full_name, role: user.role }, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status, currency: tenant.currency, timezone: tenant.timezone } };
+    const sessionId = randomUUID();
+    await this.db.query(
+      `INSERT INTO auth_sessions (id, tenant_id, user_id, user_agent, ip_address, expires_at)
+       VALUES ($1,$2,$3,$4,$5,now()+interval '30 days')`,
+      [sessionId, tenant.id, user.id, context.userAgent?.slice(0, 500) ?? null, context.ip ?? null],
+    );
+    const accessToken = await new SignJWT({ sub: user.id, sid: sessionId, tenantId: tenant.id, role: user.role, email: user.email })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setIssuer(ISSUER).setAudience(AUDIENCE).setJti(sessionId).setIssuedAt().setExpirationTime('15m').sign(new TextEncoder().encode(secret));
+    return { accessToken, tokenType: 'Bearer', expiresIn: 900, session: { id: sessionId }, user: { id: user.id, tenantId: tenant.id, email: user.email, fullName: user.full_name, role: user.role }, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status, currency: tenant.currency, timezone: tenant.timezone } };
+  }
+
+  async listSessions(user: NonNullable<AuthenticatedRequest['user']>) {
+    const result = await this.db.query(
+      `SELECT id, user_agent AS "userAgent", ip_address::text AS "ipAddress",
+              created_at AS "createdAt", last_seen_at AS "lastSeenAt", expires_at AS "expiresAt",
+              revoked_at AS "revokedAt", (id=$3::uuid) AS "isCurrent",
+              (revoked_at IS NULL AND expires_at>now()) AS "isActive"
+       FROM auth_sessions
+       WHERE tenant_id=$1 AND user_id=$2
+       ORDER BY created_at DESC LIMIT 100`,
+      [user.tenantId, user.id, user.sessionId],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
+  async revokeSession(user: NonNullable<AuthenticatedRequest['user']>, sessionId: string, context: { ip?: string; userAgent?: string | string[]; requestId?: string } = {}) {
+    const result = await this.db.query(
+      `UPDATE auth_sessions SET revoked_at=now(), revoke_reason='USER_REQUEST'
+       WHERE tenant_id=$1 AND user_id=$2 AND id=$3 AND revoked_at IS NULL
+       RETURNING id`,
+      [user.tenantId, user.id, sessionId],
+    );
+    if (!result.rowCount) throw new BadRequestException('Session was not found or has already been revoked');
+    await this.audit.record(user.tenantId, 'SESSION_REVOKED', 'auth_session', sessionId, { reason: 'USER_REQUEST' }, {
+      userId: user.id, requestId: context.requestId, ipAddress: context.ip,
+      userAgent: Array.isArray(context.userAgent) ? context.userAgent[0] : context.userAgent,
+    });
+    return { revoked: true, sessionId };
+  }
+
+  async revokeOtherSessions(user: NonNullable<AuthenticatedRequest['user']>, context: { ip?: string; userAgent?: string | string[]; requestId?: string } = {}) {
+    const result = await this.db.query(
+      `UPDATE auth_sessions SET revoked_at=now(), revoke_reason='REVOKE_OTHERS'
+       WHERE tenant_id=$1 AND user_id=$2 AND id<>$3::uuid AND revoked_at IS NULL
+         AND expires_at>now()
+       RETURNING id`,
+      [user.tenantId, user.id, user.sessionId],
+    );
+    await this.audit.record(user.tenantId, 'SESSIONS_REVOKED_OTHERS', 'auth_session', user.sessionId, { revokedCount: result.rowCount ?? 0 }, {
+      userId: user.id, requestId: context.requestId, ipAddress: context.ip,
+      userAgent: Array.isArray(context.userAgent) ? context.userAgent[0] : context.userAgent,
+    });
+    return { revokedCount: result.rowCount ?? 0, currentSessionPreserved: true };
   }
 
   private async hashPassword(password: string) { const salt = randomBytes(16); const derived = (await scrypt(password, salt, PASSWORD_KEY_LENGTH)) as Buffer; return `scrypt$${salt.toString('base64url')}$${derived.toString('base64url')}`; }

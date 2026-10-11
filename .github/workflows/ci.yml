@@ -36,6 +36,15 @@ jobs:
         run: |
           set -euo pipefail
           for file in apps/api/migrations/*.sql; do test -f "$file"; done
+          test -f apps/api/migrations/062_session_audit_security_integrity.sql
+          test -f apps/api/migrations/063_field_operations_offline_sync.sql
+          test -f apps/api/migrations/064_incident_timeline_maintenance_status.sql
+          test -f apps/api/migrations/065_network_change_intelligence.sql
+          test -f apps/api/migrations/066_network_policy_compliance.sql
+          test -f apps/api/migrations/067_synthetic_monitoring.sql
+          test -f apps/api/migrations/068_revenue_assurance_reconciliation.sql
+          test -f apps/api/migrations/069_tenant_secrets_vault.sql
+          test -f apps/api/migrations/070_fine_grained_permissions.sql
           test -f apps/api/migrations/028_connectivity_incidents.sql
           test -f apps/api/migrations/029_wan_load_balancing.sql
           test -f apps/api/migrations/030_isp_field_operations.sql
@@ -78,3 +87,44 @@ jobs:
         run: pnpm --filter @jaslyn-net/web build
       - name: Traffic core benchmark
         run: pnpm --filter @jaslyn-net/api benchmark
+
+  migration-smoke:
+    name: Apply all SQL migrations to disposable PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: jaslyn
+          POSTGRES_PASSWORD: jaslyn_test_password
+          POSTGRES_DB: jaslyn_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jaslyn -d jaslyn_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply migrations in lexical order
+        env:
+          PGPASSWORD: jaslyn_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(apps/api/migrations/*.sql)
+          test "${#files[@]}" -gt 0
+          for file in "${files[@]}"; do
+            echo "::group::Apply $file"
+            psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --set=ON_ERROR_STOP=1 --file="$file"
+            echo "::endgroup::"
+          done
+          psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --tuples-only --no-align --command="SELECT count(*) FROM information_schema.tables WHERE table_schema='public';"
