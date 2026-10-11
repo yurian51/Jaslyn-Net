@@ -66,7 +66,7 @@ export class ProcurementService {
       await client.query('BEGIN');
       const order=await client.query("SELECT id,status FROM purchase_orders WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[tenantId,orderId]);
       if(!order.rowCount) throw new NotFoundException('Purchase order not found');
-      if(!['DRAFT','PENDING_APPROVAL'].includes(order.rows[0].status)) throw new ConflictException('Purchase order lines are locked after approval or receipt');
+      if(order.rows[0].status!=='DRAFT') throw new ConflictException('Purchase order lines are locked after approval or receipt');
       const q=Number(d.quantityOrdered), cost=Number(d.unitCost), taxRate=Number(d.taxRate??0);
       if(!Number.isFinite(q)||q<=0||!Number.isFinite(cost)||cost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100) throw new BadRequestException('Invalid quantity, cost or tax rate');
       const line=await client.query(`INSERT INTO purchase_order_lines(tenant_id,purchase_order_id,item_code,description,quantity_ordered,unit_cost,tax_rate)
