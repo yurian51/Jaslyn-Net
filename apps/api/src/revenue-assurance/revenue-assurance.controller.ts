@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -16,7 +16,7 @@ export class RevenueAssuranceController {
   @Get('discrepancies') @Roles('OWNER','ADMIN','AGENT','READ_ONLY')
   discrepancies(@Req() req:AuthenticatedRequest,@Query('status') status?:string){return this.assurance.listDiscrepancies(req.user!.tenantId,status);}
   @Patch('discrepancies/:id') @Roles('OWNER','ADMIN')
-  update(@Req() req:AuthenticatedRequest,@Query('id') queryId:string|undefined,@Body() dto:UpdateRevenueDiscrepancyDto){
-    return this.assurance.updateDiscrepancy(req.user!.tenantId,req.user!.id,queryId??'',dto,{userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip});
+  update(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:UpdateRevenueDiscrepancyDto){
+    return this.assurance.updateDiscrepancy(req.user!.tenantId,req.user!.id,id,dto,{userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip});
   }
 }
