@@ -153,6 +153,10 @@ export class FinanceService {
       const used=await client.query(`SELECT COALESCE(SUM(amount),0) AS total FROM refunds WHERE tenant_id=$1 AND payment_id=$2 AND status IN ('REQUESTED','APPROVED','PROCESSING','SUCCEEDED')`,[tenantId,input.paymentId]);
       if(Number(used.rows[0].total)+input.amount>Number(payment.amount)) throw new ConflictException('Refund exceeds settled payment amount');
       const r=await client.query(`INSERT INTO refunds(tenant_id,payment_id,amount,currency,reason,idempotency_key) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[tenantId,input.paymentId,input.amount,payment.currency,input.reason.trim(),input.idempotencyKey.trim()]);
+      await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+        SELECT e.tenant_id,e.id,$2::uuid,'refund.updated',jsonb_build_object('refundId',$2,'paymentId',$3,'amount',$4,'currency',$5,'status','REQUESTED')
+        FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'refund.updated'=ANY(e.event_types)
+        ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,r.rows[0].id,input.paymentId,input.amount,payment.currency]);
       await client.query('COMMIT');
       await this.auditMutation(tenantId,'CREATE','refund',r.rows[0].id,undefined,{paymentId:input.paymentId,amount:input.amount,currency:payment.currency,idempotencyKey:input.idempotencyKey.trim()});
       return r.rows[0];
@@ -167,7 +171,11 @@ export class FinanceService {
   }
   async approveRefund(tenantId:string,id:string,userId?:string) {
     const r=await this.db.query(`UPDATE refunds SET status='APPROVED',approved_by=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='REQUESTED' RETURNING *`,[tenantId,id,userId??null]);
-    if(!r.rowCount) throw new ConflictException('Refund is not REQUESTED'); await this.auditMutation(tenantId,'APPROVE','refund',id,userId,{amount:r.rows[0].amount,currency:r.rows[0].currency}); return r.rows[0];
+    if(!r.rowCount) throw new ConflictException('Refund is not REQUESTED'); await this.auditMutation(tenantId,'APPROVE','refund',id,userId,{amount:r.rows[0].amount,currency:r.rows[0].currency});
+    await this.db.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+      SELECT e.tenant_id,e.id,gen_random_uuid(),'refund.updated',jsonb_build_object('refundId',$2,'amount',$3,'currency',$4,'status','APPROVED')
+      FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'refund.updated'=ANY(e.event_types)`,[tenantId,id,r.rows[0].amount,r.rows[0].currency]);
+    return r.rows[0];
   }
 
   async listAdjustments(tenantId:string) { const r=await this.db.query(`SELECT * FROM financial_adjustments WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]); return {data:r.rows}; }
