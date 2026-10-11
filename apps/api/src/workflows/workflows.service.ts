@@ -258,11 +258,8 @@ export class WorkflowsService {
             await this.db.query(`UPDATE automation_workflow_runs SET status='QUEUED',current_step=$3,next_attempt_at=now()+make_interval(secs=>$4::int),step_results=step_results||$5::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,Number(step.seconds),JSON.stringify([{index:index-1,type:step.type,seconds:step.seconds,status:'WAITING'}])]);
             waiting=true; break;
           } else if(step.type==='EMIT_WEBHOOK') {
-            const emitted=await this.db.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
-              SELECT e.tenant_id,e.id,gen_random_uuid(),$2,jsonb_build_object('workflowId',$3,'runId',$4,'triggerPayload',$5::jsonb,'data',$6::jsonb)
-              FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND $2=ANY(e.event_types)`,
-              [run.tenant_id,step.eventType,run.id,run.run_id,JSON.stringify(payload),JSON.stringify(step.payload??{})]);
-            results.push({index,type:step.type,status:'QUEUED',deliveries:emitted.rowCount??0,eventType:step.eventType});
+            const emitted=await this.emitWebhook(run.tenant_id,run.id,run.run_id,index,String(step.eventType),payload,step.payload??{});
+            results.push({index,type:step.type,status:emitted.status,deliveries:emitted.deliveries,eventType:step.eventType});
           } else if(step.type==='LOG') results.push({index,type:step.type,message:step.message});
           index++;
         }
@@ -275,6 +272,32 @@ export class WorkflowsService {
       }
     }
     return {claimed:claimed.rowCount??0};
+  }
+
+  private async emitWebhook(tenantId:string,workflowId:string,runId:string,stepIndex:number,eventType:string,triggerPayload:Record<string,unknown>,data:unknown) {
+    const client=await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const receipt=await client.query(`INSERT INTO automation_workflow_action_receipts(tenant_id,run_id,step_index,status)
+        VALUES($1,$2,$3,'QUEUED') ON CONFLICT(tenant_id,run_id,step_index) DO NOTHING RETURNING run_id`,[tenantId,runId,stepIndex]);
+      if(!receipt.rowCount) {
+        const prior=await client.query('SELECT result FROM automation_workflow_action_receipts WHERE tenant_id=$1 AND run_id=$2 AND step_index=$3',[tenantId,runId,stepIndex]);
+        await client.query('COMMIT');
+        return {status:'ALREADY_QUEUED',deliveries:Number(prior.rows[0]?.result?.deliveries??0)};
+      }
+      const emitted=await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+        SELECT e.tenant_id,e.id,md5($4::text || ':' || $7::text || ':' || e.id::text)::uuid,$2,
+          jsonb_build_object('workflowId',$3,'runId',$4,'triggerPayload',$5::jsonb,'data',$6::jsonb)
+        FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND $2=ANY(e.event_types)`,
+        [tenantId,eventType,workflowId,runId,JSON.stringify(triggerPayload),JSON.stringify(data),stepIndex]);
+      const deliveries=emitted.rowCount??0;
+      await client.query('UPDATE automation_workflow_action_receipts SET result=$4::jsonb WHERE tenant_id=$1 AND run_id=$2 AND step_index=$3',[tenantId,runId,stepIndex,JSON.stringify({deliveries,eventType})]);
+      await client.query('COMMIT');
+      return {status:'QUEUED',deliveries};
+    } catch(e) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      throw e;
+    } finally { client.release(); }
   }
 
   private async finish(tenantId:string,runId:string,status:string,index:number,results:Record<string,unknown>[],error:string|null) {
