@@ -41,7 +41,7 @@ export class PlatformIntegrationsService {
     return {data:r.rows};
   }
   async createApiKey(tenantId:string,actorId:string,d:CreatePlatformApiKeyDto){
-    const allowed=new Set(['read','network.read','network.write','finance.read','finance.write','inventory.read','inventory.write','webhooks.manage']);
+    const allowed=new Set(['read','network.read','network.write','finance.read','finance.write','inventory.read','inventory.write','procurement.read','procurement.write','webhooks.manage']);
     const scopes=[...new Set(d.scopes.map(x=>String(x).trim()).filter(Boolean))];
     if(!scopes.length||scopes.some(x=>!allowed.has(x)))throw new BadRequestException('API key scopes contain unsupported values');
     const token='jn_live_'+randomBytes(32).toString('base64url');
