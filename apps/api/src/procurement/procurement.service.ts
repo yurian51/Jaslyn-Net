@@ -68,7 +68,7 @@ export class ProcurementService {
       if(!order.rowCount) throw new NotFoundException('Purchase order not found');
       if(order.rows[0].status!=='DRAFT') throw new ConflictException('Purchase order lines are locked after approval or receipt');
       const q=Number(d.quantityOrdered), cost=Number(d.unitCost), taxRate=Number(d.taxRate??0);
-      if(!Number.isFinite(q)||q<=0||!Number.isFinite(suppliedCost)||suppliedCost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100) throw new BadRequestException('Invalid quantity, cost or tax rate');
+      if(!Number.isFinite(q)||q<=0||!Number.isFinite(cost)||cost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100) throw new BadRequestException('Invalid quantity, cost or tax rate');
       const line=await client.query(`INSERT INTO purchase_order_lines(tenant_id,purchase_order_id,item_code,description,quantity_ordered,unit_cost,tax_rate)
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,orderId,d.itemCode.trim().toUpperCase(),d.description.trim(),q,cost,taxRate]);
       await client.query(`UPDATE purchase_orders SET
@@ -160,7 +160,7 @@ export class ProcurementService {
   }
   async postStockMovement(tenantId:string,actorId:string,itemId:string,d:CreateStockMovementDto) {
     const delta=Number(d.quantityDelta), suppliedCost=Number(d.unitCost);
-    if(!Number.isFinite(delta)||delta===0||!Number.isFinite(cost)||cost<0) throw new BadRequestException('Quantity must be non-zero and unit cost must be non-negative');
+    if(!Number.isFinite(delta)||delta===0||!Number.isFinite(suppliedCost)||suppliedCost<0) throw new BadRequestException('Quantity must be non-zero and unit cost must be non-negative');
     if(['RECEIPT','RETURN'].includes(d.movementType)&&delta<0) throw new BadRequestException('Receipt and return movements must increase stock');
     if(d.movementType==='ISSUE'&&delta>0) throw new BadRequestException('Issue movements must decrease stock');
     const client=await this.db.connect();
