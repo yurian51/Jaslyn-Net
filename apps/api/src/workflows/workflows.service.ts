@@ -11,7 +11,7 @@ import { SecretsVaultService } from '../secrets-vault/secrets-vault.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
 type Step = { type: 'CONDITION'|'TRANSFORM'|'NOTIFY'|'HTTP_REQUEST'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
-type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; execution_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; run_id:string };
+type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; execution_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; workflow_version?:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
@@ -165,8 +165,8 @@ export class WorkflowsService {
   }
 
   private async enqueue(tenantId:string,workflowId:string,triggerType:string,key:string,payload:Record<string,unknown>) {
-    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload,execution_payload,steps_snapshot)
-      SELECT $1,$2,$3,$4,$5::jsonb,$5::jsonb,w.steps FROM automation_workflows w WHERE w.tenant_id=$1 AND w.id=$2
+    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload,execution_payload,workflow_version,steps_snapshot)
+      SELECT $1,$2,$3,$4,$5::jsonb,$5::jsonb,w.version,w.steps FROM automation_workflows w WHERE w.tenant_id=$1 AND w.id=$2
       ON CONFLICT(tenant_id,workflow_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
       RETURNING id,status,workflow_id AS "workflowId",created_at AS "createdAt"`,[tenantId,workflowId,key,triggerType,JSON.stringify(payload)]);
     return r.rows[0];
@@ -223,7 +223,7 @@ export class WorkflowsService {
   }
 
   async getRun(tenantId:string,id:string) {
-    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt"
+    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",workflow_version AS "workflowVersion",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt"
       FROM automation_workflow_runs WHERE tenant_id=$1 AND id=$2`,[tenantId,id]);
     if(!r.rowCount) throw new NotFoundException('Workflow run not found');
     return r.rows[0];
@@ -259,7 +259,7 @@ export class WorkflowsService {
   }
 
   async listRuns(tenantId:string) {
-    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM automation_workflow_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
+    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",workflow_version AS "workflowVersion",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM automation_workflow_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
   }
 
@@ -459,7 +459,7 @@ export class WorkflowsService {
         OR (status='RUNNING' AND locked_at<now()-interval '10 minutes' AND attempts<8)
       ORDER BY next_attempt_at,created_at FOR UPDATE SKIP LOCKED LIMIT 25
     ) UPDATE automation_workflow_runs r SET status='RUNNING',attempts=r.attempts+1,locked_at=now(),started_at=COALESCE(r.started_at,now())
-      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload,r.execution_payload,r.steps_snapshot`);
+      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload,r.execution_payload,r.workflow_version,r.steps_snapshot`);
     for(const run of claimed.rows) {
       try {
         const w=await this.db.query('SELECT steps FROM automation_workflows WHERE tenant_id=$1 AND id=$2 AND enabled=true',[run.tenant_id,run.id]);
