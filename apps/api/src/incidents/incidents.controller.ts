@@ -34,7 +34,7 @@ export class IncidentsController {
   }
 
   @Get('reports/sla')
-  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'CASHIER')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'CASHIER', 'NOC_ENGINEER')
   @Permissions('incident.read')
   slaReport(@Req() req:AuthenticatedRequest,@Query('from') from?:string,@Query('to') to?:string) {
     return this.incidents.getSlaReport(req.user!.tenantId,from,to);
@@ -99,7 +99,8 @@ export class IncidentsController {
   }
 
   @Post('routers/:routerId/sync-offline')
-  @Roles('OWNER', 'ADMIN', 'AGENT')
+  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
+  @Permissions('incident.manage')
   syncRouterOffline(@Req() req: AuthenticatedRequest, @Param('routerId') routerId: string) {
     return this.incidents.syncRouterOffline(req.user!.tenantId, routerId, { userId: req.user!.id, requestId: req.requestId });
   }
@@ -130,7 +131,7 @@ export class IncidentsController {
   }
 
   @Post(':id/resolve')
-  @Roles('OWNER', 'ADMIN', 'AGENT')
+  @Roles('OWNER', 'ADMIN', 'NOC_ENGINEER')
   @Permissions('incident.manage')
   resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveIncidentDto) {
     return this.incidents.resolve(req.user!.tenantId, id, dto.resolution, { userId: req.user!.id, requestId: req.requestId });
