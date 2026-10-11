@@ -158,16 +158,16 @@ export default function Home() {
       <section className="jn-hero">
         <div className="jn-hero-copy">
           <div className="jn-eyebrow"><span /> CONNECTIVITY OPERATING SYSTEM</div>
-          <h1>The control plane for <em>connected businesses.</em></h1>
+          <h1>One workspace for Wi-Fi billing, subscriber access, and network operations.</h1>
           <p className="jn-hero-lead">
-            JASLYN NET helps WiFi operators and ISPs manage customers, internet packages, payments, network access and day-to-day operations from one workspace.
+            JASLYN NET connects customer records, internet packages, payment status, access control and network operations for Wi-Fi operators, ISPs and managed network teams.
           </p>
           <p className="jn-hero-plain">
-            In simple terms: manage who buys internet, confirm their payment, control their access, and help your team see what is happening on the network.
+            Sell internet packages, verify payments, manage subscriber access, and investigate network issues from one place.
           </p>
           <div className="jn-hero-actions">
             <Link href="/register" className="jn-btn jn-btn-primary">Create a workspace <ArrowIcon /></Link>
-            <Link href="/platform" className="jn-btn jn-btn-secondary">Explore the platform</Link>
+            <Link href="/architecture" className="jn-btn jn-btn-secondary">See how it works</Link>
           </div>
           <div className="jn-hero-meta">
             <span>WiFi</span><i /><span>ISP</span><i /><span>RADIUS</span><i /><span>Billing</span><i /><span>Network operations</span>
