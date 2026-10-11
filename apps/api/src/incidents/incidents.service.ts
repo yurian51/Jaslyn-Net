@@ -266,7 +266,7 @@ export class IncidentsService {
         count(*) FILTER(WHERE i.status<>'RESOLVED')::int AS "activeIncidents",
         count(*) FILTER(WHERE EXTRACT(EPOCH FROM (COALESCE(i.resolved_at,now())-i.started_at))/60>i.sla_target_minutes)::int AS "slaBreaches",
         count(*) FILTER(WHERE i.severity='CRITICAL')::int AS "criticalIncidents",
-        round(avg(EXTRACT(EPOCH FROM (i.resolved_at-i.started_at))/60) FILTER(WHERE i.status='RESOLVED' AND i.resolved_at IS NOT NULL),2) AS "averageResolutionMinutes",
+        round(avg((EXTRACT(EPOCH FROM (i.resolved_at-i.started_at))/60)::numeric) FILTER(WHERE i.status='RESOLVED' AND i.resolved_at IS NOT NULL),2) AS "averageResolutionMinutes",
         COALESCE(sum(impact.revenue_impact),0)::numeric(20,2) AS "estimatedRevenueImpact",
         COALESCE(sum(impact.customer_count),0)::int AS "customerImpactRows"
        FROM incidents i
