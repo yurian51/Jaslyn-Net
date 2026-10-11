@@ -3,6 +3,8 @@ import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validato
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { Permissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { IncidentsService } from './incidents.service';
 import { AssignIncidentOwnerDto, CreateMaintenanceWindowDto, SetIncidentPublicVisibilityDto, UpdateStatusPageComponentDto, UpdateStatusPageSettingsDto } from './incidents.dto';
 
@@ -20,24 +22,27 @@ class IncidentListQuery {
 }
 
 @Controller('incidents')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
 export class IncidentsController {
   constructor(private readonly incidents: IncidentsService) {}
 
   @Get()
   @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT', 'READ_ONLY')
+  @Permissions('incident.read')
   list(@Req() req: AuthenticatedRequest, @Query() query: IncidentListQuery) {
     return this.incidents.list(req.user!.tenantId, query.status);
   }
 
   @Get('maintenance-windows')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  @Permissions('maintenance.read')
   listMaintenanceWindows(@Req() req: AuthenticatedRequest) {
     return this.incidents.listMaintenanceWindows(req.user!.tenantId);
   }
 
   @Post('maintenance-windows')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('maintenance.manage')
   createMaintenanceWindow(@Req() req: AuthenticatedRequest, @Body() dto: CreateMaintenanceWindowDto) {
     return this.incidents.createMaintenanceWindow(req.user!.tenantId, req.user!.id, dto, {
       userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
@@ -47,6 +52,7 @@ export class IncidentsController {
 
   @Post('maintenance-windows/:id/cancel')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('maintenance.manage')
   cancelMaintenanceWindow(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.incidents.cancelMaintenanceWindow(req.user!.tenantId, id, {
       userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
@@ -55,12 +61,14 @@ export class IncidentsController {
 
   @Get('status-page')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('status.manage')
   getStatusPageSettings(@Req() req: AuthenticatedRequest) {
     return this.incidents.getStatusPageSettings(req.user!.tenantId);
   }
 
   @Put('status-page')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('status.manage')
   updateStatusPageSettings(@Req() req: AuthenticatedRequest, @Body() dto: UpdateStatusPageSettingsDto) {
     return this.incidents.updateStatusPageSettings(req.user!.tenantId, req.user!.id, dto, {
       userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
@@ -69,6 +77,7 @@ export class IncidentsController {
 
   @Put('status-page/components/:componentKey')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('status.manage')
   updateStatusPageComponent(@Req() req: AuthenticatedRequest, @Param('componentKey') componentKey: string, @Body() dto: UpdateStatusPageComponentDto) {
     return this.incidents.updateStatusPageComponent(req.user!.tenantId, req.user!.id, componentKey, dto, {
       userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
@@ -89,6 +98,7 @@ export class IncidentsController {
 
   @Put(':id/owner')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('incident.manage')
   assignOwner(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AssignIncidentOwnerDto) {
     return this.incidents.assignOwner(req.user!.tenantId, id, dto, {
       userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
@@ -97,6 +107,7 @@ export class IncidentsController {
 
   @Put(':id/public-visibility')
   @Roles('OWNER', 'ADMIN')
+  @Permissions('status.manage')
   setPublicVisibility(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: SetIncidentPublicVisibilityDto) {
     return this.incidents.setPublicVisibility(req.user!.tenantId, id, dto, {
       userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
