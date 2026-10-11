@@ -43,6 +43,7 @@ const customers = read('apps/web/app/customers/page.tsx');
 const vouchers = read('apps/web/app/vouchers/page.tsx');
 const network = read('apps/web/app/network/page.tsx');
 const notificationsPage = read('apps/web/app/notifications/page.tsx');
+const notificationsCss = read('apps/web/app/notifications/notifications.css');
 const notificationsService = read('apps/api/src/notifications/notifications.service.ts');
 const notificationsController = read('apps/api/src/notifications/notifications.controller.ts');
 const smsProvider = read('apps/api/src/notifications/sms.provider.ts');
@@ -139,6 +140,7 @@ const required = [
   ['bulk campaign history query is tenant-scoped', notificationsService.includes('listSmsCampaigns(tenantId: string') && notificationsService.includes('WHERE c.tenant_id=$1')],
   ['bulk SMS composer requires explicit confirmation', notificationsPage.includes('queueBulkCampaign') && notificationsPage.includes('Queue bulk SMS') && notificationsPage.includes('disabled={bulkSending || !bulkConfirmed}')],
   ['bulk campaign history exposes queue and provider acceptance counts', notificationsPage.includes('Recent bulk campaigns') && notificationsPage.includes('campaign.accepted') && notificationsPage.includes('campaign.failed')],
+  ['notifications stylesheet is imported and bulk composer is responsive', notificationsPage.includes("import './notifications.css';") && notificationsCss.includes('.notifications-bulk-form') && notificationsCss.includes('@media(max-width:760px)')],
 
   ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
 
