@@ -42,6 +42,14 @@ const purchases = read('apps/web/app/purchases/page.tsx');
 const customers = read('apps/web/app/customers/page.tsx');
 const vouchers = read('apps/web/app/vouchers/page.tsx');
 const network = read('apps/web/app/network/page.tsx');
+const notificationsPage = read('apps/web/app/notifications/page.tsx');
+const notificationsCss = read('apps/web/app/notifications/notifications.css');
+const notificationsService = read('apps/api/src/notifications/notifications.service.ts');
+const notificationsController = read('apps/api/src/notifications/notifications.controller.ts');
+const smsProvider = read('apps/api/src/notifications/sms.provider.ts');
+const smsWorker = read('apps/api/src/notifications/notifications.worker.ts');
+const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
+const smsCampaignMigration = read('apps/api/migrations/061_sms_campaigns.sql');
 
 const required = [
   ['premium.css import', layout.includes("import './premium.css';")],
@@ -113,6 +121,19 @@ const required = [
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
+  ['SMS provider fails closed until explicitly enabled and configured', smsProvider.includes("SMS_ENABLED') === 'true'") && smsProvider.includes('!status.configured') && smsProvider.includes('BEEM_SECRET_KEY')],
+  ['SMS outbox is tenant-scoped and idempotent', notificationsService.includes('ON CONFLICT (tenant_id,dedupe_key)') && notificationsService.includes('WHERE tenant_id = $1') && notificationsService.includes('claimSms')],
+  ['marketing SMS requires tenant-specific opt-in', notificationsService.includes('sms_marketing_consent=true') && notificationsService.includes('Marketing SMS requires recorded customer opt-in')],
+  ['SMS worker does not claim while provider is disabled', smsWorker.includes('if (!this.sms.status().configured) return') && smsWorker.includes('if (this.running || !this.sms.status().configured) return')],
+  ['SMS worker has bounded exponential retries', smsWorker.includes('Math.min(3600, 15 * 2 **') && notificationsService.includes('attempts >= 8')],
+  ['provider acknowledgement is tracked without exposing secrets', notificationsService.includes('provider_message_id') && smsProvider.includes('credentialsPresent')],
+  ['bulk SMS API caps campaign size and normalizes numbers', notificationsService.includes('between 1 and 1000 recipients') && notificationsService.includes('new Set(input.recipients.map(normalizeTanzaniaPhone))') && notificationsController.includes("@Post('sms/bulk')")],
+  ['bulk marketing requires opt-in for every recipient', notificationsService.includes('Marketing SMS requires recorded opt-in for every recipient') && notificationsService.includes('SELECT DISTINCT')],
+  ['bulk campaigns are tenant-scoped and idempotent', notificationsService.includes('INSERT INTO sms_campaigns') && notificationsService.includes('ON CONFLICT (tenant_id,idempotency_key)') && smsCampaignMigration.includes('FOREIGN KEY (tenant_id,campaign_id) REFERENCES sms_campaigns(tenant_id,id)')],
+  ['campaign history query is tenant-scoped', notificationsService.includes('listSmsCampaigns(tenantId: string') && notificationsService.includes('WHERE c.tenant_id=$1')],
+  ['bulk composer requires explicit operator confirmation', notificationsPage.includes('queueBulkCampaign') && notificationsPage.includes('Queue bulk SMS') && notificationsPage.includes('disabled={bulkSending || !bulkConfirmed}')],
+  ['campaign history shows accepted and failed counts', notificationsPage.includes('Recent bulk campaigns') && notificationsPage.includes('campaign.accepted') && notificationsPage.includes('campaign.failed')],
+  ['notification CSS is imported and responsive', notificationsPage.includes("import './notifications.css';") && notificationsCss.includes('.notifications-bulk-form') && notificationsCss.includes('@media(max-width:760px)')],
   ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
 
   ['console skeleton loader', skeleton.includes('console-skeleton-page') && skeleton.includes('aria-busy="true"')],
