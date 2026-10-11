@@ -38,7 +38,12 @@ export class BeemSmsProvider {
     const secretKey = this.config.get<string>('BEEM_SECRET_KEY')!;
     const senderId = this.config.get<string>('BEEM_SENDER_ID')!;
     const endpoint = this.config.get<string>('BEEM_SMS_ENDPOINT') || 'https://apisms.beem.africa/v1/send';
-    const response = await fetch(endpoint, {
+    let endpointUrl: URL;
+    try { endpointUrl = new URL(endpoint); } catch { throw new ServiceUnavailableException('Beem SMS endpoint is invalid'); }
+    if (endpointUrl.protocol !== 'https:' || endpointUrl.username || endpointUrl.password || endpointUrl.search || endpointUrl.hash || (endpointUrl.port && endpointUrl.port !== '443')) {
+      throw new ServiceUnavailableException('Beem SMS endpoint must use HTTPS on port 443 without URL credentials, query parameters or fragments');
+    }
+    const response = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`,
@@ -53,6 +58,7 @@ export class BeemSmsProvider {
         message,
         recipients: [{ recipient_id: idempotencyKey.slice(0, 32), dest_addr: to }],
       }),
+      redirect: 'error',
       signal: AbortSignal.timeout(15000),
     });
 
