@@ -47,6 +47,7 @@ export class SecureNetworkCredentials {
     const activeId = this.config.get<string>('JASLYN_NETWORK_CREDENTIAL_ACTIVE_KEY_ID')?.trim()
       || (keys.has('1') ? '1' : keys.keys().next().value);
     if (!activeId || !keys.has(activeId)) {
+      if (!rawRing && legacy) throw new Error('JASLYN_NETWORK_CREDENTIAL_KEY must be a 32-byte hexadecimal key');
       throw new Error('Configure JASLYN_NETWORK_CREDENTIAL_KEY or a keyring with a valid active key id');
     }
     return { activeId, keys };
