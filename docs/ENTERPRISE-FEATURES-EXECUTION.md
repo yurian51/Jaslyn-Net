@@ -12,6 +12,7 @@ Apply in order after the security/operations branch migrations 062–070:
 - `071_financial_procurement_msp_platform.sql`
 - `072_network_experience_capacity_power_sla.sql`
 - `073_event_driven_automation.sql`
+- `074_tenant_usage_quotas.sql`
 
 Review these against a disposable PostgreSQL database first. Migration files existing in Git do not mean they have been applied to any environment.
 
