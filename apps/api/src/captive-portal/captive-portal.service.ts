@@ -1,10 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, TooManyRequestsException } from '@nestjs/common';
+import { createHash, randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { VouchersService } from '../vouchers/vouchers.service';
+import { PublicVoucherRedemptionDto } from './public-voucher-redemption.dto';
 
 @Injectable()
 export class CaptivePortalService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly vouchers: VouchersService) {}
 
   async getPublicPortal(slugInput: string) {
     const slug = slugInput.trim().toLowerCase();
@@ -33,8 +36,57 @@ export class CaptivePortalService {
       packages: packages.rows };
   }
 
+  async redeemPublicVoucher(slugInput: string, input: PublicVoucherRedemptionDto, clientIp: string) {
+    const slug = slugInput.trim().toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug)) throw new NotFoundException('Portal not found');
+    const phone = input.phone.trim().replace(/[\s().-]/g, '');
+    if (!/^\+?[1-9]\d{6,14}$/.test(phone)) throw new BadRequestException('Enter a valid phone number including country code when needed');
+    const tenant = await this.db.query(
+      `SELECT t.id FROM tenants t JOIN captive_portal_settings s ON s.tenant_id=t.id
+       WHERE t.slug=$1 AND t.status='ACTIVE' AND s.enabled=true LIMIT 1`,
+      [slug],
+    );
+    if (!tenant.rowCount) throw new NotFoundException('Captive portal is not available');
+    const tenantId = String(tenant.rows[0].id);
+    const fingerprint = createHash('sha256').update(`${tenantId}:${clientIp || 'unknown'}`).digest('hex');
+    const attempt = await this.db.query<{ attemptCount: number; blockedUntil: Date | null }>(
+      `INSERT INTO captive_portal_voucher_attempts(tenant_id,client_fingerprint,window_started_at,attempt_count)
+       VALUES($1,$2,now(),1)
+       ON CONFLICT(tenant_id,client_fingerprint) DO UPDATE SET
+         window_started_at=CASE WHEN captive_portal_voucher_attempts.window_started_at <= now()-interval '15 minutes' THEN now() ELSE captive_portal_voucher_attempts.window_started_at END,
+         attempt_count=CASE WHEN captive_portal_voucher_attempts.window_started_at <= now()-interval '15 minutes' THEN 1 ELSE captive_portal_voucher_attempts.attempt_count+1 END,
+         blocked_until=CASE WHEN captive_portal_voucher_attempts.window_started_at <= now()-interval '15 minutes' THEN NULL
+           WHEN captive_portal_voucher_attempts.attempt_count+1 >= 10 THEN now()+interval '15 minutes'
+           ELSE captive_portal_voucher_attempts.blocked_until END,
+         updated_at=now()
+       RETURNING attempt_count AS "attemptCount",blocked_until AS "blockedUntil"`,
+      [tenantId, fingerprint],
+    );
+    if (attempt.rows[0]?.attemptCount >= 10 || (attempt.rows[0]?.blockedUntil && new Date(attempt.rows[0].blockedUntil).getTime() > Date.now())) {
+      throw new TooManyRequestsException('Too many voucher attempts. Wait 15 minutes and try again.');
+    }
+
+    const customerResult = await this.db.query<{ id: string }>(
+      `SELECT id FROM customers WHERE tenant_id=$1 AND phone=$2 AND is_active=true ORDER BY created_at ASC LIMIT 1`,
+      [tenantId, phone],
+    );
+    let customerId = customerResult.rows[0]?.id;
+    if (!customerId) {
+      const username = `portal-${randomBytes(12).toString('hex')}`;
+      const created = await this.db.query<{ id: string }>(
+        `INSERT INTO customers(tenant_id,full_name,phone,username,is_active)
+         VALUES($1,$2,$3,$4,true) RETURNING id`,
+        [tenantId, input.fullName.trim(), phone, username],
+      );
+      customerId = created.rows[0]?.id;
+    }
+    if (!customerId) throw new BadRequestException('Could not create a customer profile for voucher redemption');
+    const result = await this.vouchers.redeem(tenantId, input.code, { customerId, routerId: input.routerId });
+    return { ...result, message: 'Voucher accepted. Network access is being provisioned; wait for your device to connect.' };
+  }
+
   async getSettings(tenantId: string) {
-    const result = await this.db.query(`SELECT enabled,title,welcome_message AS \"welcomeMessage\",terms_text AS \"termsText\",support_phone AS \"supportPhone\",support_email AS \"supportEmail\",updated_at AS \"updatedAt\" FROM captive_portal_settings WHERE tenant_id=$1 LIMIT 1`, [tenantId]);
+    const result = await this.db.query(`SELECT enabled,title,welcome_message AS "welcomeMessage",terms_text AS "termsText",support_phone AS "supportPhone",support_email AS "supportEmail",updated_at AS "updatedAt" FROM captive_portal_settings WHERE tenant_id=$1 LIMIT 1`, [tenantId]);
     return result.rows[0] ?? { enabled: false, title: null, welcomeMessage: null, termsText: 'By connecting, you agree to the network usage policy.', supportPhone: null, supportEmail: null, updatedAt: null };
   }
 
