@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
@@ -18,14 +18,18 @@ export class IncidentsService {
               i.root_resource_type AS "rootResourceType", i.root_resource_id AS "rootResourceId",
               i.started_at AS "startedAt", i.last_seen_at AS "lastSeenAt", i.acknowledged_at AS "acknowledgedAt",
               i.resolved_at AS "resolvedAt", i.resolution, i.evidence, i.created_at AS "createdAt",
+              i.owner_user_id AS "ownerUserId", iu.full_name AS "ownerName", i.sla_target_minutes AS "slaTargetMinutes",
+              i.escalation_level AS "escalationLevel", i.public_visible AS "publicVisible",
+              (EXTRACT(EPOCH FROM (COALESCE(i.resolved_at,now())-i.started_at))/60 > i.sla_target_minutes) AS "slaBreached",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.state='AFFECTED'),0)::int AS "affectedResources",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='CUSTOMER' AND ii.state='AFFECTED'),0)::int AS "affectedCustomers",
               COALESCE(COUNT(ii.id) FILTER (WHERE ii.resource_type='SESSION' AND ii.state='AFFECTED'),0)::int AS "affectedSessions",
               COALESCE(SUM(ii.estimated_revenue) FILTER (WHERE ii.resource_type='REVENUE' AND ii.state='AFFECTED'),0)::numeric AS "estimatedRevenue"
        FROM incidents i
        LEFT JOIN incident_impacts ii ON ii.incident_id=i.id AND ii.tenant_id=i.tenant_id
+       LEFT JOIN users iu ON iu.tenant_id=i.tenant_id AND iu.id=i.owner_user_id
        WHERE i.tenant_id=$1 AND ($2::text IS NULL OR i.status=$2)
-       GROUP BY i.id
+       GROUP BY i.id,iu.full_name
        ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END, i.last_seen_at DESC
        LIMIT 200`,
       [tenantId, status ?? null],
@@ -35,11 +39,15 @@ export class IncidentsService {
 
   async get(tenantId: string, id: string) {
     const incident = await this.db.query(
-      `SELECT id, fingerprint, category, severity, status, title, summary,
-              root_resource_type AS "rootResourceType", root_resource_id AS "rootResourceId",
-              started_at AS "startedAt", last_seen_at AS "lastSeenAt", acknowledged_at AS "acknowledgedAt",
-              resolved_at AS "resolvedAt", resolution, evidence, created_at AS "createdAt", updated_at AS "updatedAt"
-       FROM incidents WHERE tenant_id=$1 AND id=$2`,
+      `SELECT i.id, i.fingerprint, i.category, i.severity, i.status, i.title, i.summary,
+              i.root_resource_type AS "rootResourceType", i.root_resource_id AS "rootResourceId",
+              i.started_at AS "startedAt", i.last_seen_at AS "lastSeenAt", i.acknowledged_at AS "acknowledgedAt",
+              i.resolved_at AS "resolvedAt", i.resolution, i.evidence, i.created_at AS "createdAt", i.updated_at AS "updatedAt",
+              i.owner_user_id AS "ownerUserId", u.full_name AS "ownerName", i.sla_target_minutes AS "slaTargetMinutes",
+              i.escalation_level AS "escalationLevel", i.public_visible AS "publicVisible", i.public_summary AS "publicSummary",
+              (EXTRACT(EPOCH FROM (COALESCE(i.resolved_at,now())-i.started_at))/60 > i.sla_target_minutes) AS "slaBreached"
+       FROM incidents i LEFT JOIN users u ON u.tenant_id=i.tenant_id AND u.id=i.owner_user_id
+       WHERE i.tenant_id=$1 AND i.id=$2`,
       [tenantId, id],
     );
     if (!incident.rowCount) throw new NotFoundException('Incident not found');
@@ -49,7 +57,13 @@ export class IncidentsService {
        FROM incident_impacts WHERE tenant_id=$1 AND incident_id=$2 ORDER BY created_at ASC`,
       [tenantId, id],
     );
-    return { ...incident.rows[0], impacts: impacts.rows };
+    const events = await this.db.query(
+      `SELECT id,event_type AS "eventType",actor_user_id AS "actorUserId",from_status AS "fromStatus",
+              to_status AS "toStatus",note,metadata,created_at AS "createdAt"
+       FROM incident_events WHERE tenant_id=$1 AND incident_id=$2 ORDER BY created_at ASC,id ASC`,
+      [tenantId, id],
+    );
+    return { ...incident.rows[0], impacts: impacts.rows, events: events.rows };
   }
 
   async syncRouterOffline(tenantId: string, routerId: string, context: AuditContext = {}) {
