@@ -1,4 +1,5 @@
 import { NotificationsWorker } from './notifications.worker';
+import { SmsProviderError } from './sms-gateway.service';
 
 describe('NotificationsWorker', () => {
   const config = (enabled: string) => ({ get: (key: string) => key === 'SMS_ENABLED' ? enabled : undefined }) as any;
@@ -18,7 +19,7 @@ describe('NotificationsWorker', () => {
         payload: { message: 'Receipt' }, attempts: 1, dedupeKey: 'receipt-1',
       }]),
       markSent: jest.fn().mockResolvedValue({ status: 'SENT' }),
-      markFailed: jest.fn(), deferSms: jest.fn(),
+      markFailed: jest.fn(), markPermanentlyFailed: jest.fn(), deferSms: jest.fn(),
     } as any;
     const provider = {
       status: jest.fn().mockResolvedValue({ configured: true }),
@@ -38,7 +39,7 @@ describe('NotificationsWorker', () => {
         id: 'sms-3', tenantId: 'tenant-a', recipient: '255712345678',
         payload: { message: 'Receipt' }, attempts: 1, dedupeKey: 'receipt-3',
       }]),
-      markSent: jest.fn(), markFailed: jest.fn(), deferSms: jest.fn(),
+      markSent: jest.fn(), markFailed: jest.fn(), markPermanentlyFailed: jest.fn(), deferSms: jest.fn(),
     } as any;
     const provider = { status: jest.fn().mockResolvedValue({ configured: false }), send: jest.fn() } as any;
     const worker = new NotificationsWorker(notifications, provider, config('true'));
@@ -46,6 +47,24 @@ describe('NotificationsWorker', () => {
     expect(notifications.deferSms).toHaveBeenCalledWith('sms-3', 'SMS provider is not configured or enabled for this tenant');
     expect(notifications.markFailed).not.toHaveBeenCalled();
     expect(provider.send).not.toHaveBeenCalled();
+  });
+
+  it('marks permanent provider rejections failed without retrying', async () => {
+    const notifications = {
+      claimSms: jest.fn().mockResolvedValue([{
+        id: 'sms-4', tenantId: 'tenant-a', recipient: '255712345678',
+        payload: { message: 'Receipt' }, attempts: 1, dedupeKey: 'receipt-4',
+      }]),
+      markSent: jest.fn(), markFailed: jest.fn(), markPermanentlyFailed: jest.fn(), deferSms: jest.fn(),
+    } as any;
+    const provider = {
+      status: jest.fn().mockResolvedValue({ configured: true }),
+      send: jest.fn().mockRejectedValue(new SmsProviderError('HTTP 401', false)),
+    } as any;
+    const worker = new NotificationsWorker(notifications, provider, config('true'));
+    await worker.process();
+    expect(notifications.markPermanentlyFailed).toHaveBeenCalledWith('sms-4', 'HTTP 401');
+    expect(notifications.markFailed).not.toHaveBeenCalled();
   });
 
   it('requeues provider failures with a bounded retry delay', async () => {
