@@ -13,6 +13,11 @@ export class IncidentsService {
     private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
+  async listAssignableOwners(tenantId:string){
+    const result=await this.db.query(`SELECT id,full_name AS "fullName",email,role FROM users WHERE tenant_id=$1 AND is_active=true AND role IN ('OWNER','ADMIN','AGENT') ORDER BY CASE role WHEN 'OWNER' THEN 0 WHEN 'ADMIN' THEN 1 ELSE 2 END,full_name LIMIT 200`,[tenantId]);
+    return {data:result.rows,count:result.rowCount??0};
+  }
+
   async list(tenantId: string, status?: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED') {
     const result = await this.db.query(
       `SELECT i.id, i.fingerprint, i.category, i.severity, i.status, i.title, i.summary,
