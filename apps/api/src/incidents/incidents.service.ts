@@ -195,7 +195,7 @@ export class IncidentsService {
             summary: `Router ${router.name} is offline${router.locationName ? ` at ${router.locationName}` : ''}.`,
             severity: 'CRITICAL',
             routerId,
-            targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'NOC_ENGINEER', 'NETWORK_ADMIN'],
+            targetRoles: ['OWNER', 'ADMIN', 'AGENT'],
           },
         });
       }
@@ -226,7 +226,7 @@ export class IncidentsService {
         title: 'Network incident resolved',
         summary: 'Router heartbeat recovered.',
         routerId,
-        targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'NOC_ENGINEER', 'NETWORK_ADMIN'],
+        targetRoles: ['OWNER', 'ADMIN', 'AGENT'],
       },
     });
     return { resolved: true, incident: await this.get(tenantId, incidentId) };
