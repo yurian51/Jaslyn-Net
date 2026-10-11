@@ -1,6 +1,6 @@
 @media print {
   body { background: #fff !important; }
-  nav, button, form, [role="alert"], [role="status"] { display: none !important; }
+  nav, button, form, a, [role="alert"], [role="status"] { display: none !important; }
   main { max-width: none !important; padding: 0 !important; background: #fff !important; }
   section { break-inside: avoid; box-shadow: none !important; }
   table { width: 100% !important; font-size: 9pt !important; }
