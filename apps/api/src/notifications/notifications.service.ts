@@ -155,8 +155,16 @@ export class NotificationsService {
   async listSmsCampaigns(tenantId: string, limit = 50) {
     const safeLimit = Math.min(Math.max(Math.trunc(limit || 50), 1), 200);
     const result = await this.db.query(
-      `SELECT c.id,c.name,c.category,c.status,c.recipient_count AS "recipientCount",
-              c.queued_count AS "queuedCount",c.created_at AS "createdAt",
+      `SELECT c.id,c.name,c.category,
+              CASE
+                WHEN count(o.id) FILTER (WHERE o.status IN ('PENDING','PROCESSING')) > 0
+                  THEN CASE WHEN count(o.id) FILTER (WHERE o.status='PROCESSING') > 0 THEN 'PROCESSING' ELSE 'QUEUED' END
+                WHEN c.recipient_count > 0 AND count(o.id) FILTER (WHERE o.status='FAILED') >= c.recipient_count THEN 'FAILED'
+                WHEN count(o.id) FILTER (WHERE o.status='FAILED') > 0 AND count(o.id) FILTER (WHERE o.status='SENT') > 0 THEN 'PARTIAL'
+                WHEN c.recipient_count > 0 AND count(o.id) FILTER (WHERE o.status='SENT') >= c.recipient_count THEN 'COMPLETED'
+                ELSE c.status
+              END AS status,
+              c.recipient_count AS "recipientCount",c.queued_count AS "queuedCount",c.created_at AS "createdAt",
               count(o.id) FILTER (WHERE o.status='PENDING')::int AS pending,
               count(o.id) FILTER (WHERE o.status='PROCESSING')::int AS processing,
               count(o.id) FILTER (WHERE o.status='SENT')::int AS accepted,
