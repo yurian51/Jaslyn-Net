@@ -90,6 +90,7 @@ export class SmsGatewayService {
     if (authType === 'basic' && !credentials.apiSecret) throw new BadRequestException('API secret is required for Basic authentication');
     if (authType === 'none') credentials = {};
     const encrypted = Object.keys(credentials).length ? this.encrypt(JSON.stringify(credentials)) : null;
+    const preserveExistingCredentials = previous?.provider === input.provider && authType !== 'none' && !input.apiKey?.trim() && !input.apiSecret?.trim();
     const apiKeyHeader = (input.apiKeyHeader || 'X-API-Key').trim();
     if (authType === 'api_key' && !FIELD.test(apiKeyHeader)) throw new BadRequestException('API key header must be a simple HTTP header name');
     const recipientField = this.validateFieldPath(input.recipientField, 'to', 'Recipient field');
@@ -103,12 +104,12 @@ export class SmsGatewayService {
         (tenant_id,provider,endpoint,sender_id,auth_type,credentials_ciphertext,api_key_header,recipient_field,message_field,sender_field,response_id_field,response_success_field,response_success_value,enabled,updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now())
        ON CONFLICT (tenant_id) DO UPDATE SET provider=EXCLUDED.provider,endpoint=EXCLUDED.endpoint,sender_id=EXCLUDED.sender_id,auth_type=EXCLUDED.auth_type,
-         credentials_ciphertext=COALESCE(EXCLUDED.credentials_ciphertext,sms_provider_configs.credentials_ciphertext),api_key_header=EXCLUDED.api_key_header,
+         credentials_ciphertext=CASE WHEN $15::boolean THEN sms_provider_configs.credentials_ciphertext ELSE EXCLUDED.credentials_ciphertext END,api_key_header=EXCLUDED.api_key_header,
          recipient_field=EXCLUDED.recipient_field,message_field=EXCLUDED.message_field,sender_field=EXCLUDED.sender_field,
          response_id_field=EXCLUDED.response_id_field,response_success_field=EXCLUDED.response_success_field,response_success_value=EXCLUDED.response_success_value,
          enabled=EXCLUDED.enabled,updated_at=now()
        RETURNING provider,endpoint,sender_id AS "senderId",auth_type AS "authType",(credentials_ciphertext IS NOT NULL) AS "hasCredentials",enabled,updated_at AS "updatedAt"`,
-      [tenantId, input.provider, endpoint, senderId, authType, encrypted, apiKeyHeader, recipientField, messageField, senderField, responseIdField, responseSuccessField, responseSuccessValue, input.enabled === true],
+      [tenantId, input.provider, endpoint, senderId, authType, encrypted, apiKeyHeader, recipientField, messageField, senderField, responseIdField, responseSuccessField, responseSuccessValue, input.enabled === true, preserveExistingCredentials],
     );
     return result.rows[0];
   }
