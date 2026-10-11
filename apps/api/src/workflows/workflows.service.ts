@@ -11,7 +11,7 @@ import { SecretsVaultService } from '../secrets-vault/secrets-vault.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
 type Step = { type: 'CONDITION'|'TRANSFORM'|'NOTIFY'|'HTTP_REQUEST'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
-type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; run_id:string };
+type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; execution_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
@@ -159,8 +159,8 @@ export class WorkflowsService {
   }
 
   private async enqueue(tenantId:string,workflowId:string,triggerType:string,key:string,payload:Record<string,unknown>) {
-    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload,steps_snapshot)
-      SELECT $1,$2,$3,$4,$5::jsonb,w.steps FROM automation_workflows w WHERE w.tenant_id=$1 AND w.id=$2
+    const r=await this.db.query(`INSERT INTO automation_workflow_runs(tenant_id,workflow_id,idempotency_key,trigger_type,trigger_payload,execution_payload,steps_snapshot)
+      SELECT $1,$2,$3,$4,$5::jsonb,$5::jsonb,w.steps FROM automation_workflows w WHERE w.tenant_id=$1 AND w.id=$2
       ON CONFLICT(tenant_id,workflow_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
       RETURNING id,status,workflow_id AS "workflowId",created_at AS "createdAt"`,[tenantId,workflowId,key,triggerType,JSON.stringify(payload)]);
     return r.rows[0];
@@ -450,13 +450,13 @@ export class WorkflowsService {
         OR (status='RUNNING' AND locked_at<now()-interval '10 minutes' AND attempts<8)
       ORDER BY next_attempt_at,created_at FOR UPDATE SKIP LOCKED LIMIT 25
     ) UPDATE automation_workflow_runs r SET status='RUNNING',attempts=r.attempts+1,locked_at=now(),started_at=COALESCE(r.started_at,now())
-      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload,r.steps_snapshot`);
+      FROM due WHERE r.id=due.id RETURNING r.id AS run_id,r.tenant_id,r.workflow_id AS id,r.current_step,r.attempts,r.trigger_payload,r.execution_payload,r.steps_snapshot`);
     for(const run of claimed.rows) {
       try {
         const w=await this.db.query('SELECT steps FROM automation_workflows WHERE tenant_id=$1 AND id=$2 AND enabled=true',[run.tenant_id,run.id]);
         if(!w.rowCount) { await this.finish(run.tenant_id,run.run_id,'CANCELLED',run.current_step,[],'WORKFLOW_DISABLED_OR_MISSING'); continue; }
         const steps=this.validateSteps(run.steps_snapshot??w.rows[0].steps);
-        const payload=run.trigger_payload??{}; const results:Record<string,unknown>[]=[];
+        const payload=run.execution_payload??run.trigger_payload??{}; const results:Record<string,unknown>[]=[];
         let index=run.current_step; let waiting=false; let completed=false;
         while(index<steps.length) {
           const step=steps[index];
@@ -501,18 +501,19 @@ export class WorkflowsService {
               [run.tenant_id,run.run_id,index,String(step.title),JSON.stringify(step.details??{})]);
             if(a.rows[0].status==='REJECTED') { await this.finish(run.tenant_id,run.run_id,'CANCELLED',index,results,'APPROVAL_REJECTED'); waiting=true; break; }
             if(a.rows[0].status==='PENDING') {
-              await this.db.query(`UPDATE automation_workflow_runs SET status='WAITING_APPROVAL',current_step=$3,step_results=step_results||$4::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,JSON.stringify(results)]);
+              await this.db.query(`UPDATE automation_workflow_runs SET status='WAITING_APPROVAL',current_step=$3,step_results=step_results||$4::jsonb,execution_payload=$5::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,JSON.stringify(results),JSON.stringify(payload)]);
               waiting=true; break;
             }
             results.push({index,type:step.type,status:'APPROVED',approvalId:a.rows[0].id});
           } else if(step.type==='WAIT') {
             index++;
-            await this.db.query(`UPDATE automation_workflow_runs SET status='QUEUED',current_step=$3,next_attempt_at=now()+make_interval(secs=>$4::int),step_results=step_results||$5::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,Number(step.seconds),JSON.stringify([{index:index-1,type:step.type,seconds:step.seconds,status:'WAITING'}])]);
+            await this.db.query(`UPDATE automation_workflow_runs SET status='QUEUED',current_step=$3,next_attempt_at=now()+make_interval(secs=>$4::int),step_results=step_results||$5::jsonb,execution_payload=$6::jsonb,locked_at=NULL WHERE tenant_id=$1 AND id=$2`,[run.tenant_id,run.run_id,index,Number(step.seconds),JSON.stringify([{index:index-1,type:step.type,seconds:step.seconds,status:'WAITING'}]),JSON.stringify(payload)]);
             waiting=true; break;
           } else if(step.type==='EMIT_WEBHOOK') {
             const emitted=await this.emitWebhook(run.tenant_id,run.id,run.run_id,index,String(step.eventType),payload,step.payload??{});
             results.push({index,type:step.type,status:emitted.status,deliveries:emitted.deliveries,eventType:step.eventType});
           } else if(step.type==='LOG') results.push({index,type:step.type,message:step.message});
+          await this.db.query('UPDATE automation_workflow_runs SET execution_payload=$3::jsonb WHERE tenant_id=$1 AND id=$2 AND status=\'RUNNING\'',[run.tenant_id,run.run_id,JSON.stringify(payload)]);
           index++;
         }
         if(!waiting) await this.finish(run.tenant_id,run.run_id,'SUCCEEDED',index,results,completed?'CONDITION_NOT_MET':null);
