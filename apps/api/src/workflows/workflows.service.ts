@@ -1,17 +1,22 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
+import { lookup as dnsLookup, type LookupFunction } from 'node:dns';
+import { lookup as lookupAddress } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService, SmsCategory } from '../notifications/notifications.service';
+import { SecretsVaultService } from '../secrets-vault/secrets-vault.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
-type Step = { type: 'CONDITION'|'TRANSFORM'|'NOTIFY'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
+type Step = { type: 'CONDITION'|'TRANSFORM'|'NOTIFY'|'HTTP_REQUEST'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
 type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; steps_snapshot?:unknown[]; current_step:number; attempts:number; run_id:string };
 
 @Injectable()
 export class WorkflowsService {
-  constructor(@Inject(PG_POOL) private readonly db:Pool, private readonly audit:AuditService, private readonly notifications:NotificationsService) {}
+  constructor(@Inject(PG_POOL) private readonly db:Pool, private readonly audit:AuditService, private readonly notifications:NotificationsService, private readonly secrets:SecretsVaultService) {}
 
   private validateSteps(raw:unknown[]):Step[] {
     if(!Array.isArray(raw)||raw.length<1||raw.length>30) throw new BadRequestException('Workflow must contain 1–30 steps');
@@ -35,6 +40,19 @@ export class WorkflowsService {
         const safePath=(raw:unknown,label:string)=>{const path=String(raw??'');if(!/^[A-Za-z0-9_-]{1,80}(\.[A-Za-z0-9_-]{1,80})*$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p)))throw new BadRequestException(`TRANSFORM ${label} path is invalid`);return path;};
         const normalized=mappings.map((raw)=>{if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('Each TRANSFORM mapping must be an object');const m=raw as Record<string,unknown>;return {from:safePath(m.from,'source'),to:safePath(m.to,'target')};});
         return {type:'TRANSFORM',mappings:normalized};
+      }
+      if(type==='HTTP_REQUEST'){
+        const integrationId=String(s.integrationId??'');
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(integrationId)) throw new BadRequestException('HTTP_REQUEST requires an integration UUID');
+        const method=String(s.method??'GET').toUpperCase();
+        if(!['GET','POST','PUT','PATCH','DELETE'].includes(method)) throw new BadRequestException('HTTP_REQUEST method is unsupported');
+        const path=String(s.path??'');
+        if(!path.startsWith('/')||path.startsWith('//')||path.split(/[?#]/,1)[0].split('/').some(part=>part==='..')) throw new BadRequestException('HTTP_REQUEST path must be a safe relative path beginning with /');
+        const body=s.body===undefined?{}:s.body;
+        if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>16384) throw new BadRequestException('HTTP_REQUEST body must be a JSON object no larger than 16 KB');
+        const outputKey=String(s.outputKey??'');
+        if(outputKey&&!/^[A-Za-z0-9_-]{1,80}$/.test(outputKey)) throw new BadRequestException('HTTP_REQUEST outputKey is invalid');
+        return {type:'HTTP_REQUEST',integrationId,method,path,body,outputKey};
       }
       if(type==='NOTIFY'){
         const channel=String(s.channel??'').toUpperCase();
@@ -75,7 +93,7 @@ export class WorkflowsService {
         if(message.length<1||message.length>500) throw new BadRequestException('LOG message must be 1–500 characters');
         return {type:'LOG',message};
       }
-      throw new BadRequestException('Allowed workflow steps: CONDITION, TRANSFORM, NOTIFY, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
+      throw new BadRequestException('Allowed workflow steps: CONDITION, TRANSFORM, HTTP_REQUEST, NOTIFY, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
     });
   }
 
@@ -297,6 +315,82 @@ export class WorkflowsService {
     return r.rows[0];
   }
 
+  private isPublicAddress(address:string,family:number) {
+    if(family===4){
+      const parts=address.split('.').map(Number);
+      if(parts.length!==4||parts.some(n=>!Number.isInteger(n)||n<0||n>255)) return false;
+      const [a,b]=parts;
+      if(a===0||a===10||a===127||a>=224) return false;
+      if(a===100&&b>=64&&b<=127) return false;
+      if(a===169&&b===254) return false;
+      if(a===172&&b>=16&&b<=31) return false;
+      if(a===192&&(b===0||b===168)) return false;
+      if(a===198&&(b===18||b===19||b===51)) return false;
+      if(a===203&&b===0) return false;
+      if(a===192&&b===0) return false;
+      return true;
+    }
+    if(family===6){
+      const normalized=address.toLowerCase().split('%')[0];
+      // Only global-unicast IPv6 is allowed; reject mapped, loopback, link-local,
+      // unique-local, multicast, unspecified and documentation ranges.
+      if(!/^[23]/.test(normalized)||normalized==='::1'||normalized==='::'||normalized.startsWith('2001:db8:')) return false;
+      return !normalized.startsWith('::ffff:');
+    }
+    return false;
+  }
+
+  private async executeIntegrationRequest(tenantId:string,workflowId:string,runId:string,stepIndex:number,step:Step) {
+    const integration=await this.db.query(`SELECT id,base_url,secret_ref FROM automation_integrations
+      WHERE tenant_id=$1 AND id=$2 AND enabled=true AND provider_type='REST_API'`,[tenantId,step.integrationId]);
+    if(!integration.rowCount||!integration.rows[0].base_url) throw new BadRequestException('HTTP_REQUEST requires an enabled tenant-owned REST_API integration');
+    const base=new URL(integration.rows[0].base_url);
+    if(base.protocol!=='https:'||base.username||base.password||isIP(base.hostname)) throw new BadRequestException('Integration URL is not an approved HTTPS hostname');
+    const url=new URL(String(step.path),base);
+    if(url.origin!==base.origin||url.username||url.password||url.hash) throw new BadRequestException('HTTP_REQUEST path escapes its configured integration origin');
+    const records=await lookupAddress(url.hostname,{all:true,verbatim:true});
+    if(!records.length||records.some(record=>!this.isPublicAddress(record.address,record.family))) throw new BadRequestException('Integration hostname resolves to a non-public address and was blocked');
+    const selected=records[0];
+    const pinnedLookup:LookupFunction=(_hostname,options,callback)=>{
+      if(typeof options==='object'&&options!==null&&'all'in options&&options.all) callback(null,[{address:selected.address,family:selected.family}]);
+      else callback(null,selected.address,selected.family);
+    };
+    const headers:Record<string,string>={'accept':'application/json','user-agent':'Jaslyn-Net-Workflow/1.0'};
+    if(step.method!=='GET'&&step.method!=='DELETE') headers['content-type']='application/json';
+    if(integration.rows[0].secret_ref){
+      const secret=await this.db.query('SELECT secret_key FROM tenant_secrets WHERE tenant_id=$1 AND id=$2',[tenantId,integration.rows[0].secret_ref]);
+      if(!secret.rowCount) throw new BadRequestException('Integration secret is no longer available in this tenant');
+      const value=await this.secrets.getSecretValue(tenantId,secret.rows[0].secret_key);
+      headers.authorization=`Bearer ${value}`;
+    }
+    const body=step.method==='GET'||step.method==='DELETE'?undefined:JSON.stringify(step.body??{});
+    const result=await new Promise<{statusCode:number;responseBytes:number;json?:unknown}>((resolve,reject)=>{
+      const request=httpsRequest(url,{method:String(step.method),headers,servername:url.hostname,lookup:pinnedLookup},response=>{
+        const chunks:Buffer[]=[];let size=0;
+        response.on('data',(chunk:Buffer|string)=>{
+          const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);size+=bytes.length;
+          if(size>65536){request.destroy(new Error('Integration response exceeds 64 KB'));return;}
+          chunks.push(bytes);
+        });
+        response.on('error',reject);
+        response.on('end',()=>{
+          const statusCode=response.statusCode??0;
+          if(statusCode<200||statusCode>=300){reject(new Error(`Integration returned HTTP ${statusCode}`));return;}
+          const raw=Buffer.concat(chunks).toString('utf8');
+          const contentType=String(response.headers['content-type']??'').toLowerCase();
+          let json:unknown=undefined;
+          if(raw&&contentType.includes('application/json')){try{json=JSON.parse(raw);}catch{reject(new Error('Integration returned invalid JSON'));return;}}
+          resolve({statusCode,responseBytes:size,...(json!==undefined?{json}:{})});
+        });
+      });
+      request.setTimeout(10000,()=>request.destroy(new Error('Integration request timed out')));
+      request.on('error',reject);
+      if(body)request.write(body);
+      request.end();
+    });
+    return result;
+  }
+
   private valueAt(payload:Record<string,unknown>,path:string) {
     let v:unknown=payload;
     for(const part of path.split('.')) { if(!v||typeof v!=='object'||Array.isArray(v)||!Object.prototype.hasOwnProperty.call(v,part)) return {exists:false,value:undefined}; v=(v as Record<string,unknown>)[part]; }
@@ -375,6 +469,14 @@ export class WorkflowsService {
               if(step.onFalse==='SKIP') { index+=Number(step.skipSteps??1); }
               else { completed=true; index=steps.length; break; }
             }
+          } else if(step.type==='HTTP_REQUEST') {
+            const response=await this.executeIntegrationRequest(run.tenant_id,run.id,run.run_id,index,step);
+            if(response.json!==undefined){
+              const existing=payload.integrationResponses;
+              if(!existing||typeof existing!=='object'||Array.isArray(existing)) payload.integrationResponses={};
+              (payload.integrationResponses as Record<string,unknown>)[String(step.outputKey||`step${index}`)]=response.json;
+            }
+            results.push({index,type:step.type,statusCode:response.statusCode,responseBytes:response.responseBytes,outputKey:String(step.outputKey||`step${index}`)});
           } else if(step.type==='NOTIFY') {
             const target=this.valueAt(payload,String(step.recipientPath));
             if(!target.exists||typeof target.value!=='string'||!target.value.trim()) throw new BadRequestException('NOTIFY recipient path must resolve to a non-empty string');
