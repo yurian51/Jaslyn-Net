@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -23,7 +23,7 @@ export class PlatformIntegrationsController {
   createWebhook(@Req() r:AuthenticatedRequest,@Body() d:CreateWebhookEndpointDto){return this.integrations.createWebhook(r.user!.tenantId,r.user!.id,d);}
   @Patch('webhooks/:id/enabled') @Roles('OWNER','ADMIN') @Permissions('platform.api.manage')
   setWebhookEnabled(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body('enabled') enabled:boolean){
-    if(typeof enabled!=='boolean')throw new (require('@nestjs/common').BadRequestException)('enabled must be a boolean');
+    if(typeof enabled!=='boolean')throw new BadRequestException('enabled must be a boolean');
     return this.integrations.setWebhookEnabled(r.user!.tenantId,r.user!.id,id,enabled);
   }
 }
