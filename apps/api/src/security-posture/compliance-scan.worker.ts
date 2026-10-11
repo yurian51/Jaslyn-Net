@@ -19,7 +19,8 @@ export class ComplianceScanWorker implements OnModuleInit,OnModuleDestroy {
     try{
       const result=await client.query<{acquired:boolean}>('SELECT pg_try_advisory_lock($1) AS acquired',[7_421_955]);
       locked=Boolean(result.rows[0]?.acquired);if(!locked)return;
-      await this.posture.runAllTenantScans();
+      const results=await this.posture.runAllTenantScans();
+      for(const result of results)if(result.status==='FAILED')this.logger.error('Tenant compliance scan failed for '+result.tenantId+': '+result.error);
     }catch(e){this.logger.error('Scheduled compliance scan failed',e instanceof Error?e.stack:undefined);}
     finally{if(locked)await client.query('SELECT pg_advisory_unlock($1)',[7_421_955]).catch(()=>undefined);client.release();this.running=false;}
   }
