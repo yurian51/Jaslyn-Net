@@ -22,7 +22,13 @@ type Notification = {
   providerMessageId?: string | null;
 };
 
-type SmsProviderStatus = { provider: string; enabled: boolean; configured: boolean; credentialsPresent: boolean; senderIdConfigured: boolean; mode: string };
+type SmsProviderStatus = { provider: string; enabled: boolean; configured: boolean; credentialsPresent: boolean; senderIdConfigured: boolean; senderId?: string; mode: string };
+type SmsProviderSettings = {
+  configured: boolean; provider: 'beem' | 'custom_rest'; enabled: boolean; senderId: string; endpoint: string;
+  authType: 'none' | 'bearer' | 'api_key' | 'basic'; apiKeyHeader?: string; recipientField?: string;
+  messageField?: string; senderField?: string; responseIdField?: string; responseSuccessField?: string;
+  responseSuccessValue?: string; hasCredentials: boolean;
+};
 type SmsCampaign = { id: string; name: string; category: string; status: string; recipientCount: number; queuedCount: number; pending: number; processing: number; accepted: number; failed: number; createdAt: string };
 
 type Stats = {
@@ -62,6 +68,25 @@ export default function NotificationsPage() {
   const [query, setQuery] = useState('');
   const [smsProvider, setSmsProvider] = useState<SmsProviderStatus | null>(null);
   const [smsStatusError, setSmsStatusError] = useState<string | null>(null);
+  const [smsSettings, setSmsSettings] = useState<SmsProviderSettings | null>(null);
+  const [smsConfigLoading, setSmsConfigLoading] = useState(false);
+  const [smsConfigSaving, setSmsConfigSaving] = useState(false);
+  const [smsConfigError, setSmsConfigError] = useState<string | null>(null);
+  const [smsConfigSuccess, setSmsConfigSuccess] = useState<string | null>(null);
+  const [smsProviderType, setSmsProviderType] = useState<'beem' | 'custom_rest'>('custom_rest');
+  const [smsEndpoint, setSmsEndpoint] = useState('');
+  const [smsSenderId, setSmsSenderId] = useState('');
+  const [smsAuthType, setSmsAuthType] = useState<'none' | 'bearer' | 'api_key' | 'basic'>('bearer');
+  const [smsApiKey, setSmsApiKey] = useState('');
+  const [smsApiSecret, setSmsApiSecret] = useState('');
+  const [smsApiKeyHeader, setSmsApiKeyHeader] = useState('X-API-Key');
+  const [smsRecipientField, setSmsRecipientField] = useState('to');
+  const [smsMessageField, setSmsMessageField] = useState('message');
+  const [smsSenderField, setSmsSenderField] = useState('sender');
+  const [smsResponseIdField, setSmsResponseIdField] = useState('messageId');
+  const [smsResponseSuccessField, setSmsResponseSuccessField] = useState('');
+  const [smsResponseSuccessValue, setSmsResponseSuccessValue] = useState('true');
+  const [smsConfigEnabled, setSmsConfigEnabled] = useState(false);
   const [bulkName, setBulkName] = useState('');
   const [bulkRecipients, setBulkRecipients] = useState('');
   const [bulkMessage, setBulkMessage] = useState('');
@@ -113,6 +138,70 @@ export default function NotificationsPage() {
       setSmsStatusError(err instanceof Error ? err.message : 'SMS provider status unavailable.');
     });
   }, []);
+
+  const loadSmsSettings = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) return;
+    setSmsConfigLoading(true);
+    try {
+      const settings = await apiFetch<SmsProviderSettings>('/notifications/sms/settings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSmsSettings(settings);
+      setSmsProviderType(settings.provider);
+      setSmsEndpoint(settings.endpoint || '');
+      setSmsSenderId(settings.senderId || '');
+      setSmsAuthType(settings.authType || 'bearer');
+      setSmsApiKeyHeader(settings.apiKeyHeader || 'X-API-Key');
+      setSmsRecipientField(settings.recipientField || 'to');
+      setSmsMessageField(settings.messageField || 'message');
+      setSmsSenderField(settings.senderField || 'sender');
+      setSmsResponseIdField(settings.responseIdField || 'messageId');
+      setSmsResponseSuccessField(settings.responseSuccessField || '');
+      setSmsResponseSuccessValue(settings.responseSuccessValue || 'true');
+      setSmsConfigEnabled(settings.enabled === true);
+    } catch (err: unknown) {
+      setSmsConfigError(err instanceof Error ? err.message : 'Unable to load SMS settings.');
+    } finally {
+      setSmsConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadSmsSettings(); }, [loadSmsSettings]);
+
+  async function saveSmsSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = getAccessToken();
+    if (!token) { setSmsConfigError('Authentication required.'); return; }
+    if (smsProviderType === 'custom_rest' && !smsEndpoint.trim()) {
+      setSmsConfigError('Custom provider endpoint is required.');
+      return;
+    }
+    if (!smsSenderId.trim()) { setSmsConfigError('Sender ID is required.'); return; }
+    setSmsConfigSaving(true); setSmsConfigError(null); setSmsConfigSuccess(null);
+    try {
+      const saved = await apiFetch<{ hasCredentials: boolean }>('/notifications/sms/settings', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: smsProviderType, endpoint: smsEndpoint.trim() || undefined, senderId: smsSenderId.trim(),
+          authType: smsAuthType, apiKey: smsApiKey || undefined, apiSecret: smsApiSecret || undefined,
+          apiKeyHeader: smsApiKeyHeader, recipientField: smsRecipientField, messageField: smsMessageField,
+          senderField: smsSenderField, responseIdField: smsResponseIdField,
+          responseSuccessField: smsResponseSuccessField, responseSuccessValue: smsResponseSuccessValue,
+          enabled: smsConfigEnabled,
+        }),
+      });
+      setSmsApiKey(''); setSmsApiSecret('');
+      setSmsConfigSuccess('Provider settings saved. Credentials are stored encrypted; no test SMS was sent.');
+      if (smsSettings) setSmsSettings({ ...smsSettings, provider: smsProviderType, endpoint: smsEndpoint, senderId: smsSenderId, authType: smsAuthType, hasCredentials: saved.hasCredentials, enabled: smsConfigEnabled });
+      await Promise.all([loadSmsSettings(), load()]);
+    } catch (err: unknown) {
+      setSmsConfigError(err instanceof ApiError || err instanceof Error ? err.message : 'Unable to save SMS settings.');
+    } finally {
+      setSmsConfigSaving(false);
+    }
+  }
 
   const loadCampaigns = useCallback(async () => {
     const token = getAccessToken();
@@ -233,6 +322,81 @@ export default function NotificationsPage() {
         <span className={`notifications-sms-state ${smsProvider?.configured ? 'ready' : 'disabled'}`}>
           {smsStatusError ? 'STATUS UNKNOWN' : smsProvider?.configured ? 'CONFIGURED' : 'DISABLED'}
         </span>
+      </section>
+
+      <section className="notifications-surface notifications-bulk-surface" aria-labelledby="sms-settings-title">
+        <div className="notifications-surface-head">
+          <div><span>PROVIDER CONTROL CENTER</span><h2 id="sms-settings-title">SMS Gateway Settings</h2><p>Choose a provider, set the Sender ID and map its REST API. Credentials are write-only and never returned to the browser.</p></div>
+        </div>
+        <form className="notifications-bulk-form" onSubmit={(event) => void saveSmsSettings(event)}>
+          <div className="notifications-bulk-fields">
+            <label>Provider
+              <select value={smsProviderType} onChange={(event) => setSmsProviderType(event.target.value as typeof smsProviderType)}>
+                <option value="custom_rest">Custom REST API</option><option value="beem">Beem</option>
+              </select>
+            </label>
+            <label>Sender ID
+              <input value={smsSenderId} onChange={(event) => setSmsSenderId(event.target.value)} maxLength={16} placeholder="Approved sender ID" required />
+            </label>
+          </div>
+          {smsProviderType === 'custom_rest' ? <label className="notifications-bulk-wide">HTTPS send endpoint
+            <input value={smsEndpoint} onChange={(event) => setSmsEndpoint(event.target.value)} type="url" placeholder="https://api.provider.example/sms/send" required />
+            <small>The hostname must be approved in the server-side SMS_CUSTOM_ALLOWED_HOSTS allowlist.</small>
+          </label> : <p>Beem uses its native request format. Leave endpoint blank to use the standard Beem endpoint.</p>}
+          <div className="notifications-bulk-fields">
+            <label>Authentication
+              <select value={smsAuthType} onChange={(event) => setSmsAuthType(event.target.value as typeof smsAuthType)}>
+                <option value="bearer">Bearer token</option><option value="api_key">API key header</option><option value="basic">Basic authentication</option><option value="none">No authentication</option>
+              </select>
+            </label>
+            {smsAuthType === 'api_key' ? <label>API key header name
+              <input value={smsApiKeyHeader} onChange={(event) => setSmsApiKeyHeader(event.target.value)} placeholder="X-API-Key" />
+            </label> : null}
+          </div>
+          {smsAuthType !== 'none' ? <div className="notifications-bulk-fields">
+            <label>API key / username
+              <input value={smsApiKey} onChange={(event) => setSmsApiKey(event.target.value)} type="password" autoComplete="new-password" placeholder={smsSettings?.hasCredentials ? 'Saved securely — blank keeps current key' : 'Enter API key or username'} />
+            </label>
+            {smsAuthType === 'basic' ? <label>API secret / password
+              <input value={smsApiSecret} onChange={(event) => setSmsApiSecret(event.target.value)} type="password" autoComplete="new-password" placeholder={smsSettings?.hasCredentials ? 'Saved securely — blank keeps current secret' : 'Enter API secret'} />
+            </label> : null}
+          </div> : null}
+          {smsProviderType === 'custom_rest' ? <>
+            <div className="notifications-bulk-fields">
+              <label>Request field: recipient
+                <input value={smsRecipientField} onChange={(event) => setSmsRecipientField(event.target.value)} placeholder="to or recipient.phone" />
+              </label>
+              <label>Request field: message
+                <input value={smsMessageField} onChange={(event) => setSmsMessageField(event.target.value)} placeholder="message or content.text" />
+              </label>
+              <label>Request field: Sender ID
+                <input value={smsSenderField} onChange={(event) => setSmsSenderField(event.target.value)} placeholder="sender" />
+              </label>
+              <label>Response field: message ID
+                <input value={smsResponseIdField} onChange={(event) => setSmsResponseIdField(event.target.value)} placeholder="messageId or data.id" />
+              </label>
+              <label>Optional response success field
+                <input value={smsResponseSuccessField} onChange={(event) => setSmsResponseSuccessField(event.target.value)} placeholder="success or data.accepted" />
+              </label>
+              <label>Expected success value
+                <input value={smsResponseSuccessValue} onChange={(event) => setSmsResponseSuccessValue(event.target.value)} placeholder="true" />
+              </label>
+            </div>
+            <small>Use simple JSON paths (for example data.messageId). Arbitrary scripts and redirects are not supported.</small>
+          </> : null}
+          <label className="notifications-bulk-confirm">
+            <input type="checkbox" checked={smsConfigEnabled} onChange={(event) => setSmsConfigEnabled(event.target.checked)} />
+            <span>Enable this tenant's provider configuration. Dispatch still requires the deployment-level SMS_ENABLED=true switch and an approved Sender ID.</span>
+          </label>
+          {smsConfigError ? <div className="notifications-error" role="alert"><Icon name="alert" /><span>{smsConfigError}</span></div> : null}
+          {smsConfigSuccess ? <div className="notifications-bulk-success" role="status">{smsConfigSuccess}</div> : null}
+          <div className="notifications-bulk-submit">
+            <span>{smsConfigLoading ? 'Loading saved configuration…' : smsSettings?.hasCredentials ? 'Credentials are saved encrypted. Leave secret fields blank to retain them.' : 'No saved credentials are available.'}</span>
+            <button className="notifications-action primary" type="submit" disabled={smsConfigSaving || smsConfigLoading}>
+              {smsConfigSaving ? 'Saving settings…' : 'Save SMS settings'}
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="notifications-surface notifications-bulk-surface" aria-labelledby="bulk-sms-title">
