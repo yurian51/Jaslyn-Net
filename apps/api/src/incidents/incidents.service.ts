@@ -290,7 +290,7 @@ export class IncidentsService {
   async assignOwner(tenantId: string, incidentId: string, input: AssignIncidentOwnerDto, context: AuditContext = {}) {
     const ownerId = input.ownerUserId ?? null;
     if (ownerId) {
-      const user = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true', [tenantId, ownerId]);
+      const user = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true AND role IN ('OWNER','ADMIN','AGENT')', [tenantId, ownerId]);
       if (!user.rowCount) throw new NotFoundException('Active owner user was not found in this tenant');
     }
     const result = await this.db.query(
