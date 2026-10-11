@@ -40,7 +40,7 @@ export class WorkflowsService {
         const channel=String(s.channel??'').toUpperCase();
         if(!['SMS','EMAIL','WHATSAPP','WEBHOOK'].includes(channel)) throw new BadRequestException('NOTIFY channel is unsupported');
         const recipientPath=String(s.recipientPath??'');
-        if(!/^[A-Za-z0-9_-]{1,80}(\\.[A-Za-z0-9_-]{1,80})*$/.test(recipientPath)||recipientPath.split('.').some(p=>['__proto__','prototype','constructor'].includes(p))) throw new BadRequestException('NOTIFY recipientPath is invalid');
+        if(!/^[A-Za-z0-9_-]{1,80}(\.[A-Za-z0-9_-]{1,80})*$/.test(recipientPath)||recipientPath.split('.').some(p=>['__proto__','prototype','constructor'].includes(p))) throw new BadRequestException('NOTIFY recipientPath is invalid');
         const eventType=String(s.eventType??'WORKFLOW.NOTIFICATION').trim().toUpperCase();
         if(!/^[A-Z][A-Z0-9_.-]{1,119}$/.test(eventType)) throw new BadRequestException('NOTIFY eventType is invalid');
         const message=String(s.message??'').trim();
