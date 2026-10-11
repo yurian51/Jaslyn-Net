@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { ApiError, apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import BrandLogo from '../brand-logo';
+import './notifications.css';
 
 type Notification = {
   id: string;
