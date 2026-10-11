@@ -69,7 +69,7 @@ export default function FieldOperationsPage(){
    if(!match){setError('This QR code is not a recognized Jaslyn-Net router asset.');return;}
    disposed=true;controls?.stop();setScanning(false);void resolveAsset(match[1]);
   }).catch((cause:unknown)=>{if(!disposed){setError(cause instanceof Error?cause.message:'Unable to start the device camera.');setScanning(false);}});
-  return()=>{disposed=true;controls?.stop();reader.reset();};
+  return()=>{disposed=true;controls?.stop();};
  },[scanning,resolveAsset]);
  const refreshQueue=useCallback(async()=>{setQueue(await readAll<Operation>('operations'));setPhotos(await readAll<Photo>('photos'));},[]);
  const loadJobs=useCallback(async()=>{
