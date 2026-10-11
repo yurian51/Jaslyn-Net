@@ -290,7 +290,7 @@ export class IncidentsService {
   async assignOwner(tenantId: string, incidentId: string, input: AssignIncidentOwnerDto, context: AuditContext = {}) {
     const ownerId = input.ownerUserId ?? null;
     if (ownerId) {
-      const user = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true AND role IN ('OWNER','ADMIN','AGENT')', [tenantId, ownerId]);
+      const user = await this.db.query(`SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true AND role IN ('OWNER','ADMIN','AGENT')`, [tenantId, ownerId]);
       if (!user.rowCount) throw new NotFoundException('Active owner user was not found in this tenant');
     }
     const result = await this.db.query(
@@ -298,6 +298,7 @@ export class IncidentsService {
       [tenantId, incidentId, ownerId],
     );
     if (!result.rowCount) throw new NotFoundException('Incident not found');
+    await this.db.query(`INSERT INTO incident_events(tenant_id,incident_id,actor_user_id,event_type,note,metadata) VALUES($1,$2,$3,'OWNER_ASSIGNED',$4,$5::jsonb)`, [tenantId, incidentId, context.userId ?? null, ownerId ? 'Incident owner assigned' : 'Incident owner cleared', JSON.stringify({ ownerUserId: ownerId })]);
     await this.audit.record(tenantId, 'INCIDENT_OWNER_CHANGED', 'incident', incidentId, { ownerUserId: ownerId }, context);
     return this.get(tenantId, incidentId);
   }
