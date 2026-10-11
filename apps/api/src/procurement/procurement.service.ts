@@ -203,7 +203,7 @@ export class ProcurementService {
   }
   async arAging(tenantId:string) {
     const r=await this.db.query(`SELECT bucket,currency,count(*)::int AS invoice_count,sum(outstanding)::numeric(20,2) AS outstanding
-      FROM (SELECT i.currency,i.total AS outstanding,CASE WHEN i.status='PAID' OR i.status='VOID' THEN 'CURRENT' WHEN i.due_at IS NULL OR i.due_at>=now() THEN 'CURRENT' WHEN i.due_at>=now()-interval '30 days' THEN '1-30 DAYS' WHEN i.due_at>=now()-interval '60 days' THEN '31-60 DAYS' WHEN i.due_at>=now()-interval '90 days' THEN '61-90 DAYS' ELSE '90+ DAYS' END bucket FROM invoices i WHERE i.tenant_id=$1 AND i.status NOT IN ('PAID','VOID')) aged
+      FROM (SELECT i.currency,GREATEST(i.total-i.amount_paid-COALESCE((SELECT SUM(c.amount) FROM customer_credit_notes c WHERE c.tenant_id=i.tenant_id AND c.invoice_id=i.id AND c.status='APPLIED'),0),0)::numeric(20,2) AS outstanding,CASE WHEN i.due_at IS NULL OR i.due_at>=now() THEN 'CURRENT' WHEN i.due_at>=now()-interval '30 days' THEN '1-30 DAYS' WHEN i.due_at>=now()-interval '60 days' THEN '31-60 DAYS' WHEN i.due_at>=now()-interval '90 days' THEN '61-90 DAYS' ELSE '90+ DAYS' END bucket FROM invoices i WHERE i.tenant_id=$1 AND i.status NOT IN ('PAID','VOID') AND i.total>i.amount_paid+COALESCE((SELECT SUM(c.amount) FROM customer_credit_notes c WHERE c.tenant_id=i.tenant_id AND c.invoice_id=i.id AND c.status='APPLIED'),0)) aged
       GROUP BY bucket,currency ORDER BY currency,CASE bucket WHEN 'CURRENT' THEN 0 WHEN '1-30 DAYS' THEN 1 WHEN '31-60 DAYS' THEN 2 WHEN '61-90 DAYS' THEN 3 ELSE 4 END`,[tenantId]);
     return {data:r.rows};
   }
