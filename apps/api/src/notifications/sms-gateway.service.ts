@@ -142,7 +142,7 @@ export class SmsGatewayService {
   async getSettings(tenantId: string) {
     const result = await this.db.query<StoredConfig>('SELECT * FROM sms_provider_configs WHERE tenant_id=$1', [tenantId]);
     const row = result.rows[0];
-    if (!row) return { configured: false, provider: 'beem', enabled: false, senderId: '', endpoint: '', authType: 'basic', hasCredentials: false };
+    if (!row) return { configured: false, provider: 'custom_rest', enabled: false, senderId: '', endpoint: '', authType: 'bearer', hasCredentials: false };
     return {
       configured: true, provider: row.provider, enabled: row.enabled, senderId: row.sender_id, endpoint: row.endpoint || '',
       authType: row.auth_type, apiKeyHeader: row.api_key_header || 'X-API-Key', recipientField: row.recipient_field,
