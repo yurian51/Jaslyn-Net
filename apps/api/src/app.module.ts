@@ -37,6 +37,7 @@ import { AccessControlModule } from './access-control/access-control.module';
 import { ProcurementModule } from './procurement/procurement.module';
 import { OperationsIntelligenceModule } from './operations-intelligence/operations-intelligence.module';
 import { AutomationModule } from './automation/automation.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 
 @Module({
   imports: [
@@ -44,7 +45,7 @@ import { AutomationModule } from './automation/automation.module';
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule,
   ],
 })
 export class AppModule implements NestModule {
