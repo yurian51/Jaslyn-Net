@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
-import { apiFetch } from '../../lib/api';
-import { getAccessToken } from '../../lib/auth';
+import { apiFetch } from '../../../lib/api';
+import { getAccessToken } from '../../../lib/auth';
 type Metric={metricKey:string;currentUsage:number;limitCount:number|null;remaining:number|null;source:string};
 type Overview={planName:string|null;metrics:Metric[];historicalDailyUsage:{metric_key:string;period_start:string;usage_count:number}[]};
 const field:CSSProperties={padding:10,border:'1px solid #cbd5e1',borderRadius:8,width:'100%',boxSizing:'border-box'};
