@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS compliance_findings (
   resource_id uuid NOT NULL,
   title text NOT NULL,
   details text NOT NULL,
+  resolution_note text,
   evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz,
