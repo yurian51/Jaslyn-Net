@@ -12,8 +12,8 @@ type WorkflowAlert = { id:string; runId:string; severity:string; title:string; s
 type Data<T> = { data:T[] };
 
 const defaultSteps = JSON.stringify([
-  { type: 'CONDITION', path: 'payment.status', op: 'eq', value: 'CONFIRMED' },
-  { type: 'CREATE_ALERT', severity: 'HIGH', title: 'Payment workflow requires operator attention', details: { source: 'workflow' } },\n  { type: 'APPROVAL', title: 'Approve sensitive downstream action', details: { risk: 'medium' } },
+  { type: 'CREATE_ALERT', severity: 'HIGH', title: 'Payment workflow requires operator attention', details: { source: 'workflow' } },
+  { type: 'APPROVAL', title: 'Approve sensitive downstream action', details: { risk: 'medium' } },
   { type: 'EMIT_WEBHOOK', eventType: 'payment.workflow.completed', payload: { source: 'jaslyn-net' } },
   { type: 'LOG', message: 'Workflow completed' },
 ], null, 2);
@@ -60,8 +60,9 @@ export default function AutomationWorkspacePage() {
         apiFetch<Data<Run>>('/automation/workflows/runs',{headers:h}),
         apiFetch<Data<Approval>>('/automation/workflows/approvals',{headers:h}),
         apiFetch<Data<Integration>>('/automation/workflows/integrations',{headers:h}),
+        apiFetch<Data<WorkflowAlert>>('/automation/workflows/alerts',{headers:h}),
       ]);
-      setWorkflows(w.data??[]);setRuns(r.data??[]);setApprovals(a.data??[]);setIntegrations(i.data??[]);setError(null);
+      setWorkflows(w.data??[]);setRuns(r.data??[]);setApprovals(a.data??[]);setIntegrations(i.data??[]);setAlerts(al.data??[]);setError(null);
     } catch(e) { setError(e instanceof ApiError||e instanceof Error?e.message:'Could not load workflow workspace.'); }
   },[headers]);
 
@@ -140,6 +141,11 @@ export default function AutomationWorkspacePage() {
         {w.nextRunAt&&<p style={{fontSize:12}}>Next scheduled: {new Date(w.nextRunAt).toLocaleString()}</p>}
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={styles.button} disabled={busy} onClick={()=>void changeEnabled(w,!w.enabled)}>{w.enabled?'Disable':'Enable'}</button><button style={styles.primary} disabled={busy||!w.enabled} onClick={()=>void runWorkflow(w)}>Run now</button></div>
       </article>)}</div>}
+    </section>
+
+    <section style={styles.panel}>
+      <h2 style={{marginTop:0}}>Operational alerts <small style={{fontSize:14,color:'#64748b'}}>({alerts.filter(a=>a.status==='OPEN').length} open)</small></h2>
+      {alerts.length===0?<p style={{color:'#64748b'}}>No workflow alerts returned.</p>:alerts.slice(0,50).map(a=><div key={a.id} style={{borderTop:'1px solid #e2e8f0',padding:'12px 0',display:'flex',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}><div><strong>{a.title}</strong><p style={{margin:'5px 0',fontSize:12,color:'#64748b'}}>Run {a.runId} · {new Date(a.createdAt).toLocaleString()}</p></div><span style={{fontSize:12,fontWeight:700}}>{a.severity} · {a.status}</span></div>)}
     </section>
 
     <section style={styles.panel}>
