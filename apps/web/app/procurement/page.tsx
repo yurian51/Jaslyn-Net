@@ -9,10 +9,11 @@ type Domain = 'suppliers'|'orders'|'supplierInvoices'|'inventory'|'aging'|'audit
 const label=(v:unknown)=>v===null||v===undefined||v===''?'—':String(v);
 const money=(v:unknown,c='TZS')=>{const n=Number(v??0);try{return new Intl.NumberFormat('en-TZ',{style:'currency',currency:c,maximumFractionDigits:2}).format(n)}catch{return c+' '+n.toLocaleString();}};
 const inputStyle:CSSProperties={padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:'100%',boxSizing:'border-box'};
-const buttonStyle:React.CSSProperties={padding:'10px 14px',border:0,borderRadius:8,background:'#174ea6',color:'#fff',fontWeight:700,cursor:'pointer'};
-const panelStyle:React.CSSProperties={background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:16,marginBottom:16};
-const tableStyle:React.CSSProperties={width:'100%',borderCollapse:'collapse',fontSize:13};
-const cellStyle:React.CSSProperties={textAlign:'left',padding:'10px 8px',borderBottom:'1px solid #e2e8f0',verticalAlign:'top'};
+const buttonStyle:CSSProperties={padding:'10px 14px',border:0,borderRadius:8,background:'#174ea6',color:'#fff',fontWeight:700,cursor:'pointer'};
+const panelStyle:CSSProperties={background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:16,marginBottom:16};
+const tableStyle:CSSProperties={width:'100%',borderCollapse:'collapse',fontSize:13};
+const cellStyle:CSSProperties={textAlign:'left',padding:'10px 8px',borderBottom:'1px solid #e2e8f0',verticalAlign:'top'};
+const endpoints:Record<Domain,string>={suppliers:'/procurement/suppliers',orders:'/procurement/purchase-orders',supplierInvoices:'/procurement/supplier-invoices',inventory:'/inventory/items',aging:'/finance-ops/accounts-receivable/aging',audit:'/finance-ops/audit',branding:'/msp/branding'};
 
 export default function ProcurementPage(){
  const [domain,setDomain]=useState<Domain>('inventory');
@@ -38,7 +39,7 @@ export default function ProcurementPage(){
  },[]);
  useEffect(()=>{void load();},[load]);
  async function send(path:string,body:unknown,success:string){setBusy(true);setError('');setNotice('');try{await apiFetch(path,{method:'POST',headers:headers(),body:JSON.stringify(body)});setNotice(success);await load();}catch(e){setError(e instanceof ApiError||e instanceof Error?e.message:'Imeshindikana kuhifadhi.');}finally{setBusy(false);}}
- async function onSupplier(e:FormEvent){e.preventDefault();await send('/procurement/suppliers',{supplierCode,name:supplierName,email:supplierEmail},'Supplier amehifadhiwa.');}
+ async function onSupplier(e:FormEvent){e.preventDefault();await send('/procurement/suppliers',{supplierCode,name:supplierName,email:supplierEmail||undefined},'Supplier amehifadhiwa.');}
  async function onOrder(e:FormEvent){e.preventDefault();await send('/procurement/purchase-orders',{supplierId:poSupplier,poNumber,currency:poCurrency},'Purchase order imetengenezwa.');}
  async function onItem(e:FormEvent){e.preventDefault();await send('/inventory/items',{sku,name:itemName,reorderLevel:Number(reorder)},'Inventory item imehifadhiwa.');}
  async function onMovement(e:FormEvent){e.preventDefault();const q=Number(quantity);await send('/inventory/items/'+encodeURIComponent(movementItem)+'/movements',{movementType,quantityDelta:movementType==='ISSUE'?-Math.abs(q):Math.abs(q),unitCost:Number(unitCost),currency:'TZS',referenceType:'MANUAL',idempotencyKey:idem},'Stock movement imerekodiwa.');}
