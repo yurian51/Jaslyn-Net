@@ -7,13 +7,34 @@ import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from '
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 import { OmadaNetworkAdapter } from './omada.adapter';
 import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
+import {
+  ArubaCentralNetworkAdapter,
+  CambiumCnMaestroNetworkAdapter,
+  GrandstreamGwnNetworkAdapter,
+  PeplinkInControlNetworkAdapter,
+  PfSenseOpnSenseNetworkAdapter,
+  RuckusSmartZoneNetworkAdapter,
+  TeltonikaRmsNetworkAdapter,
+} from './additional-vendor.adapters';
 
 export interface NetworkDeviceConnection { routerId: string; protocol: NetworkManagementProtocol; endpoint?: string; controllerEndpoint?: string; capabilities?: Record<string, unknown>; credentials?: NetworkCredentials; }
 export interface NormalizedWifiClient { username?: string; address?: string; macAddress?: string; bytesIn: string; bytesOut: string; }
 
 @Injectable()
 export class NetworkDeviceAdapterRegistry {
-  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter, @Optional() private readonly omada?: OmadaNetworkAdapter, @Optional() private readonly ruijie?: RuijieReyeeNetworkAdapter) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly mikrotik: MikroTikTrafficEnforcementAdapter,
+    @Optional() private readonly omada?: OmadaNetworkAdapter,
+    @Optional() private readonly ruijie?: RuijieReyeeNetworkAdapter,
+    @Optional() private readonly aruba?: ArubaCentralNetworkAdapter,
+    @Optional() private readonly cambium?: CambiumCnMaestroNetworkAdapter,
+    @Optional() private readonly grandstream?: GrandstreamGwnNetworkAdapter,
+    @Optional() private readonly ruckus?: RuckusSmartZoneNetworkAdapter,
+    @Optional() private readonly teltonika?: TeltonikaRmsNetworkAdapter,
+    @Optional() private readonly peplink?: PeplinkInControlNetworkAdapter,
+    @Optional() private readonly pfsense?: PfSenseOpnSenseNetworkAdapter,
+  ) {}
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     switch (connection.protocol) {
@@ -26,14 +47,13 @@ export class NetworkDeviceAdapterRegistry {
       case 'UNIFI_NETWORK_API': return this.readUniFi(connection);
       case 'MERAKI_DASHBOARD_API': return this.readMeraki(connection);
       case 'OPENWRT_UBUS': return this.readOpenWrt(connection);
-      case 'CAMBIUM_CNMAESTRO':
-      case 'ARUBA_CENTRAL_API':
-      case 'GRANDSTREAM_GWN_API':
-      case 'RUCKUS_SMARTZONE_API':
-      case 'TELTONIKA_RMS_API':
-      case 'PEPLINK_INCONTROL_API':
-      case 'PFSENSE_API':
-        throw new ServiceUnavailableException(`Native telemetry adapter is not implemented for ${connection.protocol}; configure GENERIC_HTTP only for a documented compatible endpoint`);
+      case 'ARUBA_CENTRAL_API': if (!this.aruba) throw new ServiceUnavailableException('Aruba Central adapter is not registered'); return this.aruba.readClients(connection);
+      case 'CAMBIUM_CNMAESTRO': if (!this.cambium) throw new ServiceUnavailableException('Cambium cnMaestro adapter is not registered'); return this.cambium.readClients(connection);
+      case 'GRANDSTREAM_GWN_API': if (!this.grandstream) throw new ServiceUnavailableException('Grandstream GWN adapter is not registered'); return this.grandstream.readClients(connection);
+      case 'RUCKUS_SMARTZONE_API': if (!this.ruckus) throw new ServiceUnavailableException('Ruckus SmartZone adapter is not registered'); return this.ruckus.readClients(connection);
+      case 'TELTONIKA_RMS_API': if (!this.teltonika) throw new ServiceUnavailableException('Teltonika RMS adapter is not registered'); return this.teltonika.readClients(connection);
+      case 'PEPLINK_INCONTROL_API': if (!this.peplink) throw new ServiceUnavailableException('Peplink InControl adapter is not registered'); return this.peplink.readClients(connection);
+      case 'PFSENSE_API': if (!this.pfsense) throw new ServiceUnavailableException('pfSense/OPNsense adapter is not registered'); return this.pfsense.readClients(connection);
       case 'GENERIC_HTTP': return this.readGenericHttp(connection);
       case 'SNMP':
       case 'RADIUS_NAS': throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
