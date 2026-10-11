@@ -35,6 +35,13 @@ describe('WorkflowsService safety and tenant boundaries', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  it('rejects conditional branches with invalid skip counts', async () => {
+    await expect(service.create('tenant-a','user-a',{
+      name:'unsafe branch',triggerType:'MANUAL',steps:[{type:'CONDITION',path:'payment.status',op:'eq',value:'PAID',onFalse:'SKIP',skipSteps:0}],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('rejects arbitrary execution steps before any database write', async () => {
     await expect(service.create('tenant-a','user-a',{
       name:'unsafe workflow',triggerType:'MANUAL',steps:[{type:'RUN_SHELL',command:'id'}],
