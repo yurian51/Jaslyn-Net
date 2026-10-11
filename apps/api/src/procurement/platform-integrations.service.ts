@@ -18,11 +18,11 @@ export class PlatformIntegrationsService {
     if(isIP(address)===4){
       const o=address.split('.').map(Number);if(o.length!==4)return false;
       const a=o[0]??0,b=o[1]??0;
-      return !(a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127)||(a===198&&(b===18||b===19))||(a===192&&b===0));
+      return !(a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&(b===0||b===2||b===168))||(a===100&&b>=64&&b<=127)||(a===198&&(b===18||b===19||b===51))||(a===203&&b===0&&o[2]===113)||(a===192&&b===88&&o[2]===99));
     }
     if(isIP(address)===6){
       const x=address.toLowerCase();
-      if(x==='::'||x==='::1'||x.startsWith('::ffff:')||x.startsWith('fe80:')||x.startsWith('fc')||x.startsWith('fd')||x.startsWith('ff'))return false;
+      if(x==='::'||x==='::1'||x.startsWith('::ffff:')||x.startsWith('fe80:')||x.startsWith('fc')||x.startsWith('fd')||x.startsWith('ff')||x.startsWith('2001:db8:')||x.startsWith('2001:10:')||x.startsWith('2001:20:'))return false;
       return x.startsWith('2')||x.startsWith('3');
     }
     return false;
