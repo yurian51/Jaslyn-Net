@@ -167,7 +167,7 @@ export default function Home() {
           </p>
           <div className="jn-hero-actions">
             <Link href="/register" className="jn-btn jn-btn-primary">Create a workspace <ArrowIcon /></Link>
-            <a href="#platform" className="jn-btn jn-btn-secondary">Explore the platform</a>
+            <Link href="/platform" className="jn-btn jn-btn-secondary">Explore the platform</Link>
           </div>
           <div className="jn-hero-meta">
             <span>WiFi</span><i /><span>ISP</span><i /><span>RADIUS</span><i /><span>Billing</span><i /><span>Network operations</span>
