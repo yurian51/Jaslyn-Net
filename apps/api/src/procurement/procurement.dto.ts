@@ -54,7 +54,7 @@ export class UpdateBrandingDto {
   @IsOptional() @IsString() @Matches(/^#[0-9A-Fa-f]{6}$/) primaryColor?: string;
   @IsOptional() @IsEmail() supportEmail?: string;
   @IsOptional() @IsString() @MaxLength(40) supportPhone?: string;
-  @IsOptional() @IsString() @Matches(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/) @MaxLength(253) portalDomain?: string;
+  @IsOptional() @IsString() @Matches(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/) @MaxLength(253) portalDomain?: string;
 }
 export class CreateCustomerCreditNoteDto {
   @IsUUID() invoiceId!: string;
