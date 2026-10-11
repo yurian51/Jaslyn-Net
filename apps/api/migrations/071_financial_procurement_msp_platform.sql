@@ -299,7 +299,7 @@ BEGIN
   v_before := CASE WHEN TG_OP='INSERT' THEN NULL ELSE to_jsonb(OLD) END;
   v_after := CASE WHEN TG_OP='DELETE' THEN NULL ELSE to_jsonb(NEW) END;
   v_tenant := COALESCE((v_after->>'tenant_id')::uuid,(v_before->>'tenant_id')::uuid);
-  v_id := COALESCE((v_after->>'id')::uuid,(v_before->>'id')::uuid);
+  v_id := COALESCE((v_after->>'id')::uuid,(v_before->>'id')::uuid,v_tenant);
   v_actor := NULLIF(current_setting('jaslyn.actor_user_id',true),'')::uuid;
   v_request := NULLIF(current_setting('jaslyn.request_id',true),'');
   PERFORM pg_advisory_xact_lock(hashtextextended(v_tenant::text,0));
