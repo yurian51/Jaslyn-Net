@@ -35,7 +35,7 @@ export class CreateInventoryItemDto {
   @IsString() @MinLength(2) @MaxLength(180) name!: string;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsString() @MaxLength(30) unit?: string;
-  @IsOptional() @IsIn(['WEIGHTED_AVERAGE','FIFO']) valuationMethod?: string;
+  @IsOptional() @IsIn(['WEIGHTED_AVERAGE']) valuationMethod?: string;
   @IsOptional() @IsNumber() @Min(0) reorderLevel?: number;
 }
 export class CreateStockMovementDto {
