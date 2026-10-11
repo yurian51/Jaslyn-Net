@@ -16,7 +16,7 @@ export class RevenueAssuranceWorker implements OnModuleInit,OnModuleDestroy {
     const client=await this.db.connect().catch((e:unknown)=>{this.logger.error('Revenue assurance worker could not connect',e instanceof Error?e.stack:undefined);return null;});
     if(!client){this.running=false;return;}
     let locked=false;
-    try{const r=await client.query<{acquired:boolean}>('SELECT pg_try_advisory_lock($1) AS acquired',[7_421_966]);locked=Boolean(r.rows[0]?.acquired);if(!locked)return;await this.assurance.runAllTenantReconciliations();}
+    try{const r=await client.query<{acquired:boolean}>('SELECT pg_try_advisory_lock($1) AS acquired',[7_421_966]);locked=Boolean(r.rows[0]?.acquired);if(!locked)return;const results=await this.assurance.runAllTenantReconciliations();for(const result of results)if(result.status==='FAILED')this.logger.error('Tenant revenue reconciliation failed for '+result.tenantId+': '+result.error);}
     catch(e){this.logger.error('Scheduled revenue reconciliation failed',e instanceof Error?e.stack:undefined);}
     finally{if(locked)await client.query('SELECT pg_advisory_unlock($1)',[7_421_966]).catch(()=>undefined);client.release();this.running=false;}
   }
