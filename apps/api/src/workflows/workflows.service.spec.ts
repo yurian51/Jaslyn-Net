@@ -88,6 +88,13 @@ describe('WorkflowsService safety and tenant boundaries', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  it('rejects IP-literal integration hosts to reduce SSRF risk', async () => {
+    await expect(service.createIntegration('tenant-a','user-a',{
+      name:'private host',providerType:'REST_API',baseUrl:'https://127.0.0.1/admin',enabled:false,
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('requires an HTTPS integration URL for generic HTTP integrations', async () => {
     await expect(service.createIntegration('tenant-a','user-a',{
       name:'unsafe endpoint',providerType:'REST_API',baseUrl:'http://127.0.0.1:3000',enabled:true,
