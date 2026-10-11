@@ -13,6 +13,7 @@ Apply in order after the security/operations branch migrations 062–070:
 - `072_network_experience_capacity_power_sla.sql`
 - `073_event_driven_automation.sql`
 - `074_tenant_usage_quotas.sql`
+- `075_financial_audit_head_guard.sql`
 
 Review these against a disposable PostgreSQL database first. Migration files existing in Git do not mean they have been applied to any environment.
 
@@ -24,7 +25,7 @@ Review these against a disposable PostgreSQL database first. Migration files exi
 | Customer credits | Tenant-scoped credit notes with draft → issued → applied lifecycle and balance checks | Tax/accounting policy review; migration and concurrent-credit tests |
 | Supplier procurement | Suppliers, purchase orders, lines, approval request/approval, supplier invoices and duplicate-safe supplier invoice payments | No bank transfer/provider settlement is executed by these records |
 | Inventory | Tenant-scoped SKUs, stock movement ledger, non-negative stock checks, idempotency, weighted-average valuation and PO receiving into inventory | FIFO is intentionally not advertised; physical counts and live warehouse/device sources need integration |
-| Financial audit | Database-triggered append-only audit rows, per-tenant SHA-256 chain and a verification endpoint/UI | Execute tamper, concurrency, actor attribution and restore tests |
+| Financial audit | Database-triggered append-only audit rows, per-tenant SHA-256 chain, guarded chain heads and a verification endpoint/UI | Execute tamper, concurrency, actor attribution and restore tests |
 | CSV/PDF reports | Tenant-scoped current-domain CSV export with spreadsheet-formula neutralization; print-to-PDF | Validate print layouts and data export permissions in browser tests |
 | White label | Per-tenant branding, primary color, HTTPS logo URL, support details and notification-template storage | Domain ownership verification, TLS issuance, full branding propagation and consumption of stored templates by SMS/email delivery workers remain outstanding |
 | Tenant hierarchy | Child tenant can request a parent; parent tenant owner/admin approves; cycle checks prevent circular hierarchy | No automatic inheritance of user permissions; delegated admin scopes need separate policy tests |
