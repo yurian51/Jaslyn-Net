@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
@@ -42,8 +42,8 @@ export class IspOperationsController {
   }
   @Post('jobs/:id/attachments') @Roles('OWNER','ADMIN','AGENT') @Permissions('field.write')
   @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024}}))
-  uploadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@UploadedFile() file:{originalname:string;mimetype:string;buffer:Buffer;size:number}) {
-    return this.isp.uploadJobAttachment(req.user!.tenantId,id,req.user!.id,file,{
+  uploadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Headers('idempotency-key') idempotencyKey:string|undefined,@UploadedFile() file:{originalname:string;mimetype:string;buffer:Buffer;size:number}) {
+    return this.isp.uploadJobAttachment(req.user!.tenantId,id,req.user!.id,idempotencyKey??'',file,{
       userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip,
       userAgent:Array.isArray(req.headers['user-agent'])?req.headers['user-agent'][0]:req.headers['user-agent'],
     });
