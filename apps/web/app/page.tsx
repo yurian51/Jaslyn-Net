@@ -1,150 +1,67 @@
 import Link from 'next/link';
 import LandingNav from './landing-nav';
-import BrandLogo from './brand-logo';
 
-const operatingLayers = [
-  ['01', 'Subscriber', 'Customers, service state, devices and the lifecycle behind every connection.'],
-  ['02', 'Commerce', 'Packages, subscriptions, invoices, purchases and payment-aware workflows.'],
-  ['03', 'Entitlement', 'The policy layer that turns verified commercial state into controlled access.'],
-  ['04', 'Network', 'Routers, gateways, RADIUS, IPAM, sessions and multi-location infrastructure.'],
-  ['05', 'Operations', 'Incidents, commands, audit, visibility and the evidence needed to run the system.'],
-];
-
-const operatingScenarios = [
-  ['WiFi operators', 'Sell prepaid access, manage captive portal journeys, control vouchers and understand sessions without stitching together separate tools.', 'Hotspot · Vouchers · Payments'],
-  ['ISPs & WISPs', 'Keep subscribers, packages, AAA, network devices and service state connected as your deployment grows across locations.', 'PPPoE · RADIUS · IPAM'],
-  ['Multi-location teams', 'Operate sites, routers, customer services and incidents from one tenant-aware operational context.', 'Locations · Network · Incidents'],
-  ['Managed networks', 'Give operations teams a shared control plane for customers, infrastructure, access policy and accountability.', 'Operations · Audit · Commands'],
-];
-
-const integrations = [
-  { vendor: 'MikroTik', protocol: 'RouterOS REST + RADIUS', mode: 'Router / AAA', logos: ['/integrations/mikrotik.svg'] },
-  { vendor: 'Ubiquiti UniFi', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['/integrations/ubiquiti.svg'] },
-  { vendor: 'TP-Link Omada', protocol: 'Controller API + RADIUS', mode: 'Controller', logos: ['/integrations/tplink.svg'] },
-  { vendor: 'Cambium Networks', protocol: 'cnMaestro + RADIUS', mode: 'Controller', logos: ['/integrations/cambium-networks.svg'] },
-  { vendor: 'Cisco Meraki', protocol: 'Dashboard API + RADIUS', mode: 'Cloud API', logos: ['/integrations/meraki.svg'] },
-  { vendor: 'Aruba Networks', protocol: 'Central API + RADIUS', mode: 'Cloud API', logos: ['/integrations/aruba.svg'] },
-  { vendor: 'Grandstream', protocol: 'GWN API + RADIUS', mode: 'Controller', logos: ['/integrations/grandstream.svg'] },
-  { vendor: 'Ruijie / Reyee', protocol: 'Cloud API + RADIUS', mode: 'Cloud API', logos: ['/integrations/ruijie-reyee.svg'] },
-  { vendor: 'Ruckus Networks', protocol: 'SmartZone API + RADIUS', mode: 'Controller', logos: ['/integrations/ruckus.svg'] },
-  { vendor: 'OpenWrt', protocol: 'ubus + RADIUS', mode: 'Gateway', logos: ['/integrations/openwrt.svg'] },
-  { vendor: 'Teltonika Networks', protocol: 'RMS API + RADIUS', mode: 'Gateway', logos: ['/integrations/teltonika.svg'] },
-  { vendor: 'Peplink', protocol: 'InControl API + RADIUS', mode: 'WAN', logos: ['/integrations/peplink.svg'] },
-  { vendor: 'pfSense / OPNsense', protocol: 'Gateway API + RADIUS', mode: 'Gateway', logos: ['/integrations/pfsense.svg', '/integrations/opnsense.svg'] },
-  { vendor: 'FreeRADIUS', protocol: 'Vendor-neutral AAA', mode: 'AAA', logos: ['/integrations/freeradius.svg'] },
+const capabilities = [
+  { n: '01', title: 'Sell access', copy: 'Publish Wi-Fi packages, issue vouchers, manage subscriptions and keep customer purchases together.', tags: 'Packages · Vouchers · Billing' },
+  { n: '02', title: 'Verify payments', copy: 'Connect payment events to orders and reconcile what was paid before service access changes.', tags: 'Payments · Reconciliation · Receipts' },
+  { n: '03', title: 'Control connectivity', copy: 'Coordinate subscribers, access policy, sessions, routers and incidents from one operating view.', tags: 'RADIUS · Sessions · Network' },
 ];
 
 const modules = [
-  ['Billing', 'Package catalog, subscriptions, invoices and revenue workflows.'],
-  ['Customers', 'Customer profiles, devices and service lifecycle.'],
-  ['Hotspot', 'Captive portal, access policies and customer onboarding.'],
-  ['Vouchers', 'Prepaid access creation, activation, expiry and control.'],
-  ['Sessions', 'Live connections, usage context and session history.'],
-  ['Network', 'Locations, routers, infrastructure and operational state.'],
-  ['Payments', 'Transactions, verification and reconciliation.'],
-  ['RADIUS / AAA', 'Authentication, authorization and accounting workflows.'],
-  ['IPAM', 'Address pools, allocations and network inventory.'],
-  ['Incidents', 'Connectivity issues, correlation and operational follow-up.'],
-  ['WAN & Load Balancing', 'Multi-WAN policy, path control and traffic distribution.'],
-  ['Audit & Security', 'Operational history, access accountability and security events.'],
+  ['Customer management', 'Profiles, service status and subscriber lifecycle'],
+  ['Wi-Fi billing', 'Packages, subscriptions, invoices and credits'],
+  ['Hotspot & vouchers', 'Captive portal, prepaid access and expiry'],
+  ['Payments', 'Transactions, refunds and reconciliation'],
+  ['Network operations', 'Routers, sites, sessions and incidents'],
+  ['Security & audit', 'Permissions, activity history and accountability'],
 ];
 
-const faqs = [
-  ['What is JASLYN NET?', 'JASLYN NET is a connectivity and ISP operating system that brings customer, commercial, access and network operations into one control plane.'],
-  ['Is the platform tied to one network vendor?', 'No. The architecture is designed around vendor adapters and standards such as RADIUS, allowing native controller/API integrations to coexist with vendor-neutral access workflows.'],
-  ['Does the public website show live network data?', 'No. The public experience uses product concepts and workflow examples rather than fabricated operational numbers. Live workspace data belongs inside the authenticated console.'],
-  ['How does payment-aware access work?', 'A verified payment event can update purchase state and, where configured, drive the entitlement and service state used by the access workflow.'],
-  ['Can I operate more than one location?', 'The platform is designed around tenant-aware customers, services, network devices and operational state, making multi-location operations a first-class concern.'],
-];
+const vendors = ['MikroTik', 'UniFi', 'Omada', 'Cambium', 'Cisco Meraki', 'Aruba', 'Grandstream', 'Ruckus', 'Teltonika', 'Peplink', 'pfSense / OPNsense', 'FreeRADIUS'];
 
-function ArrowIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className="jn-arrow-icon">
-      <path d="M3 8h9M8 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+function Arrow() {
+  return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M4 10h11M10 5l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-function ProductPreview() {
+function ProductMockup() {
   return (
-    <div className="jn-preview-frame" aria-label="JASLYN NET console preview">
-      <div className="jn-preview-topline">
-        <div className="jn-window-dots" aria-hidden="true"><i /><i /><i /></div>
-        <span>JASLYN NET / OPERATIONS</span>
-        <b>PRODUCT PREVIEW</b>
+    <div className="jn2-product" aria-label="Illustrative JASLYN NET product interface">
+      <div className="jn2-appbar">
+        <div className="jn2-appbrand"><span className="jn2-mark">J</span><span>JASLYN <b>NET</b></span></div>
+        <div className="jn2-workspace">Operations workspace <span>DEMO VIEW</span></div>
+        <div className="jn2-avatar">OP</div>
       </div>
-
-      <div className="jn-preview-body">
-        <aside className="jn-preview-sidebar">
-          <div className="jn-preview-brand">
-            <BrandLogo alt="" />
-            <span>JASLYN NET<small>OPERATIONS</small></span>
-          </div>
-          <small className="jn-preview-label">CONTROL PLANE</small>
-          {['Overview', 'Customers', 'Sessions', 'Network', 'Payments'].map((item, index) => (
-            <span key={item} className={index === 0 ? 'active' : ''}><i>{['◫', '◉', '◌', '⌁', '₮'][index]}</i>{item}</span>
-          ))}
-          <small className="jn-preview-label">ACCESS</small>
-          {['Hotspot', 'Packages', 'Vouchers', 'RADIUS / AAA'].map(item => <span key={item}><i>·</i>{item}</span>)}
-          <div className="jn-preview-sidebar-foot">
-            <span className="jn-preview-example-dot" aria-hidden="true" /> Illustrative session
-            <small>Example operator view</small>
-          </div>
+      <div className="jn2-appbody">
+        <aside className="jn2-sidebar">
+          <small>WORKSPACE</small>
+          <div className="jn2-side-active"><span>◫</span> Overview</div>
+          <div><span>◉</span> Customers</div>
+          <div><span>▤</span> Packages & billing</div>
+          <div><span>⌁</span> Network</div>
+          <div><span>↔</span> Payments</div>
+          <div><span>◷</span> Incidents</div>
+          <div className="jn2-sidebar-bottom"><span className="jn2-green-dot" /> Illustrative interface</div>
         </aside>
-
-        <div className="jn-preview-content">
-          <div className="jn-preview-heading">
-            <div>
-              <small>OPERATIONS OVERVIEW</small>
-              <h3>Customer to connectivity</h3>
-              <p>One operational context from purchase to active session.</p>
+        <section className="jn2-dashboard">
+          <div className="jn2-dashhead"><div><small>OVERVIEW</small><h3>Good morning, operator</h3><p>A connected view of customer, payment and network workflows.</p></div><span className="jn2-demo-pill">SAMPLE DATA</span></div>
+          <div className="jn2-statrow">
+            <article><small>SUBSCRIBER FLOW</small><strong>Customers</strong><span>Profiles & service status</span></article>
+            <article><small>COMMERCIAL</small><strong>Payments</strong><span>Verification & reconciliation</span></article>
+            <article><small>CONNECTIVITY</small><strong>Network</strong><span>Sessions & access policy</span></article>
+          </div>
+          <div className="jn2-flowcard">
+            <div className="jn2-flowtitle"><div><small>THE CONNECTED WORKFLOW</small><h4>From purchase to connectivity</h4></div><span>EXAMPLE</span></div>
+            <div className="jn2-flowsteps">
+              <div><i>01</i><b>Customer</b><small>Subscriber record</small></div><Arrow />
+              <div><i>02</i><b>Purchase</b><small>Package & invoice</small></div><Arrow />
+              <div><i>03</i><b>Payment</b><small>Verified event</small></div><Arrow />
+              <div><i>04</i><b>Access</b><small>Policy & session</small></div>
             </div>
-            <span>ILLUSTRATIVE WORKSPACE</span>
           </div>
-
-          <div className="jn-preview-metrics">
-            <article><small>CUSTOMER</small><strong>Service state</strong><span>Example state</span></article>
-            <article><small>PAYMENT</small><strong>Payment event</strong><span>Illustrative only</span></article>
-            <article><small>NETWORK</small><strong>Access policy</strong><span>Example policy</span></article>
+          <div className="jn2-bottomrow">
+            <div><small>OPERATING PRINCIPLE</small><b>One traceable customer journey</b><span>Commercial state informs access workflows.</span></div>
+            <div className="jn2-miniicon">↗</div>
           </div>
-
-          <div className="jn-preview-grid">
-            <article className="jn-preview-panel jn-flow-panel">
-              <div className="jn-panel-kicker">OPERATIONAL CHAIN</div>
-              <h4>Commerce becomes access.</h4>
-              <p>JASLYN NET keeps the state connected across the workflow.</p>
-              <div className="jn-flow-chain">
-                {['Customer', 'Service', 'Payment', 'Entitlement', 'Session'].map((step, index) => (
-                  <div key={step} className="jn-flow-node">
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <b>{step}</b>
-                    {index < 4 && <ArrowIcon />}
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="jn-preview-panel jn-health-panel">
-              <div className="jn-panel-kicker">CONTROL LAYERS</div>
-              <h4>Operational state</h4>
-              {[
-                ['Commercial', 'Workflow example', 'neutral'],
-                ['Access', 'Policy example', 'neutral'],
-                ['Network', 'Adapter-dependent', 'neutral'],
-                ['Incidents', 'Workspace data only', 'neutral'],
-              ].map(([label, state, kind]) => (
-                <div className="jn-health-row" key={label}>
-                  <span><i className={kind} />{label}</span><b>{state}</b>
-                </div>
-              ))}
-            </article>
-          </div>
-
-          <div className="jn-preview-footer">
-            <span>PRODUCT SURFACE</span>
-            <b>Actual workspace data appears after authentication.</b>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   );
@@ -154,288 +71,49 @@ export default function Home() {
   return (
     <main className="landing jn-landing">
       <LandingNav />
-
-      <section className="jn-hero">
-        <div className="jn-hero-copy">
-          <div className="jn-eyebrow"><span /> FOR WI-FI OPERATORS · ISPs · MANAGED NETWORKS</div>
-          <h1>Run your Wi-Fi and ISP operations <em>from one place.</em></h1>
-          <p className="jn-hero-lead">
-            Sell internet packages, track payment status, manage subscriber access and coordinate network operations in one workspace—without jumping between disconnected tools.
-          </p>
-          <div className="jn-hero-actions">
-            <Link href="/register" className="jn-btn jn-btn-primary">Create your workspace <ArrowIcon /></Link>
-            <Link href="/architecture" className="jn-btn jn-btn-secondary">See how it works</Link>
+      <section className="jn2-hero">
+        <div className="jn2-hero-grid" aria-hidden="true" />
+        <div className="jn2-hero-copy">
+          <div className="jn2-eyebrow"><span /> THE OPERATING PLATFORM FOR CONNECTIVITY</div>
+          <h1>Run your network.<br /><em>Not a pile of tools.</em></h1>
+          <p className="jn2-lead">JASLYN NET brings Wi-Fi billing, subscriber access, payments and network operations into one connected workspace for ISPs, hotspot operators and managed networks.</p>
+          <div className="jn2-actions">
+            <Link href="/register" className="jn2-primary">Create your workspace <Arrow /></Link>
+            <Link href="/platform" className="jn2-secondary">Explore the platform <Arrow /></Link>
           </div>
-          <div className="jn-hero-meta">
-            <span>Hotspot</span><i /><span>ISP billing</span><i /><span>RADIUS / AAA</span><i /><span>Network operations</span>
+          <div className="jn2-trustline"><span>BUILT AROUND YOUR WORKFLOW</span><i /> Customers <i /> Payments <i /> Access <i /> Network
           </div>
         </div>
-        <div className="jn-hero-visual">
-          <ProductPreview />
-          <div className="jn-floating-card">
-            <span className="jn-preview-example-dot" aria-hidden="true" />
-            <div><small>OPERATING MODEL</small><b>Customer → Service → Access</b></div>
-          </div>
+        <div className="jn2-hero-visual"><ProductMockup /><div className="jn2-visual-caption"><span className="jn2-green-dot" /> Product concept preview <span>·</span> Sample interface, not live customer data</div></div>
+      </section>
+
+      <section className="jn2-audience">
+        <div><small>FOR THE TEAMS THAT KEEP PEOPLE CONNECTED</small><div className="jn2-audience-items"><span>Wi-Fi & hotspot operators</span><span>ISPs & WISPs</span><span>Managed networks</span><span>Multi-site teams</span></div></div>
+      </section>
+
+      <section className="jn2-section jn2-workflow">
+        <div className="jn2-section-intro"><small>ONE CONNECTED WORKFLOW</small><h2>From the first sale<br />to the live session.</h2><p>Customer, commerce and connectivity are linked operational concerns. Your tools should reflect that.</p></div>
+        <div className="jn2-capabilities">{capabilities.map(item => <article key={item.n}><div className="jn2-cap-top"><span>{item.n}</span><Arrow /></div><h3>{item.title}</h3><p>{item.copy}</p><small>{item.tags}</small></article>)}</div>
+      </section>
+
+      <section className="jn2-platform">
+        <div className="jn2-section jn2-platform-inner">
+          <div className="jn2-platform-heading"><small>THE PLATFORM</small><h2>Everything important,<br /><em>working together.</em></h2><p>One operational model across the customer lifecycle, commercial workflows and network infrastructure—without hiding which integrations need configuration.</p><Link href="/platform" className="jn2-textlink">Explore platform capabilities <Arrow /></Link></div>
+          <div className="jn2-modules">{modules.map(([title, copy], i) => <Link href="/product" key={title} className="jn2-module"><span>0{i + 1}</span><div><b>{title}</b><small>{copy}</small></div><Arrow /></Link>)}</div>
         </div>
       </section>
 
-      <section className="jn-proof-strip" aria-label="JASLYN NET product scope">
-        <div><span>ONE CONNECTED OPERATING MODEL</span><b>Customer</b><b>Commerce</b><b>Entitlement</b><b>Network</b><b>Operations</b></div>
+      <section className="jn2-section jn2-integrations">
+        <div className="jn2-integrations-head"><div><small>WORK WITH YOUR INFRASTRUCTURE</small><h2>Built for mixed-vendor networks.</h2></div><p>Explore the integration approach and check adapter-specific capabilities before planning a production rollout.</p></div>
+        <div className="jn2-vendor-list">{vendors.map((vendor, i) => <span key={vendor}><i>{String(i + 1).padStart(2, '0')}</i>{vendor}</span>)}</div>
+        <Link href="/integrations" className="jn2-textlink">View integration details <Arrow /></Link>
       </section>
 
-
-
-      <section className="jn-outcomes" aria-labelledby="jn-outcomes-title">
-        <div className="jn-outcomes-inner">
-          <div className="jn-outcomes-heading">
-            <small className="jn-kicker">DESIGNED FOR DAILY OPERATIONS</small>
-            <h2 id="jn-outcomes-title">Less context switching.<br /><span>Clearer operational decisions.</span></h2>
-            <p>Connect the commercial journey to the network workflow without pretending every adapter or payment path is already enabled.</p>
-          </div>
-          <div className="jn-outcomes-grid">
-            <article><span>01 / SELL</span><div className="jn-outcome-icon" aria-hidden="true">↗</div><h3>Make access understandable</h3><p>Keep WiFi bundles, prices, validity, data allowances and device limits clear to customers before they buy.</p><Link href="/packages">Explore WiFi packages <ArrowIcon /></Link></article>
-            <article><span>02 / CONTROL</span><div className="jn-outcome-icon" aria-hidden="true">⌁</div><h3>Connect purchase to service</h3><p>Model purchases, payment verification, access entitlement and session state as related parts of one customer lifecycle.</p><Link href="/architecture">See how it works <ArrowIcon /></Link></article>
-            <article><span>03 / OPERATE</span><div className="jn-outcome-icon" aria-hidden="true">◎</div><h3>Work from evidence</h3><p>Bring network inventory, incidents, session context and audit history into the operator's decision-making process.</p><Link href="/operations">Explore operations <ArrowIcon /></Link></article>
-          </div>
-          <p className="jn-outcomes-note">Integration availability and payment automation depend on the configured adapter, provider and deployment.</p>
-        </div>
+      <section className="jn2-cta">
+        <div><small>JASLYN NET</small><h2>Make your operation<br />easier to understand.</h2><p>Explore the platform, see how the pieces connect, and decide whether it fits your operation.</p></div>
+        <div className="jn2-cta-actions"><Link href="/register" className="jn2-primary">Get started <Arrow /></Link><Link href="/faq" className="jn2-cta-link">Read common questions <Arrow /></Link></div>
       </section>
-
-      <section id="platform" className="jn-section jn-platform">
-        <div className="jn-section-head">
-          <div>
-            <small className="jn-kicker">01 / THE PLATFORM</small>
-            <h2>Your network is distributed.<br /><span>Your operations should not be.</span></h2>
-          </div>
-          <p>
-            Connectivity touches customers, products, payments, access rules, routers, sessions and incidents. JASLYN NET is designed so those domains can be operated as one connected system rather than a collection of isolated dashboards.
-          </p>
-        </div>
-
-        <div className="jn-layer-grid">
-          {operatingLayers.map(([number, title, copy]) => (
-            <article key={number}>
-              <small>{number}</small>
-              <div><h3>{title}</h3><p>{copy}</p></div>
-              <ArrowIcon />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="architecture" className="jn-architecture">
-        <div className="jn-section jn-section-light">
-          <div className="jn-section-head">
-            <div>
-              <small className="jn-kicker">02 / ARCHITECTURE</small>
-              <h2>One workflow.<br /><span>Five connected layers.</span></h2>
-            </div>
-            <p>
-              The product model follows the actual lifecycle of connectivity: who the customer is, what they purchased, what they are entitled to, how the network serves it and what operators need to see when something changes.
-            </p>
-          </div>
-
-          <div className="jn-architecture-flow">
-            <div className="jn-architecture-spine" />
-            {[
-              ['Subscriber', 'Identity, services, devices'],
-              ['Commerce', 'Plans, purchases, payments'],
-              ['Entitlement', 'Policy, access, expiry'],
-              ['Network', 'Routers, AAA, IPAM, sessions'],
-              ['Operations', 'Incidents, audit, commands'],
-            ].map(([title, copy], index) => (
-              <article key={title} className="jn-architecture-step">
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <div><h3>{title}</h3><p>{copy}</p></div>
-              </article>
-            ))}
-          </div>
-
-          <div className="jn-architecture-caption">
-            <span>DESIGNED AROUND OPERATING STATE</span>
-            <b>Not a collection of disconnected admin pages.</b>
-          </div>
-        </div>
-      </section>
-
-      <section id="operations" className="jn-section jn-scenarios">
-        <div className="jn-section-head">
-          <div>
-            <small className="jn-kicker">03 / OPERATING SCENARIOS</small>
-            <h2>Built for the people<br /><span>who operate the connection.</span></h2>
-          </div>
-          <p>
-            Different deployments have different operational pressures. The underlying control plane stays coherent while the workflows adapt to how the network is actually run.
-          </p>
-        </div>
-
-        <div className="jn-scenario-grid">
-          {operatingScenarios.map(([title, copy, tags], index) => (
-            <article key={title}>
-              <span className="jn-scenario-number">0{index + 1}</span>
-              <div><h3>{title}</h3><p>{copy}</p></div>
-              <small>{tags}</small>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="integrations" className="jn-integrations">
-        <div className="jn-section">
-          <div className="jn-section-head">
-            <div>
-              <small className="jn-kicker">04 / NETWORK ECOSYSTEM</small>
-              <h2>Keep the infrastructure<br /><span>you already operate.</span></h2>
-            </div>
-            <p>
-              JASLYN NET is designed around vendor adapters and standards. The integration path and supported operations depend on each adapter and deployment; confirm compatibility before planning a production cutover.
-            </p>
-          </div>
-
-          <div className="jn-integration-grid">
-            {integrations.map(({ vendor, protocol, mode, logos }) => (
-              <article key={vendor}>
-                <div className="jn-integration-brand" aria-hidden="true">
-                  {logos.map((src) => (
-                    <img
-                      key={src}
-                      className="jn-integration-logo"
-                      src={src}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ))}
-                </div>
-                <div className="jn-integration-copy"><h3>{vendor}</h3><p>{protocol}</p></div>
-                <small>{mode}</small>
-              </article>
-            ))}
-          </div>
-
-          <div className="jn-integration-note">
-            <span>INTEGRATION MODEL</span>
-            <b>Controller / API pathways</b><i>+</i><b>RADIUS / AAA</b><i>+</i><b>Gateway pathways</b>
-          </div>
-        </div>
-      </section>
-
-      <section id="modules" className="jn-section jn-module-section">
-        <div className="jn-section-head">
-          <div>
-            <small className="jn-kicker">05 / PRODUCT SURFACE</small>
-            <h2>Every operational domain.<br /><span>One product language.</span></h2>
-          </div>
-          <p>
-            The module count matters less than the consistency between them. Every surface is expected to make the same operational state understandable to the people responsible for it.
-          </p>
-        </div>
-
-        <div className="jn-module-grid">
-          {modules.map(([title, copy], index) => (
-            <article key={title}>
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <h3>{title}</h3>
-              <p>{copy}</p>
-              <a href="/login" aria-label={"Open " + title + " in JASLYN NET"}>Open module <ArrowIcon /></a>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="jn-operations-band">
-        <div className="jn-section">
-          <div className="jn-operations-grid">
-            <div>
-              <small className="jn-kicker jn-kicker-inverse">06 / OPERATIONS</small>
-              <h2>When connectivity changes, your team should see <span>why.</span></h2>
-            </div>
-            <div>
-              <p>Operational work is not just adding routers. It is understanding service state, payment state, access state, session state, incidents and audit history together.</p>
-              <div className="jn-ops-points">
-                <span>✓ Incident correlation</span>
-                <span>✓ Network commands</span>
-                <span>✓ Session visibility</span>
-                <span>✓ Security & audit</span>
-                <span>✓ Multi-location context</span>
-                <span>✓ Payment-aware access</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="commercial" className="jn-section jn-commercial">
-        <div className="jn-section-head">
-          <div>
-            <small className="jn-kicker">07 / COMMERCIAL MODEL</small>
-            <h2>Start with the workflow.<br /><span>Scale the deployment.</span></h2>
-          </div>
-          <p>
-            Public pricing should describe real commercial terms, not invented numbers. JASLYN NET keeps plan, entitlement and deployment configuration separate so commercial decisions can evolve without changing the core network control plane.
-          </p>
-        </div>
-
-        <div className="jn-commercial-grid">
-          <article><small>START</small><h3>Single operation</h3><p>Core customer, access, package and network workflows for getting a connected operation under control.</p><Link href="/register">Create workspace <ArrowIcon /></Link></article>
-          <article className="featured"><small>OPERATIONS</small><h3>Multi-location</h3><p>For teams operating more sites, services, devices and operational state from one workspace.</p><Link href="/register">Create workspace <ArrowIcon /></Link></article>
-          <article><small>ENTERPRISE</small><h3>Infrastructure scale</h3><p>For deployment-specific integrations, operational controls and commercial terms that need closer configuration.</p><a href="mailto:support@jaslyn.net">Contact support <ArrowIcon /></a></article>
-        </div>
-      </section>
-
-      <section id="faq" className="jn-faq">
-        <div className="jn-section">
-          <div className="jn-faq-grid">
-            <div>
-              <small className="jn-kicker jn-kicker-inverse">08 / FAQ</small>
-              <h2>Questions operators<br /><span>actually ask.</span></h2>
-              <p>Clear answers, no brochure fog.</p>
-            </div>
-            <div className="jn-faq-list">
-              {faqs.map(([question, answer]) => (
-                <details key={question}>
-                  <summary>{question}<b>+</b></summary>
-                  <p>{answer}</p>
-                </details>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="jn-final-cta">
-        <div className="jn-section">
-          <small className="jn-kicker">09 / START OPERATING</small>
-          <h2>Bring the network,<br /><em>the customer and the transaction together.</em></h2>
-          <p>Explore the product model, verify the integrations your network needs, then create a workspace when you are ready to configure your operation.</p>
-          <div className="jn-final-actions">
-            <Link href="/register" className="jn-btn jn-btn-primary">Create a JASLYN NET workspace <ArrowIcon /></Link>
-            <Link href="/login" className="jn-btn jn-btn-secondary">Sign in to the console</Link>
-          </div>
-        </div>
-      </section>
-
-      <footer className="jn-footer">
-        <div>
-          <Link href="/" className="jn-footer-brand">
-            <BrandLogo alt="" loading="lazy" />
-            <b>JASLYN NET</b>
-          </Link>
-          <p>A clearer operating model for WiFi, ISP and managed network teams.</p>
-        </div>
-        <nav aria-label="Footer">
-          <Link href="/platform">Platform</Link>
-          <Link href="/architecture">How it works</Link>
-          <Link href="/operations">Operations</Link>
-          <Link href="/integrations">Integrations</Link>
-          <Link href="/faq">FAQ</Link>
-        </nav>
-        <div className="jn-footer-end">
-          <Link href="/register">Create workspace</Link>
-          <Link href="/login">Sign in</Link>
-          <small>© 2026 JASLYN NET</small>
-        </div>
-      </footer>
+      <footer className="jn2-footer"><Link href="/" className="jn2-footer-brand"><span className="jn2-mark">J</span> JASLYN NET</Link><div><Link href="/platform">Platform</Link><Link href="/architecture">How it works</Link><Link href="/operations">Operations</Link><Link href="/integrations">Integrations</Link><Link href="/product">Features</Link><Link href="/faq">FAQ</Link></div><small>Connectivity operations, connected.</small></footer>
     </main>
   );
 }
