@@ -112,6 +112,75 @@ export class CambiumCnMaestroNetworkAdapter extends VendorReadOnlyApiAdapter {
   protected readonly vendorName = 'Cambium cnMaestro';
   protected headers(connection: NetworkDeviceConnection) { return this.bearer(connection, this.vendorName); }
   constructor(config: ConfigService) { super(config); }
+
+  /**
+   * cnMaestro uses OAuth 2.0 client credentials. The exact session collection
+   * URL and token URL are configured explicitly because Cloud and on-prem API
+   * roots/version prefixes differ. Never infer a session URL from device inventory.
+   */
+  override async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
+    const clientId = connection.credentials?.clientId;
+    const clientSecret = connection.credentials?.clientSecret;
+    const tokenEndpoint = typeof connection.capabilities?.tokenEndpoint === 'string'
+      ? connection.capabilities.tokenEndpoint : undefined;
+    if (!clientId || !clientSecret || !tokenEndpoint) {
+      throw new ServiceUnavailableException(
+        'Cambium cnMaestro requires encrypted clientId/clientSecret and capabilities.tokenEndpoint; configure the exact documented client/session resource as controllerEndpoint',
+      );
+    }
+    const tokenUrl = await this.validateCambiumUrl(tokenEndpoint);
+    const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000'));
+    const timeout = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    let token: string;
+    try {
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        },
+        body: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
+        signal: controller.signal,
+        redirect: 'error',
+      });
+      if (!response.ok) throw new ServiceUnavailableException(`Cambium cnMaestro OAuth token request failed (${response.status})`);
+      const payload: unknown = await response.json();
+      if (!this.isRecord(payload) || typeof payload.access_token !== 'string' || !payload.access_token.trim()) {
+        throw new ServiceUnavailableException('Cambium cnMaestro OAuth response did not contain an access_token');
+      }
+      token = payload.access_token;
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      throw new ServiceUnavailableException('Cambium cnMaestro OAuth token request failed or timed out');
+    } finally { clearTimeout(timer); }
+
+    // Keep the token in memory for this request only; never persist or log it.
+    return super.readClients({
+      ...connection,
+      credentials: { ...connection.credentials, accessToken: token, apiKey: undefined },
+    });
+  }
+
+  private async validateCambiumUrl(rawUrl: string): Promise<URL> {
+    let url: URL;
+    try { url = new URL(rawUrl); } catch { throw new ServiceUnavailableException('Cambium cnMaestro token endpoint is invalid'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash) {
+      throw new ServiceUnavailableException('Cambium cnMaestro token endpoint must use HTTPS without embedded credentials or fragment');
+    }
+    const host = url.hostname.toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host === 'metadata.google.internal') {
+      throw new ServiceUnavailableException('Cambium cnMaestro token hostname is blocked');
+    }
+    const addresses = isIP(host) ? [host] : (await lookup(host, { all: true })).map((entry) => entry.address);
+    const allowPrivate = this.config.get<string>('JASLYN_NETWORK_ALLOW_PRIVATE_ENDPOINTS', 'false') === 'true';
+    if (!addresses.length || addresses.some((address) => isRestrictedNetworkAddress(address) && !allowPrivate)) {
+      throw new ServiceUnavailableException('Cambium cnMaestro token endpoint resolves to a restricted address');
+    }
+    return url;
+  }
 }
 
 @Injectable()
