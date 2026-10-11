@@ -10,6 +10,17 @@ describe('WorkflowsService safety and tenant boundaries', () => {
   const service = new WorkflowsService(db as unknown as Pool, audit as unknown as AuditService);
   beforeEach(() => { jest.clearAllMocks(); });
 
+  it('accepts safe dotted TRANSFORM source and destination paths', async () => {
+    db.query.mockResolvedValueOnce({rowCount:1,rows:[{
+      id:'workflow-1',name:'safe transform',triggerType:'MANUAL',triggerConfig:{},
+      steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],enabled:false,
+    }]});
+    await expect(service.create('tenant-a','user-a',{
+      name:'safe transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],
+    })).resolves.toMatchObject({id:'workflow-1'});
+    expect(db.query).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects unsafe TRANSFORM destination paths before persistence', async () => {
     await expect(service.create('tenant-a','user-a',{
       name:'unsafe transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'__proto__.polluted'}]}],
