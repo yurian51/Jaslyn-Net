@@ -28,15 +28,24 @@ export class RuijieReyeeNetworkAdapter {
     }
     url.searchParams.set('group_id', groupId);
     url.searchParams.set('access_token', token);
-    const payload = await this.request(url.toString());
-    const rows = this.rows(payload.data).length ? this.rows(payload.data) : this.rows(payload);
-    return rows.map((row) => ({
-      username: this.string(row, ['userName', 'username', 'user', 'name']),
-      address: this.string(row, ['ip', 'ipAddress', 'address']),
-      macAddress: this.string(row, ['mac', 'macAddress', 'macAddr']),
-      bytesIn: this.counter(row, ['flowUp', 'bytesIn', 'uploadBytes', 'txBytes']),
-      bytesOut: this.counter(row, ['flowDown', 'bytesOut', 'downloadBytes', 'rxBytes']),
-    }));
+    const clients: NormalizedWifiClient[] = [];
+    const maxPages = 100;
+    for (let page = 1; page <= maxPages; page += 1) {
+      const pageUrl = new URL(url.toString());
+      pageUrl.searchParams.set('page_index', String(page));
+      pageUrl.searchParams.set('page_size', '100');
+      const payload = await this.request(pageUrl.toString());
+      const rows = this.rows(payload.data).length ? this.rows(payload.data) : this.rows(payload);
+      clients.push(...rows.map((row) => ({
+        username: this.string(row, ['userName', 'username', 'user', 'name']),
+        address: this.string(row, ['ip', 'ipAddress', 'address']),
+        macAddress: this.string(row, ['mac', 'macAddress', 'macAddr']),
+        bytesIn: this.counter(row, ['flowUp', 'bytesIn', 'uploadBytes', 'txBytes']),
+        bytesOut: this.counter(row, ['flowDown', 'bytesOut', 'downloadBytes', 'rxBytes']),
+      })));
+      if (rows.length === 0 || rows.length < 100) return clients;
+    }
+    throw new ServiceUnavailableException('Ruijie client pagination exceeded 100 pages');
   }
 
   private async request(rawUrl: string): Promise<JsonRecord> {
