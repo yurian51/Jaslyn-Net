@@ -21,7 +21,7 @@ export class AccessControlService {
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)`,[tenantId,actorUserId,action,resourceType,resourceId,context.requestId??null,context.correlationId??null,context.ipAddress??null,context.userAgent??null,JSON.stringify(metadata)]);
   }
   async setRolePermission(tenantId:string,actorUserId:string,role:string,permissionKey:string,allowed:boolean,context:AuditContext={}){
-    if(!/^[A-Z_]{2,40}$/.test(role))throw new BadRequestException('Invalid role name');await this.assertPermission(permissionKey);const client=await this.db.connect();
+    if(!['OWNER','ADMIN','AGENT','READ_ONLY','CASHIER'].includes(role))throw new BadRequestException('Unsupported tenant role');await this.assertPermission(permissionKey);const client=await this.db.connect();
     try{await client.query('BEGIN');const r=await client.query(`INSERT INTO tenant_role_permissions(tenant_id,role,permission_key,allowed,updated_by,updated_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(tenant_id,role,permission_key) DO UPDATE SET allowed=EXCLUDED.allowed,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING role,permission_key AS "permissionKey",allowed,updated_at AS "updatedAt"`,[tenantId,role,permissionKey,allowed,actorUserId]);await this.audit(client,tenantId,actorUserId,'ROLE_PERMISSION_CHANGED','tenant_role_permission',null,{role,permissionKey,allowed},context);await client.query('COMMIT');return r.rows[0];}
     catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;}finally{client.release();}
   }
