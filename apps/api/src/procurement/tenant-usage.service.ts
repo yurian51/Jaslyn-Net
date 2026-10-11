@@ -4,7 +4,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { SetTenantUsageLimitDto } from './tenant-usage.dto';
 
-const CUSTOM_METRICS=new Set(['inventory_items','suppliers','purchase_orders','api_keys','webhook_endpoints']);
+const CUSTOM_METRICS=new Set(['inventory_items','suppliers','api_keys','webhook_endpoints']);
 @Injectable()
 export class TenantUsageService {
   constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly audit:AuditService){}
