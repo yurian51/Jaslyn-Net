@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, Inject, TooManyRequestsException, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, Inject, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SetMetadata } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -31,7 +31,7 @@ export class ApiKeyGuard implements CanActivate {
        ON CONFLICT(tenant_id,api_key_id,window_start) DO UPDATE SET request_count=platform_api_key_usage_windows.request_count+1
        WHERE platform_api_key_usage_windows.request_count<$3 RETURNING request_count`,
       [key.tenant_id,key.id,key.rate_limit_per_minute]);
-    if(!usage.rowCount)throw new TooManyRequestsException('API key rate limit exceeded');
+    if(!usage.rowCount)throw new HttpException('API key rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS);
     await this.db.query('UPDATE platform_api_keys SET last_used_at=now() WHERE tenant_id=$1 AND id=$2',[key.tenant_id,key.id]);
     const required=this.reflector.getAllAndOverride<string[]>(API_KEY_SCOPES,[context.getHandler(),context.getClass()])??[];
     const scopes=key.scopes??[];
