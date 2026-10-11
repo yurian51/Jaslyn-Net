@@ -7,15 +7,15 @@ import { AuthenticatedRequest } from './auth.guard';
 
 export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'secrets.read':['OWNER','ADMIN'],'secrets.write':['OWNER','ADMIN'],
- 'network.policy.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER','NETWORK_ADMIN'],
- 'network.policy.write':['OWNER','ADMIN','NETWORK_ADMIN'],'network.policy.evaluate':['OWNER','ADMIN','AGENT','NOC_ENGINEER','NETWORK_ADMIN'],
- 'compliance.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER'],'compliance.scan':['OWNER','ADMIN','NOC_ENGINEER'],'compliance.manage':['OWNER','ADMIN'],
- 'synthetic.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER'],'synthetic.write':['OWNER','ADMIN'],'synthetic.check':['OWNER','ADMIN','AGENT','NOC_ENGINEER'],
- 'revenue.read':['OWNER','ADMIN','ACCOUNTANT','READ_ONLY'],'revenue.reconcile':['OWNER','ADMIN','ACCOUNTANT'],'revenue.manage':['OWNER','ADMIN'],
- 'incident.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY','NOC_ENGINEER'],'incident.manage':['OWNER','ADMIN','NOC_ENGINEER'],
+ 'network.policy.read':['OWNER','ADMIN','AGENT','READ_ONLY'],
+ 'network.policy.write':['OWNER','ADMIN'],'network.policy.evaluate':['OWNER','ADMIN','AGENT'],
+ 'compliance.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'compliance.scan':['OWNER','ADMIN'],'compliance.manage':['OWNER','ADMIN'],
+ 'synthetic.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'synthetic.write':['OWNER','ADMIN'],'synthetic.check':['OWNER','ADMIN','AGENT'],
+ 'revenue.read':['OWNER','ADMIN','CASHIER','READ_ONLY'],'revenue.reconcile':['OWNER','ADMIN'],'revenue.manage':['OWNER','ADMIN'],
+ 'incident.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'incident.manage':['OWNER','ADMIN','AGENT'],
  'status.manage':['OWNER','ADMIN'],'maintenance.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'maintenance.manage':['OWNER','ADMIN'],
- 'field.read':['OWNER','ADMIN','AGENT','TECHNICIAN','READ_ONLY'],'field.write':['OWNER','ADMIN','AGENT','TECHNICIAN'],'field.sync':['OWNER','ADMIN','AGENT','TECHNICIAN'],
- 'network.changes.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER','NETWORK_ADMIN'],'audit.read':['OWNER','ADMIN'],
+ 'field.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'field.write':['OWNER','ADMIN','AGENT'],'field.sync':['OWNER','ADMIN','AGENT'],
+ 'network.changes.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'audit.read':['OWNER','ADMIN'],
 };
 
 @Injectable()
