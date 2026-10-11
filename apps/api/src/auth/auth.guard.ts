@@ -1,5 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Inject } from '@nestjs/common';
+import { Pool } from 'pg';
+import { PG_POOL } from '../database/database.module';
 import { jwtVerify } from 'jose';
 import type { Request } from 'express';
 
@@ -12,6 +15,7 @@ export type AuthenticatedRequest = Request & {
     tenantId: string;
     role: string;
     email: string;
+    sessionId: string;
   };
 };
 
@@ -20,7 +24,7 @@ const AUDIENCE = 'jaslyn-net-api';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService, @Inject(PG_POOL) private readonly db: Pool) {}
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -37,14 +41,23 @@ export class AuthGuard implements CanActivate {
         audience: AUDIENCE,
         algorithms: ['HS256'],
       });
-      if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
+      if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
         throw new Error('Invalid claims');
       }
+      const sessionId = payload.sid;
+      const session = await this.db.query(
+        `SELECT id FROM auth_sessions
+         WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+           AND revoked_at IS NULL AND expires_at>now()`,
+        [sessionId, payload.tenantId, payload.sub],
+      );
+      if (!session.rowCount) throw new UnauthorizedException('Session has been revoked or expired');
       request.user = {
         id: payload.sub,
         tenantId: payload.tenantId,
         role: payload.role,
         email: typeof payload.email === 'string' ? payload.email : '',
+        sessionId,
       };
       return true;
     } catch {
