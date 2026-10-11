@@ -1,4 +1,4 @@
-import { IsArray, ArrayMaxSize, IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, ArrayMaxSize, IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUUID, IsUrl, Matches, Max, MaxLength, Min, MinLength, IsDateString } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString() @MinLength(2) @MaxLength(40) supplierCode!: string;
@@ -50,11 +50,11 @@ export class CreateStockMovementDto {
 }
 export class UpdateBrandingDto {
   @IsString() @MinLength(2) @MaxLength(120) displayName!: string;
-  @IsOptional() @IsString() @MaxLength(500) logoUrl?: string;
+  @IsOptional() @IsUrl({protocols:['https'],require_protocol:true}) @MaxLength(500) logoUrl?: string;
   @IsOptional() @IsString() @Matches(/^#[0-9A-Fa-f]{6}$/) primaryColor?: string;
   @IsOptional() @IsEmail() supportEmail?: string;
   @IsOptional() @IsString() @MaxLength(40) supportPhone?: string;
-  @IsOptional() @IsString() @MaxLength(253) portalDomain?: string;
+  @IsOptional() @IsString() @Matches(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/) @MaxLength(253) portalDomain?: string;
 }
 export class CreateCustomerCreditNoteDto {
   @IsUUID() invoiceId!: string;
@@ -68,7 +68,7 @@ export class CreatePlatformApiKeyDto {
   @IsString() @MinLength(2) @MaxLength(100) name!: string;
   @IsArray() @ArrayMaxSize(30) scopes!: string[];
   @IsOptional() @IsNumber() @Min(1) @Max(60000) rateLimitPerMinute?: number;
-  @IsOptional() @IsString() expiresAt?: string;
+  @IsOptional() @IsDateString() expiresAt?: string;
 }
 export class CreateWebhookEndpointDto {
   @IsString() @MinLength(2) @MaxLength(100) name!: string;
