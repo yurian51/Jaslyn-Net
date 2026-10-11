@@ -169,7 +169,7 @@ export class ProcurementService {
     return {data:r.rows};
   }
   async listFinancialAudit(tenantId:string,limit=100) {
-    const r=await this.db.query('SELECT id,actor_user_id,request_id,entity_type,entity_id,operation,before_data,after_data,occurred_at FROM financial_change_audit WHERE tenant_id=$1 ORDER BY occurred_at DESC LIMIT $2',[tenantId,Math.max(1,Math.min(500,limit))]);
+    const r=await this.db.query('SELECT id,actor_user_id,request_id,entity_type,entity_id,operation,before_data,after_data,occurred_at FROM financial_change_audit WHERE tenant_id=$1 ORDER BY occurred_at DESC LIMIT $2',[tenantId,Number.isFinite(limit)?Math.max(1,Math.min(500,Math.trunc(limit))):100]);
     return {data:r.rows};
   }
 }
