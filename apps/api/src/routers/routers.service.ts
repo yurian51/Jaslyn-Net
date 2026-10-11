@@ -150,6 +150,51 @@ export class RoutersService {
     return router;
   }
 
+  async rotateCredentials(tenantId: string, context: AuditContext = {}) {
+    const activeKeyId = this.secureCredentials.activeKeyId();
+    const client = await this.db.connect();
+    let rotatedCount = 0;
+    try {
+      await client.query('BEGIN');
+      const rows = await client.query<{ id: string; management_credentials_encrypted: string }>(
+        `SELECT id, management_credentials_encrypted
+         FROM routers
+         WHERE tenant_id=$1 AND management_credentials_encrypted IS NOT NULL
+         ORDER BY id
+         FOR UPDATE`,
+        [tenantId],
+      );
+      for (const row of rows.rows) {
+        const plaintext = this.secureCredentials.decrypt(row.management_credentials_encrypted);
+        const ciphertext = this.secureCredentials.encrypt(plaintext);
+        await client.query(
+          `UPDATE routers
+           SET management_credentials_encrypted=$3, management_credentials_version=2, updated_at=now()
+           WHERE tenant_id=$1 AND id=$2`,
+          [tenantId, row.id, ciphertext],
+        );
+        rotatedCount += 1;
+      }
+
+      // Insert the audit event in the same transaction as the rotation. The
+      // database trigger appends its tamper-evident hash and raises a security alert.
+      await client.query(
+        `INSERT INTO audit_logs
+          (tenant_id,actor_user_id,action,resource_type,request_id,correlation_id,ip_address,user_agent,metadata)
+         VALUES ($1,$2,'ROUTER_CREDENTIALS_ROTATED','router_credentials',$3,$4,$5,$6,$7::jsonb)`,
+        [tenantId, context.userId ?? null, context.requestId ?? null, context.correlationId ?? null,
+         context.ipAddress ?? null, context.userAgent ?? null, JSON.stringify({ rotatedCount, activeKeyId })],
+      );
+      await client.query('COMMIT');
+      return { rotatedCount, activeKeyId, verified: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async heartbeat(tenantId: string, id: string, input: RouterHeartbeatDto, context: AuditContext = {}) {
     const status = input.status ?? 'ONLINE';
     const result = await this.db.query(
