@@ -8,7 +8,14 @@ describe('NetworkAdapterRegistry', () => {
     expect(registry.isImplemented('MERAKI_DASHBOARD_API')).toBe(true);
     expect(registry.isImplemented('UNIFI_NETWORK_API')).toBe(true);
     expect(registry.isImplemented('OPENWRT_UBUS')).toBe(true);
-    expect(registry.isImplemented('OMADA_CONTROLLER_API')).toBe(false);
+    expect(registry.isImplemented('OMADA_CONTROLLER_API')).toBe(true);
+    expect(registry.isImplemented('CAMBIUM_CNMAESTRO')).toBe(true);
+    expect(registry.isImplemented('ARUBA_CENTRAL_API')).toBe(true);
+    expect(registry.isImplemented('GRANDSTREAM_GWN_API')).toBe(true);
+    expect(registry.isImplemented('RUCKUS_SMARTZONE_API')).toBe(true);
+    expect(registry.isImplemented('TELTONIKA_RMS_API')).toBe(true);
+    expect(registry.isImplemented('PEPLINK_INCONTROL_API')).toBe(true);
+    expect(registry.isImplemented('PFSENSE_API')).toBe(true);
   });
 
   it('normalizes protocol lookup and exposes capability truth', () => {
@@ -21,7 +28,10 @@ describe('NetworkAdapterRegistry', () => {
     expect(registry.get('generic_http')?.lifecycle).toBe('GENERIC');
     expect(registry.supports('MERAKI_DASHBOARD_API', 'bandwidth_enforcement')).toBe(true);
     expect(registry.supports('MERAKI_DASHBOARD_API', 'disconnect_client')).toBe(false);
-    expect(registry.supports('OMADA_CONTROLLER_API', 'client_sessions')).toBe(false);
+    expect(registry.supports('OMADA_CONTROLLER_API', 'client_sessions')).toBe(true);
+    expect(registry.supports('CAMBIUM_CNMAESTRO', 'client_sessions')).toBe(true);
+    expect(registry.supports('CAMBIUM_CNMAESTRO', 'bandwidth_enforcement')).toBe(false);
+    expect(registry.supports('CAMBIUM_CNMAESTRO', 'disconnect_client')).toBe(false);
     expect(registry.supports('MIKROTIK_REST', 'disconnect_client')).toBe(true);
   });
 });
