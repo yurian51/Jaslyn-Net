@@ -38,7 +38,8 @@ export default function ProcurementPage(){
   setLoading(true);setError('');
   const domains:Domain[]=['suppliers','orders','supplierInvoices','inventory','aging','audit','branding','creditNotes','invoices','apAging'];
   const result=await Promise.all(domains.map(async d=>{try{return {d,value:await apiFetch<unknown>(endpoints[d],{headers:{Authorization:'Bearer '+getAccessToken()}})}}catch(e){return {d,error:e instanceof Error?e.message:'Request failed'}}}));
-  setRows(old=>{const next={...old};for(const item of result){if('value' in item){const v=item.value as {data?:unknown};if(item.d==='branding'){next.branding=v&&typeof v==='object'?[v as Row]:[];const b=(v??{}) as Row;setBrandName(label(b.displayName)==='—'?'':label(b.displayName));setBrandColor(label(b.primaryColor)==='—'?'#174ea6':label(b.primaryColor));setBrandDomain(label(b.portalDomain)==='—'?'':label(b.portalDomain));}else next[item.d]=Array.isArray(v?.data)?v.data as Row[]:[];}}return next;});
+  for(const item of result){if('value' in item&&item.d==='branding'){const b=(item.value??{}) as Row;setBrandName(label(b.displayName)==='—'?'':label(b.displayName));setBrandColor(label(b.primaryColor)==='—'?'#174ea6':label(b.primaryColor));setBrandDomain(label(b.portalDomain)==='—'?'':label(b.portalDomain));}}
+  setRows(old=>{const next={...old};for(const item of result){if('value' in item){const v=item.value as {data?:unknown};if(item.d==='branding')next.branding=v&&typeof v==='object'?[v as Row]:[];else next[item.d]=Array.isArray(v?.data)?v.data as Row[]:[];}}return next;});
   const failures=result.filter((x):x is {d:Domain,error:string}=>'error' in x);
   if(failures.length)setError('Baadhi ya sehemu hazijapakiwa: '+failures.map(x=>x.d+': '+x.error).join(' · '));
   setLoading(false);
