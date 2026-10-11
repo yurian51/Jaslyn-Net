@@ -2,8 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '../../lib/api';
-import { getAccessToken } from '../../lib/auth';
+import { apiFetch } from '../../../lib/api';
+import { getAccessToken } from '../../../lib/auth';
 
 type Settings = {
   enabled: boolean;
