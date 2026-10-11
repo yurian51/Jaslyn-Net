@@ -70,7 +70,7 @@ export class ProcurementService {
       const q=Number(d.quantityOrdered), cost=Number(d.unitCost), taxRate=Number(d.taxRate??0);
       if(!Number.isFinite(q)||q<=0||!Number.isFinite(cost)||cost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100) throw new BadRequestException('Invalid quantity, cost or tax rate');
       const line=await client.query(`INSERT INTO purchase_order_lines(tenant_id,purchase_order_id,item_code,description,quantity_ordered,unit_cost,tax_rate)
-        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,orderId,d.itemCode.trim(),d.description.trim(),q,cost,taxRate]);
+        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,orderId,d.itemCode.trim().toUpperCase(),d.description.trim(),q,cost,taxRate]);
       await client.query(`UPDATE purchase_orders SET
         subtotal=(SELECT COALESCE(SUM(quantity_ordered*unit_cost),0) FROM purchase_order_lines WHERE tenant_id=$1 AND purchase_order_id=$2),
         tax_total=(SELECT COALESCE(SUM(quantity_ordered*unit_cost*tax_rate/100),0) FROM purchase_order_lines WHERE tenant_id=$1 AND purchase_order_id=$2),
