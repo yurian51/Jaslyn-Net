@@ -231,6 +231,38 @@ export class IncidentsService {
     return this.get(tenantId, id);
   }
 
+  async getSlaReport(tenantId:string,fromInput?:string,toInput?:string){
+    const to=toInput?new Date(toInput):new Date();
+    const from=fromInput?new Date(fromInput):new Date(to.getTime()-30*24*60*60*1000);
+    if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||from>=to)throw new BadRequestException('A valid report date range is required');
+    if(to.getTime()-from.getTime()>366*24*60*60*1000)throw new BadRequestException('SLA report range cannot exceed 366 days');
+    const params=[tenantId,from.toISOString(),to.toISOString()];
+    const [summary,breakdown,recent]=await Promise.all([
+      this.db.query(`SELECT count(*)::int AS "totalIncidents",
+        count(*) FILTER(WHERE i.status<>'RESOLVED')::int AS "activeIncidents",
+        count(*) FILTER(WHERE EXTRACT(EPOCH FROM (COALESCE(i.resolved_at,now())-i.started_at))/60>i.sla_target_minutes)::int AS "slaBreaches",
+        count(*) FILTER(WHERE i.severity='CRITICAL')::int AS "criticalIncidents",
+        round(avg(EXTRACT(EPOCH FROM (i.resolved_at-i.started_at))/60) FILTER(WHERE i.status='RESOLVED' AND i.resolved_at IS NOT NULL),2) AS "averageResolutionMinutes",
+        COALESCE(sum(impact.revenue_impact),0)::numeric(20,2) AS "estimatedRevenueImpact",
+        COALESCE(sum(impact.customer_count),0)::int AS "customerImpactRows"
+       FROM incidents i
+       LEFT JOIN LATERAL (SELECT sum(estimated_revenue) FILTER(WHERE impact_type='REVENUE') AS revenue_impact,
+         count(DISTINCT resource_id) FILTER(WHERE resource_type='CUSTOMER') AS customer_count
+         FROM incident_impacts ii WHERE ii.tenant_id=i.tenant_id AND ii.incident_id=i.id AND ii.state='AFFECTED') impact ON true
+       WHERE i.tenant_id=$1 AND i.started_at>=$2::timestamptz AND i.started_at<$3::timestamptz`,params),
+      this.db.query(`SELECT severity,status,count(*)::int AS count FROM incidents WHERE tenant_id=$1 AND started_at>=$2::timestamptz AND started_at<$3::timestamptz GROUP BY severity,status ORDER BY severity,status`,params),
+      this.db.query(`SELECT i.id,i.title,i.severity,i.status,i.started_at AS "startedAt",i.resolved_at AS "resolvedAt",
+        i.sla_target_minutes AS "slaTargetMinutes",
+        (EXTRACT(EPOCH FROM (COALESCE(i.resolved_at,now())-i.started_at))/60>i.sla_target_minutes) AS "slaBreached",
+        COALESCE(impact.revenue_impact,0)::numeric(20,2) AS "estimatedRevenueImpact"
+       FROM incidents i LEFT JOIN LATERAL (SELECT sum(estimated_revenue) FILTER(WHERE impact_type='REVENUE') AS revenue_impact
+         FROM incident_impacts ii WHERE ii.tenant_id=i.tenant_id AND ii.incident_id=i.id AND ii.state='AFFECTED') impact ON true
+       WHERE i.tenant_id=$1 AND i.started_at>=$2::timestamptz AND i.started_at<$3::timestamptz
+       ORDER BY i.started_at DESC LIMIT 100`,params),
+    ]);
+    return {from:from.toISOString(),to:to.toISOString(),summary:summary.rows[0],breakdown:breakdown.rows,recent:recent.rows};
+  }
+
   async assignOwner(tenantId: string, incidentId: string, input: AssignIncidentOwnerDto, context: AuditContext = {}) {
     const ownerId = input.ownerUserId ?? null;
     if (ownerId) {
