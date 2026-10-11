@@ -195,7 +195,13 @@ export default function NotificationsPage() {
       setSmsApiKey(''); setSmsApiSecret('');
       setSmsConfigSuccess('Provider settings saved. Credentials are stored encrypted; no test SMS was sent.');
       if (smsSettings) setSmsSettings({ ...smsSettings, provider: smsProviderType, endpoint: smsEndpoint, senderId: smsSenderId, authType: smsAuthType, hasCredentials: saved.hasCredentials, enabled: smsConfigEnabled });
-      await Promise.all([loadSmsSettings(), load()]);
+      await Promise.all([
+        loadSmsSettings(),
+        load(),
+        apiFetch<SmsProviderStatus>('/notifications/sms/status', { headers: { Authorization: `Bearer ${token}` } })
+          .then(setSmsProvider)
+          .catch(() => setSmsStatusError('SMS provider status unavailable.')),
+      ]);
     } catch (err: unknown) {
       setSmsConfigError(err instanceof ApiError || err instanceof Error ? err.message : 'Unable to save SMS settings.');
     } finally {
