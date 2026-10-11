@@ -46,11 +46,14 @@ CREATE TABLE IF NOT EXISTS automation_alerts (
   title text NOT NULL,
   details jsonb NOT NULL DEFAULT '{}'::jsonb,
   status text NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','ACKNOWLEDGED','RESOLVED')),
+  resolution_note text,
+  resolved_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz,
   UNIQUE(tenant_id,id),
   UNIQUE(tenant_id,rule_id,event_id),
-  FOREIGN KEY(tenant_id,rule_id) REFERENCES automation_rules(tenant_id,id) ON DELETE RESTRICT
+  FOREIGN KEY(tenant_id,rule_id) REFERENCES automation_rules(tenant_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY(tenant_id,resolved_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS automation_alerts_open_idx ON automation_alerts(tenant_id,status,severity,created_at DESC);
 
