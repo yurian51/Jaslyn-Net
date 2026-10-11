@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
@@ -13,6 +13,7 @@ type CheckResult={status:'PASS'|'FAIL'|'UNKNOWN';latencyMs:number|null;responseC
 
 @Injectable()
 export class SyntheticMonitoringService {
+  private readonly logger=new Logger(SyntheticMonitoringService.name);
   constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly config:ConfigService,private readonly audit:AuditService,private readonly domainEvents:CommunicationDomainEventsService){}
 
   private allowedPrivateHosts(){return new Set((this.config.get<string>('SYNTHETIC_ALLOWED_PRIVATE_HOSTS','')||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean));}
