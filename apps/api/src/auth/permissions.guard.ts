@@ -6,6 +6,7 @@ import { PERMISSIONS_KEY } from './permissions.decorator';
 import { AuthenticatedRequest } from './auth.guard';
 
 export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
+ 'sessions.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'sessions.revoke':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],
  'secrets.read':['OWNER','ADMIN'],'secrets.write':['OWNER','ADMIN'],
  'network.policy.read':['OWNER','ADMIN','AGENT','READ_ONLY'],
  'network.policy.write':['OWNER','ADMIN'],'network.policy.evaluate':['OWNER','ADMIN','AGENT'],
