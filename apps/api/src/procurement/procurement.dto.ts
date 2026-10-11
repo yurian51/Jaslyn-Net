@@ -56,7 +56,7 @@ export class UpdateBrandingDto {
   @IsOptional() @IsString() @MaxLength(40) supportPhone?: string;
   @IsOptional() @IsString() @MaxLength(253) portalDomain?: string;
 }
-export class CreateSupplierCreditDto {
+export class CreateCustomerCreditNoteDto {
   @IsUUID() invoiceId!: string;
   @IsString() @MinLength(2) @MaxLength(80) creditNumber!: string;
   @IsString() @Matches(/^[A-Z]{3}$/) currency!: string;
