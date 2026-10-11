@@ -1,4 +1,5 @@
 BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Reuse the existing invoices/invoice_lines domain as the canonical customer billing source.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS amount_paid numeric(20,2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0);
@@ -263,11 +264,20 @@ CREATE TABLE IF NOT EXISTS financial_change_audit (
   operation text NOT NULL CHECK (operation IN ('INSERT','UPDATE','DELETE')),
   before_data jsonb,
   after_data jsonb,
+  chain_sequence bigint NOT NULL,
+  previous_hash text NOT NULL,
+  entry_hash text NOT NULL,
   occurred_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id,actor_user_id) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS financial_change_audit_tenant_time_idx ON financial_change_audit(tenant_id,occurred_at DESC);
 CREATE INDEX IF NOT EXISTS financial_change_audit_entity_idx ON financial_change_audit(tenant_id,entity_type,entity_id,occurred_at DESC);
+CREATE TABLE IF NOT EXISTS financial_audit_chain_heads (
+  tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE RESTRICT,
+  last_sequence bigint NOT NULL DEFAULT 0,
+  last_hash text NOT NULL DEFAULT repeat('0',64),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 INSERT INTO permission_catalog(permission_key,description) VALUES
  ('procurement.read','Read suppliers, purchase orders, supplier invoices and inventory'),
@@ -282,7 +292,9 @@ INSERT INTO permission_catalog(permission_key,description) VALUES
 ON CONFLICT(permission_key) DO UPDATE SET description=EXCLUDED.description;
 
 CREATE OR REPLACE FUNCTION jaslyn_financial_audit_trigger() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE v_tenant uuid; v_id uuid; v_before jsonb; v_after jsonb; v_actor uuid; v_request text;
+DECLARE
+  v_tenant uuid; v_id uuid; v_before jsonb; v_after jsonb; v_actor uuid; v_request text;
+  v_sequence bigint; v_previous text; v_hash text; v_payload text;
 BEGIN
   v_before := CASE WHEN TG_OP='INSERT' THEN NULL ELSE to_jsonb(OLD) END;
   v_after := CASE WHEN TG_OP='DELETE' THEN NULL ELSE to_jsonb(NEW) END;
@@ -290,8 +302,19 @@ BEGIN
   v_id := COALESCE((v_after->>'id')::uuid,(v_before->>'id')::uuid);
   v_actor := NULLIF(current_setting('jaslyn.actor_user_id',true),'')::uuid;
   v_request := NULLIF(current_setting('jaslyn.request_id',true),'');
-  INSERT INTO financial_change_audit(tenant_id,actor_user_id,request_id,entity_type,entity_id,operation,before_data,after_data)
-  VALUES(v_tenant,v_actor,v_request,TG_TABLE_NAME,v_id,TG_OP,v_before,v_after);
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_tenant::text,0));
+  INSERT INTO financial_audit_chain_heads(tenant_id,last_sequence,last_hash)
+    VALUES(v_tenant,0,repeat('0',64)) ON CONFLICT(tenant_id) DO NOTHING;
+  SELECT last_sequence,last_hash INTO v_sequence,v_previous
+    FROM financial_audit_chain_heads WHERE tenant_id=v_tenant FOR UPDATE;
+  v_sequence := v_sequence+1;
+  v_payload := jsonb_build_object('tenantId',v_tenant,'actorUserId',v_actor,'requestId',v_request,
+    'entityType',TG_TABLE_NAME,'entityId',v_id,'operation',TG_OP,'before',v_before,'after',v_after,
+    'sequence',v_sequence)::text;
+  v_hash := encode(digest(convert_to(v_previous||':'||v_payload,'UTF8'),'sha256'),'hex');
+  INSERT INTO financial_change_audit(tenant_id,actor_user_id,request_id,entity_type,entity_id,operation,before_data,after_data,chain_sequence,previous_hash,entry_hash)
+    VALUES(v_tenant,v_actor,v_request,TG_TABLE_NAME,v_id,TG_OP,v_before,v_after,v_sequence,v_previous,v_hash);
+  UPDATE financial_audit_chain_heads SET last_sequence=v_sequence,last_hash=v_hash,updated_at=now() WHERE tenant_id=v_tenant;
   IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END; $$;
 
