@@ -20,11 +20,13 @@ type Incident = {
   affectedSessions: number;
   estimatedRevenue: string | number;
   ownerName?: string | null;
+  ownerUserId?: string | null;
   slaTargetMinutes?: number;
   slaBreached?: boolean;
 };
 
 type IncidentResponse = { data: Incident[]; count: number };
+type IncidentOwner = { id:string; fullName:string; email:string; role:string };
 const money = (value: string | number) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(); };
 
@@ -34,6 +36,8 @@ export default function IncidentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [owners, setOwners] = useState<IncidentOwner[]>([]);
+  const [ownerSelections, setOwnerSelections] = useState<Record<string,string>>({});
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -42,6 +46,7 @@ export default function IncidentsPage() {
     try {
       const query = status ? `?status=${status}` : '';
       setData(await apiFetch<IncidentResponse>(`/incidents${query}`, { headers: { Authorization: `Bearer ${token}` } }));
+      try { const result = await apiFetch<{data:IncidentOwner[]}>('/incidents/owners', { headers: { Authorization: `Bearer ${token}` } }); setOwners(result.data ?? []); } catch { setOwners([]); }
     } catch (cause: unknown) { setError(cause instanceof Error ? cause.message : 'Unable to load incidents.'); }
     finally { setLoading(false); }
   }, [status]);
@@ -61,6 +66,15 @@ export default function IncidentsPage() {
       await load();
     } catch (cause: unknown) { setError(cause instanceof Error ? cause.message : 'Incident action failed.'); }
     finally { setBusy(null); }
+  }
+
+  async function assignOwner(id:string) {
+    const token=getAccessToken();if(!token)return;
+    const ownerUserId=ownerSelections[id] ?? incidents.find(item=>item.id===id)?.ownerUserId ?? '';
+    setBusy(id);setError(null);
+    try { await apiFetch('/incidents/'+encodeURIComponent(id)+'/owner',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({ownerUserId:ownerUserId||null})}); await load(); }
+    catch(cause:unknown){setError(cause instanceof Error?cause.message:'Unable to assign incident owner.');}
+    finally{setBusy(null);}
   }
 
   const incidents = data?.data ?? [];
@@ -90,7 +104,7 @@ export default function IncidentsPage() {
         <td><strong>{item.affectedCustomers}</strong> customers<small>{item.affectedSessions} sessions · {item.affectedResources} resources</small></td>
         <td><strong>TSh {money(item.estimatedRevenue)}</strong><small>estimated exposure</small></td>
         <td><time>{fmt(item.startedAt)}</time><small>Last seen {fmt(item.lastSeenAt)}</small></td>
-        <td><div className="row-actions"><a className="details" href={'/incidents/'+item.id}>Timeline</a>{item.status === 'OPEN' && <button disabled={busy === item.id} onClick={() => void action(item.id, 'acknowledge')}>Acknowledge</button>}{item.status !== 'RESOLVED' && <button className="resolve" disabled={busy === item.id} onClick={() => void action(item.id, 'resolve')}>{busy === item.id ? 'Working…' : 'Resolve'}</button>}</div></td>
+        <td><div className="row-actions">{owners.length>0 && <><select aria-label={"Incident owner for "+item.title} value={ownerSelections[item.id] ?? item.ownerUserId ?? ""} onChange={event=>setOwnerSelections(previous=>({...previous,[item.id]:event.target.value}))}><option value="">Unassigned</option>{owners.map(owner=><option key={owner.id} value={owner.id}>{owner.fullName} · {owner.role}</option>)}</select><button disabled={busy===item.id} onClick={()=>void assignOwner(item.id)}>Assign</button></>}<a className="details" href={'/incidents/'+item.id}>Timeline</a>{item.status === 'OPEN' && <button disabled={busy === item.id} onClick={() => void action(item.id, 'acknowledge')}>Acknowledge</button>}{item.status !== 'RESOLVED' && <button className="resolve" disabled={busy === item.id} onClick={() => void action(item.id, 'resolve')}>{busy === item.id ? 'Working…' : 'Resolve'}</button>}</div></td>
       </tr>)}</tbody></table></div>}
     </section>
     <footer className="footer"><span>JASLYN NET · Incident Center</span><span>Tenant-scoped operational events</span></footer>
