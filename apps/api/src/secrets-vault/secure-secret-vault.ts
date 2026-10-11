@@ -19,7 +19,7 @@ export class SecureSecretVault {
     return keys;
   }
   activeKeyId(){
-    const keys=this.keys();const id=this.config.get<string>('JASLYN_SECRET_VAULT_ACTIVE_KEY_ID')||(keys.has('legacy')?'legacy':keys.keys().next().value);
+    const keys=this.keys();const configured=this.config.get<string>('JASLYN_SECRET_VAULT_ACTIVE_KEY_ID');const id=configured||(keys.has('legacy')?'legacy':keys.size===1?keys.keys().next().value:undefined);
     if(!id||!keys.has(id))throw new Error('Active secret-vault key is not present in JASLYN_SECRET_VAULT_KEYRING');
     return id;
   }
