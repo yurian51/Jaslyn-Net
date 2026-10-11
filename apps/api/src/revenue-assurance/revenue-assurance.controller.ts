@@ -11,11 +11,11 @@ import { UpdateRevenueDiscrepancyDto } from './revenue-assurance.dto';
 @UseGuards(AuthGuard,RolesGuard,PermissionsGuard)
 export class RevenueAssuranceController {
   constructor(private readonly assurance:RevenueAssuranceService){}
-  @Post('run') @Roles('OWNER','ADMIN','ACCOUNTANT') @Permissions('revenue.reconcile')
+  @Post('run') @Roles('OWNER','ADMIN') @Permissions('revenue.reconcile')
   run(@Req() req:AuthenticatedRequest){return this.assurance.runReconciliation(req.user!.tenantId,req.user!.id,{userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip});}
-  @Get('runs') @Roles('OWNER','ADMIN','AGENT','READ_ONLY','ACCOUNTANT') @Permissions('revenue.read')
+  @Get('runs') @Roles('OWNER','ADMIN','AGENT','READ_ONLY','CASHIER') @Permissions('revenue.read')
   runs(@Req() req:AuthenticatedRequest){return this.assurance.listRuns(req.user!.tenantId);}
-  @Get('discrepancies') @Roles('OWNER','ADMIN','AGENT','READ_ONLY','ACCOUNTANT') @Permissions('revenue.read')
+  @Get('discrepancies') @Roles('OWNER','ADMIN','AGENT','READ_ONLY','CASHIER') @Permissions('revenue.read')
   discrepancies(@Req() req:AuthenticatedRequest,@Query('status') status?:string){return this.assurance.listDiscrepancies(req.user!.tenantId,status);}
   @Patch('discrepancies/:id') @Roles('OWNER','ADMIN') @Permissions('revenue.manage')
   update(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:UpdateRevenueDiscrepancyDto){
