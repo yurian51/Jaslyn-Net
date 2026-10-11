@@ -151,6 +151,7 @@ export class RoutersService {
   }
 
   async changeIntelligence(tenantId: string, routerId?: string, limit = 100) {
+    if (routerId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(routerId)) throw new BadRequestException('Invalid router ID');
     const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 500);
     const result = await this.db.query(
       `SELECT e.id,e.router_id AS "routerId",r.name AS "routerName",e.source_type AS "sourceType",
