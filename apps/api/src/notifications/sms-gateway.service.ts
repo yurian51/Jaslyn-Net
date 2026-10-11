@@ -76,7 +76,7 @@ export class SmsGatewayService {
     if (!['none', 'bearer', 'api_key', 'basic'].includes(authType)) throw new BadRequestException('Unsupported authentication type');
     let endpoint: string | null = null;
     if (input.provider === 'custom_rest') endpoint = this.validateEndpoint(input.endpoint || '').toString();
-    else if (input.endpoint?.trim()) endpoint = this.validateEndpoint(input.endpoint).toString();
+    // Beem uses its fixed HTTPS endpoint unless deployment configuration overrides it.
 
     const current = await this.db.query<StoredConfig>('SELECT * FROM sms_provider_configs WHERE tenant_id=$1', [tenantId]);
     const previous = current.rows[0];
