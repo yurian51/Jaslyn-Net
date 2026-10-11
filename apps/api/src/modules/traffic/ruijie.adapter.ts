@@ -1,0 +1,83 @@
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+import { isRestrictedNetworkAddress } from './network-endpoint-security';
+import type { NetworkDeviceConnection, NormalizedWifiClient } from './network-device.adapter';
+
+type JsonRecord = Record<string, unknown>;
+
+/**
+ * Ruijie/Reyee Cloud read-only client telemetry adapter.
+ * Requires a Ruijie Cloud API token and group/project ID. The provider contract accepts the token as a query parameter, so request URLs must never be logged.
+ */
+@Injectable()
+export class RuijieReyeeNetworkAdapter {
+  constructor(private readonly config: ConfigService) {}
+
+  async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
+    const endpoint = connection.controllerEndpoint ?? connection.endpoint;
+    const meta = connection.capabilities ?? {};
+    const groupId = connection.credentials?.groupId ?? this.value(meta, ['groupId', 'group_id', 'projectId']);
+    const token = connection.credentials?.accessToken ?? connection.credentials?.apiKey;
+    if (!endpoint || !groupId || !token) throw new ServiceUnavailableException('Ruijie/Reyee requires Cloud API endpoint, groupId and access token');
+    const url = new URL(endpoint);
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new ServiceUnavailableException('Ruijie Cloud endpoint must be HTTPS without embedded credentials, query or fragment');
+    url.pathname = url.pathname.replace(/\/$/, '') || '';
+    if (!url.pathname.endsWith('/service/api/open/v1/dev/user/current-user')) {
+      url.pathname = `${url.pathname}/service/api/open/v1/dev/user/current-user`.replace(/\/+/g, '/');
+    }
+    url.searchParams.set('group_id', groupId);
+    url.searchParams.set('access_token', token);
+    const clients: NormalizedWifiClient[] = [];
+    const maxPages = 100;
+    for (let page = 1; page <= maxPages; page += 1) {
+      const pageUrl = new URL(url.toString());
+      pageUrl.searchParams.set('page_index', String(page));
+      pageUrl.searchParams.set('page_size', '100');
+      const payload = await this.request(pageUrl.toString());
+      const rows = this.rows(payload.data).length ? this.rows(payload.data) : this.rows(payload);
+      clients.push(...rows.map((row) => ({
+        username: this.string(row, ['userName', 'username', 'user', 'name']),
+        address: this.string(row, ['ip', 'ipAddress', 'address']),
+        macAddress: this.string(row, ['mac', 'macAddress', 'macAddr']),
+        bytesIn: this.counter(row, ['flowUp', 'bytesIn', 'uploadBytes', 'txBytes']),
+        bytesOut: this.counter(row, ['flowDown', 'bytesOut', 'downloadBytes', 'rxBytes']),
+      })));
+      if (rows.length === 0 || rows.length < 100) return clients;
+    }
+    throw new ServiceUnavailableException('Ruijie client pagination exceeded 100 pages');
+  }
+
+  private async request(rawUrl: string): Promise<JsonRecord> {
+    const url = new URL(rawUrl);
+    const host = url.hostname.toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host === 'metadata.google.internal') throw new ServiceUnavailableException('Ruijie Cloud API hostname is blocked');
+    const addresses = isIP(host) ? [host] : (await lookup(host, { all: true })).map((entry) => entry.address);
+    if (!addresses.length || addresses.some((address) => this.isPrivateAddress(address))) throw new ServiceUnavailableException('Ruijie Cloud API endpoint resolves to a restricted address');
+    const configured = Number(this.config.get<string>('JASLYN_NETWORK_API_TIMEOUT_MS', '5000'));
+    const timeout = Math.min(Math.max(Number.isFinite(configured) ? configured : 5000, 1000), 30000);
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal, redirect: 'error' });
+      if (!response.ok) throw new ServiceUnavailableException(`Ruijie Cloud API request failed (${response.status})`);
+      const body: unknown = await response.json();
+      if (!this.isRecord(body)) throw new ServiceUnavailableException('Ruijie Cloud API returned invalid JSON');
+      if (typeof body.code === 'number' && body.code !== 0) throw new ServiceUnavailableException('Ruijie Cloud API rejected the request');
+      if (typeof body.errorCode === 'number' && body.errorCode !== 0) throw new ServiceUnavailableException('Ruijie Cloud API rejected the request');
+      return body;
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      throw new ServiceUnavailableException('Ruijie Cloud API request failed or timed out');
+    } finally { clearTimeout(timer); }
+  }
+  private isPrivateAddress(address: string): boolean {
+    return isRestrictedNetworkAddress(address);
+  }
+  private rows(value: unknown): JsonRecord[] { if (Array.isArray(value)) return value.filter((item): item is JsonRecord => this.isRecord(item)); if (!this.isRecord(value)) return []; for (const key of ['list', 'rows', 'records', 'users', 'clients', 'currentUser', 'data']) { const nested = value[key]; if (Array.isArray(nested)) return nested.filter((item): item is JsonRecord => this.isRecord(item)); } return []; }
+  private record(value: unknown): JsonRecord { return this.isRecord(value) ? value : {}; }
+  private isRecord(value: unknown): value is JsonRecord { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+  private string(record: JsonRecord, keys: string[]): string | undefined { for (const key of keys) if (typeof record[key] === 'string' && (record[key] as string).trim()) return record[key] as string; return undefined; }
+  private value(record: JsonRecord, keys: string[]): string | undefined { return this.string(record, keys) ?? keys.map((key) => record[key]).find((value): value is number => typeof value === 'number')?.toString(); }
+  private counter(record: JsonRecord, keys: string[]): string { for (const key of keys) { const value = record[key]; if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value); if (typeof value === 'string' && /^\d+$/.test(value)) return value; } return '0'; }
+}
