@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
-import { lookup as dnsLookup, type LookupFunction } from 'node:dns';
 import { lookup as lookupAddress } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Pool } from 'pg';
@@ -351,8 +350,8 @@ export class WorkflowsService {
     const records=await lookupAddress(url.hostname,{all:true,verbatim:true});
     if(!records.length||records.some(record=>!this.isPublicAddress(record.address,record.family))) throw new BadRequestException('Integration hostname resolves to a non-public address and was blocked');
     const selected=records[0];
-    const pinnedLookup:LookupFunction=(_hostname,options,callback)=>{
-      if(typeof options==='object'&&options!==null&&'all'in options&&options.all) callback(null,[{address:selected.address,family:selected.family}]);
+    const pinnedLookup:NonNullable<import('node:https').RequestOptions['lookup']>=(_hostname,options,callback)=>{
+      if(options.all) callback(null,[{address:selected.address,family:selected.family}]);
       else callback(null,selected.address,selected.family);
     };
     const headers:Record<string,string>={'accept':'application/json','user-agent':'Jaslyn-Net-Workflow/1.0'};
