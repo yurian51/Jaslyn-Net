@@ -254,6 +254,18 @@ export class NotificationsService {
     return { recovered: result.rowCount ?? 0, data: result.rows };
   }
 
+  async deferSms(id: string, reason: string) {
+    const result = await this.db.query(
+      `UPDATE notification_outbox
+       SET status='PENDING', attempts=GREATEST(attempts-1,0), available_at=now() + interval '5 minutes',
+           locked_at=NULL, last_error=left($2,500), updated_at=now()
+       WHERE id=$1 AND status='PROCESSING'
+       RETURNING id,status,attempts,available_at AS "availableAt"`,
+      [id, reason || 'SMS provider is not configured'],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async stats(tenantId: string) {
     const result = await this.db.query(
       `SELECT status, count(*)::int AS count
