@@ -1,10 +1,12 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { CaptivePortalService } from './captive-portal.service';
+import { VouchersService } from '../vouchers/vouchers.service';
 
 describe('CaptivePortalService', () => {
   const db = { query: jest.fn() };
-  const service = new CaptivePortalService(db as unknown as Pool);
+  const vouchers = { redeem: jest.fn() };
+  const service = new CaptivePortalService(db as unknown as Pool, vouchers as unknown as VouchersService);
 
   beforeEach(() => jest.clearAllMocks());
 
