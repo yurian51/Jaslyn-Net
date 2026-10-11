@@ -123,6 +123,48 @@ export class WorkflowsService {
     return r.rows[0];
   }
 
+  async exportDefinition(tenantId:string,id:string) {
+    const r=await this.db.query(`SELECT name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps
+      FROM automation_workflows WHERE tenant_id=$1 AND id=$2`,[tenantId,id]);
+    if(!r.rowCount) throw new NotFoundException('Workflow not found');
+    return {schemaVersion:1,kind:'jaslyn-workflow',exportedAt:new Date().toISOString(),definition:r.rows[0]};
+  }
+
+  async importDefinition(tenantId:string,actorId:string,d:CreateWorkflowDto) {
+    // Imports are always disabled; operators must review and explicitly enable them.
+    return this.create(tenantId,actorId,{...d,enabled:false});
+  }
+
+  async getRun(tenantId:string,id:string) {
+    const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt"
+      FROM automation_workflow_runs WHERE tenant_id=$1 AND id=$2`,[tenantId,id]);
+    if(!r.rowCount) throw new NotFoundException('Workflow run not found');
+    return r.rows[0];
+  }
+
+  async replayRun(tenantId:string,actorId:string,id:string) {
+    const r=await this.db.query(`SELECT r.workflow_id,r.trigger_type,r.trigger_payload,w.enabled
+      FROM automation_workflow_runs r JOIN automation_workflows w ON w.tenant_id=r.tenant_id AND w.id=r.workflow_id
+      WHERE r.tenant_id=$1 AND r.id=$2`,[tenantId,id]);
+    if(!r.rowCount) throw new NotFoundException('Workflow run not found');
+    if(!r.rows[0].enabled) throw new ConflictException('Enable the workflow before replaying this run');
+    const run=await this.enqueue(tenantId,r.rows[0].workflow_id,'REPLAY',`replay:${id}:${randomBytes(12).toString('hex')}`,r.rows[0].trigger_payload??{});
+    await this.audit.record(tenantId,'REPLAY','automation_workflow_run',id,{newRunId:run.id},{userId:actorId});
+    return run;
+  }
+
+  async cancelRun(tenantId:string,actorId:string,id:string) {
+    const r=await this.db.query(`UPDATE automation_workflow_runs SET status='CANCELLED',completed_at=now(),locked_at=NULL,last_error='CANCELLED_BY_OPERATOR'
+      WHERE tenant_id=$1 AND id=$2 AND status IN ('QUEUED','WAITING_APPROVAL') RETURNING id,status`,[tenantId,id]);
+    if(!r.rowCount) {
+      const found=await this.db.query('SELECT status FROM automation_workflow_runs WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+      if(!found.rowCount) throw new NotFoundException('Workflow run not found');
+      throw new ConflictException('Only queued or approval-waiting runs can be cancelled safely');
+    }
+    await this.audit.record(tenantId,'CANCEL','automation_workflow_run',id,{status:r.rows[0].status},{userId:actorId});
+    return r.rows[0];
+  }
+
   async listRuns(tenantId:string) {
     const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM automation_workflow_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
