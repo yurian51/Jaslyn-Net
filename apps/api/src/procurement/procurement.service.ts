@@ -234,12 +234,17 @@ export class ProcurementService {
     return r.rows[0]??null;
   }
   async updateBranding(tenantId:string,actorId:string,d:UpdateBrandingDto) {
-    const r=await this.db.query(`INSERT INTO tenant_branding(tenant_id,display_name,logo_url,primary_color,support_email,support_phone,portal_domain,updated_by,updated_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,now()) ON CONFLICT(tenant_id) DO UPDATE SET display_name=EXCLUDED.display_name,logo_url=EXCLUDED.logo_url,
-      primary_color=EXCLUDED.primary_color,support_email=EXCLUDED.support_email,support_phone=EXCLUDED.support_phone,portal_domain=EXCLUDED.portal_domain,updated_by=EXCLUDED.updated_by,updated_at=now()
+    const allowedTemplates=new Set(['invoiceIssued','paymentReceived','serviceExpiry','outage','purchaseOrder','refundUpdated']);
+    const templates=d.notificationTemplates??{};
+    for(const [key,value] of Object.entries(templates)){
+      if(!allowedTemplates.has(key)||typeof value!=='string'||value.length>1000)throw new BadRequestException('Notification templates must use approved keys and text values up to 1000 characters');
+    }
+    const r=await this.db.query(`INSERT INTO tenant_branding(tenant_id,display_name,logo_url,primary_color,support_email,support_phone,portal_domain,notification_templates,updated_by,updated_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,now()) ON CONFLICT(tenant_id) DO UPDATE SET display_name=EXCLUDED.display_name,logo_url=EXCLUDED.logo_url,
+      primary_color=EXCLUDED.primary_color,support_email=EXCLUDED.support_email,support_phone=EXCLUDED.support_phone,portal_domain=EXCLUDED.portal_domain,notification_templates=EXCLUDED.notification_templates,updated_by=EXCLUDED.updated_by,updated_at=now()
       RETURNING display_name AS "displayName",logo_url AS "logoUrl",primary_color AS "primaryColor",support_email AS "supportEmail",support_phone AS "supportPhone",portal_domain AS "portalDomain",notification_templates AS "notificationTemplates",updated_at AS "updatedAt"`,
-      [tenantId,d.displayName.trim(),d.logoUrl?.trim()||null,d.primaryColor??'#174ea6',d.supportEmail?.trim().toLowerCase()||null,d.supportPhone?.trim()||null,d.portalDomain?.trim().toLowerCase()||null,actorId]);
-    await this.auditChange(tenantId,actorId,'UPDATE','tenant_branding',tenantId,{displayName:d.displayName,portalDomain:d.portalDomain??null});
+      [tenantId,d.displayName.trim(),d.logoUrl?.trim()||null,d.primaryColor??'#174ea6',d.supportEmail?.trim().toLowerCase()||null,d.supportPhone?.trim()||null,d.portalDomain?.trim().toLowerCase()||null,JSON.stringify(templates),actorId]);
+    await this.auditChange(tenantId,actorId,'UPDATE','tenant_branding',tenantId,{displayName:d.displayName,portalDomain:d.portalDomain??null,templateKeys:Object.keys(templates)});
     return r.rows[0];
   }
   async arAging(tenantId:string) {
