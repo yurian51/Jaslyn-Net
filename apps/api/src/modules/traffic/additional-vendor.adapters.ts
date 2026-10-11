@@ -76,8 +76,8 @@ abstract class VendorReadOnlyApiAdapter {
       username: this.string(row, ['username', 'userName', 'user', 'name', 'clientName', 'description']),
       address: this.string(row, ['ipAddress', 'ip', 'ipAddr', 'address']),
       macAddress: this.string(row, ['macAddress', 'mac', 'macAddr', 'mac-address']),
-      bytesIn: this.counter(row, ['bytesIn', 'bytes_in', 'rxBytes', 'uploadBytes', 'trafficUp', 'flowUp']) || this.counter(usage, ['recv', 'rx', 'upload']),
-      bytesOut: this.counter(row, ['bytesOut', 'bytes_out', 'txBytes', 'downloadBytes', 'trafficDown', 'flowDown']) || this.counter(usage, ['sent', 'tx', 'download']),
+      bytesIn: this.counter(row, ['bytesIn', 'bytes_in', 'rxBytes', 'uploadBytes', 'trafficUp', 'flowUp']) || this.counter(usage, ['recv', 'rx', 'upload']) || '0',
+      bytesOut: this.counter(row, ['bytesOut', 'bytes_out', 'txBytes', 'downloadBytes', 'trafficDown', 'flowDown']) || this.counter(usage, ['sent', 'tx', 'download']) || '0',
     };
   }
   protected isRecord(value: unknown): value is JsonRecord { return typeof value === 'object' && value !== null && !Array.isArray(value); }
@@ -91,7 +91,7 @@ abstract class VendorReadOnlyApiAdapter {
       if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value);
       if (typeof value === 'string' && /^\d+$/.test(value)) return value;
     }
-    return '0';
+    return '';
   }
   protected bearer(connection: NetworkDeviceConnection, label: string): Record<string, string> {
     const token = connection.credentials?.accessToken ?? connection.credentials?.apiKey;
