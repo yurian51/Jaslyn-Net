@@ -14,6 +14,7 @@ type SessionRecord = {
   expiresAt: string;
   revokedAt?: string | null;
   isCurrent: boolean;
+  isActive: boolean;
 };
 type SessionsResponse = { data: SessionRecord[]; count: number };
 
@@ -93,7 +94,7 @@ export default function SecuritySessionsPage() {
     } finally { setWorking(null); }
   }
 
-  const activeOtherSessions = sessions.filter((session) => !session.revokedAt && !session.isCurrent).length;
+  const activeOtherSessions = sessions.filter((session) => session.isActive && !session.isCurrent).length;
 
   return (
     <main className="security-sessions-page">
@@ -130,13 +131,14 @@ export default function SecuritySessionsPage() {
                   <h2>{deviceLabel(session.userAgent)}</h2>
                   {session.isCurrent && <span className="session-pill current">This device</span>}
                   {session.revokedAt && <span className="session-pill revoked">Revoked</span>}
-                  {!session.revokedAt && !session.isCurrent && <span className="session-pill active">Active record</span>}
+                  {session.isActive && !session.isCurrent && <span className="session-pill active">Active session</span>}
+                  {!session.isActive && !session.revokedAt && <span className="session-pill revoked">Expired</span>}
                 </div>
                 <p>{session.ipAddress || 'IP address unavailable'} · Started {formatDate(session.createdAt)}</p>
                 <p>Last seen {formatDate(session.lastSeenAt)} · Expires {formatDate(session.expiresAt)}</p>
                 {session.revokedAt && <p>Revoked {formatDate(session.revokedAt)}</p>}
               </div>
-              {!session.revokedAt && <button type="button" className="security-button danger" disabled={Boolean(working)} onClick={() => void revoke(session)}>
+              {session.isActive && <button type="button" className="security-button danger" disabled={Boolean(working)} onClick={() => void revoke(session)}>
                 {working === session.id ? 'Revoking…' : 'Revoke'}
               </button>}
             </article>
