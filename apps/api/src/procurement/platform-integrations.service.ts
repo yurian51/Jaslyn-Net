@@ -5,12 +5,11 @@ import { isIP } from 'node:net';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
-import { SecretsVaultService } from '../secrets-vault/secrets-vault.service';
 import { CreatePlatformApiKeyDto, CreateWebhookEndpointDto } from './procurement.dto';
 
 @Injectable()
 export class PlatformIntegrationsService {
-  constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly audit:AuditService,private readonly secrets:SecretsVaultService){}
+  constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly audit:AuditService){}
 
   private async auditChange(tenantId:string,actorId:string,action:string,type:string,id:string,metadata:Record<string,unknown>={}){
     await this.audit.record(tenantId,action,type,id,metadata,{userId:actorId});
