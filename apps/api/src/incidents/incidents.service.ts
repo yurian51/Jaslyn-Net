@@ -103,6 +103,25 @@ export class IncidentsService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
+      const maintenanceWindow = await client.query(
+        `SELECT mw.id,mw.title,mw.scope_type AS "scopeType"
+         FROM maintenance_windows mw
+         LEFT JOIN network_sites ns ON ns.tenant_id=mw.tenant_id AND ns.id=mw.scope_id
+         WHERE mw.tenant_id=$1 AND mw.status IN ('PLANNED','ACTIVE')
+           AND mw.starts_at<=now() AND mw.ends_at>now()
+           AND (mw.scope_type='TENANT'
+             OR (mw.scope_type='ROUTER' AND mw.scope_id=$2)
+             OR (mw.scope_type='SITE' AND ns.location_id=$3))
+         ORDER BY CASE mw.scope_type WHEN 'ROUTER' THEN 0 WHEN 'SITE' THEN 1 ELSE 2 END
+         LIMIT 1`,
+        [tenantId,routerId,router.locationId],
+      );
+      const duringMaintenance = Boolean(maintenanceWindow.rowCount);
+      const maintenanceEvidence = duringMaintenance ? {
+        maintenanceWindowId: maintenanceWindow.rows[0].id,
+        maintenanceWindowTitle: maintenanceWindow.rows[0].title,
+        maintenanceExpected: true,
+      } : { maintenanceExpected: false };
       const existing = await client.query(
         `SELECT id, status FROM incidents WHERE tenant_id=$1 AND fingerprint=$2 AND status IN ('OPEN','ACKNOWLEDGED') FOR UPDATE`,
         [tenantId, fingerprint],
@@ -112,15 +131,15 @@ export class IncidentsService {
       if (existing.rowCount) {
         incidentId = existing.rows[0].id;
         await client.query(
-          `UPDATE incidents SET last_seen_at=now(), severity='CRITICAL', evidence=evidence || $3::jsonb, updated_at=now() WHERE tenant_id=$1 AND id=$2`,
-          [tenantId, incidentId, JSON.stringify({ routerStatus: router.status, detectedBy: 'router-state-sync' })],
+          `UPDATE incidents SET last_seen_at=now(), severity=CASE WHEN $4::boolean THEN 'WARNING' ELSE 'CRITICAL' END, evidence=evidence || $3::jsonb, updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+          [tenantId, incidentId, JSON.stringify({ routerStatus: router.status, detectedBy: 'router-state-sync', ...maintenanceEvidence }), duringMaintenance],
         );
         await client.query(`DELETE FROM incident_impacts WHERE tenant_id=$1 AND incident_id=$2 AND state='AFFECTED'`, [tenantId, incidentId]);
       } else {
         const created = await client.query(
           `INSERT INTO incidents (tenant_id,fingerprint,category,severity,status,title,summary,root_resource_type,root_resource_id,evidence)
-           VALUES ($1,$2,'DEVICE_OFFLINE','CRITICAL','OPEN',$3,$4,'ROUTER',$5,$6::jsonb) RETURNING id`,
-          [tenantId, fingerprint, `${router.name} is offline`, `Router ${router.name} is offline${router.locationName ? ` at ${router.locationName}` : ''}.`, routerId, JSON.stringify({ routerStatus: router.status, detectedBy: 'router-state-sync' })],
+           VALUES ($1,$2,'DEVICE_OFFLINE',CASE WHEN $3::boolean THEN 'WARNING' ELSE 'CRITICAL' END,'OPEN',$4,$5,'ROUTER',$6,$7::jsonb) RETURNING id`,
+          [tenantId, fingerprint, duringMaintenance, `${router.name} is offline`, `Router ${router.name} is offline${router.locationName ? ` at ${router.locationName}` : ''}.`, routerId, JSON.stringify({ routerStatus: router.status, detectedBy: 'router-state-sync', ...maintenanceEvidence })],
         );
         incidentId = created.rows[0].id;
         createdNew = true;
@@ -157,9 +176,9 @@ export class IncidentsService {
       }
       await client.query('COMMIT');
       await this.audit.record(tenantId, 'INCIDENT_SYNCED_ROUTER_OFFLINE', 'incident', incidentId, {
-        routerId, routerName: router.name, affectedCustomers: Number(impact.customers || 0), affectedSessions: Number(impact.sessions || 0), estimatedRevenue: revenue,
+        routerId, routerName: router.name, affectedCustomers: Number(impact.customers || 0), affectedSessions: Number(impact.sessions || 0), estimatedRevenue: revenue, maintenanceWindowId: maintenanceWindow.rows[0]?.id ?? null,
       }, context);
-      if (createdNew) {
+      if (createdNew && !duringMaintenance) {
         await this.domainEvents.enqueue({
           tenantId,
           eventKey: `incident.opened:${incidentId}`,
