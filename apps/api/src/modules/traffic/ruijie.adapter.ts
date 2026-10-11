@@ -30,8 +30,7 @@ export class RuijieReyeeNetworkAdapter {
     url.searchParams.set('group_id', groupId);
     url.searchParams.set('access_token', token);
     const payload = await this.request(url.toString());
-    const root = this.record(payload.data);
-    const rows = this.rows(root).length ? this.rows(root) : this.rows(payload);
+    const rows = this.rows(payload.data).length ? this.rows(payload.data) : this.rows(payload);
     return rows.map((row) => ({
       username: this.string(row, ['userName', 'username', 'user', 'name']),
       address: this.string(row, ['ip', 'ipAddress', 'address']),
@@ -67,7 +66,7 @@ export class RuijieReyeeNetworkAdapter {
     if (isIP(address) === 4) { const [a,b] = address.split('.').map(Number); return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224; }
     const value = address.toLowerCase(); return value === '::1' || value === '::' || value.startsWith('fc') || value.startsWith('fd') || value.startsWith('fe8') || value.startsWith('fe9') || value.startsWith('fea') || value.startsWith('feb') || value.startsWith('ff');
   }
-  private rows(record: JsonRecord): JsonRecord[] { for (const key of ['list', 'rows', 'records', 'users', 'clients', 'currentUser', 'data']) { const value = record[key]; if (Array.isArray(value)) return value.filter((item): item is JsonRecord => this.isRecord(item)); } return []; }
+  private rows(value: unknown): JsonRecord[] { if (Array.isArray(value)) return value.filter((item): item is JsonRecord => this.isRecord(item)); if (!this.isRecord(value)) return []; for (const key of ['list', 'rows', 'records', 'users', 'clients', 'currentUser', 'data']) { const nested = value[key]; if (Array.isArray(nested)) return nested.filter((item): item is JsonRecord => this.isRecord(item)); } return []; }
   private record(value: unknown): JsonRecord { return this.isRecord(value) ? value : {}; }
   private isRecord(value: unknown): value is JsonRecord { return typeof value === 'object' && value !== null && !Array.isArray(value); }
   private string(record: JsonRecord, keys: string[]): string | undefined { for (const key of keys) if (typeof record[key] === 'string' && (record[key] as string).trim()) return record[key] as string; return undefined; }
