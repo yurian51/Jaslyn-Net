@@ -12,7 +12,7 @@ export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'compliance.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER'],'compliance.scan':['OWNER','ADMIN','NOC_ENGINEER'],'compliance.manage':['OWNER','ADMIN'],
  'synthetic.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER'],'synthetic.write':['OWNER','ADMIN'],'synthetic.check':['OWNER','ADMIN','AGENT','NOC_ENGINEER'],
  'revenue.read':['OWNER','ADMIN','ACCOUNTANT','READ_ONLY'],'revenue.reconcile':['OWNER','ADMIN','ACCOUNTANT'],'revenue.manage':['OWNER','ADMIN'],
- 'incident.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER'],'incident.manage':['OWNER','ADMIN','NOC_ENGINEER'],
+ 'incident.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY','NOC_ENGINEER'],'incident.manage':['OWNER','ADMIN','NOC_ENGINEER'],
  'status.manage':['OWNER','ADMIN'],'maintenance.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'maintenance.manage':['OWNER','ADMIN'],
  'field.read':['OWNER','ADMIN','AGENT','TECHNICIAN','READ_ONLY'],'field.write':['OWNER','ADMIN','AGENT','TECHNICIAN'],'field.sync':['OWNER','ADMIN','AGENT','TECHNICIAN'],
  'network.changes.read':['OWNER','ADMIN','AGENT','READ_ONLY','NOC_ENGINEER','NETWORK_ADMIN'],'audit.read':['OWNER','ADMIN'],
