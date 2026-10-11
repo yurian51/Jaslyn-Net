@@ -70,7 +70,7 @@ export default function LandingNav() {
           aria-expanded={open}
           aria-controls="landing-mobile-menu"
           ref={menuButtonRef}
-          onClick={() => setOpen((value) => !value)
+          onClick={() => setOpen((value) => !value)}
         >
           <span aria-hidden="true" />
         </button>
