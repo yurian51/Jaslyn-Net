@@ -144,6 +144,8 @@ const required = [
   ['unboxed auth brand', !read('apps/web/app/auth.css').includes('.auth-brand-logo{border:1px')],
   ['unboxed product-preview brand', read('apps/web/app/landing-premium.css').includes('/* Product-preview brand mark follows the same unboxed identity rule. */') && read('apps/web/app/landing-premium.css').includes('border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;')],
 
+  ['provider-agnostic SMS settings UI', read('apps/web/app/notifications/page.tsx').includes('SMS Gateway Settings') && read('apps/web/app/notifications/page.tsx').includes('/notifications/sms/settings')],
+  ['SMS secret handling and host allowlist guidance', read('apps/web/app/notifications/page.tsx').includes('Credentials are write-only') && read('apps/web/app/notifications/page.tsx').includes('SMS_CUSTOM_ALLOWED_HOSTS')],
 
 ];
 
