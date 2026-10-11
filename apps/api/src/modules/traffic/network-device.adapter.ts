@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
@@ -13,7 +13,7 @@ export interface NormalizedWifiClient { username?: string; address?: string; mac
 
 @Injectable()
 export class NetworkDeviceAdapterRegistry {
-  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter, private readonly omada: OmadaNetworkAdapter, private readonly ruijie: RuijieReyeeNetworkAdapter) {}
+  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter, @Optional() private readonly omada?: OmadaNetworkAdapter, @Optional() private readonly ruijie?: RuijieReyeeNetworkAdapter) {}
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     switch (connection.protocol) {
@@ -21,8 +21,8 @@ export class NetworkDeviceAdapterRegistry {
         const records = await this.mikrotik.readHotspotActive(connection.endpoint ?? '', connection.credentials);
         return records.map((record: MikroTikHotspotActiveRecord) => ({ username: record.user, address: record.address, macAddress: record['mac-address'], bytesIn: record['bytes-in'] ?? '0', bytesOut: record['bytes-out'] ?? '0' }));
       }
-      case 'OMADA_CONTROLLER_API': return this.omada.readClients(connection);
-      case 'RUIJIE_REYEE_CLOUD_API': return this.ruijie.readClients(connection);
+      case 'OMADA_CONTROLLER_API': if (!this.omada) throw new ServiceUnavailableException('Omada adapter is not registered'); return this.omada.readClients(connection);
+      case 'RUIJIE_REYEE_CLOUD_API': if (!this.ruijie) throw new ServiceUnavailableException('Ruijie adapter is not registered'); return this.ruijie.readClients(connection);
       case 'UNIFI_NETWORK_API': return this.readUniFi(connection);
       case 'MERAKI_DASHBOARD_API': return this.readMeraki(connection);
       case 'OPENWRT_UBUS': return this.readOpenWrt(connection);
