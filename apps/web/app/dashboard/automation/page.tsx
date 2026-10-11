@@ -172,6 +172,12 @@ export default function AutomationWorkspacePage() {
     finally{setBusy(false);}
   }
 
+  function canReplayRun(run:Run) {
+    const workflow=workflows.find(w=>w.id===run.workflowId);
+    const first=workflow?.steps[0] as Record<string,unknown>|undefined;
+    return run.status==='FAILED'&&run.currentStep===0&&!!first&&['CONDITION','TRANSFORM','LOG'].includes(String(first.type));
+  }
+
   async function replayRun(run:Run) {
     setBusy(true);setError(null);setNotice(null);
     try{const result=await apiFetch<{id:string;status:string}>(`/automation/workflows/runs/${run.id}/replay`,{method:'POST',headers:headers()});setNotice(`Replay queued: ${result.id} (${result.status}).`);await load();}
@@ -330,7 +336,7 @@ export default function AutomationWorkspacePage() {
 
     <section style={styles.panel}>
       <h2 style={{marginTop:0}}>Execution history <small style={{fontSize:14,color:'#64748b'}}>({runs.length})</small></h2>
-      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{['Created','Workflow ID','Trigger','Status','Step','Attempts','Last error','Actions'].map(x=><th key={x} style={{textAlign:'left',padding:'10px 8px',borderBottom:'1px solid #dfe5ed',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead><tbody>{runs.slice(0,100).map(r=><tr key={r.id}>{[new Date(r.createdAt).toLocaleString(),r.workflowId,r.triggerType,r.status,String(r.currentStep),String(r.attempts),r.lastError||'—'].map((v,i)=><td key={i} style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',maxWidth:240,overflowWrap:'anywhere'}}>{v}</td>)}<td style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',whiteSpace:'nowrap'}}><button style={styles.button} disabled={busy||!(r.status==='FAILED'&&r.currentStep===0)} onClick={()=>void replayRun(r)}>Replay</button>{['QUEUED','WAITING_APPROVAL'].includes(r.status)&&<button style={{...styles.button,marginLeft:6}} disabled={busy} onClick={()=>void cancelRun(r)}>Cancel</button>}</td></tr>)}{runs.length===0&&<tr><td colSpan={8} style={{padding:16,color:'#64748b'}}>No workflow runs returned.</td></tr>}</tbody></table></div>
+      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{['Created','Workflow ID','Trigger','Status','Step','Attempts','Last error','Actions'].map(x=><th key={x} style={{textAlign:'left',padding:'10px 8px',borderBottom:'1px solid #dfe5ed',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead><tbody>{runs.slice(0,100).map(r=><tr key={r.id}>{[new Date(r.createdAt).toLocaleString(),r.workflowId,r.triggerType,r.status,String(r.currentStep),String(r.attempts),r.lastError||'—'].map((v,i)=><td key={i} style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',maxWidth:240,overflowWrap:'anywhere'}}>{v}</td>)}<td style={{padding:'10px 8px',borderBottom:'1px solid #edf1f5',whiteSpace:'nowrap'}}><button style={styles.button} disabled={busy||!canReplayRun(r)} onClick={()=>void replayRun(r)}>Replay</button>{['QUEUED','WAITING_APPROVAL'].includes(r.status)&&<button style={{...styles.button,marginLeft:6}} disabled={busy} onClick={()=>void cancelRun(r)}>Cancel</button>}</td></tr>)}{runs.length===0&&<tr><td colSpan={8} style={{padding:16,color:'#64748b'}}>No workflow runs returned.</td></tr>}</tbody></table></div>
     </section>
   </main>;
 }
