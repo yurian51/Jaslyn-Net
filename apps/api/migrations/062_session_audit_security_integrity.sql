@@ -32,6 +32,16 @@ ALTER TABLE audit_logs
   ADD COLUMN IF NOT EXISTS previous_hash text,
   ADD COLUMN IF NOT EXISTS entry_hash text;
 
+-- Audit records are immutable; prevent parent/actor deletion from cascading updates or deletes.
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_tenant_id_fkey;
+ALTER TABLE audit_logs
+  ADD CONSTRAINT audit_logs_tenant_id_fkey
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE RESTRICT;
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_tenant_id_actor_user_id_fkey;
+ALTER TABLE audit_logs
+  ADD CONSTRAINT audit_logs_tenant_id_actor_user_id_fkey
+  FOREIGN KEY (tenant_id, actor_user_id) REFERENCES users(tenant_id,id) ON DELETE RESTRICT;
+
 CREATE TABLE IF NOT EXISTS audit_chain_heads (
   tenant_id uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
   last_sequence bigint NOT NULL DEFAULT 0,
