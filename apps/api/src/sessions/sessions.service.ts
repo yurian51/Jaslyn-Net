@@ -8,6 +8,7 @@ import { NetworkCommandService } from '../modules/traffic/network-command.servic
 import { TrafficEnforcementService } from '../modules/traffic/enforcement.service';
 import { NetworkDisconnectCommand } from '../modules/traffic/enforcement.adapter';
 import { getCorrelationId } from '../common/correlation-context';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 
 type DatabaseError = { code?: string };
 type SessionStatus = 'ACTIVE' | 'STALE' | 'ENDED';
@@ -20,6 +21,7 @@ export class SessionsService {
     private readonly secureCredentials: SecureNetworkCredentials,
     private readonly networkCommands: NetworkCommandService,
     private readonly trafficEnforcement: TrafficEnforcementService,
+    private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
   async list(tenantId: string, status?: SessionStatus, limit = 100) {
@@ -141,6 +143,7 @@ export class SessionsService {
       [tenantId, id, input.bytesIn ?? null, input.bytesOut ?? null],
     );
     if (!result.rowCount) throw new NotFoundException('Active session not found');
+    await this.domainEvents.enqueue({ tenantId, eventKey: `session-usage:${id}:${String(result.rows[0].bytesIn ?? 0)}:${String(result.rows[0].bytesOut ?? 0)}`, eventType: 'SESSION.USAGE_UPDATED', aggregateType: 'session', aggregateId: id, payload: { sessionId: id, bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, bytesTotal: result.rows[0].bytesTotal } });
     return result.rows[0];
   }
 
@@ -161,6 +164,7 @@ export class SessionsService {
         [tenantId, id],
       );
       await this.resetRouterActiveUsers(client, tenantId, result.rows[0].routerId ? [result.rows[0].routerId] : []);
+      await this.domainEvents.enqueue({ tenantId, eventKey: `session-ended:${id}`, eventType: 'SESSION.ENDED', aggregateType: 'session', aggregateId: id, payload: { sessionId: id, routerId: result.rows[0].routerId, bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState } }, client);
       await client.query('COMMIT');
       await this.audit.record(tenantId, 'SESSION_ENDED', 'session', id, { bytesIn: result.rows[0].bytesIn, bytesOut: result.rows[0].bytesOut, previousState }, auditContext);
       return result.rows[0];
@@ -233,6 +237,9 @@ export class SessionsService {
            WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status='ACTIVE'`,
           [tenantId, expiredGrants.map((grant) => grant.id)],
         );
+        for (const grant of expiredGrants) {
+          await this.domainEvents.enqueue({ tenantId, eventKey: `access-grant-expired:${grant.id}`, eventType: 'ACCESS.GRANT_EXPIRED', aggregateType: 'access_grant', aggregateId: grant.id, payload: { accessGrantId: grant.id, customerId: grant.customerId, routerId: grant.routerId } }, client);
+        }
       }
       await client.query('COMMIT');
     } catch (error: unknown) {

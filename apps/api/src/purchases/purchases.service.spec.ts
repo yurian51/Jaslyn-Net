@@ -5,7 +5,7 @@ describe('PurchasesService payment confirmation', () => {
   it('rejects direct confirmation for external providers', async () => {
     const db = { connect: jest.fn() } as any;
     const payments = { assertMethodCanSettle: jest.fn().mockResolvedValue({ code: 'mpesa' }) } as any;
-    const service = new PurchasesService(db, payments, {} as any);
+    const service = new PurchasesService(db, payments, {} as any, { enqueue: jest.fn().mockResolvedValue(undefined) } as any);
 
     await expect(service.confirmPayment('tenant-1', 'purchase-1', {
       provider: 'mpesa',
@@ -66,7 +66,7 @@ describe('PurchasesService payment confirmation', () => {
 
     const config = { get: jest.fn() } as any;
     const payments = new PaymentsService(db, config);
-    const service = new PurchasesService(db, payments, {} as any);
+    const service = new PurchasesService(db, payments, {} as any, { enqueue: jest.fn().mockResolvedValue(undefined) } as any);
 
     const result = await service.confirmPayment(tenantId, purchaseId, {
       provider: 'manual',
@@ -87,7 +87,7 @@ describe('PurchasesService payment confirmation', () => {
 describe('PurchasesService tier selection', () => {
   it('resolves an active tenant package by tier before creating a purchase', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ id: 'pkg-nexus' }] }) } as any;
-    const service = new PurchasesService(db, {} as any, {} as any);
+    const service = new PurchasesService(db, {} as any, {} as any, { enqueue: jest.fn().mockResolvedValue(undefined) } as any);
     const create = jest.spyOn(service, 'create').mockResolvedValue({ id: 'purchase-1' } as any);
 
     const result = await service.createFromTier('tenant-1', 'nexus', { customerId: 'customer-1' });
@@ -104,7 +104,7 @@ describe('PurchasesService tier selection', () => {
 
   it('does not silently provision a missing tier', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rowCount: 0, rows: [] }) } as any;
-    const service = new PurchasesService(db, {} as any, {} as any);
+    const service = new PurchasesService(db, {} as any, {} as any, { enqueue: jest.fn().mockResolvedValue(undefined) } as any);
 
     await expect(service.createFromTier('tenant-1', 'infinity', { customerId: 'customer-1' }))
       .rejects.toThrow('Active package for Jaslyn tier INFINITY is not configured');
@@ -129,7 +129,7 @@ describe('PurchasesService failed payment', () => {
     };
     const db = { connect: jest.fn().mockResolvedValue(client) } as any;
     const payments = { assertMethodCanSettle: jest.fn().mockResolvedValue({ code: 'manual' }) } as any;
-    const service = new PurchasesService(db, payments, {} as any);
+    const service = new PurchasesService(db, payments, {} as any, { enqueue: jest.fn().mockResolvedValue(undefined) } as any);
 
     const result = await service.confirmPayment('tenant-1', 'p1', {
       provider: 'manual',
