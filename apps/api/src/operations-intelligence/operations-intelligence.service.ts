@@ -28,9 +28,9 @@ export class OperationsIntelligenceService {
       ON CONFLICT(tenant_id,idempotency_key) DO NOTHING RETURNING id,router_id,band,channel,rssi_dbm,noise_dbm,airtime_pct,channel_utilization_pct,tx_rate_bps,rx_rate_bps,roaming_count,sampled_at`,
       [tenantId,d.routerId,d.clientKeyHash.toLowerCase(),d.ssid??null,d.band??'UNKNOWN',d.channel??null,d.rssiDbm??null,d.noiseDbm??null,d.airtimePct??null,d.channelUtilizationPct??null,d.txRateBps??null,d.rxRateBps??null,d.roamingCount??0,d.sampledAt,d.idempotencyKey]);
     if(r.rowCount)return {duplicate:false,data:r.rows[0]};
-    const old=await this.db.query('SELECT id,router_id,client_key_hash,channel_utilization_pct,sampled_at FROM wifi_client_experience_samples WHERE tenant_id=$1 AND idempotency_key=$2',[tenantId,d.idempotencyKey]);
+    const old=await this.db.query('SELECT id,router_id,client_key_hash,channel_utilization_pct,sampled_at,channel,airtime_pct,tx_rate_bps,rx_rate_bps FROM wifi_client_experience_samples WHERE tenant_id=$1 AND idempotency_key=$2',[tenantId,d.idempotencyKey]);
     if(!old.rowCount)throw new ConflictException('Wi-Fi sample could not be resolved after idempotency conflict');
-    if(old.rows[0].router_id!==d.routerId||old.rows[0].client_key_hash!==d.clientKeyHash.toLowerCase())throw new ConflictException('Idempotency key is already bound to a different Wi-Fi sample');
+    if(old.rows[0].router_id!==d.routerId||old.rows[0].client_key_hash!==d.clientKeyHash.toLowerCase()||Number(old.rows[0].channel_utilization_pct??-1)!==Number(d.channelUtilizationPct??-1)||Number(old.rows[0].airtime_pct??-1)!==Number(d.airtimePct??-1)||Number(old.rows[0].tx_rate_bps??-1)!==Number(d.txRateBps??-1)||Number(old.rows[0].rx_rate_bps??-1)!==Number(d.rxRateBps??-1))throw new ConflictException('Idempotency key is already bound to a different Wi-Fi sample');
     return {duplicate:true,data:old.rows[0]};
   }
   async wifiExperience(tenantId:string){
@@ -64,9 +64,9 @@ export class OperationsIntelligenceService {
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(tenant_id,idempotency_key) DO NOTHING RETURNING *`,
       [tenantId,d.siteId??null,d.assetId??null,d.metricType,d.metricValue,d.unit,d.source,d.sampledAt,d.idempotencyKey]);
     if(r.rowCount)return {duplicate:false,data:r.rows[0]};
-    const old=await this.db.query('SELECT id,metric_type,metric_value,asset_id FROM power_environment_samples WHERE tenant_id=$1 AND idempotency_key=$2',[tenantId,d.idempotencyKey]);
+    const old=await this.db.query('SELECT id,metric_type,metric_value,asset_id,site_id,unit,sampled_at FROM power_environment_samples WHERE tenant_id=$1 AND idempotency_key=$2',[tenantId,d.idempotencyKey]);
     if(!old.rowCount)throw new ConflictException('Power sample could not be resolved after idempotency conflict');
-    if(old.rows[0].metric_type!==d.metricType||Number(old.rows[0].metric_value)!==d.metricValue)throw new ConflictException('Idempotency key is already bound to a different power sample');
+    if(old.rows[0].metric_type!==d.metricType||Number(old.rows[0].metric_value)!==d.metricValue||(old.rows[0].asset_id??null)!==(d.assetId??null)||(old.rows[0].site_id??null)!==(d.siteId??null)||old.rows[0].unit!==d.unit||new Date(old.rows[0].sampled_at).toISOString()!==new Date(d.sampledAt).toISOString())throw new ConflictException('Idempotency key is already bound to a different power sample');
     return {duplicate:true,data:old.rows[0]};
   }
   async powerStatus(tenantId:string){
