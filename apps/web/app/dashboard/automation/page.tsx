@@ -37,6 +37,7 @@ export default function AutomationWorkspacePage() {
   const [editingWorkflowId,setEditingWorkflowId]=useState<string|null>(null);
   const [versionHistory,setVersionHistory]=useState<VersionRecord[]>([]);
   const [historyWorkflowName,setHistoryWorkflowName]=useState<string|null>(null);
+  const [historyWorkflowId,setHistoryWorkflowId]=useState<string|null>(null);
   const [description,setDescription]=useState('');
   const [triggerType,setTriggerType]=useState('MANUAL');
   const [eventType,setEventType]=useState('PAYMENT.CONFIRMED');
@@ -136,7 +137,7 @@ export default function AutomationWorkspacePage() {
     setError(null);
     try {
       const result=await apiFetch<Data<VersionRecord>>(`/automation/workflows/${w.id}/versions`,{headers:headers()});
-      setVersionHistory(result.data??[]);setHistoryWorkflowName(w.name);
+      setVersionHistory(result.data??[]);setHistoryWorkflowName(w.name);setHistoryWorkflowId(w.id);
     } catch(e){setError(e instanceof Error?e.message:'Unable to load version history.');}
   }
 
@@ -282,7 +283,7 @@ export default function AutomationWorkspacePage() {
       </article>)}</div>}
     </section>
 
-    {historyWorkflowName&&<section style={styles.panel}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><h2 style={{marginTop:0}}>Version history · {historyWorkflowName}</h2><button style={styles.button} onClick={()=>{setHistoryWorkflowName(null);setVersionHistory([]);}}>Close history</button></div>{versionHistory.length===0?<p style={{color:'#64748b'}}>No version history returned.</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{['Version','Created','Definition'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #dfe5ed'}}>{x}</th>)}</tr></thead><tbody>{versionHistory.map(v=><tr key={v.version}><td style={{padding:10,borderBottom:'1px solid #edf1f5'}}>v{v.version}</td><td style={{padding:10,borderBottom:'1px solid #edf1f5'}}>{new Date(v.createdAt).toLocaleString()}</td><td style={{padding:10,borderBottom:'1px solid #edf1f5'}}><button style={styles.button} onClick={()=>{setSteps(JSON.stringify(v.definition.steps??[],null,2));setName(String(v.definition.name??''));setDescription(String(v.definition.description??''));setNotice(`Version v${v.version} loaded into the editor. Save it only if you intend to create a new version.`);document.getElementById('workflow-builder')?.scrollIntoView({behavior:'smooth',block:'start'});}}>Load steps</button></td></tr>)}</tbody></table></div>}</section>}
+    {historyWorkflowName&&<section style={styles.panel}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><h2 style={{marginTop:0}}>Version history · {historyWorkflowName}</h2><button style={styles.button} onClick={()=>{setHistoryWorkflowName(null);setHistoryWorkflowId(null);setVersionHistory([]);}}>Close history</button></div>{versionHistory.length===0?<p style={{color:'#64748b'}}>No version history returned.</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{['Version','Created','Definition'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #dfe5ed'}}>{x}</th>)}</tr></thead><tbody>{versionHistory.map(v=><tr key={v.version}><td style={{padding:10,borderBottom:'1px solid #edf1f5'}}>v{v.version}</td><td style={{padding:10,borderBottom:'1px solid #edf1f5'}}>{new Date(v.createdAt).toLocaleString()}</td><td style={{padding:10,borderBottom:'1px solid #edf1f5'}}><button style={styles.button} onClick={()=>{setEditingWorkflowId(historyWorkflowId);setSteps(JSON.stringify(v.definition.steps??[],null,2));setName(String(v.definition.name??''));setDescription(String(v.definition.description??''));setTriggerType(String(v.definition.triggerType??triggerType));setEventType(String((v.definition.triggerConfig as Record<string,unknown>|undefined)?.eventType??eventType));setIntervalSeconds(String((v.definition.triggerConfig as Record<string,unknown>|undefined)?.intervalSeconds??intervalSeconds));setNotice(`Version v${v.version} loaded into the editor. Save it only if you intend to create a new version.`);document.getElementById('workflow-builder')?.scrollIntoView({behavior:'smooth',block:'start'});}}>Load steps</button></td></tr>)}</tbody></table></div>}</section>}
     <section style={styles.panel}>
       <h2 style={{marginTop:0}}>Operational alerts <small style={{fontSize:14,color:'#64748b'}}>({alerts.filter(a=>a.status==='OPEN').length} open)</small></h2>
       {alerts.length===0?<p style={{color:'#64748b'}}>No workflow alerts returned.</p>:alerts.slice(0,50).map(a=><div key={a.id} style={{borderTop:'1px solid #e2e8f0',padding:'12px 0',display:'flex',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}><div><strong>{a.title}</strong><p style={{margin:'5px 0',fontSize:12,color:'#64748b'}}>Run {a.runId} · {new Date(a.createdAt).toLocaleString()}</p></div><span style={{fontSize:12,fontWeight:700}}>{a.severity} · {a.status}</span></div>)}
