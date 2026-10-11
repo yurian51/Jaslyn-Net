@@ -331,7 +331,7 @@ export default function NotificationsPage() {
         <form className="notifications-bulk-form" onSubmit={(event) => void saveSmsSettings(event)}>
           <div className="notifications-bulk-fields">
             <label>Provider
-              <select value={smsProviderType} onChange={(event) => setSmsProviderType(event.target.value as typeof smsProviderType)}>
+              <select value={smsProviderType} onChange={(event) => { const next = event.target.value as typeof smsProviderType; setSmsProviderType(next); if (next === 'beem') setSmsAuthType('basic'); }}>
                 <option value="custom_rest">Custom REST API</option><option value="beem">Beem</option>
               </select>
             </label>
@@ -343,7 +343,7 @@ export default function NotificationsPage() {
             <input value={smsEndpoint} onChange={(event) => setSmsEndpoint(event.target.value)} type="url" placeholder="https://api.provider.example/sms/send" required />
             <small>The hostname must be approved in the server-side SMS_CUSTOM_ALLOWED_HOSTS allowlist.</small>
           </label> : <p>Beem uses its native request format. Leave endpoint blank to use the standard Beem endpoint.</p>}
-          <div className="notifications-bulk-fields">
+          {smsProviderType === 'custom_rest' ? <div className="notifications-bulk-fields">
             <label>Authentication
               <select value={smsAuthType} onChange={(event) => setSmsAuthType(event.target.value as typeof smsAuthType)}>
                 <option value="bearer">Bearer token</option><option value="api_key">API key header</option><option value="basic">Basic authentication</option><option value="none">No authentication</option>
@@ -352,7 +352,7 @@ export default function NotificationsPage() {
             {smsAuthType === 'api_key' ? <label>API key header name
               <input value={smsApiKeyHeader} onChange={(event) => setSmsApiKeyHeader(event.target.value)} placeholder="X-API-Key" />
             </label> : null}
-          </div>
+          </div> : <p>Beem requires Basic authentication with both API key/username and API secret. The provider adapter uses Beem's native request format.</p>}
           {smsAuthType !== 'none' ? <div className="notifications-bulk-fields">
             <label>API key / username
               <input value={smsApiKey} onChange={(event) => setSmsApiKey(event.target.value)} type="password" autoComplete="new-password" placeholder={smsSettings?.hasCredentials ? 'Saved securely — blank keeps current key' : 'Enter API key or username'} />
