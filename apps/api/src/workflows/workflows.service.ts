@@ -5,7 +5,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
-type Step = { type: 'CONDITION'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'; [key: string]: unknown };
+type Step = { type: 'CONDITION'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
 type WorkflowRow = { id:string; tenant_id:string; steps:Step[]; trigger_payload?:Record<string,unknown>; current_step:number; attempts:number; run_id?:string };
 
 @Injectable()
@@ -23,6 +23,11 @@ export class WorkflowsService {
         if(!['eq','neq','gt','gte','lt','lte','exists','contains'].includes(op)) throw new BadRequestException('Condition operator is unsupported');
         if(op!=='exists'&&!Object.prototype.hasOwnProperty.call(s,'value')) throw new BadRequestException('Condition value is required');
         return {type:'CONDITION',path,op,value:s.value};
+      }
+      if(type==='CREATE_ALERT'){
+        const severity=String(s.severity??'HIGH').toUpperCase(); const title=String(s.title??'').trim();
+        if(!['CRITICAL','HIGH','MEDIUM','LOW','INFO'].includes(severity)||title.length<3||title.length>180) throw new BadRequestException('CREATE_ALERT requires a valid severity and 3–180 character title');
+        return {type:'CREATE_ALERT',severity,title,details:s.details&&typeof s.details==='object'&&!Array.isArray(s.details)?s.details:{}};
       }
       if(type==='APPROVAL'){
         const title=String(s.title??'').trim();
@@ -45,7 +50,7 @@ export class WorkflowsService {
         if(message.length<1||message.length>500) throw new BadRequestException('LOG message must be 1–500 characters');
         return {type:'LOG',message};
       }
-      throw new BadRequestException('Allowed workflow steps: CONDITION, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
+      throw new BadRequestException('Allowed workflow steps: CONDITION, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
     });
   }
 
@@ -113,6 +118,11 @@ export class WorkflowsService {
 
   async listRuns(tenantId:string) {
     const r=await this.db.query(`SELECT id,workflow_id AS "workflowId",idempotency_key AS "idempotencyKey",trigger_type AS "triggerType",status,current_step AS "currentStep",step_results AS "stepResults",attempts,last_error AS "lastError",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM automation_workflow_runs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
+    return {data:r.rows};
+  }
+
+  async listAlerts(tenantId:string) {
+    const r=await this.db.query(`SELECT id,run_id AS "runId",step_index AS "stepIndex",severity,title,details,status,resolution_note AS "resolutionNote",created_at AS "createdAt",resolved_at AS "resolvedAt" FROM automation_workflow_alerts WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
   }
 
@@ -217,6 +227,11 @@ export class WorkflowsService {
           if(step.type==='CONDITION') {
             const matched=this.condition(payload,step); results.push({index,type:step.type,matched});
             if(!matched) { completed=true; index=steps.length; break; }
+          } else if(step.type==='CREATE_ALERT') {
+            const alert=await this.db.query(`INSERT INTO automation_workflow_alerts(tenant_id,run_id,step_index,severity,title,details)
+              VALUES($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT(tenant_id,run_id,step_index) DO UPDATE SET run_id=EXCLUDED.run_id RETURNING id,status`,
+              [run.tenant_id,run.run_id,index,step.severity??'HIGH',step.title,JSON.stringify(step.details??{})]);
+            results.push({index,type:step.type,status:alert.rows[0].status,alertId:alert.rows[0].id,title:step.title,severity:step.severity??'HIGH'});
           } else if(step.type==='APPROVAL') {
             const a=await this.db.query(`INSERT INTO automation_workflow_approvals(tenant_id,run_id,step_index,title,details) VALUES($1,$2,$3,$4,$5::jsonb)
               ON CONFLICT(tenant_id,run_id,step_index) DO UPDATE SET run_id=EXCLUDED.run_id RETURNING id,status`,
