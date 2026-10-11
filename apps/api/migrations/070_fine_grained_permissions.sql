@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS permission_catalog (
   description text NOT NULL
 );
 INSERT INTO permission_catalog(permission_key,description) VALUES
+ ('sessions.read','List the authenticated user’s own sessions and revocation state'),
+ ('sessions.revoke','Revoke the authenticated user’s own sessions'),
  ('secrets.read','Read secret metadata; plaintext is never returned by the API'),
  ('secrets.write','Create or rotate encrypted secrets'),
  ('network.policy.read','Read desired-state network policies and evaluations'),
