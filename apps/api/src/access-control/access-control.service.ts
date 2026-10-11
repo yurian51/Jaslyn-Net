@@ -25,11 +25,13 @@ export class AccessControlService {
     const r=await this.db.query('DELETE FROM tenant_role_permissions WHERE tenant_id=$1 AND role=$2 AND permission_key=$3 RETURNING id',[tenantId,role,permissionKey]);await this.audit.record(tenantId,'ROLE_PERMISSION_RESET','tenant_role_permission',undefined,{role,permissionKey,removed:Boolean(r.rowCount)},context);return {removed:Boolean(r.rowCount)};
   }
   async setUserPermission(tenantId:string,actorUserId:string,userId:string,permissionKey:string,allowed:boolean,context:AuditContext={}){
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId))throw new BadRequestException('Invalid user UUID');
     await this.assertPermission(permissionKey);const user=await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true',[tenantId,userId]);if(!user.rowCount)throw new NotFoundException('Active user not found in this tenant');
     const r=await this.db.query(`INSERT INTO user_permission_overrides(tenant_id,user_id,permission_key,allowed,updated_by,updated_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(tenant_id,user_id,permission_key) DO UPDATE SET allowed=EXCLUDED.allowed,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING user_id AS "userId",permission_key AS "permissionKey",allowed,updated_at AS "updatedAt"`,[tenantId,userId,permissionKey,allowed,actorUserId]);
     await this.audit.record(tenantId,'USER_PERMISSION_CHANGED','user_permission_override',undefined,{targetUserId:userId,permissionKey,allowed},context);return r.rows[0];
   }
   async clearUserPermission(tenantId:string,actorUserId:string,userId:string,permissionKey:string,context:AuditContext={}){
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId))throw new BadRequestException('Invalid user UUID');
     const r=await this.db.query('DELETE FROM user_permission_overrides WHERE tenant_id=$1 AND user_id=$2 AND permission_key=$3 RETURNING id',[tenantId,userId,permissionKey]);await this.audit.record(tenantId,'USER_PERMISSION_RESET','user_permission_override',undefined,{targetUserId:userId,permissionKey,removed:Boolean(r.rowCount)},context);return {removed:Boolean(r.rowCount)};
   }
 }
