@@ -62,7 +62,7 @@ export class WorkflowsService {
   }
 
   async list(tenantId:string) {
-    const r=await this.db.query(`SELECT id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,next_run_at AS "nextRunAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM automation_workflows WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
+    const r=await this.db.query(`SELECT id,name,description,trigger_type AS "triggerType",trigger_config AS "triggerConfig",steps,enabled,version,next_run_at AS "nextRunAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM automation_workflows WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
   }
 
