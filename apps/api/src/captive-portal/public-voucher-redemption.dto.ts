@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 
 export class PublicVoucherRedemptionDto {
   @IsString()
@@ -15,8 +15,4 @@ export class PublicVoucherRedemptionDto {
   @MinLength(6)
   @MaxLength(32)
   code!: string;
-
-  @IsOptional()
-  @IsUUID()
-  routerId?: string;
 }
