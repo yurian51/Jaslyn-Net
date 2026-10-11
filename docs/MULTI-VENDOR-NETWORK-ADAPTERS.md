@@ -37,7 +37,7 @@ The adapter reads the provider's current-user endpoint and normalizes the availa
 ## Security and release gates
 
 - Omada and Ruijie secrets and account identifiers are stored inside the router's encrypted credential payload; this adapter does not use shared global tenant credentials.
-- HTTPS is required, redirects are rejected, loopback/private-address targets are blocked, and requests have bounded timeouts.
+- HTTPS is required, redirects are rejected, loopback targets are blocked, and requests have bounded timeouts. Private on-prem Omada controller addresses are blocked by default; set JASLYN_NETWORK_ALLOW_PRIVATE_ENDPOINTS=true only for a trusted deployment that requires them.
 - Router credentials must be configured for each tenant/device. Never put credentials in Git or URL user-info.
 - Traffic samples are only persisted when a client can be matched to an active Jaslyn session and counters are valid.
 - Automated tests are authored for Omada and Ruijie response handling. They still need to run in CI; no live controller credentials or hardware were available in this change.
