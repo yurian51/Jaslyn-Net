@@ -89,24 +89,49 @@ export class ProcurementService {
     return {data:r.rows};
   }
   async createSupplierInvoice(tenantId:string,actorId:string,d:CreateSupplierInvoiceDto) {
-    if(d.purchaseOrderId) {
-      const po=await this.db.query("SELECT id,supplier_id,currency,total,status FROM purchase_orders WHERE tenant_id=$1 AND id=$2",[tenantId,d.purchaseOrderId]);
-      if(!po.rowCount) throw new NotFoundException('Purchase order not found');
-      if(po.rows[0].supplier_id!==d.supplierId) throw new BadRequestException('Supplier invoice and purchase order suppliers do not match');
-      if(po.rows[0].currency!==d.currency) throw new BadRequestException('Supplier invoice and purchase order currencies do not match');
-      if(Number(d.subtotal)+Number(d.taxTotal??0)>Number(po.rows[0].total)&&Number(po.rows[0].total)>0) throw new ConflictException('Supplier invoice exceeds purchase order total');
-    }
+    const client=await this.db.connect();
     try {
-      const r=await this.db.query(`INSERT INTO supplier_invoices(tenant_id,supplier_id,purchase_order_id,invoice_number,currency,subtotal,tax_total,total,status,invoice_date,due_date,created_by)
+      await client.query('BEGIN');
+      const supplier=await client.query("SELECT id FROM suppliers WHERE tenant_id=$1 AND id=$2 AND status='ACTIVE' FOR SHARE",[tenantId,d.supplierId]);
+      if(!supplier.rowCount)throw new NotFoundException('Active supplier not found in this tenant');
+      if(d.purchaseOrderId){
+        const po=await client.query("SELECT id,supplier_id,currency,total,status FROM purchase_orders WHERE tenant_id=$1 AND id=$2 FOR SHARE",[tenantId,d.purchaseOrderId]);
+        if(!po.rowCount)throw new NotFoundException('Purchase order not found');
+        if(po.rows[0].supplier_id!==d.supplierId)throw new BadRequestException('Supplier invoice and purchase order suppliers do not match');
+        if(po.rows[0].currency!==d.currency)throw new BadRequestException('Supplier invoice and purchase order currencies do not match');
+        if(Number(d.subtotal)+Number(d.taxTotal??0)>Number(po.rows[0].total)&&Number(po.rows[0].total)>0)throw new ConflictException('Supplier invoice exceeds purchase order total');
+      }
+      const total=Number(d.subtotal)+Number(d.taxTotal??0);
+      const invoice=await client.query(`INSERT INTO supplier_invoices(tenant_id,supplier_id,purchase_order_id,invoice_number,currency,subtotal,tax_total,total,status,invoice_date,due_date,created_by)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,'RECEIVED',$9::date,$10::date,$11) RETURNING *`,
-        [tenantId,d.supplierId,d.purchaseOrderId??null,d.invoiceNumber.trim(),d.currency,Number(d.subtotal),Number(d.taxTotal??0),Number(d.subtotal)+Number(d.taxTotal??0),d.invoiceDate,d.dueDate??null,actorId]);
-      await this.auditChange(tenantId,actorId,'CREATE','supplier_invoice',r.rows[0].id,{invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency});
-      await this.emitWebhookEvent(tenantId,'supplier_invoice.created',{id:r.rows[0].id,invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency},r.rows[0].id);
-      return r.rows[0];
+        [tenantId,d.supplierId,d.purchaseOrderId??null,d.invoiceNumber.trim(),d.currency,Number(d.subtotal),Number(d.taxTotal??0),total,d.invoiceDate,d.dueDate??null,actorId]);
+      const expenseCode=('PROCUREMENT:'+d.currency).slice(0,64),payableCode=('ACCOUNTS_PAYABLE:'+d.currency).slice(0,64);
+      const expense=await client.query(`INSERT INTO financial_ledger_accounts(tenant_id,code,name,account_type,currency)
+        VALUES($1,$2,'Supplier purchases','EXPENSE',$3) ON CONFLICT(tenant_id,code) DO UPDATE SET name=EXCLUDED.name,currency=EXCLUDED.currency RETURNING id`,[tenantId,expenseCode,d.currency]);
+      const payable=await client.query(`INSERT INTO financial_ledger_accounts(tenant_id,code,name,account_type,currency)
+        VALUES($1,$2,'Accounts payable','LIABILITY',$3) ON CONFLICT(tenant_id,code) DO UPDATE SET name=EXCLUDED.name,currency=EXCLUDED.currency RETURNING id`,[tenantId,payableCode,d.currency]);
+      const ledger=await client.query(`INSERT INTO financial_ledger_transactions(tenant_id,transaction_type,reference_type,reference_id,description)
+        VALUES($1,'SUPPLIER_INVOICE','SUPPLIER_INVOICE',$2,$3)
+        ON CONFLICT(tenant_id,transaction_type,reference_type,reference_id) WHERE reference_id IS NOT NULL DO NOTHING RETURNING id`,
+        [tenantId,invoice.rows[0].id,'Supplier invoice '+d.invoiceNumber.trim()]);
+      let ledgerId=ledger.rows[0]?.id;
+      if(!ledgerId){const prior=await client.query(`SELECT id FROM financial_ledger_transactions WHERE tenant_id=$1 AND transaction_type='SUPPLIER_INVOICE' AND reference_type='SUPPLIER_INVOICE' AND reference_id=$2 LIMIT 1`,[tenantId,invoice.rows[0].id]);ledgerId=prior.rows[0]?.id;}
+      if(!ledgerId)throw new ConflictException('Supplier invoice ledger transaction could not be created');
+      const entries=await client.query('SELECT 1 FROM financial_ledger_entries WHERE tenant_id=$1 AND transaction_id=$2 LIMIT 1',[tenantId,ledgerId]);
+      if(!entries.rowCount)await client.query(`INSERT INTO financial_ledger_entries(tenant_id,transaction_id,account_id,currency,debit,credit)
+        VALUES($1,$2,$3,$4,$5,0),($1,$2,$6,$4,0,$5)`,[tenantId,ledgerId,expense.rows[0].id,d.currency,total,payable.rows[0].id]);
+      await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+        SELECT e.tenant_id,e.id,$2::uuid,'supplier_invoice.created',jsonb_build_object('supplierInvoiceId',$2,'invoiceNumber',$3,'total',$4,'currency',$5)
+        FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'supplier_invoice.created'=ANY(e.event_types)
+        ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,invoice.rows[0].id,invoice.rows[0].invoice_number,invoice.rows[0].total,invoice.rows[0].currency]);
+      await client.query('COMMIT');
+      await this.auditChange(tenantId,actorId,'CREATE','supplier_invoice',invoice.rows[0].id,{invoiceNumber:invoice.rows[0].invoice_number,total:invoice.rows[0].total,currency:invoice.rows[0].currency});
+      return invoice.rows[0];
     } catch(e:unknown) {
-      if(typeof e==='object'&&e!==null&&'code' in e&&(e as {code?:string}).code==='23505') throw new ConflictException('Supplier invoice number already exists for this supplier');
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if(typeof e==='object'&&e!==null&&'code' in e&&(e as {code?:string}).code==='23505')throw new ConflictException('Supplier invoice number already exists for this supplier');
       throw e;
-    }
+    } finally {client.release();}
   }
   async listInventory(tenantId:string) {
     const r=await this.db.query(`SELECT i.*,(i.quantity_on_hand*i.average_unit_cost)::numeric(20,2) AS stock_value,
