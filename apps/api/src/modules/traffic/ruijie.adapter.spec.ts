@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
 
-jest.mock('node:dns/promises', () => ({ lookup: jest.fn().mockResolvedValue([{ address: '203.0.113.10' }]) }));
+jest.mock('node:dns/promises', () => ({ lookup: jest.fn().mockResolvedValue([{ address: '8.8.8.8' }]) }));
 const fetchMock = jest.fn();
 
 describe('RuijieReyeeNetworkAdapter', () => {
