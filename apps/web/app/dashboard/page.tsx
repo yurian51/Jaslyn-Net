@@ -176,6 +176,7 @@ export default function DashboardPage() {
           <a href="/packages"><span>Packages</span><small>Plans &amp; products</small></a>
           <a href="/dashboard/packages"><span>Jaslyn Tiers</span><small>Premium tier catalogue</small></a>
           <a href="/dashboard/platform-subscription"><span>Workspace billing</span><small>Jaslyn Net plan &amp; limits</small></a>
+          <a href="/dashboard/automation"><span>Automation</span><small>Workflows &amp; approvals</small></a>
         </div>
         <button className="commandbar-refresh" type="button" onClick={() => void load()} disabled={loading}>
           <i />{loading ? 'Refreshing telemetry' : 'Refresh telemetry'}
@@ -282,6 +283,7 @@ export default function DashboardPage() {
           <a href="/customer-commerce"><b>Customer Commerce</b><span>Wallet, beneficiaries, saved purchases, rewards and renewals →</span></a>
           <a href="/communication"><b>Communication</b><span>Telegram-style conversations, search and operator commands →</span></a>
           <a href="/audit"><b>Security &amp; Audit</b><span>Tenant-scoped operational event trail →</span></a>
+          <a href="/dashboard/automation"><b>Workflow Automation</b><span>Triggers, schedules, approvals, integrations and run history →</span></a>
         </div>
         <div className="overview-footer-metrics"><span><b>{bytes(traffic)}</b> observed traffic in returned sessions</span><span>Timezone: {data?.tenant?.timezone ?? 'tenant configured'}</span></div>
       </section>
