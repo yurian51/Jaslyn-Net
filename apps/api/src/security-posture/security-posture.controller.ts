@@ -26,7 +26,7 @@ export class NetworkPoliciesController {
 }
 
 @Controller('compliance')
-@UseGuards(AuthGuard,RolesGuard)
+@UseGuards(AuthGuard,RolesGuard,PermissionsGuard)
 export class ComplianceController {
   constructor(private readonly posture:SecurityPostureService){}
   @Post('scans') @Roles('OWNER','ADMIN') @Permissions('compliance.scan')
