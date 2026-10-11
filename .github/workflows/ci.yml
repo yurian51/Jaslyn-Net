@@ -39,6 +39,8 @@ jobs:
           test -f apps/api/migrations/062_session_audit_security_integrity.sql
           test -f apps/api/migrations/063_field_operations_offline_sync.sql
           test -f apps/api/migrations/064_incident_timeline_maintenance_status.sql
+          test -f apps/api/migrations/065_network_change_intelligence.sql
+          test -f apps/api/migrations/066_network_policy_compliance.sql
           test -f apps/api/migrations/028_connectivity_incidents.sql
           test -f apps/api/migrations/029_wan_load_balancing.sql
           test -f apps/api/migrations/030_isp_field_operations.sql
