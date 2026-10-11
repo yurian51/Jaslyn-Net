@@ -61,6 +61,10 @@ export class AuthGuard implements CanActivate {
       [payload.sid, payload.tenantId, payload.sub],
     );
     if (!session.rowCount) throw new UnauthorizedException('Session has been revoked or expired');
+    await this.db.query(
+      "UPDATE auth_sessions SET last_seen_at=now() WHERE id=$1 AND last_seen_at < now()-interval '5 minutes'",
+      [payload.sid],
+    );
 
     request.user = {
       id: payload.sub,
