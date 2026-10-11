@@ -32,6 +32,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SecurityPostureModule } from './security-posture/security-posture.module';
 import { SyntheticMonitoringModule } from './synthetic-monitoring/synthetic-monitoring.module';
 import { RevenueAssuranceModule } from './revenue-assurance/revenue-assurance.module';
+import { SecretsVaultModule } from './secrets-vault/secrets-vault.module';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { RevenueAssuranceModule } from './revenue-assurance/revenue-assurance.mo
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule,
   ],
 })
 export class AppModule implements NestModule {
