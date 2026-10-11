@@ -19,6 +19,14 @@ describe('IncidentsService', () => {
 
     await expect(service.get('tenant-1', 'missing')).rejects.toThrow('Incident not found');
   });
+  it('rejects invalid or excessively long SLA report ranges before querying data', async () => {
+    const db = { query: jest.fn() } as any;
+    const service = new IncidentsService(db, { record: jest.fn() } as any, { enqueue: jest.fn() } as any);
+    await expect(service.getSlaReport('tenant-1','not-a-date','2026-10-11T00:00:00.000Z')).rejects.toThrow('A valid report date range is required');
+    await expect(service.getSlaReport('tenant-1','2020-01-01T00:00:00.000Z','2026-10-11T00:00:00.000Z')).rejects.toThrow('SLA report range cannot exceed 366 days');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('rejects a maintenance window with an invalid time range before persistence', async () => {
     const db = { query: jest.fn() } as any;
     const service = new IncidentsService(db, { record: jest.fn() } as any, { enqueue: jest.fn() } as any);
