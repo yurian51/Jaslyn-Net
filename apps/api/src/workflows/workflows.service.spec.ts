@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { WorkflowsService } from './workflows.service';
 
 describe('WorkflowsService safety and tenant boundaries', () => {
+  const client = { query: jest.fn(), release: jest.fn() };
   const db = { query: jest.fn(), connect: jest.fn() };
   const audit = { record: jest.fn() };
   const notifications = { enqueue: jest.fn(), enqueueSms: jest.fn() };
@@ -13,14 +14,20 @@ describe('WorkflowsService safety and tenant boundaries', () => {
   beforeEach(() => { jest.clearAllMocks(); });
 
   it('accepts safe dotted TRANSFORM source and destination paths', async () => {
-    db.query.mockResolvedValueOnce({rowCount:1,rows:[{
-      id:'workflow-1',name:'safe transform',triggerType:'MANUAL',triggerConfig:{},
-      steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],enabled:false,
-    }]});
+    db.connect.mockResolvedValueOnce(client);
+    client.query
+      .mockResolvedValueOnce({rowCount:1,rows:[]})
+      .mockResolvedValueOnce({rowCount:1,rows:[{
+        id:'workflow-1',name:'safe transform',triggerType:'MANUAL',triggerConfig:{},
+        steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],enabled:false,
+      }]})
+      .mockResolvedValueOnce({rowCount:1,rows:[]})
+      .mockResolvedValueOnce({rowCount:1,rows:[]});
     await expect(service.create('tenant-a','user-a',{
       name:'safe transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],
     })).resolves.toMatchObject({id:'workflow-1'});
-    expect(db.query).toHaveBeenCalledTimes(2);
+    expect(client.query).toHaveBeenCalledTimes(4);
+    expect(client.release).toHaveBeenCalledTimes(1);
   });
 
   it('rejects unsafe notification recipient paths before persistence', async () => {
