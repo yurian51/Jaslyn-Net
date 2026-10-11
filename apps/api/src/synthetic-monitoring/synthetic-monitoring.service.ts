@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Pool } from 'pg';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { CreateSyntheticMonitorDto } from './synthetic-monitoring.dto';
@@ -12,7 +13,7 @@ type CheckResult={status:'PASS'|'FAIL'|'UNKNOWN';latencyMs:number|null;responseC
 
 @Injectable()
 export class SyntheticMonitoringService {
-  constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly config:ConfigService,private readonly audit:AuditService){}
+  constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly config:ConfigService,private readonly audit:AuditService,private readonly domainEvents:CommunicationDomainEventsService){}
 
   private allowedPrivateHosts(){return new Set((this.config.get<string>('SYNTHETIC_ALLOWED_PRIVATE_HOSTS','')||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean));}
   private isPublicAddress(address:string){
@@ -67,6 +68,36 @@ export class SyntheticMonitoringService {
     const r=await this.db.query<Monitor>(`SELECT id,tenant_id,name,check_type,target,expected_status,interval_seconds,timeout_ms FROM synthetic_monitors WHERE tenant_id=$1 AND id=$2`,[tenantId,id]);
     if(!r.rowCount)throw new NotFoundException('Synthetic monitor not found');return this.checkAndRecord(r.rows[0]);
   }
+  private async syncSyntheticIncident(monitor:Monitor,result:CheckResult){
+    const recent=await this.db.query(`SELECT status FROM synthetic_check_results WHERE tenant_id=$1 AND monitor_id=$2 ORDER BY checked_at DESC LIMIT 2`,[monitor.tenant_id,monitor.id]);
+    const consecutiveFailures=recent.rows.length===2&&recent.rows.every(row=>row.status==='FAIL');
+    const active=await this.db.query(`SELECT id FROM incidents WHERE tenant_id=$1 AND fingerprint=$2 AND status IN ('OPEN','ACKNOWLEDGED') FOR UPDATE`,[monitor.tenant_id,'synthetic-monitor:'+monitor.id]);
+    let incidentId:string|undefined;
+    if(result.status==='FAIL'&&consecutiveFailures){
+      if(active.rowCount){
+        incidentId=active.rows[0].id;
+        await this.db.query(`UPDATE incidents SET last_seen_at=now(),severity='WARNING',summary=$3,evidence=evidence || $4::jsonb,updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+          [monitor.tenant_id,incidentId,monitor.name+' failed its synthetic check: '+(result.error??'Check failed'),JSON.stringify({monitorId:monitor.id,checkType:monitor.check_type,consecutiveFailures:2,lastLatencyMs:result.latencyMs,responseCode:result.responseCode})]);
+      }else{
+        const created=await this.db.query(`INSERT INTO incidents(tenant_id,fingerprint,category,severity,status,title,summary,root_resource_type,root_resource_id,evidence)
+          VALUES($1,$2,'SYNTHETIC_CHECK_FAILED','WARNING','OPEN',$3,$4,'SYNTHETIC_MONITOR',$5,$6::jsonb) RETURNING id`,
+          [monitor.tenant_id,'synthetic-monitor:'+monitor.id,monitor.name+' synthetic check failing',monitor.name+' failed two consecutive synthetic checks: '+(result.error??'Check failed'),monitor.id,JSON.stringify({monitorId:monitor.id,checkType:monitor.check_type,consecutiveFailures:2,lastLatencyMs:result.latencyMs,responseCode:result.responseCode})]);
+        incidentId=created.rows[0].id;
+      }
+      if(incidentId){
+        try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.opened:'+incidentId,eventType:'INCIDENT.OPENED',aggregateType:'incident',aggregateId:incidentId,payload:{title:monitor.name+' synthetic check failing',summary:result.error??'Two consecutive synthetic checks failed.',severity:'WARNING',incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN']}});}
+        catch(error){this.logger.error('Unable to enqueue synthetic incident notification '+incidentId,error instanceof Error?error.stack:undefined);}
+      }
+      return;
+    }
+    if(result.status==='PASS'&&active.rowCount){
+      incidentId=active.rows[0].id;
+      await this.db.query(`UPDATE incidents SET status='RESOLVED',resolved_at=now(),resolution='Synthetic monitoring recovered',last_seen_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[monitor.tenant_id,incidentId]);
+      try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.resolved:'+incidentId,eventType:'INCIDENT.RESOLVED',aggregateType:'incident',aggregateId:incidentId,payload:{title:monitor.name+' synthetic check recovered',summary:'The synthetic check passed again.',severity:'INFO',incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN']}});}
+      catch(error){this.logger.error('Unable to enqueue synthetic recovery notification '+incidentId,error instanceof Error?error.stack:undefined);}
+    }
+  }
+
   async runDueChecks(){
     const client=await this.db.connect();let monitors:Monitor[]=[];
     try{
@@ -97,7 +128,9 @@ export class SyntheticMonitoringService {
       await client.query('BEGIN');
       const saved=await client.query(`INSERT INTO synthetic_check_results(tenant_id,monitor_id,status,latency_ms,response_code,error) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,checked_at AS "checkedAt"`,[monitor.tenant_id,monitor.id,result.status,result.latencyMs,result.responseCode,result.error]);
       await client.query(`UPDATE synthetic_monitors SET last_status=$3,last_latency_ms=$4,last_response_code=$5,last_error=$6,last_checked_at=now(),updated_at=now() WHERE tenant_id=$1 AND id=$2`,[monitor.tenant_id,monitor.id,result.status,result.latencyMs,result.responseCode,result.error]);
-      await client.query('COMMIT');return {monitorId:monitor.id,monitorName:monitor.name,...result,checkedAt:saved.rows[0].checkedAt};
+      await client.query('COMMIT');
+      await this.syncSyntheticIncident(monitor,result).catch(error=>this.logger.error('Unable to correlate synthetic result with incidents '+monitor.id,error instanceof Error?error.stack:undefined));
+      return {monitorId:monitor.id,monitorName:monitor.name,...result,checkedAt:saved.rows[0].checkedAt};
     }catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;}finally{client.release();}
   }
 }
