@@ -39,7 +39,7 @@ export default function ProcurementPage(){
  },[]);
  useEffect(()=>{void load();},[load]);
  async function send(path:string,body:unknown,success:string){setBusy(true);setError('');setNotice('');try{await apiFetch(path,{method:'POST',headers:headers(),body:JSON.stringify(body)});setNotice(success);await load();}catch(e){setError(e instanceof ApiError||e instanceof Error?e.message:'Imeshindikana kuhifadhi.');}finally{setBusy(false);}}
- async function onSupplier(e:FormEvent){e.preventDefault();await send('/procurement/suppliers',{supplierCode,supplierName,name:supplierName,email:supplierEmail},'Supplier amehifadhiwa.');}
+ async function onSupplier(e:FormEvent){e.preventDefault();await send('/procurement/suppliers',{supplierCode,name:supplierName,email:supplierEmail},'Supplier amehifadhiwa.');}
  async function onOrder(e:FormEvent){e.preventDefault();await send('/procurement/purchase-orders',{supplierId:poSupplier,poNumber,currency:poCurrency},'Purchase order imetengenezwa.');}
  async function onItem(e:FormEvent){e.preventDefault();await send('/inventory/items',{sku,name:itemName,reorderLevel:Number(reorder)},'Inventory item imehifadhiwa.');}
  async function onMovement(e:FormEvent){e.preventDefault();const q=Number(quantity);await send('/inventory/items/'+encodeURIComponent(movementItem)+'/movements',{movementType,quantityDelta:movementType==='ISSUE'?-Math.abs(q):Math.abs(q),unitCost:Number(unitCost),currency:'TZS',referenceType:'MANUAL',idempotencyKey:idem},'Stock movement imerekodiwa.');}
