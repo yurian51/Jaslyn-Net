@@ -122,7 +122,8 @@ export class AuthService {
     const result = await this.db.query(
       `SELECT id, user_agent AS "userAgent", ip_address::text AS "ipAddress",
               created_at AS "createdAt", last_seen_at AS "lastSeenAt", expires_at AS "expiresAt",
-              revoked_at AS "revokedAt", (id=$3::uuid) AS "isCurrent"
+              revoked_at AS "revokedAt", (id=$3::uuid) AS "isCurrent",
+              (revoked_at IS NULL AND expires_at>now()) AS "isActive"
        FROM auth_sessions
        WHERE tenant_id=$1 AND user_id=$2
        ORDER BY created_at DESC LIMIT 100`,
