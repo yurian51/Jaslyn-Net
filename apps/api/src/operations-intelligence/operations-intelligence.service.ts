@@ -11,6 +11,8 @@ export class OperationsIntelligenceService {
     await this.audit.record(tenantId,action,type,id,metadata,{userId:actorId});
   }
   async ingestNetworkSample(tenantId:string,d:CreateNetworkTelemetryDto){
+    if(d.resourceType==='ROUTER'){const resource=await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2',[tenantId,d.resourceId]);if(!resource.rowCount)throw new NotFoundException('Router resource not found in this tenant');}
+    if(d.resourceType==='SITE'){const resource=await this.db.query('SELECT id FROM sites WHERE tenant_id=$1 AND id=$2',[tenantId,d.resourceId]);if(!resource.rowCount)throw new NotFoundException('Site resource not found in this tenant');}
     if(!Number.isFinite(d.metricValue))throw new BadRequestException('Metric value must be finite');
     if(['PACKET_LOSS_PCT','UTILIZATION_PCT','CHANNEL_UTILIZATION_PCT','AIRTIME_PCT'].includes(d.metricType)&&(d.metricValue<0||d.metricValue>100))throw new BadRequestException('Percentage metrics must be between 0 and 100');
     const r=await this.db.query(`INSERT INTO network_telemetry_samples(tenant_id,resource_type,resource_id,metric_type,metric_value,unit,source,sampled_at,idempotency_key)
@@ -23,6 +25,7 @@ export class OperationsIntelligenceService {
     return {duplicate:true,data:x};
   }
   async ingestWifiSample(tenantId:string,d:CreateWifiExperienceDto){
+    const router=await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2',[tenantId,d.routerId]);if(!router.rowCount)throw new NotFoundException('Router not found in this tenant');
     const r=await this.db.query(`INSERT INTO wifi_client_experience_samples(tenant_id,router_id,client_key_hash,ssid,band,channel,rssi_dbm,noise_dbm,airtime_pct,channel_utilization_pct,tx_rate_bps,rx_rate_bps,roaming_count,sampled_at,idempotency_key)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT(tenant_id,idempotency_key) DO NOTHING RETURNING id,router_id,band,channel,rssi_dbm,noise_dbm,airtime_pct,channel_utilization_pct,tx_rate_bps,rx_rate_bps,roaming_count,sampled_at`,
@@ -58,6 +61,8 @@ export class OperationsIntelligenceService {
     return {method:'30-day linear regression; deterministic, not AI',data};
   }
   async ingestPowerSample(tenantId:string,d:CreatePowerSampleDto){
+    if(d.siteId){const site=await this.db.query('SELECT id FROM sites WHERE tenant_id=$1 AND id=$2',[tenantId,d.siteId]);if(!site.rowCount)throw new NotFoundException('Site not found in this tenant');}
+    if(d.assetId){const asset=await this.db.query('SELECT id FROM device_lifecycle_records WHERE tenant_id=$1 AND resource_id=$2 UNION SELECT id FROM inventory_items WHERE tenant_id=$1 AND id=$2 LIMIT 1',[tenantId,d.assetId]);if(!asset.rowCount)throw new NotFoundException('Asset not found in this tenant');}
     if(!Number.isFinite(d.metricValue))throw new BadRequestException('Metric value must be finite');
     if(['UPS_BATTERY_PCT','UPS_LOAD_PCT','HUMIDITY_PCT'].includes(d.metricType)&&(d.metricValue<0||d.metricValue>100))throw new BadRequestException('Percentage metric must be between 0 and 100');
     const r=await this.db.query(`INSERT INTO power_environment_samples(tenant_id,site_id,asset_id,metric_type,metric_value,unit,source,sampled_at,idempotency_key)
