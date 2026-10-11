@@ -150,6 +150,31 @@ export class RoutersService {
     return router;
   }
 
+  async changeIntelligence(tenantId: string, routerId?: string, limit = 100) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 500);
+    const result = await this.db.query(
+      `SELECT e.id,e.router_id AS "routerId",r.name AS "routerName",e.source_type AS "sourceType",
+              e.source_id AS "sourceId",e.change_type AS "changeType",e.correlation_id AS "correlationId",
+              e.before_state AS "beforeState",e.after_state AS "afterState",e.details,e.occurred_at AS "occurredAt",
+              i.id AS "relatedIncidentId",i.title AS "relatedIncidentTitle",i.severity AS "incidentSeverity",
+              i.status AS "incidentStatus",
+              CASE WHEN i.id IS NULL THEN false ELSE true END AS "temporalCorrelation",
+              CASE WHEN i.id IS NULL THEN NULL ELSE
+                ABS(EXTRACT(EPOCH FROM (i.started_at-e.occurred_at)))::int END AS "distanceSeconds",
+              '30 minutes' AS "correlationWindow",
+              false AS "causationProven"
+       FROM network_change_events e
+       JOIN routers r ON r.tenant_id=e.tenant_id AND r.id=e.router_id
+       LEFT JOIN incidents i ON i.tenant_id=e.tenant_id AND i.root_resource_type='ROUTER'
+         AND i.root_resource_id=e.router_id
+         AND i.started_at BETWEEN e.occurred_at-interval '30 minutes' AND e.occurred_at+interval '30 minutes'
+       WHERE e.tenant_id=$1 AND ($2::uuid IS NULL OR e.router_id=$2)
+       ORDER BY e.occurred_at DESC LIMIT $3`,
+      [tenantId, routerId ?? null, safeLimit],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0, semantics: 'Temporal correlation is investigative evidence, not proof of causation.' };
+  }
+
   async rotateCredentials(tenantId: string, context: AuditContext = {}) {
     const activeKeyId = this.secureCredentials.activeKeyId();
     const client = await this.db.connect();
