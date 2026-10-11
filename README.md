@@ -73,6 +73,9 @@ Production credentials and secrets are never part of the repository. Use environ
 
 ## Product strategy and delivery documents
 - [Enterprise operations capabilities and verification status](docs/ENTERPRISE-CAPABILITIES-IMPLEMENTATION.md)
+- [Enterprise financial, procurement, MSP and operations feature execution](docs/ENTERPRISE-FEATURES-EXECUTION.md)
+- [PostgreSQL backup, restore drills and disaster-recovery gates](docs/DISASTER-RECOVERY.md)
+- [Public API keys and signed webhook contract](docs/PUBLIC-API-WEBHOOKS.md)
 - [Enterprise platform execution roadmap (cloud/SaaS + self-hosted)](docs/ENTERPRISE-PLATFORM-ROADMAP.md)
 
 - [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)

@@ -17,6 +17,15 @@ export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'status.manage':['OWNER','ADMIN'],'maintenance.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'maintenance.manage':['OWNER','ADMIN'],
  'field.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'field.write':['OWNER','ADMIN','AGENT'],'field.sync':['OWNER','ADMIN','AGENT'],
  'network.changes.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'audit.read':['OWNER','ADMIN'],
+ 'procurement.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'procurement.manage':['OWNER','ADMIN','CASHIER'],
+ 'inventory.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'inventory.manage':['OWNER','ADMIN','CASHIER'],
+ 'msp.branding.manage':['OWNER','ADMIN'],'msp.hierarchy.read':['OWNER','ADMIN'],'msp.hierarchy.manage':['OWNER','ADMIN'],
+ 'platform.api.manage':['OWNER','ADMIN'],'platform.audit.read':['OWNER','ADMIN'],
+ 'network.experience.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'network.experience.ingest':['OWNER','ADMIN','AGENT'],
+ 'network.capacity.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'device.lifecycle.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'device.lifecycle.manage':['OWNER','ADMIN'],
+ 'power.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'power.ingest':['OWNER','ADMIN','AGENT'],'sla.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'sla.manage':['OWNER','ADMIN'],
+ 'automation.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'automation.manage':['OWNER','ADMIN'],
+ 'msp.usage.read':['OWNER','ADMIN','READ_ONLY'],'msp.usage.manage':['OWNER','ADMIN'],
 };
 
 @Injectable()
