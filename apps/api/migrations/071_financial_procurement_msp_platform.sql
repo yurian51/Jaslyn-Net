@@ -1,44 +1,7 @@
 BEGIN;
 
--- Financial documents are tenant-scoped and use immutable identifiers.
-CREATE TABLE IF NOT EXISTS customer_invoices (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-  customer_id uuid NOT NULL,
-  invoice_number text NOT NULL,
-  status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','ISSUED','PARTIALLY_PAID','PAID','VOID','OVERDUE')),
-  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-  subtotal numeric(20,2) NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
-  tax_total numeric(20,2) NOT NULL DEFAULT 0 CHECK (tax_total >= 0),
-  total numeric(20,2) NOT NULL DEFAULT 0 CHECK (total >= 0),
-  amount_paid numeric(20,2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0 AND amount_paid <= total),
-  issued_at timestamptz,
-  due_at timestamptz,
-  voided_at timestamptz,
-  created_by uuid,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, id),
-  UNIQUE (tenant_id, invoice_number),
-  FOREIGN KEY (tenant_id, created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
-);
-CREATE INDEX IF NOT EXISTS customer_invoices_ar_idx ON customer_invoices(tenant_id,status,due_at);
-CREATE INDEX IF NOT EXISTS customer_invoices_customer_idx ON customer_invoices(tenant_id,customer_id,created_at DESC);
-
-CREATE TABLE IF NOT EXISTS customer_invoice_lines (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-  invoice_id uuid NOT NULL,
-  description text NOT NULL,
-  quantity numeric(20,4) NOT NULL CHECK (quantity > 0),
-  unit_price numeric(20,4) NOT NULL CHECK (unit_price >= 0),
-  tax_rate numeric(7,4) NOT NULL DEFAULT 0 CHECK (tax_rate >= 0 AND tax_rate <= 100),
-  line_total numeric(20,2) NOT NULL CHECK (line_total >= 0),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (tenant_id,invoice_id) REFERENCES customer_invoices(tenant_id,id) ON DELETE RESTRICT,
-  UNIQUE (tenant_id,id)
-);
-CREATE INDEX IF NOT EXISTS customer_invoice_lines_invoice_idx ON customer_invoice_lines(tenant_id,invoice_id);
+-- Reuse the existing invoices/invoice_lines domain as the canonical customer billing source.
+CREATE UNIQUE INDEX IF NOT EXISTS invoices_tenant_id_id_uq ON invoices(tenant_id,id);
 
 CREATE TABLE IF NOT EXISTS customer_credit_notes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,34 +15,12 @@ CREATE TABLE IF NOT EXISTS customer_credit_notes (
   created_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   issued_at timestamptz,
-  FOREIGN KEY (tenant_id,invoice_id) REFERENCES customer_invoices(tenant_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id,invoice_id) REFERENCES invoices(tenant_id,id) ON DELETE RESTRICT,
   FOREIGN KEY (tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT,
   UNIQUE (tenant_id,id),
   UNIQUE (tenant_id,credit_number)
 );
 CREATE INDEX IF NOT EXISTS customer_credit_notes_invoice_idx ON customer_credit_notes(tenant_id,invoice_id,status);
-
-CREATE TABLE IF NOT EXISTS payment_refunds (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-  payment_id uuid NOT NULL,
-  idempotency_key text NOT NULL,
-  provider_refund_reference text,
-  amount numeric(20,2) NOT NULL CHECK (amount > 0),
-  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-  reason text NOT NULL,
-  status text NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED','PENDING','SUCCEEDED','FAILED','CANCELLED')),
-  requested_by uuid,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz,
-  FOREIGN KEY (tenant_id,payment_id) REFERENCES payments(tenant_id,id) ON DELETE RESTRICT,
-  FOREIGN KEY (tenant_id,requested_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT,
-  UNIQUE (tenant_id,id),
-  UNIQUE (tenant_id,idempotency_key)
-);
-CREATE UNIQUE INDEX IF NOT EXISTS payment_refunds_provider_ref_uq ON payment_refunds(tenant_id,provider_refund_reference) WHERE provider_refund_reference IS NOT NULL;
-CREATE INDEX IF NOT EXISTS payment_refunds_payment_idx ON payment_refunds(tenant_id,payment_id,status);
 
 CREATE TABLE IF NOT EXISTS suppliers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -309,6 +250,18 @@ CREATE TABLE IF NOT EXISTS financial_change_audit (
 CREATE INDEX IF NOT EXISTS financial_change_audit_tenant_time_idx ON financial_change_audit(tenant_id,occurred_at DESC);
 CREATE INDEX IF NOT EXISTS financial_change_audit_entity_idx ON financial_change_audit(tenant_id,entity_type,entity_id,occurred_at DESC);
 
+INSERT INTO permission_catalog(permission_key,description) VALUES
+ ('procurement.read','Read suppliers, purchase orders, supplier invoices and inventory'),
+ ('procurement.manage','Create and manage suppliers, purchase orders and supplier invoices'),
+ ('inventory.read','Read inventory items and stock movement history'),
+ ('inventory.manage','Create inventory items and post controlled stock movements'),
+ ('msp.branding.manage','Manage tenant white-label branding and notification templates'),
+ ('msp.hierarchy.read','Read tenant reseller/managed-operator hierarchy'),
+ ('msp.hierarchy.manage','Manage tenant reseller/managed-operator hierarchy'),
+ ('platform.api.manage','Manage tenant-scoped API credentials and webhook endpoints'),
+ ('platform.audit.read','Read tenant-scoped financial change audit records')
+ON CONFLICT(permission_key) DO UPDATE SET description=EXCLUDED.description;
+
 CREATE OR REPLACE FUNCTION jaslyn_financial_audit_trigger() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE v_tenant uuid; v_id uuid; v_before jsonb; v_after jsonb; v_actor uuid; v_request text;
 BEGIN
@@ -320,13 +273,13 @@ BEGIN
   v_request := NULLIF(current_setting('jaslyn.request_id',true),'');
   INSERT INTO financial_change_audit(tenant_id,actor_user_id,request_id,entity_type,entity_id,operation,before_data,after_data)
   VALUES(v_tenant,v_actor,v_request,TG_TABLE_NAME,v_id,TG_OP,v_before,v_after);
-  RETURN COALESCE(NEW,OLD);
+  IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END; $$;
 
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['customer_invoices','customer_invoice_lines','customer_credit_notes','payment_refunds','suppliers','purchase_orders','purchase_order_lines','supplier_invoices','inventory_items','inventory_stock_movements','tenant_branding','tenant_reseller_relationships','platform_api_keys','tenant_webhook_endpoints','webhook_delivery_outbox'] LOOP
+  FOREACH t IN ARRAY ARRAY['invoices','invoice_lines','refunds','customer_credit_notes','suppliers','purchase_orders','purchase_order_lines','supplier_invoices','inventory_items','inventory_stock_movements','tenant_branding','tenant_reseller_relationships','platform_api_keys','tenant_webhook_endpoints','webhook_delivery_outbox'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_financial_audit ON %I',t);
     EXECUTE format('CREATE TRIGGER jaslyn_financial_audit AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION jaslyn_financial_audit_trigger()',t);
   END LOOP;
