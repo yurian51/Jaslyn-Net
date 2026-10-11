@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
@@ -12,7 +12,6 @@ type CheckResult={status:'PASS'|'FAIL'|'UNKNOWN';latencyMs:number|null;responseC
 
 @Injectable()
 export class SyntheticMonitoringService {
-  private readonly logger=new Logger(SyntheticMonitoringService.name);
   constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly config:ConfigService,private readonly audit:AuditService){}
 
   private allowedPrivateHosts(){return new Set((this.config.get<string>('SYNTHETIC_ALLOWED_PRIVATE_HOSTS','')||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean));}
@@ -37,7 +36,7 @@ export class SyntheticMonitoringService {
       return value.toLowerCase();
     }
     let url:URL;try{url=new URL(value);}catch{throw new BadRequestException('HTTP monitor target must be a valid HTTPS URL');}
-    if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||(url.port&&url.port!=='443')||isIP(url.hostname)||url.hostname==='localhost'||url.hostname.endsWith('.local'))throw new BadRequestException('Monitor URLs must use HTTPS, contain no credentials/query/fragment, and use a hostname rather than an IP literal');
+    if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||(url.port&&url.port!=='443')||isIP(url.hostname.replace(/^\\[|\\]$/g,''))||url.hostname==='localhost'||url.hostname.endsWith('.local'))throw new BadRequestException('Monitor URLs must use HTTPS, contain no credentials/query/fragment, and use a hostname rather than an IP literal');
     return url.toString();
   }
   private async resolveAllowed(host:string){
@@ -72,15 +71,14 @@ export class SyntheticMonitoringService {
     const client=await this.db.connect();let monitors:Monitor[]=[];
     try{
       await client.query('BEGIN');
-      const due=await client.query<Monitor>(`WITH due AS (SELECT id FROM synthetic_monitors WHERE enabled=true AND next_check_at<=now() ORDER BY next_check_at FOR UPDATE SKIP LOCKED LIMIT 20) UPDATE synthetic_monitors m SET next_check_at=now()+(m.interval_seconds*interval '1 second'),updated_at=now() FROM due WHERE m.id=due.id RETURNING m.id,m.tenant_id,m.name,m.check_type,m.target,m.expected_status,m.interval_seconds,m.timeout_ms`);
+      const due=await client.query<Monitor>(`WITH due AS (SELECT id FROM synthetic_monitors WHERE enabled=true AND next_check_at<=now() ORDER BY next_check_at LIMIT 20 FOR UPDATE SKIP LOCKED) UPDATE synthetic_monitors m SET next_check_at=now()+(m.interval_seconds*interval '1 second'),updated_at=now() FROM due WHERE m.id=due.id RETURNING m.id,m.tenant_id,m.name,m.check_type,m.target,m.expected_status,m.interval_seconds,m.timeout_ms`);
       monitors=due.rows;await client.query('COMMIT');
     }catch(e){await client.query('ROLLBACK').catch(()=>undefined);throw e;}finally{client.release();}
     return Promise.all(monitors.map(m=>this.checkAndRecord(m)));
   }
   private async checkAndRecord(monitor:Monitor){
-    const started=Date.now();let result:CheckResult;
+    const started=Date.now();let result:CheckResult;let responseCode:number|null=null;
     try{
-      let responseCode:number|null=null;
       if(monitor.check_type==='DNS'){
         await this.resolveAllowed(monitor.target);
       }else{
@@ -92,7 +90,7 @@ export class SyntheticMonitoringService {
       result={status:'PASS',latencyMs:Date.now()-started,responseCode,error:null};
     }catch(e){
       const message=e instanceof Error?e.message:'Synthetic check failed';
-      result={status:'FAIL',latencyMs:Date.now()-started,responseCode:null,error:message.slice(0,500)};
+      result={status:'FAIL',latencyMs:Date.now()-started,responseCode,error:message.slice(0,500)};
     }
     const client=await this.db.connect();
     try{
