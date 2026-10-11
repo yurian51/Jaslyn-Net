@@ -7,7 +7,8 @@ import { WorkflowsService } from './workflows.service';
 describe('WorkflowsService safety and tenant boundaries', () => {
   const db = { query: jest.fn(), connect: jest.fn() };
   const audit = { record: jest.fn() };
-  const service = new WorkflowsService(db as unknown as Pool, audit as unknown as AuditService);
+  const notifications = { enqueue: jest.fn(), enqueueSms: jest.fn() };
+  const service = new WorkflowsService(db as unknown as Pool, audit as unknown as AuditService, notifications as never);
   beforeEach(() => { jest.clearAllMocks(); });
 
   it('accepts safe dotted TRANSFORM source and destination paths', async () => {
@@ -19,6 +20,20 @@ describe('WorkflowsService safety and tenant boundaries', () => {
       name:'safe transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'workflow.paymentStatus'}]}],
     })).resolves.toMatchObject({id:'workflow-1'});
     expect(db.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects unsafe notification recipient paths before persistence', async () => {
+    await expect(service.create('tenant-a','user-a',{
+      name:'unsafe notification',triggerType:'MANUAL',steps:[{type:'NOTIFY',channel:'SMS',recipientPath:'__proto__.phone',message:'hello',category:'TRANSACTIONAL'}],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported notification channels before persistence', async () => {
+    await expect(service.create('tenant-a','user-a',{
+      name:'unsupported notification',triggerType:'MANUAL',steps:[{type:'NOTIFY',channel:'SHELL',recipientPath:'customer.phone',message:'hello'}],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
   });
 
   it('rejects unsafe TRANSFORM destination paths before persistence', async () => {
