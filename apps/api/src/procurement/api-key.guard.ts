@@ -35,7 +35,7 @@ export class ApiKeyGuard implements CanActivate {
     await this.db.query('UPDATE platform_api_keys SET last_used_at=now() WHERE tenant_id=$1 AND id=$2',[key.tenant_id,key.id]);
     const required=this.reflector.getAllAndOverride<string[]>(API_KEY_SCOPES,[context.getHandler(),context.getClass()])??[];
     const scopes=key.scopes??[];
-    if(required.some(scope=>!scopes.includes(scope)&&!scopes.includes('read')))throw new UnauthorizedException('API key does not grant the required scope');
+    if(required.some(scope=>!scopes.includes(scope)&&!(scopes.includes('read')&&scope.endsWith('.read'))))throw new UnauthorizedException('API key does not grant the required scope');
     request.apiKey={id:key.id,tenantId:key.tenant_id,scopes};
     return true;
   }
