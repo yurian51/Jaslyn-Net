@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -15,6 +15,10 @@ export class WorkflowsController {
   list(@Req() r:AuthenticatedRequest){return this.workflows.list(r.user!.tenantId);}
   @Post() @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
   create(@Req() r:AuthenticatedRequest,@Body() d:CreateWorkflowDto){return this.workflows.create(r.user!.tenantId,r.user!.id,d);}
+  @Get(':id/versions') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.read')
+  versions(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflows.listVersions(r.user!.tenantId,id);}
+  @Put(':id/definition') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
+  updateDefinition(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:CreateWorkflowDto){return this.workflows.updateDefinition(r.user!.tenantId,r.user!.id,id,d);}
   @Get(':id/export') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
   exportDefinition(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.workflows.exportDefinition(r.user!.tenantId,id);}
   @Post('import') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
