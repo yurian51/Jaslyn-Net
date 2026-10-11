@@ -5,6 +5,8 @@ import { FairnessService } from './fairness.service';
 import { TrafficEnforcementService } from './enforcement.service';
 import { MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { MerakiTrafficEnforcementAdapter } from './meraki.adapter';
+import { OmadaNetworkAdapter } from './omada.adapter';
+import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
 import { NetworkDeviceAdapterRegistry } from './network-device.adapter';
 import { TrafficSamplesController } from './traffic-samples.controller';
 import { TrafficSamplesService } from './traffic-samples.service';
@@ -28,6 +30,8 @@ import { LoadBalancingEngine } from './load-balancing.engine';
     NetworkCommandService,
     MikroTikTrafficEnforcementAdapter,
     MerakiTrafficEnforcementAdapter,
+    OmadaNetworkAdapter,
+    RuijieReyeeNetworkAdapter,
     NetworkDeviceAdapterRegistry,
     {
       provide: TrafficEnforcementService,
