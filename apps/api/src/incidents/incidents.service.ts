@@ -451,8 +451,8 @@ export class IncidentsService {
     const activeIncidents = incidents.rows.filter(row => row.status !== 'RESOLVED');
     const activeMaintenance = maintenance.rows.some(row => row.status === 'ACTIVE' || new Date(row.startsAt).getTime() <= Date.now());
     const overallStatus = activeIncidents.some(row => row.severity === 'CRITICAL') ? 'MAJOR_OUTAGE'
+       : activeMaintenance ? 'MAINTENANCE'
       : activeIncidents.length ? 'DEGRADED'
-      : activeMaintenance ? 'MAINTENANCE'
       : components.rows.some(row => row.status === 'MAJOR_OUTAGE') ? 'MAJOR_OUTAGE'
       : components.rows.some(row => row.status === 'PARTIAL_OUTAGE') ? 'PARTIAL_OUTAGE'
       : components.rows.some(row => row.status === 'DEGRADED') ? 'DEGRADED'
