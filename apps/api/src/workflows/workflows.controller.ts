@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -36,7 +36,7 @@ export class WorkflowWebhookController {
   constructor(private readonly workflows:WorkflowsService) {}
   @Post(':id/webhook')
   webhook(@Param('id') id:string,@Headers('x-jaslyn-webhook-token') token:string,@Body() payload:Record<string,unknown>) {
-    if(!payload||typeof payload!=='object'||Array.isArray(payload)) throw new Error('Webhook body must be a JSON object');
+    if(!payload||typeof payload!=='object'||Array.isArray(payload)) throw new BadRequestException('Webhook body must be a JSON object');
     return this.workflows.triggerWebhook(id,token,payload);
   }
 }
