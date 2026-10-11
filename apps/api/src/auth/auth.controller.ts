@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from './auth.guard';
 import { AuthService } from './auth.service';
 import { LegalAcceptanceDto, LoginDto, RegisterDto } from './auth.dto';
@@ -14,8 +14,9 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() input: LoginDto) {
-    return this.auth.login(input);
+  login(@Body() input: LoginDto, @Req() request: { ip?: string; headers: Record<string, string | string[] | undefined> }) {
+    const userAgent = request.headers['user-agent'];
+    return this.auth.login(input, { ip: request.ip, userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent });
   }
 
   @Post('legal-acceptance')
@@ -28,6 +29,28 @@ export class AuthController {
   @UseGuards(AuthGuard)
   legalAcceptance(@Req() request: AuthenticatedRequest) {
     return this.auth.getLegalAcceptanceStatus(request.user!);
+  }
+
+  @Get('sessions')
+  @UseGuards(AuthGuard)
+  sessions(@Req() request: AuthenticatedRequest) {
+    return this.auth.listSessions(request.user!);
+  }
+
+  @Post('sessions/revoke-others')
+  @UseGuards(AuthGuard)
+  revokeOtherSessions(@Req() request: AuthenticatedRequest) {
+    return this.auth.revokeOtherSessions(request.user!, {
+      ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
+    });
+  }
+
+  @Post('sessions/:id/revoke')
+  @UseGuards(AuthGuard)
+  revokeSession(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.auth.revokeSession(request.user!, id, {
+      ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
+    });
   }
 
   @Get('me')
