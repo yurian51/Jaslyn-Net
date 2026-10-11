@@ -306,6 +306,7 @@ DECLARE
   v_tenant uuid; v_id uuid; v_before jsonb; v_after jsonb; v_actor uuid; v_request text;
   v_sequence bigint; v_previous text; v_hash text; v_payload text;
 BEGIN
+  IF TG_OP='UPDATE' AND TG_TABLE_NAME='platform_api_keys' AND (to_jsonb(NEW)-'last_used_at')=(to_jsonb(OLD)-'last_used_at') THEN RETURN NEW; END IF;
   v_before := CASE WHEN TG_OP='INSERT' THEN NULL ELSE to_jsonb(OLD) END;
   v_after := CASE WHEN TG_OP='DELETE' THEN NULL ELSE to_jsonb(NEW) END;
   v_tenant := COALESCE((v_after->>'tenant_id')::uuid,(v_before->>'tenant_id')::uuid);
