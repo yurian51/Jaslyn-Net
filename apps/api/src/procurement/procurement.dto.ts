@@ -1,4 +1,4 @@
-import { IsArray, ArrayMaxSize, IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUUID, IsUrl, Matches, Max, MaxLength, Min, MinLength, IsDateString } from 'class-validator';
+import { IsArray, ArrayMaxSize, IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUUID, IsUrl, Matches, Max, MaxLength, Min, MinLength, IsDateString, IsObject } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString() @MinLength(2) @MaxLength(40) supplierCode!: string;
@@ -54,6 +54,7 @@ export class UpdateBrandingDto {
   @IsOptional() @IsString() @Matches(/^#[0-9A-Fa-f]{6}$/) primaryColor?: string;
   @IsOptional() @IsEmail() supportEmail?: string;
   @IsOptional() @IsString() @MaxLength(40) supportPhone?: string;
+  @IsOptional() @IsObject() notificationTemplates?: Record<string,string>;
   @IsOptional() @IsString() @Matches(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/) @MaxLength(253) portalDomain?: string;
 }
 export class CreateCustomerCreditNoteDto {
