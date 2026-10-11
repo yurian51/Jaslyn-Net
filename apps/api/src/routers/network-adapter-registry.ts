@@ -20,6 +20,13 @@ export class NetworkAdapterRegistry {
     },
     { protocol: 'OMADA_CONTROLLER_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
     { protocol: 'RUIJIE_REYEE_CLOUD_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'ARUBA_CENTRAL_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'CAMBIUM_CNMAESTRO', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'GRANDSTREAM_GWN_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'RUCKUS_SMARTZONE_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'TELTONIKA_RMS_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'PEPLINK_INCONTROL_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
+    { protocol: 'PFSENSE_API', lifecycle: 'NATIVE', capabilities: ['client_sessions'] },
     {
       protocol: 'UNIFI_NETWORK_API',
       lifecycle: 'NATIVE',
