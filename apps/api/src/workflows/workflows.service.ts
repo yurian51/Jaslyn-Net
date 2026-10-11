@@ -22,7 +22,11 @@ export class WorkflowsService {
         if(!/^[A-Za-z0-9_.-]{1,120}$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p))) throw new BadRequestException('Condition path is invalid');
         if(!['eq','neq','gt','gte','lt','lte','exists','contains'].includes(op)) throw new BadRequestException('Condition operator is unsupported');
         if(op!=='exists'&&!Object.prototype.hasOwnProperty.call(s,'value')) throw new BadRequestException('Condition value is required');
-        return {type:'CONDITION',path,op,value:s.value};
+        const onFalse=String(s.onFalse??'STOP').toUpperCase();
+        if(!['STOP','SKIP'].includes(onFalse)) throw new BadRequestException('Condition onFalse must be STOP or SKIP');
+        const skipSteps=Number(s.skipSteps??1);
+        if(onFalse==='SKIP'&&(!Number.isInteger(skipSteps)||skipSteps<1||skipSteps>29)) throw new BadRequestException('Condition skipSteps must be 1–29 when onFalse is SKIP');
+        return {type:'CONDITION',path,op,value:s.value,onFalse,skipSteps};
       }
       if(type==='TRANSFORM'){
         const mappings=s.mappings;
@@ -348,8 +352,11 @@ export class WorkflowsService {
             }
             results.push({index,type:step.type,changedFields:changed});
           } else if(step.type==='CONDITION') {
-            const matched=this.condition(payload,step); results.push({index,type:step.type,matched});
-            if(!matched) { completed=true; index=steps.length; break; }
+            const matched=this.condition(payload,step); results.push({index,type:step.type,matched,onFalse:step.onFalse??'STOP'});
+            if(!matched) {
+              if(step.onFalse==='SKIP') { index+=Number(step.skipSteps??1); }
+              else { completed=true; index=steps.length; break; }
+            }
           } else if(step.type==='CREATE_ALERT') {
             const alert=await this.db.query(`INSERT INTO automation_workflow_alerts(tenant_id,run_id,step_index,severity,title,details)
               VALUES($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT(tenant_id,run_id,step_index) DO UPDATE SET run_id=EXCLUDED.run_id RETURNING id,status`,
