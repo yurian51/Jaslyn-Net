@@ -299,6 +299,17 @@ export class NotificationsService {
     return result.rows[0] ?? null;
   }
 
+  async markPermanentlyFailed(id: string, error: string) {
+    const result = await this.db.query(
+      `UPDATE notification_outbox
+       SET status='FAILED',locked_at=NULL,last_error=left($2,2000),updated_at=now()
+       WHERE id=$1 AND status='PROCESSING'
+       RETURNING id,status,attempts,last_error AS "lastError"`,
+      [id, error || 'Permanent SMS provider rejection'],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async markFailed(id: string, error: string, retryDelaySeconds = 60) {
     const delay = Math.min(Math.max(Math.trunc(retryDelaySeconds), 5), 86400);
     const result = await this.db.query(
