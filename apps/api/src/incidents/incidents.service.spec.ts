@@ -15,7 +15,7 @@ describe('IncidentsService', () => {
   it('returns not-found for an unknown incident', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) } as any;
     const audit = { record: jest.fn() } as any;
-    const service = new IncidentsService(db, audit);
+    const service = new IncidentsService(db, audit, { enqueue: jest.fn() } as any);
 
     await expect(service.get('tenant-1', 'missing')).rejects.toThrow('Incident not found');
   });
