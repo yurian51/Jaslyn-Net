@@ -72,6 +72,7 @@ Production credentials and secrets are never part of the repository. Use environ
 
 
 ## Product strategy and delivery documents
+- [Enterprise operations capabilities and verification status](docs/ENTERPRISE-CAPABILITIES-IMPLEMENTATION.md)
 
 - [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)
 - [Platform subscription vs WiFi subscriber plan UX and ownership rules](docs/PLAN-CATALOGUE-UX-AND-OWNERSHIP.md)
