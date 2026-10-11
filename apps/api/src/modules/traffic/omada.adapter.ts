@@ -16,10 +16,10 @@ export class OmadaNetworkAdapter {
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     const endpoint = connection.controllerEndpoint ?? connection.endpoint;
     const meta = connection.capabilities ?? {};
-    const omadacId = connection.credentials?.omadacId ?? this.value(meta, ['omadacId', 'omadaId', 'controllerId']) ?? this.config.get<string>('JASLYN_OMADA_ID');
+    const omadacId = connection.credentials?.omadacId ?? this.value(meta, ['omadacId', 'omadaId', 'controllerId']);
     const siteId = connection.credentials?.siteId ?? this.value(meta, ['siteId', 'omadaSiteId']) ?? this.config.get<string>('JASLYN_OMADA_SITE_ID');
-    const clientId = connection.credentials?.clientId ?? this.config.get<string>('JASLYN_OMADA_CLIENT_ID');
-    const clientSecret = connection.credentials?.clientSecret ?? this.config.get<string>('JASLYN_OMADA_CLIENT_SECRET');
+    const clientId = connection.credentials?.clientId;
+    const clientSecret = connection.credentials?.clientSecret;
     if (!endpoint || !omadacId || !siteId || !clientId || !clientSecret) {
       throw new ServiceUnavailableException('Omada requires controller endpoint, omadacId, siteId, clientId and clientSecret');
     }
