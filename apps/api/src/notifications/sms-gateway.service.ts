@@ -72,7 +72,7 @@ export class SmsGatewayService {
     if (!['beem', 'custom_rest'].includes(input.provider)) throw new BadRequestException('Unsupported SMS provider type');
     const senderId = (input.senderId || '').trim();
     if (!/^[A-Za-z0-9_-]{2,16}$/.test(senderId)) throw new BadRequestException('Sender ID must contain 2–16 letters, numbers, underscores or hyphens');
-    const authType = input.authType || (input.provider === 'beem' ? 'basic' : 'bearer');
+    const authType = input.provider === 'beem' ? 'basic' : (input.authType || 'bearer');
     if (!['none', 'bearer', 'api_key', 'basic'].includes(authType)) throw new BadRequestException('Unsupported authentication type');
     let endpoint: string | null = null;
     if (input.provider === 'custom_rest') endpoint = this.validateEndpoint(input.endpoint || '').toString();
