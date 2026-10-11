@@ -8,11 +8,12 @@ type Workflow = { id:string; name:string; description?:string; triggerType:strin
 type Run = { id:string; workflowId:string; triggerType:string; status:string; currentStep:number; attempts:number; lastError?:string|null; createdAt:string; stepResults:unknown[] };
 type Approval = { id:string; runId:string; title:string; status:string; requestedAt:string; details:Record<string,unknown> };
 type Integration = { id:string; name:string; providerType:string; baseUrl?:string; enabled:boolean };
+type WorkflowAlert = { id:string; runId:string; severity:string; title:string; status:string; createdAt:string; details:Record<string,unknown> };
 type Data<T> = { data:T[] };
 
 const defaultSteps = JSON.stringify([
   { type: 'CONDITION', path: 'payment.status', op: 'eq', value: 'CONFIRMED' },
-  { type: 'APPROVAL', title: 'Approve sensitive downstream action', details: { risk: 'medium' } },
+  { type: 'CREATE_ALERT', severity: 'HIGH', title: 'Payment workflow requires operator attention', details: { source: 'workflow' } },\n  { type: 'APPROVAL', title: 'Approve sensitive downstream action', details: { risk: 'medium' } },
   { type: 'EMIT_WEBHOOK', eventType: 'payment.workflow.completed', payload: { source: 'jaslyn-net' } },
   { type: 'LOG', message: 'Workflow completed' },
 ], null, 2);
@@ -29,6 +30,7 @@ export default function AutomationWorkspacePage() {
   const [workflows,setWorkflows]=useState<Workflow[]>([]);
   const [runs,setRuns]=useState<Run[]>([]);
   const [approvals,setApprovals]=useState<Approval[]>([]);
+  const [alerts,setAlerts]=useState<WorkflowAlert[]>([]);
   const [integrations,setIntegrations]=useState<Integration[]>([]);
   const [name,setName]=useState('');
   const [description,setDescription]=useState('');
@@ -53,7 +55,7 @@ export default function AutomationWorkspacePage() {
   const load=useCallback(async()=>{
     try {
       const h=headers();
-      const [w,r,a,i]=await Promise.all([
+      const [w,r,a,i,al]=await Promise.all([
         apiFetch<Data<Workflow>>('/automation/workflows',{headers:h}),
         apiFetch<Data<Run>>('/automation/workflows/runs',{headers:h}),
         apiFetch<Data<Approval>>('/automation/workflows/approvals',{headers:h}),
