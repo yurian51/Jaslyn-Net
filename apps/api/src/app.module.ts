@@ -30,6 +30,7 @@ import { AiModule } from './ai/ai.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SecurityPostureModule } from './security-posture/security-posture.module';
+import { SyntheticMonitoringModule } from './synthetic-monitoring/synthetic-monitoring.module';
 
 @Module({
   imports: [
@@ -37,7 +38,7 @@ import { SecurityPostureModule } from './security-posture/security-posture.modul
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule,
   ],
 })
 export class AppModule implements NestModule {
