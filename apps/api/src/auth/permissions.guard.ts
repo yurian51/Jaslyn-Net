@@ -25,6 +25,7 @@ export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'network.capacity.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'device.lifecycle.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'device.lifecycle.manage':['OWNER','ADMIN'],
  'power.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'power.ingest':['OWNER','ADMIN','AGENT'],'sla.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'sla.manage':['OWNER','ADMIN'],
  'automation.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'automation.manage':['OWNER','ADMIN'],
+ 'msp.usage.read':['OWNER','ADMIN','READ_ONLY'],'msp.usage.manage':['OWNER','ADMIN'],
 };
 
 @Injectable()
