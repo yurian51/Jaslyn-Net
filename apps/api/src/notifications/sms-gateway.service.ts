@@ -117,7 +117,16 @@ export class SmsGatewayService {
   async status(tenantId: string) {
     const result = await this.db.query<StoredConfig>('SELECT * FROM sms_provider_configs WHERE tenant_id=$1', [tenantId]);
     const row = result.rows[0];
-    if (!row) return { ...this.beem.status(), source: 'environment' as const };
+    if (!row) {
+      if (this.config.get<string>('SMS_ALLOW_LEGACY_GLOBAL_PROVIDER') === 'true') {
+        return { ...this.beem.status(), source: 'legacy-environment' as const };
+      }
+      return {
+        provider: 'none', enabled: false, configured: false, credentialsPresent: false,
+        senderIdConfigured: false, mode: this.config.get<string>('NODE_ENV') === 'production' ? 'production' : 'non-production',
+        source: 'tenant-unconfigured' as const,
+      };
+    }
     const globallyEnabled = this.config.get<string>('SMS_ENABLED') === 'true';
     const hasCredentials = Boolean(row.credentials_ciphertext) || row.auth_type === 'none';
     const encryptionReady = /^[a-fA-F0-9]{64}$/.test(this.config.get<string>('JASLYN_SMS_CREDENTIAL_ENCRYPTION_KEY') || '');
@@ -148,7 +157,12 @@ export class SmsGatewayService {
     if (!state.configured) throw new ServiceUnavailableException('SMS is disabled or provider settings are incomplete for this tenant');
     const result = await this.db.query<StoredConfig>('SELECT * FROM sms_provider_configs WHERE tenant_id=$1', [tenantId]);
     const row = result.rows[0];
-    if (!row) return this.beem.send(to, message, idempotencyKey);
+    if (!row) {
+      if (this.config.get<string>('SMS_ALLOW_LEGACY_GLOBAL_PROVIDER') === 'true') {
+        return this.beem.send(to, message, idempotencyKey);
+      }
+      throw new ServiceUnavailableException('This tenant has no SMS provider configured');
+    }
     if (!/^255\d{9}$/.test(to)) throw new BadRequestException('SMS recipient must be a normalized Tanzania mobile number');
     if (!message.trim() || message.length > 1600) throw new BadRequestException('SMS message must contain 1–1600 characters');
     const credentials = row.credentials_ciphertext ? JSON.parse(this.decrypt(row.credentials_ciphertext)) as { apiKey?: string; apiSecret?: string } : {};
