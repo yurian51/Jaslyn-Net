@@ -17,7 +17,7 @@ export class OmadaNetworkAdapter {
     const endpoint = connection.controllerEndpoint ?? connection.endpoint;
     const meta = connection.capabilities ?? {};
     const omadacId = connection.credentials?.omadacId ?? this.value(meta, ['omadacId', 'omadaId', 'controllerId']);
-    const siteId = connection.credentials?.siteId ?? this.value(meta, ['siteId', 'omadaSiteId']) ?? this.config.get<string>('JASLYN_OMADA_SITE_ID');
+    const siteId = connection.credentials?.siteId ?? this.value(meta, ['siteId', 'omadaSiteId']);
     const clientId = connection.credentials?.clientId;
     const clientSecret = connection.credentials?.clientSecret;
     if (!endpoint || !omadacId || !siteId || !clientId || !clientSecret) {
@@ -84,7 +84,7 @@ export class OmadaNetworkAdapter {
     const host = url.hostname.toLowerCase();
     if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host === 'metadata.google.internal') throw new ServiceUnavailableException('Omada API hostname is blocked');
     const addresses = isIP(host) ? [host] : (await lookup(host, { all: true })).map((entry) => entry.address);
-    if (!addresses.length || addresses.some((address) => this.isPrivateAddress(address))) throw new ServiceUnavailableException('Omada API endpoint resolves to a restricted address');
+    if (!addresses.length || addresses.some((address) => this.isPrivateAddress(address) && this.config.get<string>('JASLYN_NETWORK_ALLOW_PRIVATE_ENDPOINTS', 'false') !== 'true')) throw new ServiceUnavailableException('Omada API endpoint resolves to a restricted address; explicitly allow private controller addresses only for trusted on-prem deployments');
   }
   private isPrivateAddress(address: string): boolean {
     if (isIP(address) === 4) { const [a,b] = address.split('.').map(Number); return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224; }
