@@ -49,6 +49,18 @@ export class RoutersController {
     return this.enforcement.enforce(req.user!.tenantId, id, dto, { userId: req.user!.id });
   }
 
+  @Post('maintenance/rotate-credentials')
+  @Roles('OWNER', 'ADMIN')
+  rotateCredentials(@Req() req: AuthenticatedRequest) {
+    const userAgent = req.headers['user-agent'];
+    return this.routers.rotateCredentials(req.user!.tenantId, {
+      userId: req.user!.id,
+      requestId: req.requestId,
+      ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
   @Post('maintenance/mark-stale-offline')
   @Roles('OWNER', 'ADMIN')
   markStaleOffline(@Req() req: AuthenticatedRequest, @Query('minutes') minutes?: string) {
