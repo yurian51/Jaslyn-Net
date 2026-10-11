@@ -14,7 +14,7 @@ CREATE OR REPLACE FUNCTION jaslyn_enforce_tenant_quota() RETURNS trigger LANGUAG
 DECLARE
   v_metric text; v_cap bigint; v_used bigint; v_sql text;
 BEGIN
-  IF TG_TABLE_NAME='platform_api_keys' AND NEW.revoked_at IS NOT NULL THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='platform_api_keys' AND (NEW.revoked_at IS NOT NULL OR (NEW.expires_at IS NOT NULL AND NEW.expires_at<=now())) THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='tenant_webhook_endpoints' AND NEW.enabled=false THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='inventory_items' AND NEW.active=false THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='suppliers' AND NEW.status<>'ACTIVE' THEN RETURN NEW; END IF;
