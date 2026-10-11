@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from './auth.guard';
+import { Permissions } from './permissions.decorator';
+import { PermissionsGuard } from './permissions.guard';
 import { AuthService } from './auth.service';
 import { LegalAcceptanceDto, LoginDto, RegisterDto } from './auth.dto';
 
@@ -32,13 +34,15 @@ export class AuthController {
   }
 
   @Get('sessions')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('sessions.read')
   sessions(@Req() request: AuthenticatedRequest) {
     return this.auth.listSessions(request.user!);
   }
 
   @Post('sessions/revoke-others')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('sessions.revoke')
   revokeOtherSessions(@Req() request: AuthenticatedRequest) {
     return this.auth.revokeOtherSessions(request.user!, {
       ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
@@ -46,7 +50,8 @@ export class AuthController {
   }
 
   @Post('sessions/:id/revoke')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('sessions.revoke')
   revokeSession(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: AuthenticatedRequest) {
     return this.auth.revokeSession(request.user!, id, {
       ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
