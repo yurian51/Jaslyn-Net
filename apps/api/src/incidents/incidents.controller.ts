@@ -33,6 +33,13 @@ export class IncidentsController {
     return this.incidents.list(req.user!.tenantId, query.status);
   }
 
+  @Get('owners')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  @Permissions('incident.manage')
+  listAssignableOwners(@Req() req:AuthenticatedRequest) {
+    return this.incidents.listAssignableOwners(req.user!.tenantId);
+  }
+
   @Get('reports/sla')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'CASHIER')
   @Permissions('incident.read')
