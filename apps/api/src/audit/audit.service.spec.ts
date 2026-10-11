@@ -20,7 +20,7 @@ describe('AuditService', () => {
     });
 
     const params = (db.query as jest.Mock).mock.calls[0][1] as unknown[];
-    expect(params[8]).toEqual({
+    expect(params[9]).toEqual({
       vendor: 'MikroTik',
       managementCredentials: {
         username: '[REDACTED]',
@@ -60,4 +60,38 @@ describe('AuditService', () => {
 
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE a.tenant_id = $1'), ['tenant-42', 500]);
   });
+  it('reports a valid audit chain only when entries and the stored head agree', async () => {
+    const db = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ total: 2, invalid: 0, last_sequence: 2, last_hash: 'hash-2' }] })
+        .mockResolvedValueOnce({ rows: [{ lastSequence: '2', lastHash: 'hash-2' }] }),
+    } as unknown as Pool;
+    const service = new AuditService(db);
+
+    await expect(service.verifyIntegrity('tenant-1')).resolves.toMatchObject({
+      tenantId: 'tenant-1', valid: true, checkedEntries: 2, invalidEntries: 0, headMatches: true,
+    });
+  });
+
+  it('detects an audit chain head mismatch', async () => {
+    const db = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ total: 2, invalid: 0, last_sequence: 2, last_hash: 'actual-last-hash' }] })
+        .mockResolvedValueOnce({ rows: [{ lastSequence: '2', lastHash: 'different-hash' }] }),
+    } as unknown as Pool;
+    const service = new AuditService(db);
+
+    await expect(service.verifyIntegrity('tenant-1')).resolves.toMatchObject({
+      valid: false, invalidEntries: 1, headMatches: false,
+    });
+  });
+
+  it('lists security alerts within the authenticated tenant only', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'alert-1' }], rowCount: 1 }) } as unknown as Pool;
+    const service = new AuditService(db);
+
+    await expect(service.listSecurityAlerts('tenant-1', 9999)).resolves.toEqual({ data: [{ id: 'alert-1' }], count: 1 });
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE tenant_id=$1'), ['tenant-1', 500]);
+  });
+
 });

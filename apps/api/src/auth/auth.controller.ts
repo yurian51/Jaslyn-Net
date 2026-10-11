@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from './auth.guard';
+import { Permissions } from './permissions.decorator';
+import { PermissionsGuard } from './permissions.guard';
 import { AuthService } from './auth.service';
 import { LegalAcceptanceDto, LoginDto, RegisterDto } from './auth.dto';
 
@@ -14,8 +16,9 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() input: LoginDto) {
-    return this.auth.login(input);
+  login(@Body() input: LoginDto, @Req() request: { ip?: string; headers: Record<string, string | string[] | undefined> }) {
+    const userAgent = request.headers['user-agent'];
+    return this.auth.login(input, { ip: request.ip, userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent });
   }
 
   @Post('legal-acceptance')
@@ -28,6 +31,31 @@ export class AuthController {
   @UseGuards(AuthGuard)
   legalAcceptance(@Req() request: AuthenticatedRequest) {
     return this.auth.getLegalAcceptanceStatus(request.user!);
+  }
+
+  @Get('sessions')
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('sessions.read')
+  sessions(@Req() request: AuthenticatedRequest) {
+    return this.auth.listSessions(request.user!);
+  }
+
+  @Post('sessions/revoke-others')
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('sessions.revoke')
+  revokeOtherSessions(@Req() request: AuthenticatedRequest) {
+    return this.auth.revokeOtherSessions(request.user!, {
+      ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
+    });
+  }
+
+  @Post('sessions/:id/revoke')
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('sessions.revoke')
+  revokeSession(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: AuthenticatedRequest) {
+    return this.auth.revokeSession(request.user!, id, {
+      ip: request.ip, userAgent: request.headers['user-agent'], requestId: request.requestId,
+    });
   }
 
   @Get('me')

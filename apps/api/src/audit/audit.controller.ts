@@ -2,20 +2,36 @@ import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { Permissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { AuditService } from './audit.service';
 
 @Controller('audit-logs')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
 @Roles('OWNER', 'ADMIN')
 export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   @Get()
+  @Permissions('audit.read')
   list(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
     return this.audit.list(req.user!.tenantId, Number(limit) || 100);
   }
 
+  @Get('integrity')
+  @Permissions('audit.read')
+  verifyIntegrity(@Req() req: AuthenticatedRequest) {
+    return this.audit.verifyIntegrity(req.user!.tenantId);
+  }
+
+  @Get('security-alerts')
+  @Permissions('audit.read')
+  listSecurityAlerts(@Req() req: AuthenticatedRequest, @Query('limit') limit?: string) {
+    return this.audit.listSecurityAlerts(req.user!.tenantId, Number(limit) || 100);
+  }
+
   @Get('trace/:correlationId')
+  @Permissions('audit.read')
   trace(@Req() req: AuthenticatedRequest, @Param('correlationId') correlationId: string) {
     return this.audit.trace(req.user!.tenantId, correlationId);
   }
