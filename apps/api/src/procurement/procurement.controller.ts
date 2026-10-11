@@ -5,7 +5,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { ProcurementService } from './procurement.service';
-import { CreateInventoryItemDto, CreatePurchaseOrderDto, CreatePurchaseOrderLineDto, CreateStockMovementDto, CreateSupplierDto, CreateSupplierInvoiceDto, UpdateBrandingDto } from './procurement.dto';
+import { CreateCustomerCreditNoteDto, CreateInventoryItemDto, CreatePurchaseOrderDto, CreatePurchaseOrderLineDto, CreateStockMovementDto, CreateSupplierDto, CreateSupplierInvoiceDto, UpdateBrandingDto } from './procurement.dto';
 
 @Controller()
 @UseGuards(AuthGuard,RolesGuard,PermissionsGuard)
@@ -33,6 +33,14 @@ export class ProcurementController {
   movements(@Req() r:AuthenticatedRequest,@Query('itemId') itemId?:string){return this.service.listMovements(r.user!.tenantId,itemId);}
   @Post('inventory/items/:id/movements') @Roles('OWNER','ADMIN','CASHIER') @Permissions('inventory.manage')
   movement(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:CreateStockMovementDto){return this.service.postStockMovement(r.user!.tenantId,r.user!.id,id,d);}
+  @Get('finance-ops/credit-notes') @Roles('OWNER','ADMIN','CASHIER','READ_ONLY') @Permissions('revenue.read')
+  creditNotes(@Req() r:AuthenticatedRequest){return this.service.listCreditNotes(r.user!.tenantId);}
+  @Post('finance-ops/credit-notes') @Roles('OWNER','ADMIN','CASHIER') @Permissions('revenue.manage')
+  createCreditNote(@Req() r:AuthenticatedRequest,@Body() d:CreateCustomerCreditNoteDto){return this.service.createCreditNote(r.user!.tenantId,r.user!.id,d);}
+  @Post('finance-ops/credit-notes/:id/issue') @Roles('OWNER','ADMIN') @Permissions('revenue.manage')
+  issueCreditNote(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.service.transitionCreditNote(r.user!.tenantId,r.user!.id,id,'ISSUED');}
+  @Post('finance-ops/credit-notes/:id/apply') @Roles('OWNER','ADMIN') @Permissions('revenue.manage')
+  applyCreditNote(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.service.transitionCreditNote(r.user!.tenantId,r.user!.id,id,'APPLIED');}
   @Get('finance-ops/accounts-receivable/aging') @Roles('OWNER','ADMIN','CASHIER','READ_ONLY') @Permissions('revenue.read')
   arAging(@Req() r:AuthenticatedRequest){return this.service.arAging(r.user!.tenantId);}
   @Get('finance-ops/audit') @Roles('OWNER','ADMIN') @Permissions('platform.audit.read')
