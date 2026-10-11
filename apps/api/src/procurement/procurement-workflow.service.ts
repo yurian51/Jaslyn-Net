@@ -77,14 +77,15 @@ export class ProcurementWorkflowService {
       const line=await client.query('SELECT id,item_code,quantity_ordered,quantity_received,unit_cost FROM purchase_order_lines WHERE tenant_id=$1 AND purchase_order_id=$2 AND id=$3 FOR UPDATE',[tenantId,orderId,d.lineId]);
       if(!line.rowCount)throw new NotFoundException('Purchase order line not found');
       const l=line.rows[0];if(quantity>Number(l.quantity_ordered)-Number(l.quantity_received))throw new ConflictException('Received quantity exceeds the outstanding purchase order quantity');
-      const item=await client.query('SELECT id,quantity_on_hand,average_unit_cost FROM inventory_items WHERE tenant_id=$1 AND sku=$2 AND active=true FOR UPDATE',[tenantId,String(l.item_code).trim().toUpperCase()]);
+      const item=await client.query('SELECT id,quantity_on_hand,average_unit_cost,valuation_currency FROM inventory_items WHERE tenant_id=$1 AND sku=$2 AND active=true FOR UPDATE',[tenantId,String(l.item_code).trim().toUpperCase()]);
       if(!item.rowCount)throw new NotFoundException('Create an active inventory item whose SKU matches the purchase order line item code before receiving stock');
+      if(item.rows[0].valuation_currency&&item.rows[0].valuation_currency!==order.rows[0].currency)throw new ConflictException('Inventory item valuation currency does not match purchase order currency');
       const before=Number(item.rows[0].quantity_on_hand),after=before+quantity,cost=Number(l.unit_cost);
       const avg=after===0?cost:((before*Number(item.rows[0].average_unit_cost))+(quantity*cost))/after;
       const movement=await client.query(`INSERT INTO inventory_stock_movements(tenant_id,item_id,movement_type,quantity_delta,unit_cost,currency,reference_type,reference_id,idempotency_key,notes,created_by)
         VALUES($1,$2,'RECEIPT',$3,$4,$5,'PURCHASE_ORDER',$6,$7,$8,$9) RETURNING *`,
         [tenantId,item.rows[0].id,quantity,cost,order.rows[0].currency,orderId,d.idempotencyKey.trim(),'PO line '+d.lineId,actorId]);
-      await client.query('UPDATE inventory_items SET quantity_on_hand=$3,average_unit_cost=$4,updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,item.rows[0].id,after,avg]);
+      await client.query('UPDATE inventory_items SET quantity_on_hand=$3,average_unit_cost=$4,valuation_currency=COALESCE(valuation_currency,$5),updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,item.rows[0].id,after,avg,order.rows[0].currency]);
       await client.query('UPDATE purchase_order_lines SET quantity_received=quantity_received+$4 WHERE tenant_id=$1 AND purchase_order_id=$2 AND id=$3',[tenantId,orderId,d.lineId,quantity]);
       const remaining=await client.query('SELECT count(*)::int AS count FROM purchase_order_lines WHERE tenant_id=$1 AND purchase_order_id=$2 AND quantity_received<quantity_ordered',[tenantId,orderId]);
       const status=Number(remaining.rows[0].count)===0?'RECEIVED':'PARTIALLY_RECEIVED';
