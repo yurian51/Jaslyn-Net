@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException, TooManyRequestsException } from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { CaptivePortalService } from './captive-portal.service';
 import { VouchersService } from '../vouchers/vouchers.service';
@@ -44,12 +44,14 @@ describe('CaptivePortalService', () => {
     expect(vouchers.redeem).not.toHaveBeenCalled();
   });
 
-  it('does not redeem vouchers when the tenant attempt limit is reached', async () => {
+  it('returns HTTP 429 when the tenant attempt limit is reached', async () => {
     db.query
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'tenant-1' }] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ attemptCount: 10, blockedUntil: new Date(Date.now() + 60_000) }] });
-    await expect(service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '+255712345678', code: 'ABC12345' }, '127.0.0.1'))
-      .rejects.toBeInstanceOf(TooManyRequestsException);
+    const error = await service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '+255712345678', code: 'ABC12345' }, '127.0.0.1')
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(429);
     expect(vouchers.redeem).not.toHaveBeenCalled();
   });
 
