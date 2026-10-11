@@ -81,3 +81,10 @@ export class CreateTenantRelationshipDto {
   @IsUUID() parentTenantId!: string;
   @IsIn(['RESELLER','MANAGED_OPERATOR','FRANCHISE']) relationshipType!: string;
 }
+
+export class RecordSupplierInvoicePaymentDto {
+  @IsNumber() @Min(0.01) amount!: number;
+  @IsString() @Matches(/^[A-Z]{3}$/) currency!: string;
+  @IsString() @MinLength(8) @MaxLength(200) idempotencyKey!: string;
+  @IsOptional() @IsString() @MaxLength(180) paymentReference?: string;
+}
