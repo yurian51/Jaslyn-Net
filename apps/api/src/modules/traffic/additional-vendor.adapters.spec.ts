@@ -25,7 +25,6 @@ describe('additional vendor read-only telemetry adapters', () => {
 
   const adapterCases: Array<[string, new (config: ConfigService) => { readClients(connection: NetworkDeviceConnection): Promise<unknown> }, NetworkDeviceConnection['protocol'], NetworkCredentials, Record<string, string>]> = [
     ['Aruba Central', ArubaCentralNetworkAdapter, 'ARUBA_CENTRAL_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
-    ['Cambium cnMaestro', CambiumCnMaestroNetworkAdapter, 'CAMBIUM_CNMAESTRO', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['Grandstream GWN', GrandstreamGwnNetworkAdapter, 'GRANDSTREAM_GWN_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['Ruckus SmartZone', RuckusSmartZoneNetworkAdapter, 'RUCKUS_SMARTZONE_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
     ['Teltonika RMS', TeltonikaRmsNetworkAdapter, 'TELTONIKA_RMS_API', { accessToken: 'token' }, { Authorization: 'Bearer token' }],
@@ -40,6 +39,38 @@ describe('additional vendor read-only telemetry adapters', () => {
       username: 'client-1', address: '192.0.2.10', macAddress: 'AA:BB:CC:DD:EE:FF', bytesIn: '1234', bytesOut: '5678',
     }]);
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject(expectedHeaders);
+  });
+
+
+  it('obtains a cnMaestro OAuth client-credentials token before reading sessions', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'short-lived-token', token_type: 'bearer', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const cambiumConnection: NetworkDeviceConnection = {
+      ...connection('CAMBIUM_CNMAESTRO', { clientId: 'cnm-client', clientSecret: 'cnm-secret' }),
+      capabilities: { tokenEndpoint: 'https://api.vendor.example/api/v2/access/token' },
+    };
+    await expect(new CambiumCnMaestroNetworkAdapter(config).readClients(cambiumConnection)).resolves.toEqual([{
+      username: 'client-1', address: '192.0.2.10', macAddress: 'AA:BB:CC:DD:EE:FF', bytesIn: '1234', bytesOut: '5678',
+    }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from('cnm-client:cnm-secret').toString('base64')}`,
+      },
+      body: 'grant_type=client_credentials',
+    });
+    expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer short-lived-token' });
+    expect(String(fetchMock.mock.calls[0][1]?.body)).not.toContain('cnm-secret');
+  });
+
+  it('fails closed when cnMaestro OAuth configuration is incomplete', async () => {
+    await expect(new CambiumCnMaestroNetworkAdapter(config).readClients(
+      connection('CAMBIUM_CNMAESTRO', { accessToken: 'manually-configured-token' }),
+    )).rejects.toThrow('requires encrypted clientId/clientSecret');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rejects missing credentials before making a request', async () => {
