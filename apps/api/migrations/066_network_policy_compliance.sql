@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS compliance_scans (
   completed_at timestamptz,
   error text,
   created_by uuid,
+  UNIQUE (tenant_id,id),
   FOREIGN KEY (tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS compliance_scans_recent_idx
