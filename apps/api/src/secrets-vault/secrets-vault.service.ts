@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -19,6 +19,8 @@ export class SecretsVaultService {
   }
 
   async create(tenantId:string,actorUserId:string,input:CreateTenantSecretDto,context:AuditContext={}){
+    const metadataText=JSON.stringify(input.metadata??{});
+    if(/\"(secret|token|password|apiKey|accessKey|credential|privateKey)\"/i.test(metadataText))throw new BadRequestException('Secret values must not be stored in metadata');
     const encrypted=this.vault.encrypt(input.secretValue);
     const client=await this.db.connect();
     try{
