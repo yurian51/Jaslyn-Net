@@ -17,6 +17,8 @@ export class PlatformIntegrationsController {
   createApiKey(@Req() r:AuthenticatedRequest,@Body() d:CreatePlatformApiKeyDto){return this.integrations.createApiKey(r.user!.tenantId,r.user!.id,d);}
   @Post('api-keys/:id/revoke') @Roles('OWNER','ADMIN') @Permissions('platform.api.manage')
   revokeApiKey(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.integrations.revokeApiKey(r.user!.tenantId,r.user!.id,id);}
+  @Get('webhook-deliveries') @Roles('OWNER','ADMIN') @Permissions('platform.api.manage')
+  webhookDeliveries(@Req() r:AuthenticatedRequest){return this.integrations.listWebhookDeliveries(r.user!.tenantId);}
   @Get('webhooks') @Roles('OWNER','ADMIN') @Permissions('platform.api.manage')
   webhooks(@Req() r:AuthenticatedRequest){return this.integrations.listWebhooks(r.user!.tenantId);}
   @Post('webhooks') @Roles('OWNER','ADMIN') @Permissions('platform.api.manage')
