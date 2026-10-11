@@ -12,6 +12,12 @@ export class ProcurementService {
     await this.audit.record(tenantId,action,type,id,metadata,{userId:actorId});
   }
 
+  private async emitWebhookEvent(tenantId:string,eventType:string,payload:Record<string,unknown>,eventId?:string){
+    await this.db.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+      SELECT e.tenant_id,e.id,COALESCE($4::uuid,gen_random_uuid()),$2,$3::jsonb FROM tenant_webhook_endpoints e
+      WHERE e.tenant_id=$1 AND e.enabled=true AND $2=ANY(e.event_types) ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,
+      [tenantId,eventType,JSON.stringify(payload),eventId??null]);
+  }
   async listSuppliers(tenantId:string) {
     const r=await this.db.query('SELECT * FROM suppliers WHERE tenant_id=$1 ORDER BY name LIMIT 500',[tenantId]);
     return {data:r.rows};
@@ -42,6 +48,7 @@ export class ProcurementService {
         VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[tenantId,d.supplierId,d.poNumber.trim(),d.currency,d.expectedAt??null,actorId]);
       await client.query('COMMIT');
       await this.auditChange(tenantId,actorId,'CREATE','purchase_order',r.rows[0].id,{poNumber:r.rows[0].po_number});
+      await this.emitWebhookEvent(tenantId,'purchase_order.created',{id:r.rows[0].id,poNumber:r.rows[0].po_number,currency:r.rows[0].currency,total:r.rows[0].total},r.rows[0].id);
       return r.rows[0];
     } catch(e:unknown) {
       await client.query('ROLLBACK');
@@ -90,6 +97,7 @@ export class ProcurementService {
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,'RECEIVED',$9::date,$10::date,$11) RETURNING *`,
         [tenantId,d.supplierId,d.purchaseOrderId??null,d.invoiceNumber.trim(),d.currency,Number(d.subtotal),Number(d.taxTotal??0),Number(d.subtotal)+Number(d.taxTotal??0),d.invoiceDate,d.dueDate??null,actorId]);
       await this.auditChange(tenantId,actorId,'CREATE','supplier_invoice',r.rows[0].id,{invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency});
+      await this.emitWebhookEvent(tenantId,'supplier_invoice.created',{id:r.rows[0].id,invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency},r.rows[0].id);
       return r.rows[0];
     } catch(e:unknown) {
       if(typeof e==='object'&&e!==null&&'code' in e&&(e as {code?:string}).code==='23505') throw new ConflictException('Supplier invoice number already exists for this supplier');
@@ -146,6 +154,7 @@ export class ProcurementService {
       await client.query('UPDATE inventory_items SET quantity_on_hand=$3,average_unit_cost=$4,updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,itemId,after,avg]);
       await client.query('COMMIT');
       await this.auditChange(tenantId,actorId,'STOCK_MOVEMENT','inventory_item',itemId,{movementId:movement.rows[0].id,delta,after});
+      await this.emitWebhookEvent(tenantId,'inventory.movement',{id:movement.rows[0].id,itemId,delta,quantityOnHand:after},movement.rows[0].id);
       return {duplicate:false,data:movement.rows[0],quantityOnHand:after,averageUnitCost:avg,stockValue:after*avg};
     } catch(e:unknown) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   }
