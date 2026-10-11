@@ -2,7 +2,7 @@
 
 ## Backup job
 
-Run `scripts/backup/backup-postgres.sh /secure/backup/path` from a trusted host with PostgreSQL client tools installed. Supply connection variables through the deployment secret manager. The script creates a custom-format dump, verifies that PostgreSQL can enumerate the archive, writes a SHA-256 checksum manifest, and restricts file permissions.
+Run `bash scripts/backup/backup-postgres.sh /secure/backup/path` from a trusted host with PostgreSQL client tools installed. Supply connection variables through the deployment secret manager. The script creates a custom-format dump, verifies that PostgreSQL can enumerate the archive, writes a SHA-256 checksum manifest, and restricts file permissions.
 
 Store backups encrypted at rest and in a separate failure domain from the primary database. Do not put credentials in shell arguments, repository files, CI logs or the backup directory. Define retention and deletion according to the operator's legal obligations.
 
@@ -10,7 +10,7 @@ Store backups encrypted at rest and in a separate failure domain from the primar
 
 1. Copy both the dump and its `.sha256` manifest to a trusted test host.
 2. Set `JASLYN_RESTORE_TEST_DATABASE` to a new name beginning with `jaslyn_restore_test_`.
-3. Run `scripts/backup/restore-drill-postgres.sh /path/to/backup.dump`.
+3. Run `bash scripts/backup/restore-drill-postgres.sh /path/to/backup.dump`.
 4. The script verifies the checksum, creates only a new disposable database, restores in a single transaction, checks critical tables and drops the test database on exit.
 5. Set `KEEP_RESTORE_TEST_DB=true` only when an operator intentionally wants to retain the restored database for inspection. The script never drops an existing database.
 
