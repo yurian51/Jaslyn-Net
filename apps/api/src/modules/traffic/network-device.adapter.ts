@@ -7,8 +7,8 @@ import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from '
 import { NetworkCredentials } from '../../common/secure-network-credentials';
 import { OmadaNetworkAdapter } from './omada.adapter';
 import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
+import { ArubaCentralNetworkAdapter } from './aruba-central.adapter';
 import {
-  ArubaCentralNetworkAdapter,
   CambiumCnMaestroNetworkAdapter,
   GrandstreamGwnNetworkAdapter,
   PeplinkInControlNetworkAdapter,
