@@ -165,6 +165,7 @@ export default function AutomationWorkspacePage() {
       const record=parsed as Record<string,unknown>;
       const definition=(record.kind==='jaslyn-workflow'&&record.definition&&typeof record.definition==='object')?record.definition:record;
       const imported=await apiFetch<Workflow>('/automation/workflows/import',{method:'POST',headers:headers(),body:JSON.stringify(definition)});
+      if(imported.webhookToken)setNewWebhook(imported);
       setNotice(`Imported "${imported.name}" as disabled. Review it before enabling.`);
       await load();
     } catch(e){setError(e instanceof Error?e.message:'Workflow import failed.');}
