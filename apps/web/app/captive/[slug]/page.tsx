@@ -71,7 +71,7 @@ export default function CaptivePortalPage({ params }: { params: Promise<{ slug: 
         <div className="cp-hero-glow" />
         <div className="cp-hero-content">
           <div className="cp-eyebrow"><span className="cp-wifi-icon">⌁</span> WELCOME TO YOUR WI-FI</div>
-          <h1>{data?.portal.name || 'Fast Wi-Fi.<br />Your way.'}</h1>
+          <h1>{data?.portal.name || 'Fast Wi-Fi.\\nYour way.'}</h1>
           <p>{data?.portal.welcomeMessage || 'Chagua kifurushi kinachokufaa. Unganisha vifaa vyako na uendelee na mambo muhimu.'}</p>
           <div className="cp-hero-pills"><span>◈ Packages for every budget</span><span>◉ Simple & secure access</span></div>
         </div>
