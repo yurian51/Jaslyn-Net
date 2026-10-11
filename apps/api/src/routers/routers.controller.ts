@@ -23,7 +23,7 @@ export class RoutersController {
   }
 
   @Get('change-intelligence')
-  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY', 'NOC_ENGINEER', 'NETWORK_ADMIN')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
   @Permissions('network.changes.read')
   changeIntelligence(@Req() req: AuthenticatedRequest, @Query('routerId') routerId?: string, @Query('limit') limit?: string) {
     return this.routers.changeIntelligence(req.user!.tenantId, routerId, Number(limit) || 100);
