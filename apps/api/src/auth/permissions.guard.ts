@@ -17,6 +17,10 @@ export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'status.manage':['OWNER','ADMIN'],'maintenance.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'maintenance.manage':['OWNER','ADMIN'],
  'field.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'field.write':['OWNER','ADMIN','AGENT'],'field.sync':['OWNER','ADMIN','AGENT'],
  'network.changes.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'audit.read':['OWNER','ADMIN'],
+ 'procurement.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'procurement.manage':['OWNER','ADMIN','CASHIER'],
+ 'inventory.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'inventory.manage':['OWNER','ADMIN','CASHIER'],
+ 'msp.branding.manage':['OWNER','ADMIN'],'msp.hierarchy.read':['OWNER','ADMIN'],'msp.hierarchy.manage':['OWNER','ADMIN'],
+ 'platform.api.manage':['OWNER','ADMIN'],'platform.audit.read':['OWNER','ADMIN'],
 };
 
 @Injectable()
