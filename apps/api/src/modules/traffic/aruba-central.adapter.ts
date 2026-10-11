@@ -43,7 +43,7 @@ export class ArubaCentralNetworkAdapter implements TrafficEnforcementAdapter {
       const payload = await this.getJson(url.toString(), token);
       const rows = this.records(payload, ['clients', 'client_list', 'data']);
       clients.push(...rows.map((row) => this.normalize(row)));
-      const total = this.number(payload, ['total', 'count', 'total_count']);
+      const total = this.number(this.record(payload), ['total', 'count', 'total_count']);
       if (rows.length < 100 || (total !== undefined && clients.length >= total)) return clients;
     }
     throw new ServiceUnavailableException('Aruba Central client pagination exceeded 100 pages');
