@@ -86,7 +86,7 @@ export class NetworkDeviceAdapterRegistry {
   private async readUniFi(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     const base = connection.controllerEndpoint ?? connection.endpoint;
     if (!base) throw new ServiceUnavailableException(`UniFi API endpoint is not configured for ${connection.routerId}`);
-    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken ?? this.config.get<string>('JASLYN_UNIFI_API_KEY');
+    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken;
     if (!apiKey) throw new ServiceUnavailableException('UniFi API credentials are not configured');
     const root = base.replace(/\/$/, ''); const apiRoot = root.endsWith('/v1') ? root : `${root}/v1`;
     const sites = await this.fetchJson(`${apiRoot}/sites`, { 'X-API-Key': apiKey }); const clients: NormalizedWifiClient[] = [];
@@ -102,7 +102,7 @@ export class NetworkDeviceAdapterRegistry {
     const networkId = this.stringValue(connection.capabilities ?? {}, ['networkId', 'merakiNetworkId']);
     if (!networkId) throw new ServiceUnavailableException(`Meraki networkId is not configured for ${connection.routerId}`);
     const endpoint = (connection.controllerEndpoint ?? connection.endpoint ?? 'https://api.meraki.com/api/v1').replace(/\/$/, '');
-    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken ?? this.config.get<string>('JASLYN_MERAKI_API_KEY');
+    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken;
     if (!apiKey) throw new ServiceUnavailableException('Meraki API credentials are not configured');
     const payload = await this.fetchJson(`${endpoint}/networks/${encodeURIComponent(networkId)}/clients?timespan=300`, { 'X-Cisco-Meraki-API-Key': apiKey });
     return this.extractRecords(payload, ['data', 'clients']).map((record) => this.normalizeRecord(record));
@@ -116,9 +116,9 @@ export class NetworkDeviceAdapterRegistry {
   }
 
   private genericHeaders(credentials?: NetworkCredentials): Record<string, string> {
-    const token = credentials?.apiKey ?? credentials?.accessToken ?? this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
-    const username = credentials?.username ?? this.config.get<string>('JASLYN_NETWORK_API_USERNAME');
-    const password = credentials?.password ?? this.config.get<string>('JASLYN_NETWORK_API_PASSWORD');
+    const token = credentials?.apiKey ?? credentials?.accessToken;
+    const username = credentials?.username;
+    const password = credentials?.password;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     else if (username && password) headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
