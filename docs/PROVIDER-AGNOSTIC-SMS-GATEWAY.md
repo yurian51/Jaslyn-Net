@@ -20,6 +20,6 @@ Apply `apps/api/migrations/062_sms_provider_configs.sql` after migrations 060 an
 ## Safety constraints
 
 - Credentials are encrypted in the database using AES-256-GCM. API responses expose only `hasCredentials`, never secret values. Blank credential fields retain existing secrets.
-- Custom hosts must be approved by a system operator through the deployment allowlist; the tenant operator cannot allow arbitrary destinations. HTTPS only, no URL credentials/fragments, private IP literals and localhost-like hostnames are rejected, and redirects are disabled.
+- Custom hosts must be approved by a system operator through the deployment allowlist; the tenant operator cannot allow arbitrary destinations. HTTPS on port 443 only; URL credentials, query parameters and fragments are rejected so secrets must use headers. Private IP literals and localhost-like hostnames are rejected, and redirects are disabled.
 - Mapping supports simple nested JSON paths only. No user-supplied scripts are executed. Provider-specific delivery callbacks may require a dedicated adapter.
 - Apply migration, run CI/API/UI tests, validate the provider contract, and conduct a controlled real-SMS test before production approval.
