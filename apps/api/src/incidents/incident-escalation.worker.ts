@@ -57,7 +57,18 @@ export class IncidentEscalationWorker implements OnModuleInit, OnModuleDestroy {
          WHERE status IN ('OPEN','ACKNOWLEDGED') AND escalation_level<3
            AND ((last_escalated_at IS NULL AND started_at<=now()-interval '15 minutes')
              OR last_escalated_at<=now()-interval '15 minutes')
-         ORDER BY severity DESC,started_at ASC
+           AND NOT EXISTS (
+             SELECT 1 FROM maintenance_windows mw
+             WHERE mw.tenant_id=incidents.tenant_id AND mw.status IN ('PLANNED','ACTIVE')
+               AND mw.starts_at<=now() AND mw.ends_at>now()
+               AND (mw.scope_type='TENANT'
+                 OR (mw.scope_type='ROUTER' AND incidents.root_resource_type='ROUTER' AND mw.scope_id=incidents.root_resource_id)
+                 OR (mw.scope_type='SITE' AND incidents.root_resource_type='ROUTER' AND mw.scope_id IN (
+                   SELECT ns.id FROM network_sites ns JOIN routers r ON r.tenant_id=ns.tenant_id AND r.location_id=ns.location_id
+                   WHERE r.tenant_id=incidents.tenant_id AND r.id=incidents.root_resource_id
+                 )))
+           )
+         ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END,started_at ASC
          LIMIT 50 FOR UPDATE SKIP LOCKED`,
       );
       for (const incident of due.rows) {
