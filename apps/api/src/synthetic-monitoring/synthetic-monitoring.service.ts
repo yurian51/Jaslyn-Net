@@ -98,7 +98,7 @@ export class SyntheticMonitoringService {
     }catch(error){await client.query('ROLLBACK').catch(()=>undefined);throw error;}
     finally{client.release();}
     if(event){
-      try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.'+event.type.toLowerCase()+':'+event.incidentId,eventType:event.type==='OPENED'?'INCIDENT.OPENED':'INCIDENT.RESOLVED',aggregateType:'incident',aggregateId:event.incidentId,payload:{title:event.title,summary:event.summary,severity:event.severity,incidentId:event.incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','SUPER_ADMIN','NOC_ENGINEER','NETWORK_ADMIN']}});}
+      try{await this.domainEvents.enqueue({tenantId:monitor.tenant_id,eventKey:'synthetic.incident.'+event.type.toLowerCase()+':'+event.incidentId,eventType:event.type==='OPENED'?'INCIDENT.OPENED':'INCIDENT.RESOLVED',aggregateType:'incident',aggregateId:event.incidentId,payload:{title:event.title,summary:event.summary,severity:event.severity,incidentId:event.incidentId,monitorId:monitor.id,targetRoles:['OWNER','ADMIN','AGENT']}});}
       catch(error){this.logger.error('Unable to enqueue synthetic incident notification '+event.incidentId,error instanceof Error?error.stack:undefined);}
     }
   }
