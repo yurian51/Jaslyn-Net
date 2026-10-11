@@ -9,7 +9,7 @@ type Webhook= {id:string;name:string;endpointUrl:string;secretReference:string;e
 type Delivery={id:string;endpointId:string;endpointName:string;eventType:string;status:string;attemptCount:number;lastHttpStatus?:number|null;lastErrorCode?:string|null;createdAt:string;deliveredAt?:string|null;nextAttemptAt:string};
 const field:CSSProperties={width:'100%',boxSizing:'border-box',padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8};
 const action:CSSProperties={padding:'10px 14px',border:0,borderRadius:8,background:'#174ea6',color:'#fff',fontWeight:700,cursor:'pointer'};
-const events=['payment.settled','invoice.issued','refund.updated','purchase_order.created','supplier_invoice.created','inventory.movement','incident.updated','network.device.updated'];
+const events=['payment.settled','invoice.issued','refund.updated','purchase_order.created','supplier_invoice.created','supplier_invoice.payment_recorded','inventory.movement','incident.updated','network.device.updated','automation.rule.matched'];
 export default function PlatformIntegrationsPage(){
  const [keys,setKeys]=useState<ApiKey[]>([]),[webhooks,setWebhooks]=useState<Webhook[]>([]),[deliveries,setDeliveries]=useState<Delivery[]>([]);
  const [name,setName]=useState(''),[scopes,setScopes]=useState<string[]>(['read']),[newToken,setNewToken]=useState('');
