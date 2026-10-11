@@ -48,6 +48,6 @@ export class ConfirmPurchasePaymentDto {
   idempotencyKey?: string;
 
   @IsOptional()
-  @IsIn(['PAID', 'FAILED'])
-  status?: 'PAID' | 'FAILED';
+  @IsIn(['PAID', 'SUCCESS', 'FAILED'])
+  status?: 'PAID' | 'SUCCESS' | 'FAILED';
 }
