@@ -56,6 +56,10 @@ export class PlatformIntegrationsService {
     await this.auditChange(tenantId,actorId,'REVOKE','platform_api_key',id,{name:r.rows[0].name});
     return {revoked:true,id};
   }
+  async listWebhookDeliveries(tenantId:string){
+    const r=await this.db.query('SELECT o.id,o.endpoint_id AS "endpointId",e.name AS "endpointName",o.event_type AS "eventType",o.status,o.attempt_count AS "attemptCount",o.last_http_status AS "lastHttpStatus",o.last_error_code AS "lastErrorCode",o.created_at AS "createdAt",o.delivered_at AS "deliveredAt",o.next_attempt_at AS "nextAttemptAt" FROM webhook_delivery_outbox o JOIN tenant_webhook_endpoints e ON e.tenant_id=o.tenant_id AND e.id=o.endpoint_id WHERE o.tenant_id=$1 ORDER BY o.created_at DESC LIMIT 500',[tenantId]);
+    return {data:r.rows};
+  }
   async listWebhooks(tenantId:string){
     const r=await this.db.query(`SELECT id,name,endpoint_url AS "endpointUrl",secret_reference AS "secretReference",event_types AS "eventTypes",enabled,created_at AS "createdAt",updated_at AS "updatedAt" FROM tenant_webhook_endpoints WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
