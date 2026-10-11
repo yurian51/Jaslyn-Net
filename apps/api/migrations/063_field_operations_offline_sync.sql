@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS network_job_checklist_items (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id,job_id,item_key),
   FOREIGN KEY (tenant_id,job_id) REFERENCES network_jobs(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,checked_by) REFERENCES users(tenant_id,id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id,checked_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS network_job_checklist_job_idx
   ON network_job_checklist_items (tenant_id,job_id,updated_at DESC);
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS network_job_attachments (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id,id),
   FOREIGN KEY (tenant_id,job_id) REFERENCES network_jobs(tenant_id,id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS network_job_attachments_job_idx
   ON network_job_attachments (tenant_id,job_id,created_at DESC);
