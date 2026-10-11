@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { isRestrictedNetworkAddress } from './network-endpoint-security';
 import type { NetworkDeviceConnection, NormalizedWifiClient } from './network-device.adapter';
 
 type JsonRecord = Record<string, unknown>;
@@ -71,8 +72,7 @@ export class RuijieReyeeNetworkAdapter {
     } finally { clearTimeout(timer); }
   }
   private isPrivateAddress(address: string): boolean {
-    if (isIP(address) === 4) { const [a,b] = address.split('.').map(Number); return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224; }
-    const value = address.toLowerCase(); return value === '::1' || value === '::' || value.startsWith('fc') || value.startsWith('fd') || value.startsWith('fe8') || value.startsWith('fe9') || value.startsWith('fea') || value.startsWith('feb') || value.startsWith('ff');
+    return isRestrictedNetworkAddress(address);
   }
   private rows(value: unknown): JsonRecord[] { if (Array.isArray(value)) return value.filter((item): item is JsonRecord => this.isRecord(item)); if (!this.isRecord(value)) return []; for (const key of ['list', 'rows', 'records', 'users', 'clients', 'currentUser', 'data']) { const nested = value[key]; if (Array.isArray(nested)) return nested.filter((item): item is JsonRecord => this.isRecord(item)); } return []; }
   private record(value: unknown): JsonRecord { return this.isRecord(value) ? value : {}; }
