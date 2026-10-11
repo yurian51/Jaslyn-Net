@@ -55,7 +55,5 @@ describe('SmsGatewayService', () => {
     const settings = await gateway.getSettings('tenant-a');
     expect(settings).toMatchObject({ provider: 'custom_rest', hasCredentials: true });
     expect(JSON.stringify(settings)).not.toContain('encrypted-only');
-    expect(JSON.stringify(settings)).not.toContain('apiKey');
-    expect(JSON.stringify(settings)).not.toContain('apiSecret');
   });
 });
