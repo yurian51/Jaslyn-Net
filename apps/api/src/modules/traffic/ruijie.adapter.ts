@@ -3,13 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type { NetworkDeviceConnection, NormalizedWifiClient } from './network-device.adapter';
-import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 type JsonRecord = Record<string, unknown>;
 
 /**
  * Ruijie/Reyee Cloud read-only client telemetry adapter.
- * Requires a Ruijie Cloud API token and group/project ID; credentials are never put in the URL.
+ * Requires a Ruijie Cloud API token and group/project ID. The provider contract accepts the token as a query parameter, so request URLs must never be logged.
  */
 @Injectable()
 export class RuijieReyeeNetworkAdapter {
