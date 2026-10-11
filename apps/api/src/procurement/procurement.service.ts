@@ -176,13 +176,14 @@ export class ProcurementService {
       const item=await client.query('SELECT * FROM inventory_items WHERE tenant_id=$1 AND id=$2 AND active=true FOR UPDATE',[tenantId,itemId]);
       if(!item.rowCount) throw new NotFoundException('Inventory item not found');
       const before=Number(item.rows[0].quantity_on_hand), after=before+delta;
+      if(item.rows[0].valuation_currency&&item.rows[0].valuation_currency!==d.currency)throw new ConflictException('Inventory valuation currency cannot change after the first stock movement');
       if(after<0) throw new ConflictException('Stock movement would make inventory negative');
       let avg=Number(item.rows[0].average_unit_cost);
       if(delta>0&&d.movementType!=='ADJUSTMENT') avg=after===0?cost:((before*avg)+(delta*cost))/after;
       const movement=await client.query(`INSERT INTO inventory_stock_movements(tenant_id,item_id,movement_type,quantity_delta,unit_cost,currency,reference_type,reference_id,idempotency_key,notes,created_by)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
         [tenantId,itemId,d.movementType,delta,cost,d.currency,d.referenceType.trim(),d.referenceId??null,d.idempotencyKey.trim(),d.notes?.trim()||null,actorId]);
-      await client.query('UPDATE inventory_items SET quantity_on_hand=$3,average_unit_cost=$4,updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,itemId,after,avg]);
+      await client.query('UPDATE inventory_items SET quantity_on_hand=$3,average_unit_cost=$4,valuation_currency=COALESCE(valuation_currency,$5),updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,itemId,after,avg,d.currency]);
       await client.query('COMMIT');
       await this.auditChange(tenantId,actorId,'STOCK_MOVEMENT','inventory_item',itemId,{movementId:movement.rows[0].id,delta,after});
       await this.emitWebhookEvent(tenantId,'inventory.movement',{id:movement.rows[0].id,itemId,delta,quantityOnHand:after},movement.rows[0].id);
