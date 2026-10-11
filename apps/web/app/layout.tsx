@@ -16,6 +16,7 @@ import './premium.css';
 import './enterprise-presence.css';
 import './landing-premium.css';
 import './loading.css';
+import './landing-world-class.css';
 import './settings/settings.css';
 import './account/account.css';
 import './notifications/notifications.css';
@@ -30,20 +31,20 @@ import ConsoleChrome from './console-chrome';
 export const viewport: Viewport = { themeColor: '#101525', colorScheme: 'light' };
 
 export const metadata: Metadata = {
-  title: 'JASLYN NET | Connectivity & ISP Operating System',
-  description: 'JASLYN NET helps WiFi operators, ISPs and managed network teams connect customer management, billing, access workflows and network operations in one control plane.',
+  title: 'JASLYN NET — Wi-Fi Billing, Subscriber Access & ISP Operations',
+  description: 'Manage Wi-Fi packages, subscriber access, payment workflows and ISP network operations in one workspace. Explore the JASLYN NET platform and integrations.',
   applicationName: 'JASLYN NET',
   robots: { index: true, follow: true },
   keywords: ['WiFi management', 'ISP billing', 'hotspot management', 'RADIUS', 'network operations', 'subscriber management', 'JASLYN NET'],
   openGraph: {
-    title: 'JASLYN NET | Connectivity Operations Platform',
-    description: 'A connected operating model for WiFi operators, ISPs and managed network teams.',
+    title: 'JASLYN NET — Wi-Fi & ISP Operations Platform',
+    description: 'A connected workspace for Wi-Fi billing, subscriber access and network operations teams.',
     siteName: 'JASLYN NET',
     type: 'website',
   },
   twitter: {
     card: 'summary',
-    title: 'JASLYN NET | Connectivity Operations Platform',
+    title: 'JASLYN NET — Wi-Fi & ISP Operations Platform',
     description: 'Connect customer, billing, access and network operations in one control plane.',
   },
   icons: {
