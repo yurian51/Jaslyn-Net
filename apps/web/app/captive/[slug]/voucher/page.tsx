@@ -1,11 +1,19 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { apiFetch, ApiError } from '../../../../lib/api';
 
 type PortalSummary = { portal: { name: string; slug: string } };
 type RedemptionResult = { redeemed: boolean; purchaseId: string; startsAt: string; endsAt: string; deviceLimit: number; message: string };
+
+function normalizePhone(value: string) {
+  const compact = value.trim().replace(/[\s().-]/g, '');
+  if (/^0\d{9}$/.test(compact)) return `+255${compact.slice(1)}`;
+  if (/^255\d{9}$/.test(compact)) return `+${compact}`;
+  return compact;
+}
 
 export default function PublicVoucherPage() {
   const params = useParams<{ slug: string }>();
@@ -35,7 +43,7 @@ export default function PublicVoucherPage() {
       const data = await apiFetch<RedemptionResult>(`/public/captive-portal/${encodeURIComponent(slug)}/vouchers/redeem`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName: fullName.trim(), phone: phone.trim(), code: code.trim().toUpperCase() }),
+        body: JSON.stringify({ fullName: fullName.trim(), phone: normalizePhone(phone), code: code.trim().toUpperCase() }),
       });
       setResult(data);
     } catch (caught) {
@@ -60,13 +68,12 @@ export default function PublicVoucherPage() {
         <button type="button" onClick={() => { setResult(null); setCode(''); }}>Tumia voucher nyingine</button>
       </div> : <form onSubmit={submit}>
         <label>Jina kamili<input required minLength={2} maxLength={120} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Mfano: Amina Juma" /></label>
-        <label>Namba ya simu<input required minLength={7} maxLength={32} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+255 7XX XXX XXX" /></label>
+        <label>Namba ya simu<input required minLength={7} maxLength={32} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XX XXX XXX au +255 7XX XXX XXX" /></label>
         <label>Voucher code<input required minLength={6} maxLength={32} autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="INGIZA CODE" /></label>
         {error && <p className="error" role="alert">{error}</p>}
         <button type="submit" disabled={loading}>{loading ? 'Inathibitisha voucher…' : 'Thibitisha na kuunganisha →'}</button>
         <p className="hint">Jaribio la voucher limewekewa kikomo kwa usalama. Voucher lazima iwe halali, haijatumika na haijaisha muda wake.</p>
       </form>}
-      {!result && error && <p className="error secondary" role="alert">{error}</p>}
       <footer>© {new Date().getFullYear()} Jaslyn Net · Connect. Control. Grow.</footer>
     </section>
     <style jsx>{`
@@ -81,7 +88,7 @@ export default function PublicVoucherPage() {
       input{width:100%;box-sizing:border-box;border:1px solid #d9e2ee;border-radius:12px;padding:14px 13px;background:#fbfcfe;color:#13213a;font:inherit;font-size:15px;outline:none}
       input:focus{border-color:#269c83;box-shadow:0 0 0 3px #269c831a}
       button{border:0;border-radius:12px;padding:14px 16px;background:#102b4b;color:#fff;font:inherit;font-weight:850;cursor:pointer}
-      button:disabled{opacity:.6;cursor:wait}.error{margin:0;padding:12px;border-radius:10px;background:#fff0f0;color:#a32323;font-size:13px;line-height:1.5}.secondary{margin-top:14px}
+      button:disabled{opacity:.6;cursor:wait}.error{margin:0;padding:12px;border-radius:10px;background:#fff0f0;color:#a32323;font-size:13px;line-height:1.5}
       .hint{font-size:11px;color:#7b8798;line-height:1.6;margin:0}
       .success{padding:16px;border:1px solid #b9eadc;background:#f2fcf8;border-radius:15px;color:#145b4d}.success strong{font-size:17px}.success p{font-size:13px;line-height:1.6}
       dl{display:grid;gap:8px}dl div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #d9f0e8;padding-bottom:8px;font-size:12px}dt{color:#56776f}dd{margin:0;font-weight:800;text-align:right}
