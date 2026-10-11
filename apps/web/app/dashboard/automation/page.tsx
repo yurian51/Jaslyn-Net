@@ -229,7 +229,7 @@ export default function AutomationWorkspacePage() {
 
     <section id="workflow-builder" style={styles.panel}>
       <h2 style={{marginTop:0}}>{editingWorkflowId?'Edit workflow definition':'Create workflow'}</h2>
-      <p style={{color:'#52627a'}}>Triggers: manual, event, schedule or authenticated webhook. The first version supports conditions, human approval gates, webhook event emission, wait steps and execution logs.</p>
+      <p style={{color:'#52627a'}}>Triggers: manual, event, schedule or authenticated webhook. Nodes include conditions and bounded branches, payload mapping, queued notifications, human approvals, operational alerts, webhook event emission, waits and execution logs.</p>
       <form onSubmit={createWorkflow} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:14}}>
         <label>Workflow name<input required minLength={2} maxLength={120} value={name} onChange={e=>setName(e.target.value)} style={styles.input} placeholder="Payment confirmation review"/></label>
         <label>Trigger type<select value={triggerType} disabled={!!editingWorkflowId} onChange={e=>setTriggerType(e.target.value)} style={styles.input}><option value="MANUAL">Manual</option><option value="EVENT">Domain event</option><option value="SCHEDULE">Schedule / interval</option><option value="WEBHOOK">Inbound webhook</option></select></label>
