@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type { NetworkDeviceConnection, NormalizedWifiClient } from './network-device.adapter';
-import { NetworkCredentials } from '../../common/secure-network-credentials';
 
 type JsonRecord = Record<string, unknown>;
 const MAX_PAGES = 100;
