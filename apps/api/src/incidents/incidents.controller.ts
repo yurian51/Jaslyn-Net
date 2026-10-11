@@ -86,6 +86,7 @@ export class IncidentsController {
 
   @Get(':id')
   @Roles('OWNER', 'ADMIN', 'CASHIER', 'AGENT', 'READ_ONLY')
+  @Permissions('incident.read')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.incidents.get(req.user!.tenantId, id);
   }
@@ -116,12 +117,14 @@ export class IncidentsController {
 
   @Post(':id/acknowledge')
   @Roles('OWNER', 'ADMIN', 'AGENT')
+  @Permissions('incident.manage')
   acknowledge(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.incidents.acknowledge(req.user!.tenantId, id, { userId: req.user!.id, requestId: req.requestId });
   }
 
   @Post(':id/resolve')
   @Roles('OWNER', 'ADMIN', 'AGENT')
+  @Permissions('incident.manage')
   resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveIncidentDto) {
     return this.incidents.resolve(req.user!.tenantId, id, dto.resolution, { userId: req.user!.id, requestId: req.requestId });
   }
