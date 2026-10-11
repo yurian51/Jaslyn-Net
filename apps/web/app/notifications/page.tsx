@@ -337,7 +337,7 @@ export default function NotificationsPage() {
         <form className="notifications-bulk-form" onSubmit={(event) => void saveSmsSettings(event)}>
           <div className="notifications-bulk-fields">
             <label>Provider
-              <select value={smsProviderType} onChange={(event) => { const next = event.target.value as typeof smsProviderType; setSmsProviderType(next); if (next === 'beem') setSmsAuthType('basic'); }}>
+              <select value={smsProviderType} onChange={(event) => { const next = event.target.value as typeof smsProviderType; setSmsProviderType(next); if (next === 'beem') { setSmsAuthType('basic'); setSmsEndpoint(''); } }}>
                 <option value="custom_rest">Custom REST API</option><option value="beem">Beem</option>
               </select>
             </label>
