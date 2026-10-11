@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import BrandLogo from '../brand-logo';
@@ -128,7 +128,7 @@ export default function NotificationsPage() {
 
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
 
-  async function queueBulkCampaign(event: React.FormEvent<HTMLFormElement>) {
+  async function queueBulkCampaign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const token = getAccessToken();
     if (!token) { setBulkError('Authentication required.'); return; }
