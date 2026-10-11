@@ -10,6 +10,20 @@ describe('WorkflowsService safety and tenant boundaries', () => {
   const service = new WorkflowsService(db as unknown as Pool, audit as unknown as AuditService);
   beforeEach(() => { jest.clearAllMocks(); });
 
+  it('rejects unsafe TRANSFORM destination paths before persistence', async () => {
+    await expect(service.create('tenant-a','user-a',{
+      name:'unsafe transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[{from:'payment.status',to:'__proto__.polluted'}]}],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects unbounded or empty TRANSFORM mapping lists before persistence', async () => {
+    await expect(service.create('tenant-a','user-a',{
+      name:'empty transform',triggerType:'MANUAL',steps:[{type:'TRANSFORM',mappings:[]}],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('rejects arbitrary execution steps before any database write', async () => {
     await expect(service.create('tenant-a','user-a',{
       name:'unsafe workflow',triggerType:'MANUAL',steps:[{type:'RUN_SHELL',command:'id'}],
