@@ -29,6 +29,8 @@ export class WorkflowsController {
   decide(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:DecideWorkflowApprovalDto){return this.workflows.decideApproval(r.user!.tenantId,r.user!.id,id,d.decision,d.note);}
   @Get('integrations') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.workflow.read')
   integrations(@Req() r:AuthenticatedRequest){return this.workflows.listIntegrations(r.user!.tenantId);}
+  @Patch('integrations/:id/enabled') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
+  setIntegrationEnabled(@Req() r:AuthenticatedRequest,@Param('id') id:string,@Body() d:SetWorkflowEnabledDto){return this.workflows.setIntegrationEnabled(r.user!.tenantId,r.user!.id,id,d.enabled);}
   @Post('integrations') @Roles('OWNER','ADMIN') @Permissions('automation.workflow.manage')
   createIntegration(@Req() r:AuthenticatedRequest,@Body() d:CreateIntegrationDto){return this.workflows.createIntegration(r.user!.tenantId,r.user!.id,d);}
 }
