@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
@@ -45,6 +45,7 @@ export default function FieldOperationsPage(){
  const [syncing,setSyncing]=useState(false);
  const [error,setError]=useState<string|null>(null);
  const [notice,setNotice]=useState<string|null>(null);
+ const autoSyncAttempted=useRef(false);
 
  const refreshQueue=useCallback(async()=>{setQueue(await readAll<Operation>('operations'));setPhotos(await readAll<Photo>('photos'));},[]);
  const loadJobs=useCallback(async()=>{
@@ -100,7 +101,7 @@ export default function FieldOperationsPage(){
   }finally{setSyncing(false);}
  },[loadJobs,refreshQueue]);
 
- useEffect(()=>{if(online&&pendingCount>0&&!syncing)void syncQueue();},[online,pendingCount,syncing,syncQueue]);
+ useEffect(()=>{if(!online||pendingCount===0){autoSyncAttempted.current=false;return;}if(!syncing&&!autoSyncAttempted.current){autoSyncAttempted.current=true;void syncQueue();}},[online,pendingCount,syncing,syncQueue]);
 
  async function enqueue(op:Omit<Operation,'queuedAt'|'clientOccurredAt'>){
   const full:Operation={...op,queuedAt:Date.now(),clientOccurredAt:new Date().toISOString()};
@@ -148,7 +149,7 @@ export default function FieldOperationsPage(){
   await putRecord('photos',photo as StoreRecord);await refreshQueue();setNotice(online?'Photo queued for upload.':'Photo saved on this device until connectivity returns.');
  }
 
- const activeJobs=useMemo(()=>jobs.filter(job=>!['COMPLETED','CANCELED'].includes(effectiveStatus(job))),[jobs,queue]);
+ const activeJobs=jobs.filter(job=>!['COMPLETED','CANCELED'].includes(effectiveStatus(job)));
  return <main style={{maxWidth:1120,margin:'0 auto',padding:'28px 18px',color:'#172033'}}>
   <header style={{display:'flex',justifyContent:'space-between',alignItems:'start',gap:16,flexWrap:'wrap'}}>
    <div><p style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:'#64748b'}}>JASLYN NET / FIELD OPERATIONS</p><h1 style={{fontSize:34,margin:'8px 0'}}>Field work orders</h1><p style={{color:'#64748b',maxWidth:650}}>Inspect sites, record work, check maintenance items and capture photos. Work is stored on this device while offline.</p></div>
