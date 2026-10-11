@@ -32,7 +32,9 @@ BEGIN
     'name',NEW.name,'vendor',NEW.vendor,'model',NEW.model,'ipAddress',NEW.ip_address::text,
     'macAddress',NEW.mac_address::text,'osVersion',NEW.os_version,'locationId',NEW.location_id,
     'managementProtocol',NEW.management_protocol,'managementEnabled',NEW.management_enabled,
-    'controllerEndpoint',NEW.controller_endpoint,'capabilities',NEW.capabilities,
+    'controllerEndpointConfigured',NEW.controller_endpoint IS NOT NULL,
+    'controllerEndpointScheme',CASE WHEN NEW.controller_endpoint LIKE 'https://%' THEN 'https' WHEN NEW.controller_endpoint LIKE 'http://%' THEN 'http' ELSE NULL END,
+    'capabilities',NEW.capabilities,
     'credentialsConfigured',NEW.management_credentials_encrypted IS NOT NULL
   );
   IF TG_OP='INSERT' THEN
@@ -60,7 +62,9 @@ BEGIN
       'name',OLD.name,'vendor',OLD.vendor,'model',OLD.model,'ipAddress',OLD.ip_address::text,
       'macAddress',OLD.mac_address::text,'osVersion',OLD.os_version,'locationId',OLD.location_id,
       'managementProtocol',OLD.management_protocol,'managementEnabled',OLD.management_enabled,
-      'controllerEndpoint',OLD.controller_endpoint,'capabilities',OLD.capabilities,
+      'controllerEndpointConfigured',OLD.controller_endpoint IS NOT NULL,
+      'controllerEndpointScheme',CASE WHEN OLD.controller_endpoint LIKE 'https://%' THEN 'https' WHEN OLD.controller_endpoint LIKE 'http://%' THEN 'http' ELSE NULL END,
+      'capabilities',OLD.capabilities,
       'credentialsConfigured',OLD.management_credentials_encrypted IS NOT NULL
     );
     INSERT INTO network_change_events(tenant_id,router_id,source_type,source_id,change_type,before_state,after_state,details)
@@ -87,7 +91,7 @@ BEGIN
   IF NEW.router_id IS NULL THEN RETURN NEW; END IF;
   after_json := jsonb_build_object(
     'commandType',NEW.command_type,'provider',NEW.provider,'status',NEW.status,
-    'verification',NEW.verification,'error',NEW.error,'attempts',NEW.attempts
+    'verificationPresent',NEW.verification IS NOT NULL,'verificationStatus',NEW.verification->>'status','errorPresent',NEW.error IS NOT NULL,'attempts',NEW.attempts
   );
   IF TG_OP='UPDATE' THEN
     IF NEW.status IS NOT DISTINCT FROM OLD.status
@@ -97,7 +101,7 @@ BEGIN
     END IF;
     before_json := jsonb_build_object(
       'commandType',OLD.command_type,'provider',OLD.provider,'status',OLD.status,
-      'verification',OLD.verification,'error',OLD.error,'attempts',OLD.attempts
+      'verificationPresent',OLD.verification IS NOT NULL,'verificationStatus',OLD.verification->>'status','errorPresent',OLD.error IS NOT NULL,'attempts',OLD.attempts
     );
   END IF;
   INSERT INTO network_change_events(tenant_id,router_id,source_type,source_id,change_type,correlation_id,before_state,after_state,details)
