@@ -11,7 +11,7 @@ describe('IspExpiryService', () => {
     const release = jest.fn();
     const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
     const reconcileAccessState = jest.fn().mockResolvedValue({ expiredGrants: 1, sessions: [] });
-    const service = new IspExpiryService(db, { reconcileAccessState } as any);
+    const service = new IspExpiryService(db, { reconcileAccessState } as any, { enqueueSms: jest.fn().mockResolvedValue({}) } as any);
 
     await expect(service.reconcile()).resolves.toEqual({ expiredBindings: 1, suspendedCustomers: 1 });
     expect(query).toHaveBeenCalledWith('BEGIN');
@@ -32,7 +32,7 @@ describe('IspExpiryService', () => {
     const release = jest.fn();
     const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
     const reconcileAccessState = jest.fn().mockResolvedValue({ expiredGrants: 1, sessions: [] });
-    const service = new IspExpiryService(db, { reconcileAccessState } as any);
+    const service = new IspExpiryService(db, { reconcileAccessState } as any, { enqueueSms: jest.fn().mockResolvedValue({}) } as any);
 
     await expect(service.reconcile()).resolves.toEqual({ expiredBindings: 1, suspendedCustomers: 0 });
     expect(reconcileAccessState).toHaveBeenCalledWith('tenant-1', expect.any(Object));
@@ -48,7 +48,7 @@ describe('IspExpiryService', () => {
     const release = jest.fn();
     const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
     const reconcileAccessState = jest.fn().mockRejectedValue(new Error('router unavailable'));
-    const service = new IspExpiryService(db, { reconcileAccessState } as any);
+    const service = new IspExpiryService(db, { reconcileAccessState } as any, { enqueueSms: jest.fn().mockResolvedValue({}) } as any);
 
     await expect(service.reconcile()).resolves.toEqual({ expiredBindings: 1, suspendedCustomers: 0 });
     expect(query).toHaveBeenCalledWith('COMMIT');
@@ -62,7 +62,7 @@ describe('IspExpiryService', () => {
       .mockResolvedValueOnce({ rowCount: 0, rows: [] });
     const release = jest.fn();
     const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
-    const service = new IspExpiryService(db, { reconcileAccessState: jest.fn() } as any);
+    const service = new IspExpiryService(db, { reconcileAccessState: jest.fn() } as any, { enqueueSms: jest.fn().mockResolvedValue({}) } as any);
 
     await expect(service.reconcile()).rejects.toThrow('database failure');
     expect(query).toHaveBeenCalledWith('ROLLBACK');
@@ -78,7 +78,7 @@ describe('IspExpiryService', () => {
     });
     const release = jest.fn();
     const db = { connect: jest.fn().mockResolvedValue({ query, release }) } as any;
-    const service = new IspExpiryService(db, { reconcileAccessState: jest.fn() } as any);
+    const service = new IspExpiryService(db, { reconcileAccessState: jest.fn() } as any, { enqueueSms: jest.fn().mockResolvedValue({}) } as any);
 
     const first = service.reconcile();
     await Promise.resolve();

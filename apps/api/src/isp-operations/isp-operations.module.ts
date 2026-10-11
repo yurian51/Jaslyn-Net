@@ -6,9 +6,10 @@ import { IspExpiryService } from './isp-expiry.service';
 import { IspOperationsService } from './isp-operations.service';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AuditModule } from '../audit/audit.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [SessionsModule, AuditModule],
+  imports: [SessionsModule, AuditModule, NotificationsModule],
   controllers: [IspOperationsController],
   providers: [IspOperationsService, FiberLinesService, CustomerServiceStateService, IspExpiryService],
   exports: [IspOperationsService, FiberLinesService, CustomerServiceStateService, IspExpiryService],
