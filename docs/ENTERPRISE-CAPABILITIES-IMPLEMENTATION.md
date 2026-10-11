@@ -38,7 +38,7 @@ New migration sequence on this branch:
 - `069_tenant_secrets_vault.sql`
 - `070_fine_grained_permissions.sql`
 
-Apply migrations in order, using the repository's supported migration runner, against a disposable PostgreSQL database first. Confirm rollback/restore behavior before any production migration. The CI workflow checks for the files, but that check is not equivalent to executing the migrations.
+Apply migrations in order, using the repository's supported migration runner, against a disposable PostgreSQL database first. Confirm rollback/restore behavior before any production migration. The CI workflow checks for the files and now defines a disposable PostgreSQL migration-smoke job that applies the full migration set in lexical order. That job has not run because GitHub Actions is failing before jobs are created.
 
 ## Required deployment configuration
 
