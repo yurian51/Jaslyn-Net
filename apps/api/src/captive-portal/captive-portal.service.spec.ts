@@ -53,14 +53,15 @@ describe('CaptivePortalService', () => {
     expect(vouchers.redeem).not.toHaveBeenCalled();
   });
 
-  it('creates or reuses a tenant customer and delegates actual voucher redemption', async () => {
+  it('creates or reuses a tenant customer and delegates voucher redemption without public router selection', async () => {
     db.query
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'tenant-1' }] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ attemptCount: 1, blockedUntil: null }] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'customer-1' }] });
     vouchers.redeem.mockResolvedValueOnce({ redeemed: true, purchaseId: 'purchase-1', deviceLimit: 1 });
-    const result = await service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '+255712345678', code: 'abc12345' }, '127.0.0.1');
-    expect(vouchers.redeem).toHaveBeenCalledWith('tenant-1', 'abc12345', { customerId: 'customer-1', routerId: undefined });
+    const result = await service.redeemPublicVoucher('my-isp', { fullName: 'Amina Juma', phone: '0712345678', code: 'abc12345' }, '127.0.0.1');
+    expect(db.query.mock.calls[2][1]).toEqual(['tenant-1', '+255712345678']);
+    expect(vouchers.redeem).toHaveBeenCalledWith('tenant-1', 'abc12345', { customerId: 'customer-1' });
     expect(result).toMatchObject({ redeemed: true, purchaseId: 'purchase-1' });
     expect(result.message).toContain('Network access is being provisioned');
   });
