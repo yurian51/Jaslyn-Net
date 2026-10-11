@@ -48,6 +48,7 @@ const notificationsController = read('apps/api/src/notifications/notifications.c
 const smsProvider = read('apps/api/src/notifications/sms.provider.ts');
 const smsWorker = read('apps/api/src/notifications/notifications.worker.ts');
 const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
+const smsCampaignMigration = read('apps/api/migrations/061_sms_campaigns.sql');
 const purchasesService = read('apps/api/src/purchases/purchases.service.ts');
 const expiryService = read('apps/api/src/isp-operations/isp-expiry.service.ts');
 
@@ -132,6 +133,12 @@ const required = [
   ['SMS operations UI distinguishes provider acceptance from handset delivery', notificationsPage.includes('Accepted by provider') && notificationsPage.includes('not a handset delivery receipt') && notificationsPage.includes('SMS DELIVERY PROVIDER')],
   ['SMS endpoints are guarded and expose only provider readiness', notificationsController.includes('@UseGuards(AuthGuard, RolesGuard)') && notificationsController.includes("@Get('sms/status')") && notificationsController.includes("@Post('sms')")],
   ['SMS schema records marketing consent and provider receipts', smsMigration.includes('sms_marketing_consent') && smsMigration.includes('provider_message_id') && smsMigration.includes('notification_outbox_sms_claim_idx')],
+  ['bulk SMS API limits campaign size and normalizes recipients', notificationsService.includes('between 1 and 1000 recipients') && notificationsService.includes('new Set(input.recipients.map(normalizeTanzaniaPhone))') && notificationsController.includes("@Post('sms/bulk')")],
+  ['bulk marketing campaign validates opt-in for every recipient', notificationsService.includes('Marketing SMS requires recorded opt-in for every recipient') && notificationsService.includes('SELECT DISTINCT')],
+  ['bulk campaign rows remain tenant-scoped and idempotent', notificationsService.includes('INSERT INTO sms_campaigns') && notificationsService.includes('ON CONFLICT (tenant_id,idempotency_key)') && notificationsService.includes('campaign:') && smsCampaignMigration.includes('FOREIGN KEY (tenant_id,campaign_id) REFERENCES sms_campaigns(tenant_id,id)')],
+  ['bulk campaign history query is tenant-scoped', notificationsService.includes('listSmsCampaigns(tenantId: string') && notificationsService.includes('WHERE c.tenant_id=$1')],
+  ['bulk SMS composer requires explicit confirmation', notificationsPage.includes('queueBulkCampaign') && notificationsPage.includes('Queue bulk SMS') && notificationsPage.includes('disabled={bulkSending || !bulkConfirmed}')],
+  ['bulk campaign history exposes queue and provider acceptance counts', notificationsPage.includes('Recent bulk campaigns') && notificationsPage.includes('campaign.accepted') && notificationsPage.includes('campaign.failed')],
 
   ['skeleton brand state', routeLoading.includes('brand-loading-skeleton') && skeleton.includes('console-skeleton-page')],
 
