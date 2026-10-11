@@ -38,6 +38,10 @@ export class ProcurementService {
     const r=await this.db.query(`SELECT p.*,s.name AS supplier_name FROM purchase_orders p JOIN suppliers s ON s.tenant_id=p.tenant_id AND s.id=p.supplier_id WHERE p.tenant_id=$1 ORDER BY p.created_at DESC LIMIT 500`,[tenantId]);
     return {data:r.rows};
   }
+  async listPurchaseOrderLines(tenantId:string,orderId:string){
+    const order=await this.db.query('SELECT id FROM purchase_orders WHERE tenant_id=$1 AND id=$2',[tenantId,orderId]);if(!order.rowCount)throw new NotFoundException('Purchase order not found');
+    const r=await this.db.query('SELECT * FROM purchase_order_lines WHERE tenant_id=$1 AND purchase_order_id=$2 ORDER BY created_at',[tenantId,orderId]);return {data:r.rows};
+  }
   async createPurchaseOrder(tenantId:string,actorId:string,d:CreatePurchaseOrderDto) {
     const client=await this.db.connect();
     try {
