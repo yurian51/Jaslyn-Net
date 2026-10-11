@@ -12,9 +12,26 @@ JASLYN NET uses two distinct concepts: the vendor catalogue describes potential 
 | Ruijie / Reyee Cloud API | Current-client telemetry using per-router token and group ID | Native, limited to client telemetry | No direct bandwidth enforcement/disconnect adapter yet |
 | UniFi Network API | Client-session telemetry | Native, limited | No direct enforcement adapter in this release |
 | OpenWrt ubus | Associated Wi-Fi client telemetry | Native, limited | No direct enforcement adapter in this release |
-| Other listed vendors | Catalogue metadata / generic HTTP where explicitly configured | Catalogue-only or generic | Do not claim native integration |
+| Aruba Central | Read-only client/session collection adapter with per-device bearer token | Native adapter class; exact official client endpoint must be configured and tested for the account's Central API family/region | No enforcement or disconnect |
+| Cambium cnMaestro | Read-only session/client collection adapter with per-device bearer token | Native adapter class; exact API resource and permissions must be configured and tested | No enforcement or disconnect |
+| Grandstream GWN | Read-only client/session collection adapter with per-device token or API Developer credentials | Native adapter class; GWN.Cloud and GWN Manager API versions differ; exact resource/auth flow requires controller validation | No enforcement or disconnect |
+| Ruckus SmartZone | Read-only client/session collection adapter with per-device bearer token | Native adapter class for deployments exposing a token-authenticated endpoint; SmartZone session-cookie API versions require a dedicated login flow before production use | No enforcement or disconnect |
+| Teltonika RMS | Read-only client/session collection adapter with per-device bearer token | Native adapter class; configured endpoint must be an RMS resource that actually returns client/session records | No subscriber AAA or direct enforcement |
+| Peplink InControl | Read-only client/session collection adapter with per-device bearer token | Native adapter class; requires an authorized InControl API token and a supported client/session resource | No subscriber AAA or direct enforcement |
+| pfSense / OPNsense | Read-only client/session collection adapter using API key/secret Basic authentication | Native adapter class; exact endpoint is installation/plugin/version-specific; only endpoints returning client/session rows can feed this interface | No firewall changes or enforcement |
 
 RADIUS is the preferred vendor-neutral AAA path for supported NAS/controller devices. It is not a substitute for a device-specific traffic enforcement adapter: rate limits, disconnects and captive-portal actions must be supported by the NAS and verified against observed device state.
+
+## Additional vendor adapters added in this change
+
+The following seven protocol identifiers now dispatch to dedicated adapter classes instead of the catalogue-only failure branch: Aruba Central, Cambium cnMaestro, Grandstream GWN, Ruckus SmartZone, Teltonika RMS, Peplink InControl, and pfSense/OPNsense. They share a hardened read-only transport and client/session normalizer, but deliberately require `controllerEndpoint` to be the exact documented client/session collection resource. This avoids guessing version- or region-specific paths and avoids calling a device-inventory endpoint and pretending it represents subscriber sessions.
+
+Credential expectations:
+- Aruba Central, Cambium cnMaestro, Ruckus SmartZone, Teltonika RMS and Peplink InControl: per-device encrypted `accessToken` (or `apiKey` for bearer-token deployments).
+- Grandstream GWN: provider-issued `accessToken`, or API Developer credentials where the deployment's documented endpoint supports that auth mode.
+- pfSense/OPNsense: per-device encrypted API key and secret; API key may be stored in `apiKey` (or `username`) and secret in `clientSecret` (or `password`).
+
+**Release boundary:** these are read-only endpoint adapters, not yet verified end-to-end integrations for every controller release. Ruckus SmartZone deployments that require session-cookie login need a version-aware login flow; Peplink requires its approved InControl OAuth client/token workflow; and Grandstream/Cambium/Teltonika endpoint paths and auth permissions must be confirmed against each account's official API guide. Do not enable production traffic collection until a connection test and provider-specific smoke tests confirm the exact endpoint and response schema. None of these adapters claims bandwidth enforcement, verified disconnect, voucher creation, or captive-portal control.
 
 ## Omada setup
 
