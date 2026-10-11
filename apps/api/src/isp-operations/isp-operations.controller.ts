@@ -4,13 +4,15 @@ import type { Response } from 'express';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { Permissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
 import { ChangeAccessStateDto, ChangeCustomerServiceStateDto, CreateAccessBindingDto, CreateFiberLineDto, CreateNetworkJobDto, CreateNetworkSiteDto, ListQueryDto, SetFiberStatusDto, UpdateNetworkJobDto, SyncOfflineOperationsDto } from './isp-operations.dto';
 import { CustomerServiceStateService } from './customer-service-state.service';
 import { FiberLinesService } from './fiber-lines.service';
 import { IspOperationsService } from './isp-operations.service';
 
 @Controller('isp')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
 export class IspOperationsController {
   constructor(private readonly isp:IspOperationsService,private readonly fibers:FiberLinesService,private readonly serviceState:CustomerServiceStateService){}
   @Get('access-bindings') listAccessBindings(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listAccessBindings(req.user!.tenantId,query);}
@@ -23,22 +25,22 @@ export class IspOperationsController {
   @Get('jobs') listJobs(@Req() req:AuthenticatedRequest,@Query() query:ListQueryDto){return this.isp.listJobs(req.user!.tenantId,query);}
   @Post('jobs') @Roles('OWNER','ADMIN','AGENT') createJob(@Req() req:AuthenticatedRequest,@Body() dto:CreateNetworkJobDto){return this.isp.createJob(req.user!.tenantId,dto,req.user!.id);}
   @Put('jobs/:id') @Roles('OWNER','ADMIN','AGENT') updateJob(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Body() dto:UpdateNetworkJobDto){return this.isp.updateJob(req.user!.tenantId,id,dto,req.user!.id);}
-  @Post('jobs/offline-sync') @Roles('OWNER','ADMIN','AGENT')
+  @Post('jobs/offline-sync') @Roles('OWNER','ADMIN','AGENT') @Permissions('field.sync')
   syncOfflineOperations(@Req() req:AuthenticatedRequest,@Body() dto:SyncOfflineOperationsDto) {
     return this.isp.syncOfflineOperations(req.user!.tenantId,req.user!.id,dto,{
       userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip,
       userAgent:Array.isArray(req.headers['user-agent'])?req.headers['user-agent'][0]:req.headers['user-agent'],
     });
   }
-  @Get('jobs/:id/checklist')
+  @Get('jobs/:id/checklist') @Permissions('field.read')
   jobChecklist(@Req() req:AuthenticatedRequest,@Param('id') id:string) {
     return this.isp.listJobChecklist(req.user!.tenantId,id);
   }
-  @Get('jobs/:id/attachments')
+  @Get('jobs/:id/attachments') @Permissions('field.read')
   jobAttachments(@Req() req:AuthenticatedRequest,@Param('id') id:string) {
     return this.isp.listJobAttachments(req.user!.tenantId,id);
   }
-  @Post('jobs/:id/attachments') @Roles('OWNER','ADMIN','AGENT')
+  @Post('jobs/:id/attachments') @Roles('OWNER','ADMIN','AGENT') @Permissions('field.write')
   @UseInterceptors(FileInterceptor('file',{limits:{fileSize:5*1024*1024}}))
   uploadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@UploadedFile() file:{originalname:string;mimetype:string;buffer:Buffer;size:number}) {
     return this.isp.uploadJobAttachment(req.user!.tenantId,id,req.user!.id,file,{
@@ -46,7 +48,7 @@ export class IspOperationsController {
       userAgent:Array.isArray(req.headers['user-agent'])?req.headers['user-agent'][0]:req.headers['user-agent'],
     });
   }
-  @Get('jobs/:id/attachments/:attachmentId')
+  @Get('jobs/:id/attachments/:attachmentId') @Permissions('field.read')
   async downloadJobAttachment(@Req() req:AuthenticatedRequest,@Param('id') id:string,@Param('attachmentId') attachmentId:string,@Res() response:Response) {
     const file=await this.isp.getJobAttachment(req.user!.tenantId,id,attachmentId);
     response.setHeader('Content-Type',file.contentType);
