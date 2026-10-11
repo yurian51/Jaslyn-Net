@@ -34,6 +34,7 @@ import { SyntheticMonitoringModule } from './synthetic-monitoring/synthetic-moni
 import { RevenueAssuranceModule } from './revenue-assurance/revenue-assurance.module';
 import { SecretsVaultModule } from './secrets-vault/secrets-vault.module';
 import { AccessControlModule } from './access-control/access-control.module';
+import { ProcurementModule } from './procurement/procurement.module';
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { AccessControlModule } from './access-control/access-control.module';
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, AiModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule,
   ],
 })
 export class AppModule implements NestModule {
