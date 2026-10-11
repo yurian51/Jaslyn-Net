@@ -38,7 +38,8 @@ export class OmadaNetworkAdapter {
       url.searchParams.set('pageSize', '100');
       const payload = await this.request(url.toString(), { headers: { Accept: 'application/json', Authorization: `AccessToken=${token}` } });
       if (payload.errorCode !== 0) throw new ServiceUnavailableException('Omada client telemetry API returned an application error');
-      const rows = this.rows(payload.result);
+      const result = this.record(payload.result);
+      const rows = this.rows(result);
       clients.push(...rows.map((row) => this.normalize(row)));
       const totalPages = Number(result.totalPages ?? result.pageCount ?? result.totalPage);
       if (rows.length === 0 || (Number.isFinite(totalPages) && totalPages > 0 && page >= totalPages) || rows.length < 100) return clients;
