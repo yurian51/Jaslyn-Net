@@ -1,8 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
+import { AssignIncidentOwnerDto, CreateMaintenanceWindowDto, SetIncidentPublicVisibilityDto, UpdateStatusPageComponentDto, UpdateStatusPageSettingsDto } from './incidents.dto';
 
 @Injectable()
 export class IncidentsService {
@@ -229,4 +230,183 @@ export class IncidentsService {
     await this.audit.record(tenantId, 'INCIDENT_RESOLVED', 'incident', id, { resolution: resolution.trim() }, context);
     return this.get(tenantId, id);
   }
+
+  async assignOwner(tenantId: string, incidentId: string, input: AssignIncidentOwnerDto, context: AuditContext = {}) {
+    const ownerId = input.ownerUserId ?? null;
+    if (ownerId) {
+      const user = await this.db.query('SELECT id FROM users WHERE tenant_id=$1 AND id=$2 AND is_active=true', [tenantId, ownerId]);
+      if (!user.rowCount) throw new NotFoundException('Active owner user was not found in this tenant');
+    }
+    const result = await this.db.query(
+      'UPDATE incidents SET owner_user_id=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING id',
+      [tenantId, incidentId, ownerId],
+    );
+    if (!result.rowCount) throw new NotFoundException('Incident not found');
+    await this.audit.record(tenantId, 'INCIDENT_OWNER_CHANGED', 'incident', incidentId, { ownerUserId: ownerId }, context);
+    return this.get(tenantId, incidentId);
+  }
+
+  async setPublicVisibility(tenantId: string, incidentId: string, input: SetIncidentPublicVisibilityDto, context: AuditContext = {}) {
+    const publicSummary = input.publicSummary?.trim() || null;
+    if (input.visible && !publicSummary) throw new BadRequestException('A public summary is required before publishing an incident');
+    const result = await this.db.query(
+      `UPDATE incidents SET public_visible=$3,public_summary=$4,updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 RETURNING id`,
+      [tenantId, incidentId, input.visible, publicSummary],
+    );
+    if (!result.rowCount) throw new NotFoundException('Incident not found');
+    await this.audit.record(tenantId, 'INCIDENT_PUBLIC_VISIBILITY_CHANGED', 'incident', incidentId, { visible: input.visible, publicSummarySet: Boolean(publicSummary) }, context);
+    return this.get(tenantId, incidentId);
+  }
+
+  async listMaintenanceWindows(tenantId: string) {
+    const result = await this.db.query(
+      `SELECT id,title,description,scope_type AS "scopeType",scope_id AS "scopeId",
+              starts_at AS "startsAt",ends_at AS "endsAt",status,is_public AS "isPublic",
+              public_summary AS "publicSummary",created_by AS "createdBy",created_at AS "createdAt",updated_at AS "updatedAt"
+       FROM maintenance_windows WHERE tenant_id=$1
+       ORDER BY starts_at DESC LIMIT 200`,
+      [tenantId],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
+  async createMaintenanceWindow(tenantId: string, actorUserId: string, input: CreateMaintenanceWindowDto, context: AuditContext = {}) {
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) {
+      throw new BadRequestException('Maintenance end time must be later than its start time');
+    }
+    if ((input.scopeType === 'TENANT' && input.scopeId) || (input.scopeType !== 'TENANT' && !input.scopeId)) {
+      throw new BadRequestException('TENANT scope must not include a scopeId; SITE and ROUTER scopes require one');
+    }
+    if (input.scopeType === 'SITE') {
+      const scope = await this.db.query('SELECT id FROM network_sites WHERE tenant_id=$1 AND id=$2', [tenantId, input.scopeId]);
+      if (!scope.rowCount) throw new NotFoundException('Maintenance site was not found in this tenant');
+    }
+    if (input.scopeType === 'ROUTER') {
+      const scope = await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2', [tenantId, input.scopeId]);
+      if (!scope.rowCount) throw new NotFoundException('Maintenance router was not found in this tenant');
+    }
+    const result = await this.db.query(
+      `INSERT INTO maintenance_windows
+        (tenant_id,title,description,scope_type,scope_id,starts_at,ends_at,is_public,public_summary,created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING id,title,description,scope_type AS "scopeType",scope_id AS "scopeId",
+                 starts_at AS "startsAt",ends_at AS "endsAt",status,is_public AS "isPublic",
+                 public_summary AS "publicSummary",created_by AS "createdBy",created_at AS "createdAt"`,
+      [tenantId, input.title.trim(), input.description?.trim() || null, input.scopeType, input.scopeId ?? null,
+       startsAt.toISOString(), endsAt.toISOString(), input.isPublic ?? false, input.publicSummary?.trim() || null, actorUserId],
+    );
+    await this.audit.record(tenantId, 'MAINTENANCE_WINDOW_CREATED', 'maintenance_window', result.rows[0].id, {
+      scopeType: input.scopeType, scopeId: input.scopeId ?? null, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), isPublic: input.isPublic ?? false,
+    }, context);
+    return result.rows[0];
+  }
+
+  async cancelMaintenanceWindow(tenantId: string, id: string, context: AuditContext = {}) {
+    const result = await this.db.query(
+      `UPDATE maintenance_windows SET status='CANCELED',updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 AND status IN ('PLANNED','ACTIVE')
+       RETURNING id,title,status`,
+      [tenantId, id],
+    );
+    if (!result.rowCount) throw new NotFoundException('Planned or active maintenance window not found');
+    await this.audit.record(tenantId, 'MAINTENANCE_WINDOW_CANCELED', 'maintenance_window', id, {}, context);
+    return result.rows[0];
+  }
+
+  async getStatusPageSettings(tenantId: string) {
+    const [settings, components] = await Promise.all([
+      this.db.query(
+        `SELECT slug,"display_name" AS "displayName",description,is_published AS "isPublished",updated_at AS "updatedAt"
+         FROM status_page_settings WHERE tenant_id=$1`,
+        [tenantId],
+      ),
+      this.db.query(
+        `SELECT id,component_key AS "componentKey",name,status,public_summary AS "publicSummary",updated_at AS "updatedAt"
+         FROM status_page_components WHERE tenant_id=$1 ORDER BY name`,
+        [tenantId],
+      ),
+    ]);
+    return { configured: Boolean(settings.rowCount), settings: settings.rows[0] ?? null, components: components.rows };
+  }
+
+  async updateStatusPageSettings(tenantId: string, actorUserId: string, input: UpdateStatusPageSettingsDto, context: AuditContext = {}) {
+    try {
+      const result = await this.db.query(
+        `INSERT INTO status_page_settings (tenant_id,slug,display_name,description,is_published,updated_by,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,now())
+         ON CONFLICT (tenant_id) DO UPDATE SET slug=EXCLUDED.slug,display_name=EXCLUDED.display_name,
+           description=EXCLUDED.description,is_published=EXCLUDED.is_published,updated_by=EXCLUDED.updated_by,updated_at=now()
+         RETURNING slug,display_name AS "displayName",description,is_published AS "isPublished",updated_at AS "updatedAt"`,
+        [tenantId, input.slug.trim().toLowerCase(), input.displayName.trim(), input.description?.trim() || null, input.isPublished, actorUserId],
+      );
+      await this.audit.record(tenantId, 'STATUS_PAGE_SETTINGS_UPDATED', 'status_page', undefined, { slug: input.slug, isPublished: input.isPublished }, context);
+      return result.rows[0];
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505') {
+        throw new ConflictException('That public status-page slug is already in use');
+      }
+      throw error;
+    }
+  }
+
+  async updateStatusPageComponent(tenantId: string, actorUserId: string, componentKey: string, input: UpdateStatusPageComponentDto, context: AuditContext = {}) {
+    if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(componentKey)) throw new BadRequestException('Invalid component key');
+    const result = await this.db.query(
+      `INSERT INTO status_page_components (tenant_id,component_key,name,status,public_summary,updated_by,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,now())
+       ON CONFLICT (tenant_id,component_key) DO UPDATE SET name=EXCLUDED.name,status=EXCLUDED.status,
+         public_summary=EXCLUDED.public_summary,updated_by=EXCLUDED.updated_by,updated_at=now()
+       RETURNING id,component_key AS "componentKey",name,status,public_summary AS "publicSummary",updated_at AS "updatedAt"`,
+      [tenantId, componentKey, input.name.trim(), input.status, input.publicSummary?.trim() || null, actorUserId],
+    );
+    await this.audit.record(tenantId, 'STATUS_COMPONENT_UPDATED', 'status_page_component', result.rows[0].id, { componentKey, status: input.status }, context);
+    return result.rows[0];
+  }
+
+  async getPublicStatus(slug: string) {
+    const settings = await this.db.query(
+      `SELECT tenant_id AS "tenantId",slug,display_name AS "displayName",description
+       FROM status_page_settings WHERE slug=$1 AND is_published=true`,
+      [slug.trim().toLowerCase()],
+    );
+    if (!settings.rowCount) throw new NotFoundException('Published status page not found');
+    const tenantId = settings.rows[0].tenantId as string;
+    const [components, incidents, maintenance] = await Promise.all([
+      this.db.query(
+        `SELECT component_key AS "componentKey",name,status,public_summary AS "summary"
+         FROM status_page_components WHERE tenant_id=$1 ORDER BY name`,
+        [tenantId],
+      ),
+      this.db.query(
+        `SELECT id,COALESCE(NULLIF(public_summary,''),'Service incident') AS title,severity,status,
+                started_at AS "startedAt",resolved_at AS "resolvedAt"
+         FROM incidents WHERE tenant_id=$1 AND public_visible=true
+           AND (status<>'RESOLVED' OR resolved_at>now()-interval '7 days')
+         ORDER BY CASE status WHEN 'OPEN' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END,started_at DESC LIMIT 50`,
+        [tenantId],
+      ),
+      this.db.query(
+        `SELECT id,COALESCE(NULLIF(public_summary,''),'Scheduled maintenance') AS title,
+                starts_at AS "startsAt",ends_at AS "endsAt",status
+         FROM maintenance_windows WHERE tenant_id=$1 AND is_public=true
+           AND status IN ('PLANNED','ACTIVE') AND ends_at>now()
+         ORDER BY starts_at LIMIT 30`,
+        [tenantId],
+      ),
+    ]);
+    const activeIncidents = incidents.rows.filter(row => row.status !== 'RESOLVED');
+    const activeMaintenance = maintenance.rows.some(row => row.status === 'ACTIVE');
+    const overallStatus = activeIncidents.some(row => row.severity === 'CRITICAL') ? 'MAJOR_OUTAGE'
+      : activeIncidents.length ? 'DEGRADED'
+      : activeMaintenance ? 'MAINTENANCE'
+      : components.rows.some(row => row.status === 'MAJOR_OUTAGE') ? 'MAJOR_OUTAGE'
+      : components.rows.some(row => row.status === 'PARTIAL_OUTAGE') ? 'PARTIAL_OUTAGE'
+      : components.rows.some(row => row.status === 'DEGRADED') ? 'DEGRADED'
+      : components.rows.some(row => row.status === 'MAINTENANCE') ? 'MAINTENANCE' : 'OPERATIONAL';
+    return { ...settings.rows[0], overallStatus, components: components.rows, incidents: incidents.rows, maintenanceWindows: maintenance.rows, generatedAt: new Date().toISOString() };
+  }
+
 }
