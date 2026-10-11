@@ -27,7 +27,7 @@ export class WorkflowsService {
       if(type==='TRANSFORM'){
         const mappings=s.mappings;
         if(!Array.isArray(mappings)||mappings.length<1||mappings.length>30) throw new BadRequestException('TRANSFORM requires 1–30 field mappings');
-        const safePath=(raw:unknown,label:string)=>{const path=String(raw??'');if(!/^[A-Za-z0-9_-]{1,80}(\\.[A-Za-z0-9_-]{1,80})*$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p)))throw new BadRequestException(`TRANSFORM ${label} path is invalid`);return path;};
+        const safePath=(raw:unknown,label:string)=>{const path=String(raw??'');if(!/^[A-Za-z0-9_-]{1,80}(\.[A-Za-z0-9_-]{1,80})*$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p)))throw new BadRequestException(`TRANSFORM ${label} path is invalid`);return path;};
         const normalized=mappings.map((raw)=>{if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('Each TRANSFORM mapping must be an object');const m=raw as Record<string,unknown>;return {from:safePath(m.from,'source'),to:safePath(m.to,'target')};});
         return {type:'TRANSFORM',mappings:normalized};
       }
@@ -57,7 +57,7 @@ export class WorkflowsService {
         if(message.length<1||message.length>500) throw new BadRequestException('LOG message must be 1–500 characters');
         return {type:'LOG',message};
       }
-      throw new BadRequestException('Allowed workflow steps: CONDITION, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
+      throw new BadRequestException('Allowed workflow steps: CONDITION, TRANSFORM, CREATE_ALERT, APPROVAL, EMIT_WEBHOOK, WAIT, LOG');
     });
   }
 
