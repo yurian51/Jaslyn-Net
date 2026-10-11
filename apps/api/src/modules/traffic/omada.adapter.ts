@@ -39,8 +39,7 @@ export class OmadaNetworkAdapter {
       url.searchParams.set('pageSize', '100');
       const payload = await this.request(url.toString(), { headers: { Accept: 'application/json', Authorization: `AccessToken=${token}` } });
       if (payload.errorCode !== 0) throw new ServiceUnavailableException('Omada client telemetry API returned an application error');
-      const result = this.record(payload.result);
-      const rows = this.rows(result);
+      const rows = this.rows(payload.result);
       clients.push(...rows.map((row) => this.normalize(row)));
       const totalPages = Number(result.totalPages ?? result.pageCount ?? result.totalPage);
       if (rows.length === 0 || (Number.isFinite(totalPages) && totalPages > 0 && page >= totalPages) || rows.length < 100) return clients;
@@ -91,9 +90,10 @@ export class OmadaNetworkAdapter {
     if (isIP(address) === 4) { const [a,b] = address.split('.').map(Number); return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224; }
     const value = address.toLowerCase(); return value === '::1' || value === '::' || value.startsWith('fc') || value.startsWith('fd') || value.startsWith('fe8') || value.startsWith('fe9') || value.startsWith('fea') || value.startsWith('feb') || value.startsWith('ff');
   }
-  private rows(record: JsonRecord): JsonRecord[] {
-    for (const key of ['data', 'clients', 'clientList', 'items']) if (Array.isArray(record[key])) return (record[key] as unknown[]).filter((item): item is JsonRecord => this.isRecord(item));
-    if (Array.isArray(record)) return record.filter((item): item is JsonRecord => this.isRecord(item));
+  private rows(value: unknown): JsonRecord[] {
+    if (Array.isArray(value)) return value.filter((item): item is JsonRecord => this.isRecord(item));
+    if (!this.isRecord(value)) return [];
+    for (const key of ['data', 'clients', 'clientList', 'items']) if (Array.isArray(value[key])) return (value[key] as unknown[]).filter((item): item is JsonRecord => this.isRecord(item));
     return [];
   }
   private record(value: unknown): JsonRecord { return this.isRecord(value) ? value : {}; }
