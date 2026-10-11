@@ -76,3 +76,8 @@ export class CreateWebhookEndpointDto {
   @IsUUID() secretReference!: string;
   @IsArray() @ArrayMaxSize(50) eventTypes!: string[];
 }
+
+export class CreateTenantRelationshipDto {
+  @IsUUID() parentTenantId!: string;
+  @IsIn(['RESELLER','MANAGED_OPERATOR','FRANCHISE']) relationshipType!: string;
+}
