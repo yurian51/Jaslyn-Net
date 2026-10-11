@@ -16,6 +16,9 @@ export class NetworkCredentialsDto {
   @IsOptional() @IsString() @MaxLength(500) clientSecret?: string;
   @IsOptional() @IsString() @MaxLength(2000) accessToken?: string;
   @IsOptional() @IsString() @MaxLength(2000) refreshToken?: string;
+  @IsOptional() @IsString() @MaxLength(200) omadacId?: string;
+  @IsOptional() @IsString() @MaxLength(200) siteId?: string;
+  @IsOptional() @IsString() @MaxLength(200) groupId?: string;
 }
 
 export class CreateRouterDto {
