@@ -5,7 +5,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CreateIntegrationDto, CreateWorkflowDto } from './workflows.dto';
 
-type Step = { type: 'CONDITION'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
+type Step = { type: 'CONDITION'|'TRANSFORM'|'APPROVAL'|'EMIT_WEBHOOK'|'WAIT'|'LOG'|'CREATE_ALERT'; [key: string]: unknown };
 type WorkflowRow = { id:string; tenant_id:string; trigger_payload?:Record<string,unknown>; current_step:number; attempts:number; run_id:string };
 
 @Injectable()
@@ -23,6 +23,13 @@ export class WorkflowsService {
         if(!['eq','neq','gt','gte','lt','lte','exists','contains'].includes(op)) throw new BadRequestException('Condition operator is unsupported');
         if(op!=='exists'&&!Object.prototype.hasOwnProperty.call(s,'value')) throw new BadRequestException('Condition value is required');
         return {type:'CONDITION',path,op,value:s.value};
+      }
+      if(type==='TRANSFORM'){
+        const mappings=s.mappings;
+        if(!Array.isArray(mappings)||mappings.length<1||mappings.length>30) throw new BadRequestException('TRANSFORM requires 1–30 field mappings');
+        const safePath=(raw:unknown,label:string)=>{const path=String(raw??'');if(!/^[A-Za-z0-9_-]{1,80}(\\.[A-Za-z0-9_-]{1,80})*$/.test(path)||path.split('.').some(p=>['__proto__','prototype','constructor'].includes(p)))throw new BadRequestException(`TRANSFORM ${label} path is invalid`);return path;};
+        const normalized=mappings.map((raw)=>{if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('Each TRANSFORM mapping must be an object');const m=raw as Record<string,unknown>;return {from:safePath(m.from,'source'),to:safePath(m.to,'target')};});
+        return {type:'TRANSFORM',mappings:normalized};
       }
       if(type==='CREATE_ALERT'){
         const severity=String(s.severity??'HIGH').toUpperCase(); const title=String(s.title??'').trim();
@@ -186,6 +193,17 @@ export class WorkflowsService {
     for(const part of path.split('.')) { if(!v||typeof v!=='object'||Array.isArray(v)||!Object.prototype.hasOwnProperty.call(v,part)) return {exists:false,value:undefined}; v=(v as Record<string,unknown>)[part]; }
     return {exists:true,value:v};
   }
+  private setValueAt(payload:Record<string,unknown>,path:string,value:unknown) {
+    const parts=path.split('.');
+    let target:Record<string,unknown>=payload;
+    for(const part of parts.slice(0,-1)){
+      const current=target[part];
+      if(!current||typeof current!=='object'||Array.isArray(current)) target[part]={};
+      target=target[part] as Record<string,unknown>;
+    }
+    target[parts[parts.length-1]]=value;
+  }
+
   private condition(payload:Record<string,unknown>,step:Step) {
     const actual=this.valueAt(payload,String(step.path));
     switch(step.op){
@@ -235,7 +253,14 @@ export class WorkflowsService {
         let index=run.current_step; let waiting=false; let completed=false;
         while(index<steps.length) {
           const step=steps[index];
-          if(step.type==='CONDITION') {
+          if(step.type==='TRANSFORM') {
+            const changed:string[]=[];
+            for(const mapping of step.mappings as Array<{from:string;to:string}>){
+              const source=this.valueAt(payload,mapping.from);
+              if(source.exists){this.setValueAt(payload,mapping.to,source.value);changed.push(mapping.to);}
+            }
+            results.push({index,type:step.type,changedFields:changed});
+          } else if(step.type==='CONDITION') {
             const matched=this.condition(payload,step); results.push({index,type:step.type,matched});
             if(!matched) { completed=true; index=steps.length; break; }
           } else if(step.type==='CREATE_ALERT') {
