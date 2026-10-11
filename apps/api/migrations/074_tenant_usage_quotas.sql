@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS tenant_usage_limits (
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-  metric_key text NOT NULL CHECK (metric_key IN ('inventory_items','suppliers','purchase_orders','api_keys','webhook_endpoints')),
+  metric_key text NOT NULL CHECK (metric_key IN ('inventory_items','suppliers','api_keys','webhook_endpoints')),
   limit_count bigint NOT NULL CHECK (limit_count>=0),
   updated_by uuid,
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -14,6 +14,11 @@ CREATE OR REPLACE FUNCTION jaslyn_enforce_tenant_quota() RETURNS trigger LANGUAG
 DECLARE
   v_metric text; v_cap bigint; v_used bigint; v_sql text;
 BEGIN
+  IF TG_TABLE_NAME='platform_api_keys' AND NEW.revoked_at IS NOT NULL THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='tenant_webhook_endpoints' AND NEW.enabled=false THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='inventory_items' AND NEW.active=false THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='suppliers' AND NEW.status<>'ACTIVE' THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='purchase_orders' THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='routers' THEN v_metric:='routers';
   ELSIF TG_TABLE_NAME='sites' THEN v_metric:='sites';
   ELSIF TG_TABLE_NAME='customers' THEN v_metric:='customers';
@@ -44,7 +49,15 @@ BEGIN
   END IF;
   IF v_cap IS NULL THEN RETURN NEW; END IF;
 
-  IF TG_OP='UPDATE' THEN
+  IF TG_TABLE_NAME='inventory_items' THEN
+    SELECT count(*) INTO v_used FROM inventory_items WHERE tenant_id=NEW.tenant_id AND active=true AND (TG_OP='INSERT' OR id<>NEW.id);
+  ELSIF TG_TABLE_NAME='suppliers' THEN
+    SELECT count(*) INTO v_used FROM suppliers WHERE tenant_id=NEW.tenant_id AND status='ACTIVE' AND (TG_OP='INSERT' OR id<>NEW.id);
+  ELSIF TG_TABLE_NAME='platform_api_keys' THEN
+    SELECT count(*) INTO v_used FROM platform_api_keys WHERE tenant_id=NEW.tenant_id AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now()) AND (TG_OP='INSERT' OR id<>NEW.id);
+  ELSIF TG_TABLE_NAME='tenant_webhook_endpoints' THEN
+    SELECT count(*) INTO v_used FROM tenant_webhook_endpoints WHERE tenant_id=NEW.tenant_id AND enabled=true AND (TG_OP='INSERT' OR id<>NEW.id);
+  ELSIF TG_OP='UPDATE' THEN
     v_sql:=format('SELECT count(*) FROM %I WHERE tenant_id=$1 AND id<>$2',TG_TABLE_NAME);
     EXECUTE v_sql INTO v_used USING NEW.tenant_id,NEW.id;
   ELSE
