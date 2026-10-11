@@ -198,6 +198,14 @@ CREATE TABLE IF NOT EXISTS platform_api_keys (
   UNIQUE (token_digest)
 );
 CREATE INDEX IF NOT EXISTS platform_api_keys_active_idx ON platform_api_keys(tenant_id,created_at DESC) WHERE revoked_at IS NULL;
+CREATE TABLE IF NOT EXISTS platform_api_key_usage_windows (
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  api_key_id uuid NOT NULL,
+  window_start timestamptz NOT NULL,
+  request_count integer NOT NULL DEFAULT 0 CHECK (request_count >= 0),
+  PRIMARY KEY (tenant_id,api_key_id,window_start),
+  FOREIGN KEY (tenant_id,api_key_id) REFERENCES platform_api_keys(tenant_id,id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS tenant_webhook_endpoints (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -211,6 +219,7 @@ CREATE TABLE IF NOT EXISTS tenant_webhook_endpoints (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id,created_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id,secret_reference) REFERENCES tenant_secrets(tenant_id,id) ON DELETE RESTRICT,
   UNIQUE (tenant_id,id)
 );
 CREATE INDEX IF NOT EXISTS tenant_webhook_endpoints_active_idx ON tenant_webhook_endpoints(tenant_id,enabled) WHERE enabled;
