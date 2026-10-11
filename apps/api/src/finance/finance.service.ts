@@ -52,6 +52,10 @@ export class FinanceService {
     try {
       const r=await this.db.query(`INSERT INTO invoices(tenant_id,customer_id,purchase_id,invoice_number,status,currency,subtotal,tax_total,total,issued_at,due_at) VALUES($1,$2,$3,$4,'ISSUED',$5,$6,$7,$8,now(),$9) RETURNING *`,[tenantId,input.customerId,input.purchaseId??null,number,currency,input.subtotal,input.taxTotal,total,input.dueAt??null]);
       await this.auditMutation(tenantId,'CREATE','invoice',r.rows[0].id,userId,{invoiceNumber:r.rows[0].invoice_number,total:r.rows[0].total,currency:r.rows[0].currency});
+      await this.db.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+        SELECT e.tenant_id,e.id,$2::uuid,'invoice.issued',jsonb_build_object('invoiceId',$2,'invoiceNumber',$3,'total',$4,'currency',$5)
+        FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'invoice.issued'=ANY(e.event_types)
+        ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,r.rows[0].id,r.rows[0].invoice_number,r.rows[0].total,r.rows[0].currency]);
       return r.rows[0];
     } catch(e:any) {
       if(e?.code==='23505') throw new ConflictException('Invoice number or purchase invoice already exists');
