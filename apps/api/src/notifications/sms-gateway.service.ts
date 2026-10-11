@@ -76,6 +76,8 @@ export class SmsGatewayService {
   }
 
   async save(tenantId: string, input: SmsProviderInput) {
+    // Fail fast instead of saving settings that status will always consider unusable.
+    this.encryptionKey();
     if (!['beem', 'custom_rest'].includes(input.provider)) throw new BadRequestException('Unsupported SMS provider type');
     const senderId = (input.senderId || '').trim();
     if (!/^[A-Za-z0-9_-]{2,16}$/.test(senderId)) throw new BadRequestException('Sender ID must contain 2–16 letters, numbers, underscores or hyphens');
