@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException, BadRequestExc
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
-import { CreateInventoryItemDto, CreatePurchaseOrderDto, CreatePurchaseOrderLineDto, CreateStockMovementDto, CreateSupplierDto, CreateSupplierInvoiceDto, UpdateBrandingDto } from './procurement.dto';
+import { CreateCustomerCreditNoteDto, CreateInventoryItemDto, CreatePurchaseOrderDto, CreatePurchaseOrderLineDto, CreateStockMovementDto, CreateSupplierDto, CreateSupplierInvoiceDto, UpdateBrandingDto } from './procurement.dto';
 
 @Injectable()
 export class ProcurementService {
@@ -147,6 +147,45 @@ export class ProcurementService {
       await client.query('COMMIT');
       await this.auditChange(tenantId,actorId,'STOCK_MOVEMENT','inventory_item',itemId,{movementId:movement.rows[0].id,delta,after});
       return {duplicate:false,data:movement.rows[0],quantityOnHand:after,averageUnitCost:avg,stockValue:after*avg};
+    } catch(e:unknown) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+  }
+  async listCreditNotes(tenantId:string) {
+    const r=await this.db.query(`SELECT c.*,i.invoice_number FROM customer_credit_notes c JOIN invoices i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id WHERE c.tenant_id=$1 ORDER BY c.created_at DESC LIMIT 500`,[tenantId]);
+    return {data:r.rows};
+  }
+  async createCreditNote(tenantId:string,actorId:string,d:CreateCustomerCreditNoteDto) {
+    const inv=await this.db.query('SELECT id,total,amount_paid,currency,status FROM invoices WHERE tenant_id=$1 AND id=$2',[tenantId,d.invoiceId]);
+    if(!inv.rowCount) throw new NotFoundException('Invoice not found in this tenant');
+    if(inv.rows[0].currency!==d.currency) throw new BadRequestException('Credit note currency must match invoice currency');
+    if(inv.rows[0].status==='VOID') throw new ConflictException('Cannot credit a void invoice');
+    const reserved=await this.db.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM customer_credit_notes WHERE tenant_id=$1 AND invoice_id=$2 AND status IN ('ISSUED','APPLIED')`,[tenantId,d.invoiceId]);
+    if(Number(d.amount)>Number(inv.rows[0].total)-Number(inv.rows[0].amount_paid)-Number(reserved.rows[0].amount)) throw new ConflictException('Credit exceeds remaining invoice balance');
+    try {
+      const r=await this.db.query(`INSERT INTO customer_credit_notes(tenant_id,invoice_id,credit_number,currency,amount,reason,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[tenantId,d.invoiceId,d.creditNumber.trim(),d.currency,d.amount,d.reason.trim(),actorId]);
+      await this.auditChange(tenantId,actorId,'CREATE','customer_credit_note',r.rows[0].id,{invoiceId:d.invoiceId,amount:d.amount,currency:d.currency});
+      return r.rows[0];
+    } catch(e:unknown) { if(typeof e==='object'&&e!==null&&'code' in e&&(e as {code?:string}).code==='23505') throw new ConflictException('Credit note number already exists in this tenant'); throw e; }
+  }
+  async transitionCreditNote(tenantId:string,actorId:string,id:string,action:'ISSUED'|'APPLIED') {
+    const client=await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const note=await client.query('SELECT * FROM customer_credit_notes WHERE tenant_id=$1 AND id=$2 FOR UPDATE',[tenantId,id]);
+      if(!note.rowCount) throw new NotFoundException('Credit note not found');
+      const n=note.rows[0];
+      if(action==='ISSUED') {
+        if(n.status!=='DRAFT') throw new ConflictException('Only draft credit notes can be issued');
+        const inv=await client.query('SELECT total,amount_paid,status,currency FROM invoices WHERE tenant_id=$1 AND id=$2 FOR UPDATE',[tenantId,n.invoice_id]);
+        const reserved=await client.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM customer_credit_notes WHERE tenant_id=$1 AND invoice_id=$2 AND id<>$3 AND status IN ('ISSUED','APPLIED')`,[tenantId,n.invoice_id,id]);
+        if(!inv.rowCount||inv.rows[0].status==='VOID'||inv.rows[0].currency!==n.currency||Number(n.amount)>Number(inv.rows[0].total)-Number(inv.rows[0].amount_paid)-Number(reserved.rows[0].amount)) throw new ConflictException('Invoice balance no longer supports this credit note');
+        await client.query("UPDATE customer_credit_notes SET status='ISSUED',issued_at=now() WHERE tenant_id=$1 AND id=$2",[tenantId,id]);
+      } else {
+        if(n.status!=='ISSUED') throw new ConflictException('Only issued credit notes can be applied');
+        await client.query("UPDATE customer_credit_notes SET status='APPLIED' WHERE tenant_id=$1 AND id=$2",[tenantId,id]);
+      }
+      await client.query('COMMIT');
+      await this.auditChange(tenantId,actorId,action,'customer_credit_note',id,{invoiceId:n.invoice_id,amount:n.amount,currency:n.currency});
+      return {id,status:action};
     } catch(e:unknown) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   }
   async getBranding(tenantId:string) {
