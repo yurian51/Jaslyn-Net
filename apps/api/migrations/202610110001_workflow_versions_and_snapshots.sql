@@ -4,15 +4,17 @@ ALTER TABLE automation_workflows
 
 ALTER TABLE automation_workflow_runs
   ADD COLUMN IF NOT EXISTS steps_snapshot jsonb,
-  ADD COLUMN IF NOT EXISTS execution_payload jsonb;
+  ADD COLUMN IF NOT EXISTS execution_payload jsonb,
+  ADD COLUMN IF NOT EXISTS workflow_version integer;
 
 UPDATE automation_workflow_runs r
 SET steps_snapshot = COALESCE(r.steps_snapshot,w.steps),
-    execution_payload = COALESCE(r.execution_payload,r.trigger_payload)
+    execution_payload = COALESCE(r.execution_payload,r.trigger_payload),
+    workflow_version = COALESCE(r.workflow_version,w.version)
 FROM automation_workflows w
 WHERE r.workflow_id = w.id
   AND r.tenant_id = w.tenant_id
-  AND (r.steps_snapshot IS NULL OR r.execution_payload IS NULL);
+  AND (r.steps_snapshot IS NULL OR r.execution_payload IS NULL OR r.workflow_version IS NULL);
 
 CREATE TABLE IF NOT EXISTS automation_workflow_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
