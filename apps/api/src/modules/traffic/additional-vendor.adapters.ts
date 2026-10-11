@@ -120,7 +120,7 @@ export class GrandstreamGwnNetworkAdapter extends VendorReadOnlyApiAdapter {
   protected headers(connection: NetworkDeviceConnection) {
     const token = connection.credentials?.accessToken;
     if (!token) throw new ServiceUnavailableException('Grandstream GWN requires a provider-issued accessToken; API Developer App ID/Secret exchange must be completed for the specific GWN.Cloud or GWN Manager API version');
-    return { Accept: 'application/json', Authorization: `Bearer ${token}`;
+    return { Accept: 'application/json', Authorization: `Bearer ${token}` };
   }
   constructor(config: ConfigService) { super(config); }
 }
