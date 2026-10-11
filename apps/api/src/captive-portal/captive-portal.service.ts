@@ -33,6 +33,11 @@ export class CaptivePortalService {
       packages: packages.rows };
   }
 
+  async getSettings(tenantId: string) {
+    const result = await this.db.query(`SELECT enabled,title,welcome_message AS \"welcomeMessage\",terms_text AS \"termsText\",support_phone AS \"supportPhone\",support_email AS \"supportEmail\",updated_at AS \"updatedAt\" FROM captive_portal_settings WHERE tenant_id=$1 LIMIT 1`, [tenantId]);
+    return result.rows[0] ?? { enabled: false, title: null, welcomeMessage: null, termsText: 'By connecting, you agree to the network usage policy.', supportPhone: null, supportEmail: null, updatedAt: null };
+  }
+
   async updateSettings(tenantId: string, actorId: string, input: {
     enabled: boolean; title?: string; welcomeMessage?: string; termsText: string;
     supportPhone?: string; supportEmail?: string;
