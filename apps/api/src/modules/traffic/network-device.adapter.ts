@@ -33,6 +33,7 @@ export class NetworkDeviceAdapterRegistry {
       case 'TELTONIKA_RMS_API':
       case 'PEPLINK_INCONTROL_API':
       case 'PFSENSE_API':
+        throw new ServiceUnavailableException(`Native telemetry adapter is not implemented for ${connection.protocol}; configure GENERIC_HTTP only for a documented compatible endpoint`);
       case 'GENERIC_HTTP': return this.readGenericHttp(connection);
       case 'SNMP':
       case 'RADIUS_NAS': throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
