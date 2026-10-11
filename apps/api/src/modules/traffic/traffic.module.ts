@@ -7,6 +7,15 @@ import { MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { MerakiTrafficEnforcementAdapter } from './meraki.adapter';
 import { OmadaNetworkAdapter } from './omada.adapter';
 import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
+import {
+  ArubaCentralNetworkAdapter,
+  CambiumCnMaestroNetworkAdapter,
+  GrandstreamGwnNetworkAdapter,
+  PeplinkInControlNetworkAdapter,
+  PfSenseOpnSenseNetworkAdapter,
+  RuckusSmartZoneNetworkAdapter,
+  TeltonikaRmsNetworkAdapter,
+} from './additional-vendor.adapters';
 import { NetworkDeviceAdapterRegistry } from './network-device.adapter';
 import { TrafficSamplesController } from './traffic-samples.controller';
 import { TrafficSamplesService } from './traffic-samples.service';
@@ -32,6 +41,13 @@ import { LoadBalancingEngine } from './load-balancing.engine';
     MerakiTrafficEnforcementAdapter,
     OmadaNetworkAdapter,
     RuijieReyeeNetworkAdapter,
+    ArubaCentralNetworkAdapter,
+    CambiumCnMaestroNetworkAdapter,
+    GrandstreamGwnNetworkAdapter,
+    RuckusSmartZoneNetworkAdapter,
+    TeltonikaRmsNetworkAdapter,
+    PeplinkInControlNetworkAdapter,
+    PfSenseOpnSenseNetworkAdapter,
     NetworkDeviceAdapterRegistry,
     {
       provide: TrafficEnforcementService,
