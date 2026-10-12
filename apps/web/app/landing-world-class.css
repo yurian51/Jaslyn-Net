@@ -207,3 +207,17 @@
  .jn-landing .jn2-footer>small { text-align:left; }
 }
 @media (prefers-reduced-motion:reduce) { .jn-landing *, .jn-landing *::before, .jn-landing *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
+
+
+/* Pricing pathways: real links, no fabricated subscription prices or testimonials. */
+.jn-landing .jn2-price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:38px; }
+.jn-landing .jn2-price-grid article { display:flex; flex-direction:column; align-items:flex-start; min-width:0; padding:27px 24px; border:1px solid #dfe6f0; border-radius:12px; background:#fff; box-shadow:0 12px 35px #20395b08; }
+.jn-landing .jn2-price-grid article>small { color:#657995; font-size:9px; font-weight:800; letter-spacing:.13em; }
+.jn-landing .jn2-price-grid h3 { margin:15px 0 9px; color:#152b47; font-size:25px; letter-spacing:-.04em; }
+.jn-landing .jn2-price-grid p { margin:0; color:#66778d; font-size:13px; line-height:1.7; }
+.jn-landing .jn2-price-grid ul { display:grid; gap:11px; margin:23px 0 26px; padding:0; list-style:none; color:#3d526d; font-size:12px; line-height:1.5; }
+.jn-landing .jn2-price-grid li:before { content:"✓"; color:#355ff1; font-weight:800; margin-right:9px; }
+.jn-landing .jn2-price-grid .jn2-primary,.jn-landing .jn2-price-grid .jn2-secondary { margin-top:auto; width:100%; }
+.jn-landing .jn2-price-grid .jn2-price-featured { border-color:#8da6ff; box-shadow:0 15px 38px #355ff11c; background:linear-gradient(160deg,#f7f9ff,#fff 62%); }
+.jn-landing .jn2-pricing-note { margin:16px 0 0; color:#7a899d; font-size:11px; line-height:1.6; }
+@media (max-width:900px) { .jn-landing .jn2-price-grid { grid-template-columns:1fr; max-width:600px; } .jn-landing .jn2-price-grid article { padding:23px; } }
