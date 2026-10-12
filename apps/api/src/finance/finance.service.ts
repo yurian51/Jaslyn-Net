@@ -164,7 +164,15 @@ export class FinanceService {
       await client.query('ROLLBACK').catch(()=>undefined);
       if(error?.code==='23505') {
         const existing=await this.db.query(`SELECT * FROM refunds WHERE tenant_id=$1 AND idempotency_key=$2`,[tenantId,input.idempotencyKey.trim()]);
-        if(existing.rowCount) return existing.rows[0];
+        if(existing.rowCount) {
+          const refund=existing.rows[0];
+          // The unique-key race is the same idempotency boundary as the normal
+          // lookup above: never let a retry reuse a key for another payment/amount.
+          if(refund.payment_id!==input.paymentId || Number(refund.amount)!==Number(input.amount)) {
+            throw new ConflictException('Refund idempotency key is already bound to another refund');
+          }
+          return refund;
+        }
       }
       throw error;
     } finally { client.release(); }
