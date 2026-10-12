@@ -5,11 +5,11 @@ import Link from 'next/link';
 import BrandLogo from './brand-logo';
 
 const sectionLinks: ReadonlyArray<[string, string]> = [
+  ['#features', 'Features'],
+  ['#how-it-works', 'How it works'],
+  ['#integrations', 'Integrations'],
+  ['#pricing', 'Pricing'],
   ['/platform', 'Platform'],
-  ['/architecture', 'How it works'],
-  ['/operations', 'Operations'],
-  ['/integrations', 'Integrations'],
-  ['/product', 'Features'],
   ['/faq', 'FAQ'],
 ];
 
@@ -53,7 +53,7 @@ export default function LandingNav() {
   }, [open]);
 
   return (
-    <nav className="landing-nav">
+    <nav className="landing-nav" aria-label="Main navigation">
       <Link href="/" className="landing-logo" aria-label="JASLYN NET home" onClick={() => setOpen(false)}>
         <span><BrandLogo alt="" /></span>
         <b>JASLYN NET</b>
