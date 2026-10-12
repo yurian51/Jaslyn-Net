@@ -83,7 +83,7 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
 
   private async handlePacket(raw:Buffer,rinfo:{address:string;port:number},kind:'auth'|'accounting'){
     let packet; try{packet=parsePacket(raw);}catch{return;}
-    const nas=await this.db.query(`SELECT id,tenant_id,secret_encrypted,enabled FROM radius_nas_clients WHERE address=$1::inet AND enabled=true LIMIT 1`,[rinfo.address]).catch(()=>({rowCount:0,rows:[] as any[]}));
+    const nas=await this.db.query(`SELECT id,tenant_id,secret_encrypted,enabled FROM radius_nas_clients n WHERE n.address=$1::inet AND n.enabled=true AND (SELECT count(*) FROM radius_nas_clients matched WHERE matched.address=$1::inet AND matched.enabled=true)=1 LIMIT 1`,[rinfo.address]).catch(()=>({rowCount:0,rows:[] as any[]}));
     if(!nas.rowCount) return;
     const row=nas.rows[0]; const secretObj=this.secure.decrypt(row.secret_encrypted); const secret=Buffer.from(secretObj.password??'','utf8');
     if (!secret.length) return;
