@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import { decryptUserPassword, encodeRequest, encodeResponse, parsePacket, RADIUS_CODES, ATTR, makeString } from './radius.protocol';
 import { createHash } from 'node:crypto';
+import { RadiusService } from './radius.service';
+import type { Pool } from 'pg';
+import type { ConfigService } from '@nestjs/config';
+
 
 describe('RADIUS protocol',()=>{
  it('round-trips an Access-Accept response authenticator',()=>{
@@ -20,10 +24,6 @@ describe('RADIUS protocol',()=>{
  });
  it('encodes an outbound Disconnect-Request with an RFC-sized packet',()=>{ const packet=encodeRequest(RADIUS_CODES.DISCONNECT_REQUEST,9,[makeString(ATTR.USER_NAME,'subscriber')]); const parsed=parsePacket(packet); expect(parsed.code).toBe(RADIUS_CODES.DISCONNECT_REQUEST); expect(parsed.identifier).toBe(9); expect(parsed.authenticator).toHaveLength(16); expect(parsed.attributes[0]?.value.toString()).toBe('subscriber'); });
 });
-
-import { RadiusService } from './radius.service';
-import type { Pool } from 'pg';
-import type { ConfigService } from '@nestjs/config';
 
 
 describe('RADIUS NAS tenant isolation',()=>{
