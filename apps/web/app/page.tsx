@@ -8,12 +8,12 @@ const capabilities = [
 ];
 
 const modules = [
-  ['Customer management', 'Profiles, service status and subscriber lifecycle'],
-  ['Wi-Fi billing', 'Packages, subscriptions, invoices and credits'],
-  ['Hotspot & vouchers', 'Captive portal, prepaid access and expiry'],
-  ['Payments', 'Transactions, refunds and reconciliation'],
-  ['Network operations', 'Routers, sites, sessions and incidents'],
-  ['Security & audit', 'Permissions, activity history and accountability'],
+  ['Customer management', 'Profiles, service status and subscriber lifecycle', '/customers'],
+  ['Wi-Fi billing', 'Packages, subscriptions, invoices and credits', '/packages'],
+  ['Hotspot & vouchers', 'Captive portal, prepaid access and expiry', '/vouchers'],
+  ['Payments', 'Transactions, refunds and reconciliation', '/payments'],
+  ['Network operations', 'Routers, sites, sessions and incidents', '/network'],
+  ['Security & audit', 'Permissions, activity history and accountability', '/audit'],
 ];
 
 const vendors = ['MikroTik', 'UniFi', 'Omada', 'Cambium', 'Cisco Meraki', 'Aruba', 'Grandstream', 'Ruckus', 'Teltonika', 'Peplink', 'pfSense / OPNsense', 'FreeRADIUS'];
@@ -81,8 +81,7 @@ export default function Home() {
             <Link href="/register" className="jn2-primary">Create your workspace <Arrow /></Link>
             <Link href="/platform" className="jn2-secondary">Explore the platform <Arrow /></Link>
           </div>
-          <div className="jn2-trustline"><span>BUILT AROUND YOUR WORKFLOW</span><i /> Customers <i /> Payments <i /> Access <i /> Network
-          </div>
+          <div className="jn2-trustline"><span>BUILT AROUND YOUR WORKFLOW</span><i /> Customers <i /> Payments <i /> Access <i /> Network</div>
         </div>
         <div className="jn2-hero-visual"><ProductMockup /><div className="jn2-visual-caption"><span className="jn2-green-dot" /> Product concept preview <span>·</span> Sample interface, not live customer data</div></div>
       </section>
@@ -91,29 +90,39 @@ export default function Home() {
         <div><small>FOR THE TEAMS THAT KEEP PEOPLE CONNECTED</small><div className="jn2-audience-items"><span>Wi-Fi & hotspot operators</span><span>ISPs & WISPs</span><span>Managed networks</span><span>Multi-site teams</span></div></div>
       </section>
 
-      <section className="jn2-section jn2-workflow">
+      <section className="jn2-section jn2-workflow" id="how-it-works">
         <div className="jn2-section-intro"><small>ONE CONNECTED WORKFLOW</small><h2>From the first sale<br />to the live session.</h2><p>Customer, commerce and connectivity are linked operational concerns. Your tools should reflect that.</p></div>
         <div className="jn2-capabilities">{capabilities.map(item => <article key={item.n}><div className="jn2-cap-top"><span>{item.n}</span><Arrow /></div><h3>{item.title}</h3><p>{item.copy}</p><small>{item.tags}</small></article>)}</div>
       </section>
 
-      <section className="jn2-platform">
+      <section className="jn2-platform" id="features">
         <div className="jn2-section jn2-platform-inner">
           <div className="jn2-platform-heading"><small>THE PLATFORM</small><h2>Everything important,<br /><em>working together.</em></h2><p>One operational model across the customer lifecycle, commercial workflows and network infrastructure—without hiding which integrations need configuration.</p><Link href="/platform" className="jn2-textlink">Explore platform capabilities <Arrow /></Link></div>
-          <div className="jn2-modules">{modules.map(([title, copy], i) => <Link href="/product" key={title} className="jn2-module"><span>0{i + 1}</span><div><b>{title}</b><small>{copy}</small></div><Arrow /></Link>)}</div>
+          <div className="jn2-modules">{modules.map(([title, copy, href], i) => <Link href={href} key={title} className="jn2-module"><span>0{i + 1}</span><div><b>{title}</b><small>{copy}</small></div><Arrow /></Link>)}</div>
         </div>
       </section>
 
-      <section className="jn2-section jn2-integrations">
+      <section className="jn2-section jn2-integrations" id="integrations">
         <div className="jn2-integrations-head"><div><small>WORK WITH YOUR INFRASTRUCTURE</small><h2>Built for mixed-vendor networks.</h2></div><p>Explore the integration approach and check adapter-specific capabilities before planning a production rollout.</p></div>
         <div className="jn2-vendor-list">{vendors.map((vendor, i) => <span key={vendor}><i>{String(i + 1).padStart(2, '0')}</i>{vendor}</span>)}</div>
         <Link href="/integrations" className="jn2-textlink">View integration details <Arrow /></Link>
+      </section>
+
+      <section className="jn2-section jn2-pricing" id="pricing">
+        <div className="jn2-section-intro"><small>PLANS THAT FIT YOUR OPERATION</small><h2>Start with your needs.<br />Scale with your network.</h2><p>Choose a path based on your operation. Review the current commercial terms with the team before subscribing.</p></div>
+        <div className="jn2-price-grid">
+          <article><small>GET FAMILIAR</small><h3>Explore</h3><p>Review platform workflows and see how the modules fit together.</p><ul><li>Platform overview</li><li>Feature and integration review</li><li>Guided next steps</li></ul><Link href="/platform" className="jn2-secondary">Explore platform <Arrow /></Link></article>
+          <article className="jn2-price-featured"><small>FOR OPERATORS</small><h3>Launch</h3><p>Discuss setup for your ISP, hotspot or managed network operation.</p><ul><li>Operational requirements review</li><li>Billing and access workflow planning</li><li>Integration readiness discussion</li></ul><Link href="/register" className="jn2-primary">Create workspace <Arrow /></Link></article>
+          <article><small>COMPLEX NETWORKS</small><h3>Scale</h3><p>Plan a rollout across teams, locations and network infrastructure.</p><ul><li>Multi-site workflow review</li><li>Security and audit requirements</li><li>Deployment planning</li></ul><Link href="/faq" className="jn2-secondary">Discuss requirements <Arrow /></Link></article>
+        </div>
+        <p className="jn2-pricing-note">Pricing is not displayed here because current, verified subscription rates were not available to confirm.</p>
       </section>
 
       <section className="jn2-cta">
         <div><small>JASLYN NET</small><h2>Make your operation<br />easier to understand.</h2><p>Explore the platform, see how the pieces connect, and decide whether it fits your operation.</p></div>
         <div className="jn2-cta-actions"><Link href="/register" className="jn2-primary">Get started <Arrow /></Link><Link href="/faq" className="jn2-cta-link">Read common questions <Arrow /></Link></div>
       </section>
-      <footer className="jn2-footer"><Link href="/" className="jn2-footer-brand"><span className="jn2-mark">J</span> JASLYN NET</Link><div><Link href="/platform">Platform</Link><Link href="/architecture">How it works</Link><Link href="/operations">Operations</Link><Link href="/integrations">Integrations</Link><Link href="/product">Features</Link><Link href="/faq">FAQ</Link></div><small>Connectivity operations, connected.</small></footer>
+      <footer className="jn2-footer"><Link href="/" className="jn2-footer-brand"><span className="jn2-mark">J</span> JASLYN NET</Link><div><Link href="/platform">Platform</Link><Link href="/architecture">How it works</Link><Link href="/operations">Operations</Link><Link href="/integrations">Integrations</Link><Link href="/product">Features</Link><Link href="/faq">FAQ</Link><Link href="/legal">Legal</Link></div><small>Connectivity operations, connected.</small></footer>
     </main>
   );
 }
