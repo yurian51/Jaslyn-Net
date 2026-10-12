@@ -49,7 +49,7 @@ jobs:
                 split(name, parts, "_")
                 prefix=parts[1]
                 if (seen[prefix]++) {
-                  printf "Duplicate migration prefix %s: %s\\n", prefix, name > "/dev/stderr"
+                  printf "Duplicate migration prefix %s: %s\n", prefix, name > "/dev/stderr"
                   failed=1
                 }
               }
