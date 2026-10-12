@@ -278,4 +278,42 @@ describe('PaymentsService', () => {
     expect(db.connect).not.toHaveBeenCalled();
   });
 
+
+  it('rejects reuse of a provider event identifier with changed payment facts', async () => {
+    const secret = 'test-webhook-secret';
+    const rawBody = Buffer.from('{"event":"payment.success","status":"PAID"}');
+    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+    const eventClient = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN') return { rowCount: 0, rows: [] };
+        if (sql.includes('INSERT INTO payment_events')) return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM payment_events')) return { rowCount: 1, rows: [{
+          id: 'event-1', eventType: 'payment.success', processingStatus: 'PROCESSED',
+          paymentId: 'pay-1', payload: { status: 'FAILED', paymentId: 'pay-1', purchaseId: 'purchase-1', providerReference: 'provider-ref-1' },
+        }] };
+        if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
+    const db = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
+      connect: jest.fn().mockResolvedValue(eventClient),
+    } as unknown as Pool;
+    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
+
+    await expect(service.webhook('tenant-1', {
+      provider: 'mpesa',
+      providerEventId: 'evt-immutable-1',
+      eventType: 'payment.success',
+      status: 'PAID',
+      paymentId: 'pay-1',
+      purchaseId: 'purchase-1',
+      providerReference: 'provider-ref-1',
+    }, rawBody, signature)).rejects.toThrow('Payment event identifier is already bound to different payment data');
+
+    expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(eventClient.release).toHaveBeenCalled();
+  });
 });
