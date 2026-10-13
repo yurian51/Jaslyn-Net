@@ -249,15 +249,34 @@ export class PaymentsService {
 
       if (!inserted.rowCount) {
         const existing = await eventClient.query(
-          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId"
+          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId", payload
              FROM payment_events
             WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
             FOR UPDATE`,
           [tenantId, provider, providerEventId],
         );
         if (!existing.rowCount) throw new ConflictException('Payment event could not be resolved after conflict');
-        if (existing.rows[0].eventType !== input.eventType.trim()) {
+        const existingEvent = existing.rows[0] as {
+          eventType: string;
+          processingStatus: string;
+          paymentId: string | null;
+          payload: { status?: string; paymentId?: string | null; purchaseId?: string | null; providerReference?: string | null } | null;
+        };
+        if (existingEvent.eventType !== input.eventType.trim()) {
           throw new ConflictException('Payment event identifier is already bound to a different event type');
+        }
+        // A provider event ID is immutable: retries must carry the same business identity
+        // and settlement facts, not merely the same event type.
+        const prior = existingEvent.payload ?? {};
+        const sameOptional = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
+        if (
+          !sameOptional(existingEvent.paymentId, input.paymentId) ||
+          !sameOptional(prior.status, input.status) ||
+          !sameOptional(prior.paymentId, input.paymentId) ||
+          !sameOptional(prior.purchaseId, input.purchaseId) ||
+          !sameOptional(prior.providerReference, input.providerReference)
+        ) {
+          throw new ConflictException('Payment event identifier is already bound to different payment data');
         }
         await eventClient.query('COMMIT');
         return {
