@@ -35,7 +35,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in apps/api/migrations/*.sql; do test -f "$file"; done
+          shopt -s nullglob
+          migrations=(apps/api/migrations/*.sql)
+          test "${#migrations[@]}" -gt 0
+          for file in "${migrations[@]}"; do test -f "$file"; done
+
+          # Numeric migration prefixes must be unique. This prevents feature branches
+          # from colliding with already-landed migrations.
+          awk -F/ '
+            {
+              name=$NF
+              if (name ~ /^[0-9]+_/) {
+                split(name, parts, "_")
+                prefix=parts[1]
+                if (seen[prefix]++) {
+                  printf "Duplicate migration prefix %s: %s\n", prefix, name > "/dev/stderr"
+                  failed=1
+                }
+              }
+            }
+            END { exit failed }
+          ' "${migrations[@]}"
+
+          test -f apps/api/migrations/073_financial_procurement_msp_platform.sql
+          test -f apps/api/migrations/074_network_experience_capacity_power_sla.sql
+          test -f apps/api/migrations/075_event_driven_automation.sql
+          test -f apps/api/migrations/076_tenant_usage_quotas.sql
+          test -f apps/api/migrations/077_financial_audit_head_guard.sql
           test -f apps/api/migrations/062_session_audit_security_integrity.sql
           test -f apps/api/migrations/063_field_operations_offline_sync.sql
           test -f apps/api/migrations/064_incident_timeline_maintenance_status.sql
@@ -89,9 +115,9 @@ jobs:
         run: pnpm --filter @jaslyn-net/api benchmark
 
   migration-smoke:
-    name: Apply all SQL migrations to disposable PostgreSQL
+    name: Fresh install, upgrade and restore rollback on PostgreSQL
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:18
@@ -113,7 +139,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-      - name: Apply migrations in lexical order
+      - name: Fresh install all migrations
         env:
           PGPASSWORD: jaslyn_test_password
         shell: bash
@@ -123,8 +149,45 @@ jobs:
           files=(apps/api/migrations/*.sql)
           test "${#files[@]}" -gt 0
           for file in "${files[@]}"; do
-            echo "::group::Apply $file"
+            echo "::group::Fresh install: $file"
             psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --set=ON_ERROR_STOP=1 --file="$file"
             echo "::endgroup::"
           done
-          psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --tuples-only --no-align --command="SELECT count(*) FROM information_schema.tables WHERE table_schema='public';"
+          psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --set=ON_ERROR_STOP=1 --command="SELECT count(*) > 0 AS fresh_install_has_tables FROM information_schema.tables WHERE table_schema='public';" | grep -q t
+      - name: Upgrade baseline and test restore-based rollback
+        env:
+          PGPASSWORD: jaslyn_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(apps/api/migrations/*.sql)
+          createdb --host=127.0.0.1 --port=5432 --username=jaslyn jaslyn_upgrade
+          createdb --host=127.0.0.1 --port=5432 --username=jaslyn jaslyn_rollback
+          for file in "${files[@]}"; do
+            name="${file##*/}"
+            prefix="${name%%_*}"
+            if [[ "$prefix" =~ ^[0-9]+$ ]] && (( 10#$prefix <= 72 )); then
+              echo "::group::Upgrade baseline: $file"
+              psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_upgrade --set=ON_ERROR_STOP=1 --file="$file"
+              echo "::endgroup::"
+            fi
+          done
+          pg_dump --host=127.0.0.1 --port=5432 --username=jaslyn --format=custom --no-owner --no-privileges --dbname=jaslyn_upgrade --file=/tmp/jaslyn-baseline.dump
+          for file in "${files[@]}"; do
+            name="${file##*/}"
+            prefix="${name%%_*}"
+            if [[ "$prefix" =~ ^[0-9]+$ ]] && (( 10#$prefix > 72 )); then
+              echo "::group::Apply upgrade: $file"
+              psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_upgrade --set=ON_ERROR_STOP=1 --file="$file"
+              echo "::endgroup::"
+            fi
+          done
+          for table in suppliers purchase_orders inventory_items inventory_stock_movements tenant_usage_counters financial_audit_chain_heads; do
+            psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_upgrade --set=ON_ERROR_STOP=1 --command="SELECT to_regclass('public.$table') IS NOT NULL;" | grep -q t
+          done
+          pg_restore --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_rollback --no-owner --no-privileges /tmp/jaslyn-baseline.dump
+          psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_rollback --set=ON_ERROR_STOP=1 --command="SELECT to_regclass('public.tenants') IS NOT NULL;" | grep -q t
+          for table in suppliers purchase_orders inventory_items inventory_stock_movements tenant_usage_counters financial_audit_chain_heads; do
+            psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_rollback --set=ON_ERROR_STOP=1 --command="SELECT to_regclass('public.$table') IS NULL;" | grep -q t
+          done
