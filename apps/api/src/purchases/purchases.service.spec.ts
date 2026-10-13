@@ -17,6 +17,37 @@ describe('PurchasesService payment confirmation', () => {
     expect(payments.assertMethodCanSettle).not.toHaveBeenCalled();
   });
 
+  it('rejects a changed receipt reference when reusing a paid idempotency key', async () => {
+    const purchaseId = '11111111-1111-1111-1111-111111111111';
+    const tenantId = '22222222-2222-2222-2222-222222222222';
+    const client = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM wifi_plan_purchases WHERE tenant_id = $1 AND id = $2 FOR UPDATE')) {
+          return { rowCount: 1, rows: [{ id: purchaseId, customer_id: 'customer-1', package_id: 'package-1', router_id: null, price: 5000, currency: 'TZS', status: 'PENDING_PAYMENT', correlation_id: 'corr-1' }] };
+        }
+        if (sql.includes('FROM payments WHERE tenant_id = $1 AND idempotency_key = $2')) {
+          return { rowCount: 1, rows: [{ id: 'payment-1', purchaseId, provider: 'manual', providerReference: 'CASH-ORIGINAL', status: 'PAID' }] };
+        }
+        throw new Error(`Unexpected SQL: ${sql}`);
+      }),
+      release: jest.fn(),
+    };
+    const db = { connect: jest.fn().mockResolvedValue(client) } as any;
+    const payments = { assertMethodCanSettle: jest.fn().mockResolvedValue({ code: 'manual' }) } as any;
+    const service = new PurchasesService(db, payments, {} as any, { enqueue: jest.fn().mockResolvedValue(undefined) } as any);
+
+    await expect(service.confirmPayment(tenantId, purchaseId, {
+      provider: 'manual',
+      providerReference: 'CASH-CHANGED',
+      idempotencyKey: 'confirm-reused-001',
+      status: 'PAID',
+    })).rejects.toThrow('Idempotency key is already bound to another provider reference');
+
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(client.release).toHaveBeenCalled();
+  });
+
   it('records a ledger settlement when a new manual payment is inserted as PAID', async () => {
     const purchaseId = '11111111-1111-1111-1111-111111111111';
     const tenantId = '22222222-2222-2222-2222-222222222222';
