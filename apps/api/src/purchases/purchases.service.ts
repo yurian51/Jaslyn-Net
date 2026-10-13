@@ -177,6 +177,11 @@ export class PurchasesService {
         if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
         if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
         if (existing.status === 'PAID') {
+          // An idempotency key must not silently accept a changed manual receipt
+          // reference after payment has already been recorded.
+          if (existing.providerReference && existing.providerReference !== providerReference) {
+            throw new ConflictException('Idempotency key is already bound to another provider reference');
+          }
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
