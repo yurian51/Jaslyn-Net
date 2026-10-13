@@ -177,6 +177,11 @@ export class PurchasesService {
         if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
         if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
         if (existing.status === 'PAID') {
+          // An idempotency key must not silently accept a changed manual receipt
+          // reference after payment has already been recorded.
+          if (existing.providerReference && existing.providerReference !== providerReference) {
+            throw new ConflictException('Idempotency key is already bound to another provider reference');
+          }
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
@@ -249,6 +254,10 @@ export class PurchasesService {
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
+        // A newly created manual payment is already PAID; post its settlement
+        // through the same idempotent ledger/invoice path as an existing intent.
+        // Keep this inside the purchase transaction so failures roll back both.
+        await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       }
 
       const packageResult = await client.query(`SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`, [tenantId, current.package_id]);
