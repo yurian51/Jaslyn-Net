@@ -58,8 +58,48 @@ export default function DashboardPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [welcomeNow, setWelcomeNow] = useState<Date | null>(null);
   const [quickFind, setQuickFind] = useState('');
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
 
   useEffect(() => { setWelcomeNow(new Date()); }, []);
+
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+      if (event.key === 'Escape') setCommandOpen(false);
+    };
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, []);
+
+  const exportOperationalSnapshot = useCallback(() => {
+    if (!data) return;
+    const snapshot = {
+      reportType: 'jaslyn-net-operational-snapshot',
+      generatedAt: new Date().toISOString(),
+      tenant: data.tenant ?? null,
+      kpis: data.kpis ?? null,
+      network: data.network ?? null,
+      operations: data.operations ?? null,
+      locations: data.locations ?? [],
+      sessions: data.sessions ?? [],
+      note: 'Export of the latest authenticated overview API response; values are not inferred.',
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `jaslyn-net-operations-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [data]);
+
+
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -202,9 +242,31 @@ export default function DashboardPage() {
         <div className="operator-focus-copy"><span>RECOMMENDED NEXT ACTION</span><strong>{operationalFocus.title}</strong><p>{operationalFocus.detail}</p></div>
         <a href={operationalFocus.href}>{operationalFocus.action} <span aria-hidden="true">↗</span></a>
       </section>
+      {commandOpen && (
+        <div className="operator-command-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCommandOpen(false); }}>
+          <section className="operator-command-dialog" role="dialog" aria-modal="true" aria-labelledby="operator-command-title">
+            <div className="operator-command-search-row">
+              <span aria-hidden="true">⌕</span>
+              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search workspaces and actions…" aria-label="Search operator commands" />
+              <kbd>ESC</kbd>
+            </div>
+            <div className="operator-command-section-label" id="operator-command-title">QUICK ACTIONS</div>
+            <div className="operator-command-results">
+              {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).map((item) => (
+                <a key={item.href} href={item.href} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
+              ))}
+              {'export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data && (
+                <button type="button" onClick={() => { exportOperationalSnapshot(); setCommandOpen(false); }}><span className="operator-command-result-icon" aria-hidden="true">↓</span><span><strong>Export operational snapshot</strong><small>Download the latest authenticated overview as JSON</small></span><kbd>EXPORT</kbd></button>
+              )}
+              {!OPERATOR_WORKSPACES.some((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())) && !('export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data) && <div className="operator-command-empty">No matching commands. Try “network”, “payments” or “export”.</div>}
+            </div>
+            <div className="operator-command-footer"><span>Jaslyn Net operator workspace</span><span><kbd>Ctrl</kbd> + <kbd>K</kbd> to toggle</span></div>
+          </section>
+        </div>
+      )}
       <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
         <div className="operator-launchpad-heading">
-          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div>
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => setCommandOpen(true)} className="operator-command-trigger"><kbd>Ctrl K</kbd> Quick open</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
           <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
         </div>
         <label className="operator-launchpad-search">
