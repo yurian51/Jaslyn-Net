@@ -1,49 +1,88 @@
-import { StructuredLogger } from './structured-logger';
+import type { LoggerService } from '@nestjs/common';
 
-describe('StructuredLogger', () => {
-  let stdout: jest.SpyInstance;
-  let stderr: jest.SpyInstance;
+export type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
 
-  beforeEach(() => {
-    stdout = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    stderr = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
-  });
+const LEVELS: Record<LogLevel, number> = {
+  TRACE: 10,
+  DEBUG: 20,
+  INFO: 30,
+  WARN: 40,
+  ERROR: 50,
+  FATAL: 60,
+};
+const REDACTED = '[REDACTED]';
+const SECRET_KEY = /(?:password|passwd|passcode|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token|credential|authorization|cookie|private[-_]?key)/i;
 
-  afterEach(() => jest.restoreAllMocks());
+function redact(value: unknown, depth = 0): unknown {
+  if (depth > 8) return '[TRUNCATED]';
+  if (typeof value === 'string') {
+    return value
+      .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]')
+      .replace(/([?&](?:token|access_token|refresh_token|api_key|password|secret)=)[^&\s]*/gi, '$1[REDACTED]');
+  }
+  if (Array.isArray(value)) return value.slice(0, 100).map((item) => redact(item, depth + 1));
+  if (value && typeof value === 'object') {
+    const safe: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>).slice(0, 200)) {
+      safe[key] = SECRET_KEY.test(key) ? REDACTED : redact(child, depth + 1);
+    }
+    return safe;
+  }
+  return value;
+}
 
-  it('emits parseable JSON with timestamps and severity', () => {
-    new StructuredLogger('INFO', 'test').log('service ready', 'Bootstrap');
-    const entry = JSON.parse(String(stdout.mock.calls[0][0]));
-    expect(entry).toMatchObject({ level: 'INFO', environment: 'test', message: 'service ready', context: 'Bootstrap' });
-    expect(Number.isNaN(Date.parse(entry.timestamp))).toBe(false);
-  });
+export class StructuredLogger implements LoggerService {
+  private readonly threshold: number;
+  private readonly environment: string;
 
-  it('filters below configured threshold', () => {
-    const logger = new StructuredLogger('WARN', 'test');
-    logger.debug('details');
-    logger.log('normal');
-    logger.warn('recoverable');
-    expect(stdout).toHaveBeenCalledTimes(1);
-    expect(stderr).not.toHaveBeenCalled();
-  });
+  constructor(level?: string, environment?: string) {
+    const configured = (level ?? process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'INFO' : 'DEBUG')).toUpperCase();
+    this.threshold = LEVELS[configured as LogLevel] ?? LEVELS.INFO;
+    this.environment = environment ?? process.env.NODE_ENV ?? 'development';
+  }
 
-  it('redacts secret fields and bearer tokens', () => {
-    new StructuredLogger('DEBUG', 'test').debug({
-      event: 'auth.failure',
-      password: 'dont-log-me',
-      nested: { accessToken: 'dont-log-this-either' },
-      header: 'Bearer abc.def.ghi',
-    });
-    const output = String(stdout.mock.calls[0][0]);
-    expect(output).not.toContain('dont-log-me');
-    expect(output).not.toContain('dont-log-this-either');
-    expect(output).not.toContain('abc.def.ghi');
-    expect(output).toContain('[REDACTED]');
-  });
+  trace(message: unknown, context?: string): void { this.write('TRACE', message, context); }
+  debug(message: unknown, context?: string): void { this.write('DEBUG', message, context); }
+  log(message: unknown, context?: string): void { this.write('INFO', message, context); }
+  warn(message: unknown, context?: string): void { this.write('WARN', message, context); }
+  fatal(message: unknown, context?: string): void { this.write('FATAL', message, context); }
 
-  it('writes errors to stderr and supports FATAL', () => {
-    new StructuredLogger('TRACE', 'test').fatal('database unavailable');
-    expect(stderr).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(stderr.mock.calls[0][0])).level).toBe('FATAL');
-  });
-});
+  error(message: unknown, stackOrContext?: string, context?: string): void {
+    const entry = this.asEntry(message);
+    if (stackOrContext && context) {
+      entry.stack = stackOrContext;
+      entry.context = context;
+    } else if (stackOrContext) {
+      if (stackOrContext.includes('\n') || stackOrContext.startsWith('Error:')) entry.stack = stackOrContext;
+      else entry.context = stackOrContext;
+    }
+    this.emit('ERROR', entry);
+  }
+
+  private write(level: LogLevel, message: unknown, context?: string): void {
+    if (LEVELS[level] < this.threshold) return;
+    const entry = this.asEntry(message);
+    if (context && !entry.context) entry.context = context;
+    this.emit(level, entry);
+  }
+
+  private asEntry(message: unknown): Record<string, unknown> {
+    if (message && typeof message === 'object' && !Array.isArray(message)) {
+      return redact(message) as Record<string, unknown>;
+    }
+    return { message: redact(String(message)) };
+  }
+
+  private emit(level: LogLevel, fields: Record<string, unknown>): void {
+    if (LEVELS[level] < this.threshold) return;
+    const entry = {
+      timestamp: new Date().toISOString(),
+      level,
+      environment: this.environment,
+      ...fields,
+    };
+    const line = `${JSON.stringify(entry)}\n`;
+    if (level === 'ERROR' || level === 'FATAL') process.stderr.write(line);
+    else process.stdout.write(line);
+  }
+}
