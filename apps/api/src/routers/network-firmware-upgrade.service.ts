@@ -75,8 +75,9 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
         // Never retry installation automatically. Only retry read-only verification after a delay.
         await this.db.query(
           `UPDATE network_firmware_upgrade_jobs SET verification_claimed_at=now(),
-            error_code='DEVICE_NOT_REACHABLE_YET',
-            error_message='Post-upgrade device verification is waiting for the router to return', updated_at=now()
+            error_code=CASE WHEN status='RECOVERY_REQUIRED' THEN error_code ELSE 'DEVICE_NOT_REACHABLE_YET' END,
+            error_message=CASE WHEN status='RECOVERY_REQUIRED' THEN error_message ELSE 'Post-upgrade device verification is waiting for the router to return' END,
+            updated_at=now()`
            WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status IN ('VERIFYING','RECOVERY_REQUIRED')`,
           [job.tenantId, job.routerId, job.id],
         );
