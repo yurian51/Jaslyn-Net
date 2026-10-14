@@ -1,6 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Client } from 'pg';
+import { findLegacyMigrationAlias, gitBlobSha } from './migration-aliases';
+import { stripOuterTransactionWrapper } from './migration-sql';
 
 const MIGRATION_LOCK_KEY = 7_421_931;
 
@@ -52,16 +54,26 @@ async function main() {
     console.log('Migration runner: migration lock acquired');
 
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
+    const appliedRows = await client.query<{ version: string }>('SELECT version FROM schema_migrations');
+    const appliedVersions = new Set(appliedRows.rows.map((row) => row.version));
 
     const migrationDir = join(process.cwd(), 'migrations');
-    const files = (await readdir(migrationDir)).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
+    const files = (await readdir(migrationDir)).filter((file) => /^\d+[a-z]?_.+\.sql$/.test(file)).sort();
 
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');
-      const applied = await client.query('SELECT 1 FROM schema_migrations WHERE version = $1', [version]);
-      if (applied.rowCount) continue;
+      if (appliedVersions.has(version)) continue;
 
-      const sql = await readFile(join(migrationDir, file), 'utf8');
+      const rawSql = await readFile(join(migrationDir, file), 'utf8');
+      const legacyAlias = findLegacyMigrationAlias(version, appliedVersions, gitBlobSha(rawSql));
+      if (legacyAlias) {
+        await client.query('INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING', [version]);
+        appliedVersions.add(version);
+        console.log(`Skipping migration ${version}; identical legacy migration ${legacyAlias} is already applied`);
+        continue;
+      }
+
+      const sql = stripOuterTransactionWrapper(rawSql);
       console.log(`Applying migration ${version}`);
       await client.query('BEGIN');
       try {
@@ -69,6 +81,7 @@ async function main() {
         await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
         await client.query('COMMIT');
         console.log(`Applied migration ${version}`);
+        appliedVersions.add(version);
       } catch (error) {
         await client.query('ROLLBACK');
         console.error(`Migration failed: ${version}`);

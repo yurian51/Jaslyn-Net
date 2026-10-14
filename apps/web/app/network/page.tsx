@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import QRCode from 'qrcode';
@@ -28,6 +29,27 @@ type Router = {
 };
 
 type RouterResponse = { data: Router[] };
+type FirmwareLive = {
+  routerId: string;
+  vendor: string;
+  model?: string;
+  identity: { model: string; architecture: string; version: string; factoryFirmware: string };
+  update: { status: string; installedVersion: string; latestVersion: string; channel: string; mode: string; checkCertificate: string };
+  inventoryStatus: string;
+};
+type FirmwareJob = {
+  id: string;
+  status: string;
+  targetVersion: string;
+  preview?: { safeToExecute?: boolean; blockers?: string[]; backupReceiptId?: string; message?: string };
+  errorMessage?: string;
+  observedVersionAfter?: string;
+};
+type FirmwareJobResponse = { data: FirmwareJob[] };
+
+function toLocalDateTimeInput(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 const MANAGEMENT_PROTOCOLS = [
   ['MIKROTIK_REST', 'MikroTik RouterOS REST'],
@@ -103,6 +125,13 @@ export default function NetworkPage() {
   const [qrRouter, setQrRouter] = useState<Router | null>(null);
   const [qrData, setQrData] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [firmwareRouter, setFirmwareRouter] = useState<Router | null>(null);
+  const [firmwareLive, setFirmwareLive] = useState<FirmwareLive | null>(null);
+  const [firmwareJob, setFirmwareJob] = useState<FirmwareJob | null>(null);
+  const [firmwareBusy, setFirmwareBusy] = useState(false);
+  const [firmwareError, setFirmwareError] = useState<string | null>(null);
+  const [maintenanceStart, setMaintenanceStart] = useState('');
+  const [maintenanceEnd, setMaintenanceEnd] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -222,6 +251,111 @@ export default function NetworkPage() {
     );
   }, [query, routers]);
 
+  function openFirmware(router: Router) {
+    setFirmwareRouter(router);
+    setFirmwareLive(null);
+    setFirmwareJob(null);
+    setFirmwareError(null);
+    setMaintenanceStart(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
+    setMaintenanceEnd(toLocalDateTimeInput(new Date(Date.now() + 2 * 60 * 60 * 1000)));
+    void loadExistingFirmwareJob(router);
+  }
+
+  async function firmwareRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    const token = getAccessToken();
+    if (!token) throw new Error('Authentication required.');
+    return apiFetch<T>(path, {
+      method,
+      headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  }
+
+  async function loadExistingFirmwareJob(router: Router) {
+    try {
+      const result = await firmwareRequest<FirmwareJobResponse>('/routers/' + router.id + '/firmware/upgrades');
+      const existing = result.data.find((item) => !['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(item.status)) ?? result.data[0];
+      if (existing) setFirmwareJob(existing);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Unable to load firmware job history.');
+    }
+  }
+
+  async function inspectFirmware() {
+    if (!firmwareRouter) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<FirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/live');
+      setFirmwareLive(result);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Live firmware inspection failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function previewFirmware() {
+    if (!firmwareRouter || !firmwareLive) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<FirmwareJob>('/routers/' + firmwareRouter.id + '/firmware/upgrades/preview', 'POST', {
+        targetVersion: firmwareLive.update.latestVersion,
+        releaseSourceUrl: 'https://mikrotik.com/download',
+        idempotencyKey: 'firmware-' + firmwareRouter.id + '-' + Date.now() + '-' + crypto.randomUUID(),
+        maintenanceWindowStart: new Date(maintenanceStart).toISOString(),
+        maintenanceWindowEnd: new Date(maintenanceEnd).toISOString(),
+      });
+      setFirmwareJob(result);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Firmware preflight failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function prepareFirmwareBackup() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      await firmwareRequest('/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/backup', 'POST');
+      setFirmwareJob((current) => current ? { ...current, status: 'AWAITING_APPROVAL', preview: { ...current.preview, safeToExecute: true, blockers: [] } } : current);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Encrypted backup preparation failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function approveFirmware() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<{ status: string }>('/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/approve', 'POST');
+      setFirmwareJob((current) => current ? { ...current, status: result.status } : current);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Firmware approval or installation failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function refreshFirmwareJob() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<FirmwareJobResponse>('/routers/' + firmwareRouter.id + '/firmware/upgrades');
+      const updated = result.data.find((item) => item.id === firmwareJob.id);
+      if (updated) setFirmwareJob(updated);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Unable to refresh firmware job.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function verifyFirmwareNow() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<{ status: string; observedVersionAfter?: string; installedVersion?: string }>(
+        '/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/verify', 'POST',
+      );
+      setFirmwareJob((current) => current ? { ...current, status: result.status, observedVersionAfter: result.installedVersion ?? result.observedVersionAfter } : current);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Post-upgrade verification failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
   return (
     <main className="network-page">
       <header className="network-header">
@@ -234,6 +368,9 @@ export default function NetworkPage() {
           </div>
         </div>
         <div className="network-actions">
+          <Link className="network-button secondary" href="/fiber-ops">Fiber GIS</Link>
+          <Link className="network-button secondary" href="/network-auto-healing">Auto-healing</Link>
+          <Link className="network-button secondary" href="/enterprise-capabilities">Enterprise</Link>
           <button className="network-button secondary" type="button" onClick={() => void load()} disabled={loading}>
             <Icon name="refresh" />
             <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
@@ -371,6 +508,7 @@ export default function NetworkPage() {
                 <th>Management</th>
                 <th>Last seen</th>
                 <th>Status</th>
+                <th>Firmware</th>
                 <th>Asset QR</th>
               </tr>
             </thead>
@@ -387,6 +525,9 @@ export default function NetworkPage() {
                     <span className={`network-status ${(router.status ?? 'UNKNOWN').toLowerCase()}`}><i />{router.status ?? 'UNKNOWN'}</span>
                     {router.syncError ? <small className="network-sync-error">{router.syncError}</small> : null}
                   </td>
+                  <td>{router.managementProtocol === 'MIKROTIK_REST' && /mikrotik/i.test(router.vendor ?? '')
+                    ? <button type="button" className="network-button secondary network-qr-button" onClick={() => openFirmware(router)}>Firmware</button>
+                    : <span className="network-firmware-unavailable">Not enabled</span>}</td>
                   <td><button type="button" className="network-button secondary network-qr-button" onClick={() => setQrRouter(router)}>QR / Print</button></td>
                 </tr>
               ))}
@@ -411,6 +552,64 @@ export default function NetworkPage() {
           ) : null}
         </div>
       </section>
+
+      {firmwareRouter ? (
+        <div className="network-qr-backdrop" role="dialog" aria-modal="true" aria-labelledby="network-firmware-title">
+          <section className="network-firmware-card">
+            <button type="button" className="network-qr-close" onClick={() => setFirmwareRouter(null)} aria-label="Close firmware dialog">×</button>
+            <span className="network-qr-kicker">JASLYN NET · FIRMWARE LIFECYCLE</span>
+            <h2 id="network-firmware-title">{firmwareRouter.name}</h2>
+            <p>{firmwareRouter.vendor} · {firmwareRouter.model ?? 'Model not set'} · MikroTik RouterOS</p>
+            {firmwareError ? <div className="network-error" role="alert">{firmwareError}</div> : null}
+            <div className="network-firmware-actions">
+              <button type="button" className="network-button primary" onClick={() => void inspectFirmware()} disabled={firmwareBusy}>
+                {firmwareBusy ? 'Working…' : 'Inspect live firmware'}
+              </button>
+            </div>
+            {firmwareLive ? (
+              <div className="network-firmware-details">
+                <div><span>Device model</span><strong>{firmwareLive.identity.model || firmwareLive.model || 'Unknown'}</strong></div>
+                <div><span>Architecture</span><strong>{firmwareLive.identity.architecture || 'Unknown'}</strong></div>
+                <div><span>Installed version</span><strong>{firmwareLive.update.installedVersion}</strong></div>
+                <div><span>Official latest version</span><strong>{firmwareLive.update.latestVersion}</strong></div>
+                <div><span>Channel</span><strong>{firmwareLive.update.channel}</strong></div>
+                <div><span>Update status</span><strong>{firmwareLive.update.status}</strong></div>
+              </div>
+            ) : <p className="network-firmware-note">Inspect the router over authenticated HTTPS to read its live model and official MikroTik update-channel version.</p>}
+            {firmwareLive && firmwareLive.update.installedVersion !== firmwareLive.update.latestVersion ? (
+              <div className="network-firmware-plan">
+                <h3>Plan one-device upgrade</h3>
+                <p>Choose a maintenance window. Jaslyn Net will export and encrypt a configuration backup before asking for approval.</p>
+                <label>Maintenance starts<input type="datetime-local" value={maintenanceStart} onChange={(event) => setMaintenanceStart(event.target.value)} /></label>
+                <label>Maintenance ends<input type="datetime-local" value={maintenanceEnd} onChange={(event) => setMaintenanceEnd(event.target.value)} /></label>
+                <button type="button" className="network-button primary" onClick={() => void previewFirmware()} disabled={firmwareBusy || !maintenanceStart || !maintenanceEnd}>
+                  {firmwareBusy ? 'Checking…' : 'Create upgrade preview'}
+                </button>
+              </div>
+            ) : null}
+            {firmwareJob ? (
+              <div className="network-firmware-job">
+                <div className="network-firmware-job-head"><span>Upgrade job</span><strong>{firmwareJob.status}</strong></div>
+                <p>Target: {firmwareJob.targetVersion}</p>
+                {firmwareJob.preview?.blockers?.length ? <p>Preflight notes: {firmwareJob.preview.blockers.join(', ')}</p> : null}
+                {firmwareJob.errorMessage ? <p role="alert">{firmwareJob.errorMessage}</p> : null}
+                <div className="network-firmware-actions">
+                  {firmwareJob.status === 'BLOCKED' ? <button type="button" className="network-button secondary" onClick={() => void prepareFirmwareBackup()} disabled={firmwareBusy}>Create encrypted backup</button> : null}
+                  {firmwareJob.status === 'AWAITING_APPROVAL' ? <button type="button" className="network-button primary" onClick={() => void approveFirmware()} disabled={firmwareBusy}>Approve & install</button> : null}
+                  {['VERIFYING', 'RECOVERY_REQUIRED', 'SUCCEEDED', 'FAILED'].includes(firmwareJob.status) ? (
+                    <>
+                      <button type="button" className="network-button secondary" onClick={() => void refreshFirmwareJob()} disabled={firmwareBusy}>Refresh status</button>
+                      {['VERIFYING', 'RECOVERY_REQUIRED'].includes(firmwareJob.status) ? <button type="button" className="network-button secondary" onClick={() => void verifyFirmwareNow()} disabled={firmwareBusy}>Verify now</button> : null}
+                    </>
+                  ) : null}
+                </div>
+                {firmwareJob.observedVersionAfter ? <p>Observed after upgrade: {firmwareJob.observedVersionAfter}</p> : null}
+              </div>
+            ) : null}
+            <p className="network-firmware-note">Firmware updates can interrupt connectivity. Approve only inside the maintenance window. Other vendors remain disabled until their executors are verified.</p>
+          </section>
+        </div>
+      ) : null}
 
       {qrRouter ? (
         <div className="network-qr-backdrop" role="dialog" aria-modal="true" aria-labelledby="network-qr-title">

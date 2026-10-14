@@ -52,14 +52,18 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
           : response.statusCode ?? 200;
     const requestId = request.requestId ?? '-';
     const correlationId = request.correlationId ?? getCorrelationId() ?? requestId;
-
-    this.logger.log(JSON.stringify({
+    const event = {
+      event: 'http.request.completed',
       requestId,
       correlationId,
       method: request.method ?? 'UNKNOWN',
       path,
       status,
       durationMs: Number(durationMs.toFixed(2)),
-    }));
+    };
+
+    if (status >= 500) this.logger.error(event);
+    else if (status >= 400) this.logger.warn(event);
+    else this.logger.log(event);
   }
 }

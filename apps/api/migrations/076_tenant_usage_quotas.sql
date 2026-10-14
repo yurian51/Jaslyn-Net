@@ -20,7 +20,7 @@ BEGIN
   IF TG_TABLE_NAME='suppliers' AND NEW.status<>'ACTIVE' THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='purchase_orders' THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='routers' THEN v_metric:='routers';
-  ELSIF TG_TABLE_NAME='sites' THEN v_metric:='sites';
+  ELSIF TG_TABLE_NAME='network_sites' THEN v_metric:='sites';
   ELSIF TG_TABLE_NAME='customers' THEN v_metric:='customers';
   ELSIF TG_TABLE_NAME='inventory_items' THEN v_metric:='inventory_items';
   ELSIF TG_TABLE_NAME='suppliers' THEN v_metric:='suppliers';
@@ -76,7 +76,7 @@ DECLARE v_metric text;
 BEGIN
   v_metric:=CASE TG_TABLE_NAME
     WHEN 'routers' THEN 'routers_created'
-    WHEN 'sites' THEN 'sites_created'
+    WHEN 'network_sites' THEN 'sites_created'
     WHEN 'customers' THEN 'customers_created'
     WHEN 'inventory_items' THEN 'inventory_items_created'
     WHEN 'suppliers' THEN 'suppliers_created'
@@ -93,7 +93,7 @@ END; $$;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['routers','sites','customers','inventory_items','suppliers','purchase_orders','platform_api_keys','tenant_webhook_endpoints'] LOOP
+  FOREACH t IN ARRAY ARRAY['routers','network_sites','customers','inventory_items','suppliers','purchase_orders','platform_api_keys','tenant_webhook_endpoints'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_tenant_quota ON %I',t);
     EXECUTE format('CREATE TRIGGER jaslyn_tenant_quota BEFORE INSERT OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION jaslyn_enforce_tenant_quota()',t);
     EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_tenant_usage_counter ON %I',t);
