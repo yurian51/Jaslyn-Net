@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS integration_connections (
   updated_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, provider_key)
 );
 -- Composite FK targets must have a matching unique key. Keep this idempotent because
