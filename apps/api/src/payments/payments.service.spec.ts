@@ -14,7 +14,7 @@ describe('PaymentsService', () => {
         if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
         if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
         if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
-        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa' }] };
+        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa', purchaseId: '00000000-0000-0000-0000-000000000001' }] };
         return { rowCount: 0, rows: [] };
       }),
       release: jest.fn(),
@@ -23,6 +23,30 @@ describe('PaymentsService', () => {
     const result = await serviceWith(db).createIntent('tenant-1', { purchaseId: '00000000-0000-0000-0000-000000000001', provider: 'mpesa' });
 
     expect(result).toMatchObject({ id: 'pay-1', reused: true });
+    expect(client.release).toHaveBeenCalled();
+  });
+
+  it('rejects an idempotency key reused for a different purchase', async () => {
+    const client = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
+        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
+        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{
+          id: 'pay-existing', status: 'PENDING', provider: 'mpesa',
+          purchaseId: '00000000-0000-0000-0000-000000000099',
+        }] };
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const db = { connect: jest.fn().mockResolvedValue(client) } as unknown as Pool;
+    await expect(serviceWith(db).createIntent('tenant-1', {
+      purchaseId: '00000000-0000-0000-0000-000000000001',
+      provider: 'mpesa',
+      idempotencyKey: 'reused-key-1234567890',
+    })).rejects.toThrow('Idempotency key is already bound to another purchase');
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK');
     expect(client.release).toHaveBeenCalled();
   });
 
