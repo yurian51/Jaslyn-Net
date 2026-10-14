@@ -11,7 +11,7 @@ export type AuditContext = {
   userAgent?: string;
 };
 
-const SENSITIVE_KEY = /(?:password|passwd|passcode|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|credential|authorization|cookie|session[-_]?token|private[-_]?key|encrypted)/i;
+const SENSITIVE_KEY = /(?:password|passwd|passcode|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|credential|user[-_]?name|authorization|cookie|session[-_]?token|private[-_]?key|encrypted)/i;
 const REDACTED = '[REDACTED]';
 const MAX_METADATA_DEPTH = 8;
 const MAX_METADATA_KEYS = 200;
@@ -27,7 +27,11 @@ function sanitizeMetadata(value: unknown, depth = 0): unknown {
 
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>).slice(0, MAX_METADATA_KEYS)) {
-    output[key] = SENSITIVE_KEY.test(key) ? REDACTED : sanitizeMetadata(child, depth + 1);
+    if (SENSITIVE_KEY.test(key) && (child === null || typeof child !== 'object')) {
+      output[key] = REDACTED;
+    } else {
+      output[key] = sanitizeMetadata(child, depth + 1);
+    }
   }
   return output;
 }
