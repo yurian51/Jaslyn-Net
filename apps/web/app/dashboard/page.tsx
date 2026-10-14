@@ -240,7 +240,7 @@ export default function DashboardPage() {
     <main className="overview-page">
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
-          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASORA · NETWORK OPERATIONS <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
+          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN ONE · NETWORK OPERATIONS <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
           <h2 id="operator-welcome-title">{greeting}, {operatorName}!</h2>
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
