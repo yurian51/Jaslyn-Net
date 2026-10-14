@@ -16,6 +16,24 @@ export class RoutersService {
     private readonly incidents: IncidentsService,
   ) {}
 
+  private validateMerakiManagementCredentials(
+    protocol: string,
+    credentials?: CreateRouterDto['managementCredentials'],
+    existing?: { managementProtocol?: string; managementCredentialsConfigured?: boolean },
+    clearCredentials = false,
+  ) {
+    if (protocol !== 'MERAKI_DASHBOARD_API') return;
+    if (credentials) {
+      if (!credentials.apiKey?.trim() || !credentials.networkId?.trim() || !credentials.productType?.trim()) {
+        throw new BadRequestException('Cisco Meraki requires an API key, network ID and product type before registration or credential replacement');
+      }
+      return;
+    }
+    if (clearCredentials || existing?.managementProtocol !== 'MERAKI_DASHBOARD_API' || existing.managementCredentialsConfigured !== true) {
+      throw new BadRequestException('Cisco Meraki requires encrypted Dashboard API credentials before enabling this management protocol');
+    }
+  }
+
   private readonly selectRouter = `SELECT id, name, vendor, model, ip_address AS "ipAddress", mac_address::text AS "macAddress",
               os_version AS "osVersion", status, active_users AS "activeUsers", location_id AS "locationId",
               last_seen_at AS "lastSeenAt", api_enabled AS "apiEnabled", api_endpoint AS "apiEndpoint",
@@ -77,6 +95,7 @@ export class RoutersService {
       if (!location.rowCount) throw new NotFoundException('Location not found');
     }
     const managementProtocol = this.resolveManagementProtocol(input.vendor, input.managementProtocol);
+    this.validateMerakiManagementCredentials(managementProtocol, input.managementCredentials);
     const capabilities = this.capabilityMetadata(input.vendor, managementProtocol);
     const encryptedCredentials = this.encryptCredentials(input.managementCredentials);
     const result = await this.db.query(
@@ -115,6 +134,7 @@ export class RoutersService {
     const locationExpression = input.clearLocation ? 'NULL' : 'COALESCE($9,location_id)';
     const nextVendor = input.vendor ?? existing.vendor;
     const nextProtocol = input.managementProtocol ?? (input.vendor ? this.resolveManagementProtocol(nextVendor) : this.resolveManagementProtocol(nextVendor, existing.managementProtocol));
+    this.validateMerakiManagementCredentials(nextProtocol, input.managementCredentials, existing, input.clearManagementCredentials === true);
     const capabilities = this.capabilityMetadata(nextVendor, nextProtocol);
     const hasCatalogMetadata = Object.keys(capabilities).length > 0;
     const encryptedCredentials = this.encryptCredentials(input.managementCredentials);

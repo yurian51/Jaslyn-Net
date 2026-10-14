@@ -24,7 +24,7 @@ export class NetworkAdapterRegistry {
       lifecycle: 'NATIVE',
       supportScope: 'ENFORCEMENT_AND_TELEMETRY',
       liveDeviceValidationRequired: true,
-      capabilities: ['bandwidth_enforcement', 'client_sessions', 'device_inventory'],
+      capabilities: ['bandwidth_enforcement', 'client_sessions', 'device_inventory', 'firmware_inspection', 'firmware_schedule', 'firmware_verification'],
     },
     { protocol: 'OMADA_CONTROLLER_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'RUIJIE_REYEE_CLOUD_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },

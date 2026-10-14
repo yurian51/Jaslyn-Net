@@ -17,6 +17,8 @@ export interface NetworkCredentials {
   omadacId?: string;
   siteId?: string;
   groupId?: string;
+  networkId?: string;
+  productType?: string;
 }
 
 type Keyring = { activeId: string; keys: Map<string, Buffer> };

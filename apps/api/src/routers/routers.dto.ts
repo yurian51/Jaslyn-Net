@@ -18,6 +18,8 @@ export class NetworkCredentialsDto {
   @IsOptional() @IsString() @MaxLength(2000) refreshToken?: string;
   @IsOptional() @IsString() @MaxLength(200) omadacId?: string;
   @IsOptional() @IsString() @MaxLength(200) siteId?: string;
+  @IsOptional() @IsString() @MaxLength(160) networkId?: string;
+  @IsOptional() @IsIn(['wireless', 'appliance', 'switch', 'camera', 'cellularGateway', 'sensor', 'wirelessController', 'campusGateway', 'secureConnect', 'switchCatalyst']) productType?: string;
   @IsOptional() @IsString() @MaxLength(200) groupId?: string;
 }
 
@@ -52,6 +54,19 @@ export class UpdateRouterDto {
   @IsOptional() @IsUrl({ protocols: ['https', 'http'], require_protocol: true }) @MaxLength(300) controllerEndpoint?: string;
   @IsOptional() @ValidateNested() @Type(() => NetworkCredentialsDto) managementCredentials?: NetworkCredentialsDto;
   @IsOptional() @IsBoolean() clearManagementCredentials?: boolean;
+}
+
+
+export class MerakiFirmwareScheduleDto {
+  @IsString() @MaxLength(160) targetVersion!: string;
+  @IsString() @MaxLength(40) scheduledAt!: string;
+  @IsString() @MaxLength(100) timezone!: string;
+  @IsBoolean() approved!: boolean;
+}
+
+export class MerakiFirmwareVerifyDto {
+  @IsString() @MaxLength(160) targetVersion!: string;
+  @IsString() @MaxLength(40) scheduledAt!: string;
 }
 
 export class RouterHeartbeatDto {

@@ -46,6 +46,26 @@ type FirmwareJob = {
   observedVersionAfter?: string;
 };
 type FirmwareJobResponse = { data: FirmwareJob[] };
+type MerakiFirmwareLive = {
+  networkId: string;
+  productType: string;
+  currentVersion: { id: string; firmware?: string; shortName?: string } | null;
+  availableVersions: Array<{ id: string; firmware?: string; shortName?: string; releaseType?: string }>;
+  isUpgradeAvailable: boolean;
+  nextUpgrade: { time?: string; toVersion?: { id?: string; firmware?: string } } | null;
+  timezone?: string;
+  upgradeWindow?: unknown;
+};
+type MerakiFirmwareSchedule = { status: string; targetVersion: string; scheduledAt: string; verification: string };
+type MerakiFirmwareVerification = {
+  status: 'COMPLETED' | 'SCHEDULED' | 'PENDING_VERIFICATION' | 'NEEDS_ATTENTION' | string;
+  targetVersion: string;
+  installedVersion?: string | null;
+  scheduledTarget?: string | null;
+  scheduledAt?: string | null;
+  verifiedAt: string;
+  evidence: string;
+};
 
 function toLocalDateTimeInput(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -88,6 +108,8 @@ const INITIAL_FORM = {
   clientSecret: '',
   accessToken: '',
   refreshToken: '',
+  networkId: '',
+  productType: 'wireless',
 };
 
 type DeviceForm = typeof INITIAL_FORM;
@@ -127,6 +149,11 @@ export default function NetworkPage() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [firmwareRouter, setFirmwareRouter] = useState<Router | null>(null);
   const [firmwareLive, setFirmwareLive] = useState<FirmwareLive | null>(null);
+  const [merakiLive, setMerakiLive] = useState<MerakiFirmwareLive | null>(null);
+  const [merakiTarget, setMerakiTarget] = useState('');
+  const [merakiScheduledAt, setMerakiScheduledAt] = useState('');
+  const [merakiTimezone, setMerakiTimezone] = useState('Africa/Dar_es_Salaam');
+  const [merakiScheduleResult, setMerakiScheduleResult] = useState<MerakiFirmwareSchedule | null>(null);\n  const [merakiVerification, setMerakiVerification] = useState<MerakiFirmwareVerification | null>(null);
   const [firmwareJob, setFirmwareJob] = useState<FirmwareJob | null>(null);
   const [firmwareBusy, setFirmwareBusy] = useState(false);
   const [firmwareError, setFirmwareError] = useState<string | null>(null);
@@ -193,6 +220,11 @@ export default function NetworkPage() {
       return;
     }
 
+    if (form.managementProtocol === 'MERAKI_DASHBOARD_API' && (!form.apiKey.trim() || !form.networkId.trim() || !form.productType.trim())) {
+      setError('Cisco Meraki registration requires a Dashboard API key, network ID and product type.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -205,6 +237,8 @@ export default function NetworkPage() {
         clientSecret: form.clientSecret,
         accessToken: form.accessToken,
         refreshToken: form.refreshToken,
+        networkId: form.managementProtocol === 'MERAKI_DASHBOARD_API' ? form.networkId : '',
+        productType: form.managementProtocol === 'MERAKI_DASHBOARD_API' ? form.productType : '',
       }).filter(([, value]) => value.trim()),
     );
 
@@ -254,11 +288,16 @@ export default function NetworkPage() {
   function openFirmware(router: Router) {
     setFirmwareRouter(router);
     setFirmwareLive(null);
+    setMerakiLive(null);
+    setMerakiTarget('');
+    setMerakiScheduleResult(null);
+    setMerakiScheduledAt(toLocalDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
+    setMerakiTimezone('Africa/Dar_es_Salaam');
     setFirmwareJob(null);
     setFirmwareError(null);
     setMaintenanceStart(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
     setMaintenanceEnd(toLocalDateTimeInput(new Date(Date.now() + 2 * 60 * 60 * 1000)));
-    void loadExistingFirmwareJob(router);
+    if (router.managementProtocol === 'MIKROTIK_REST') void loadExistingFirmwareJob(router);
   }
 
   async function firmwareRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -289,6 +328,58 @@ export default function NetworkPage() {
       setFirmwareLive(result);
     } catch (cause: unknown) {
       setFirmwareError(cause instanceof Error ? cause.message : 'Live firmware inspection failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function inspectMerakiFirmware() {
+    if (!firmwareRouter) return;
+    setFirmwareBusy(true); setFirmwareError(null); setMerakiScheduleResult(null); setMerakiVerification(null);
+    try {
+      const result = await firmwareRequest<MerakiFirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/meraki/live');
+      setMerakiLive(result);
+      setMerakiTimezone(result.timezone || 'Africa/Dar_es_Salaam');
+      setMerakiTarget(result.nextUpgrade?.toVersion?.id ?? result.availableVersions[0]?.id ?? '');
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Meraki firmware inspection failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function scheduleMerakiFirmware() {
+    if (!firmwareRouter || !merakiLive || !merakiTarget || !merakiScheduledAt) return;
+    if (!window.confirm('Schedule the selected Meraki firmware for the entire configured network product? This changes the vendor Dashboard schedule.')) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<MerakiFirmwareSchedule>('/routers/' + firmwareRouter.id + '/firmware/meraki/schedule', 'POST', {
+        targetVersion: merakiTarget,
+        scheduledAt: new Date(merakiScheduledAt).toISOString(),
+        timezone: merakiTimezone,
+        approved: true,
+      });
+      setMerakiScheduleResult(result);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Meraki firmware scheduling failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function verifyMerakiFirmware() {
+    if (!firmwareRouter || !merakiLive) return;
+    const targetVersion = merakiScheduleResult?.targetVersion || merakiLive.nextUpgrade?.toVersion?.id || merakiTarget;
+    const scheduledAt = merakiScheduleResult?.scheduledAt || merakiLive.nextUpgrade?.time || merakiScheduledAt;
+    if (!targetVersion || !scheduledAt) {
+      setFirmwareError('Choose or schedule a target version before checking completion.');
+      return;
+    }
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<MerakiFirmwareVerification>(
+        '/routers/' + firmwareRouter.id + '/firmware/meraki/verify', 'POST',
+        { targetVersion, scheduledAt: new Date(scheduledAt).toISOString() },
+      );
+      setMerakiVerification(result);
+      const live = await firmwareRequest<MerakiFirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/meraki/live');
+      setMerakiLive(live);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Meraki firmware completion verification failed.');
     } finally { setFirmwareBusy(false); }
   }
 
@@ -433,6 +524,7 @@ export default function NetworkPage() {
             <span>Quick setup</span>
             <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'MikroTik Router', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST' })}>MikroTik</button>
             <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Omada EAP', vendor: 'TP-Link Omada', managementProtocol: 'OMADA_CONTROLLER_API' })}>Omada</button>
+            <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Cisco Meraki Network', vendor: 'Cisco Meraki', managementProtocol: 'MERAKI_DASHBOARD_API' })}>Cisco Meraki</button>
             <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'RADIUS NAS', vendor: 'RADIUS NAS', managementProtocol: 'RADIUS_NAS' })}>RADIUS NAS</button>
           </div>
 
@@ -469,6 +561,10 @@ export default function NetworkPage() {
                 <label>Client secret<input type="password" autoComplete="new-password" maxLength={500} value={form.clientSecret} onChange={(event) => setField('clientSecret', event.target.value)} placeholder="Client secret" /></label>
                 <label>Access token<input type="password" autoComplete="off" maxLength={2000} value={form.accessToken} onChange={(event) => setField('accessToken', event.target.value)} placeholder="Access token" /></label>
                 <label>Refresh token<input type="password" autoComplete="off" maxLength={2000} value={form.refreshToken} onChange={(event) => setField('refreshToken', event.target.value)} placeholder="Refresh token" /></label>
+                {form.managementProtocol === 'MERAKI_DASHBOARD_API' ? <>
+                  <label>Meraki network ID<input maxLength={160} value={form.networkId} onChange={(event) => setField('networkId', event.target.value)} placeholder="Network ID from Dashboard" /></label>
+                  <label>Meraki product type<select value={form.productType} onChange={(event) => setField('productType', event.target.value)}>{['wireless','appliance','switch','camera','cellularGateway','sensor','wirelessController','campusGateway','secureConnect','switchCatalyst'].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                </> : null}
               </div>
             </div>
 
@@ -527,7 +623,9 @@ export default function NetworkPage() {
                   </td>
                   <td>{router.managementProtocol === 'MIKROTIK_REST' && /mikrotik/i.test(router.vendor ?? '')
                     ? <button type="button" className="network-button secondary network-qr-button" onClick={() => openFirmware(router)}>Firmware</button>
-                    : <span className="network-firmware-unavailable">Not enabled</span>}</td>
+                    : router.managementProtocol === 'MERAKI_DASHBOARD_API' && /meraki|cisco/i.test(router.vendor ?? '')
+                      ? <button type="button" className="network-button secondary network-qr-button" onClick={() => openFirmware(router)}>Firmware</button>
+                      : <span className="network-firmware-unavailable">Not enabled</span>}</td>
                   <td><button type="button" className="network-button secondary network-qr-button" onClick={() => setQrRouter(router)}>QR / Print</button></td>
                 </tr>
               ))}
@@ -559,14 +657,23 @@ export default function NetworkPage() {
             <button type="button" className="network-qr-close" onClick={() => setFirmwareRouter(null)} aria-label="Close firmware dialog">×</button>
             <span className="network-qr-kicker">JASLYN NET · FIRMWARE LIFECYCLE</span>
             <h2 id="network-firmware-title">{firmwareRouter.name}</h2>
-            <p>{firmwareRouter.vendor} · {firmwareRouter.model ?? 'Model not set'} · MikroTik RouterOS</p>
+            <p>{firmwareRouter.vendor} · {firmwareRouter.model ?? 'Model not set'} · {firmwareRouter.managementProtocol === 'MERAKI_DASHBOARD_API' ? 'Meraki Dashboard-managed firmware' : 'MikroTik RouterOS'}</p>
             {firmwareError ? <div className="network-error" role="alert">{firmwareError}</div> : null}
             <div className="network-firmware-actions">
-              <button type="button" className="network-button primary" onClick={() => void inspectFirmware()} disabled={firmwareBusy}>
+              <button type="button" className="network-button primary" onClick={() => firmwareRouter.managementProtocol === 'MERAKI_DASHBOARD_API' ? void inspectMerakiFirmware() : void inspectFirmware()} disabled={firmwareBusy}>
                 {firmwareBusy ? 'Working…' : 'Inspect live firmware'}
               </button>
             </div>
-            {firmwareLive ? (
+            {firmwareRouter.managementProtocol === 'MERAKI_DASHBOARD_API' ? (
+              merakiLive ? <div className="network-firmware-details">
+                <div><span>Network ID</span><strong>{merakiLive.networkId}</strong></div>
+                <div><span>Product type</span><strong>{merakiLive.productType}</strong></div>
+                <div><span>Installed version</span><strong>{merakiLive.currentVersion?.firmware ?? merakiLive.currentVersion?.id ?? 'Unknown'}</strong></div>
+                <div><span>Scheduled target</span><strong>{merakiLive.nextUpgrade?.toVersion?.firmware ?? merakiLive.nextUpgrade?.toVersion?.id ?? 'None'}</strong></div>
+                <div><span>Scheduled time</span><strong>{merakiLive.nextUpgrade?.time ? formatDate(merakiLive.nextUpgrade.time) : 'Not scheduled'}</strong></div>
+                <div><span>Compatible versions</span><strong>{merakiLive.availableVersions.length}</strong></div>
+              </div> : <p className="network-firmware-note">Read current firmware and compatible versions from the official Meraki Dashboard API. This does not trigger an upgrade.</p>
+            ) : firmwareLive ? (
               <div className="network-firmware-details">
                 <div><span>Device model</span><strong>{firmwareLive.identity.model || firmwareLive.model || 'Unknown'}</strong></div>
                 <div><span>Architecture</span><strong>{firmwareLive.identity.architecture || 'Unknown'}</strong></div>
@@ -575,8 +682,27 @@ export default function NetworkPage() {
                 <div><span>Channel</span><strong>{firmwareLive.update.channel}</strong></div>
                 <div><span>Update status</span><strong>{firmwareLive.update.status}</strong></div>
               </div>
-            ) : <p className="network-firmware-note">Inspect the router over authenticated HTTPS to read its live model and official MikroTik update-channel version.</p>}
-            {firmwareLive && firmwareLive.update.installedVersion !== firmwareLive.update.latestVersion ? (
+            ) : firmwareRouter.managementProtocol === 'MERAKI_DASHBOARD_API' ? null : <p className="network-firmware-note">Inspect the router over authenticated HTTPS to read its live model and official MikroTik update-channel version.</p>}
+            {firmwareRouter.managementProtocol === 'MERAKI_DASHBOARD_API' && merakiLive ? (
+              <div className="network-firmware-plan">
+                <h3>Schedule Meraki network firmware</h3>
+                <p>This schedules the selected product type for the configured Meraki network in Dashboard. It is not proof the devices have completed the upgrade. Other product schedules are preserved.</p>
+                <label>Target version<select value={merakiTarget} onChange={(event) => setMerakiTarget(event.target.value)}><option value="">Choose a compatible version</option>{merakiLive.availableVersions.map((version) => <option key={version.id} value={version.id}>{version.shortName || version.firmware || version.id}{version.releaseType ? ' · '+version.releaseType : ''}</option>)}</select></label>
+                <label>Schedule at<input type="datetime-local" value={merakiScheduledAt} onChange={(event) => setMerakiScheduledAt(event.target.value)} /></label>
+                <label>Meraki network timezone<input value={merakiTimezone} readOnly aria-readonly="true" /></label><p className="network-firmware-note">Enter the time in this browser’s timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}); Jaslyn Net converts it to an absolute timestamp. The existing Meraki network timezone is shown for reference and preserved.</p>
+                <button type="button" className="network-button primary" onClick={() => void scheduleMerakiFirmware()} disabled={firmwareBusy || !merakiTarget || !merakiScheduledAt || !merakiTimezone}>Confirm and schedule</button>
+                {merakiScheduleResult ? <p role="status">Scheduled {merakiScheduleResult.targetVersion} for {formatDate(merakiScheduleResult.scheduledAt)}. Confirmed by Meraki Dashboard; completion still requires post-upgrade verification.</p> : null}
+                {(merakiScheduleResult || merakiLive.nextUpgrade?.toVersion?.id) ? <button type="button" className="network-button secondary" onClick={() => void verifyMerakiFirmware()} disabled={firmwareBusy}>Verify upgrade completion</button> : null}
+                {merakiVerification ? <div className="network-firmware-details" role="status">
+                  <div><span>Completion status</span><strong>{merakiVerification.status}</strong></div>
+                  <div><span>Target version</span><strong>{merakiVerification.targetVersion}</strong></div>
+                  <div><span>Live installed version</span><strong>{merakiVerification.installedVersion ?? 'Not confirmed'}</strong></div>
+                  <div><span>Checked at</span><strong>{formatDate(merakiVerification.verifiedAt)}</strong></div>
+                  <p>{merakiVerification.evidence}</p>
+                </div> : null}
+              </div>
+            ) : null}
+            {firmwareRouter.managementProtocol === 'MIKROTIK_REST' && firmwareLive && firmwareLive.update.installedVersion !== firmwareLive.update.latestVersion ? (
               <div className="network-firmware-plan">
                 <h3>Plan one-device upgrade</h3>
                 <p>Choose a maintenance window. Jaslyn Net will export and encrypt a configuration backup before asking for approval.</p>
@@ -606,7 +732,7 @@ export default function NetworkPage() {
                 {firmwareJob.observedVersionAfter ? <p>Observed after upgrade: {firmwareJob.observedVersionAfter}</p> : null}
               </div>
             ) : null}
-            <p className="network-firmware-note">Firmware updates can interrupt connectivity. Approve only inside the maintenance window. Other vendors remain disabled until their executors are verified.</p>
+            <p className="network-firmware-note">Firmware updates can interrupt connectivity. MikroTik installs require an approved maintenance window and encrypted backup. Meraki scheduling changes the Dashboard network schedule; inspect the live version again after the scheduled upgrade. Other vendors remain disabled until their executors are verified.</p>
           </section>
         </div>
       ) : null}

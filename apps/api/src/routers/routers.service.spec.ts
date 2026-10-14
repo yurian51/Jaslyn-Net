@@ -92,6 +92,15 @@ describe('RoutersService', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('management_protocol'), expect.arrayContaining(['UNIFI_NETWORK_API']));
   });
 
+  it('requires complete Meraki Dashboard credentials before registering a Meraki adapter', async () => {
+    await expect(service.create('tenant-a', {
+      name: 'Meraki network', vendor: 'Cisco Meraki', managementProtocol: 'MERAKI_DASHBOARD_API',
+      managementCredentials: { apiKey: 'api-key-value' },
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(query).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
   it('re-infers the protocol when an existing router changes vendor', async () => {
     query
       .mockResolvedValueOnce({
