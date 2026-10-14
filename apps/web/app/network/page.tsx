@@ -539,6 +539,64 @@ export default function NetworkPage() {
         </div>
       </section>
 
+      {firmwareRouter ? (
+        <div className="network-qr-backdrop" role="dialog" aria-modal="true" aria-labelledby="network-firmware-title">
+          <section className="network-firmware-card">
+            <button type="button" className="network-qr-close" onClick={() => setFirmwareRouter(null)} aria-label="Close firmware dialog">×</button>
+            <span className="network-qr-kicker">JASLYN NET · FIRMWARE LIFECYCLE</span>
+            <h2 id="network-firmware-title">{firmwareRouter.name}</h2>
+            <p>{firmwareRouter.vendor} · {firmwareRouter.model ?? 'Model not set'} · MikroTik RouterOS</p>
+            {firmwareError ? <div className="network-error" role="alert">{firmwareError}</div> : null}
+            <div className="network-firmware-actions">
+              <button type="button" className="network-button primary" onClick={() => void inspectFirmware()} disabled={firmwareBusy}>
+                {firmwareBusy ? 'Working…' : 'Inspect live firmware'}
+              </button>
+            </div>
+            {firmwareLive ? (
+              <div className="network-firmware-details">
+                <div><span>Device model</span><strong>{firmwareLive.identity.model || firmwareLive.model || 'Unknown'}</strong></div>
+                <div><span>Architecture</span><strong>{firmwareLive.identity.architecture || 'Unknown'}</strong></div>
+                <div><span>Installed version</span><strong>{firmwareLive.update.installedVersion}</strong></div>
+                <div><span>Official latest version</span><strong>{firmwareLive.update.latestVersion}</strong></div>
+                <div><span>Channel</span><strong>{firmwareLive.update.channel}</strong></div>
+                <div><span>Update status</span><strong>{firmwareLive.update.status}</strong></div>
+              </div>
+            ) : <p className="network-firmware-note">Inspect the router over authenticated HTTPS to read its live model and official MikroTik update-channel version.</p>}
+            {firmwareLive && firmwareLive.update.installedVersion !== firmwareLive.update.latestVersion ? (
+              <div className="network-firmware-plan">
+                <h3>Plan one-device upgrade</h3>
+                <p>Choose a maintenance window. Jaslyn Net will export and encrypt a configuration backup before asking for approval.</p>
+                <label>Maintenance starts<input type="datetime-local" value={maintenanceStart} onChange={(event) => setMaintenanceStart(event.target.value)} /></label>
+                <label>Maintenance ends<input type="datetime-local" value={maintenanceEnd} onChange={(event) => setMaintenanceEnd(event.target.value)} /></label>
+                <button type="button" className="network-button primary" onClick={() => void previewFirmware()} disabled={firmwareBusy || !maintenanceStart || !maintenanceEnd}>
+                  {firmwareBusy ? 'Checking…' : 'Create upgrade preview'}
+                </button>
+              </div>
+            ) : null}
+            {firmwareJob ? (
+              <div className="network-firmware-job">
+                <div className="network-firmware-job-head"><span>Upgrade job</span><strong>{firmwareJob.status}</strong></div>
+                <p>Target: {firmwareJob.targetVersion}</p>
+                {firmwareJob.preview?.blockers?.length ? <p>Preflight notes: {firmwareJob.preview.blockers.join(', ')}</p> : null}
+                {firmwareJob.errorMessage ? <p role="alert">{firmwareJob.errorMessage}</p> : null}
+                <div className="network-firmware-actions">
+                  {firmwareJob.status === 'BLOCKED' ? <button type="button" className="network-button secondary" onClick={() => void prepareFirmwareBackup()} disabled={firmwareBusy}>Create encrypted backup</button> : null}
+                  {firmwareJob.status === 'AWAITING_APPROVAL' ? <button type="button" className="network-button primary" onClick={() => void approveFirmware()} disabled={firmwareBusy}>Approve & install</button> : null}
+                  {['VERIFYING', 'RECOVERY_REQUIRED'].includes(firmwareJob.status) ? (
+                    <>
+                      <button type="button" className="network-button secondary" onClick={() => void refreshFirmwareJob()} disabled={firmwareBusy}>Refresh status</button>
+                      <button type="button" className="network-button secondary" onClick={() => void verifyFirmwareNow()} disabled={firmwareBusy}>Verify now</button>
+                    </>
+                  ) : null}
+                </div>
+                {firmwareJob.observedVersionAfter ? <p>Observed after upgrade: {firmwareJob.observedVersionAfter}</p> : null}
+              </div>
+            ) : null}
+            <p className="network-firmware-note">Firmware updates can interrupt connectivity. Approve only inside the maintenance window. Other vendors remain disabled until their executors are verified.</p>
+          </section>
+        </div>
+      ) : null}
+
       {qrRouter ? (
         <div className="network-qr-backdrop" role="dialog" aria-modal="true" aria-labelledby="network-qr-title">
           <section className="network-qr-card">
