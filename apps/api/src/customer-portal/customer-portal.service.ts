@@ -60,7 +60,7 @@ export class CustomerPortalService {
         if(smsStatus.configured){
           const queued=await this.notifications.enqueueSms(tenantId,{
             recipient:phone,
-            message:`Jaslyn Net: Activate your customer account: ${activationUrl}. Link expires in 24 hours.`,
+            message:`Jaslyn Net: Activate your customer account: ${activationUrl} Link expires in 24 hours.`,
             category:'TRANSACTIONAL',
             idempotencyKey:`customer-portal-invitation:${tokenHash}`,
           });
