@@ -52,6 +52,16 @@ export class RoutersController {
     });
   }
 
+  @Get(':id/firmware/live')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  inspectLiveFirmware(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const userAgent = req.headers['user-agent'];
+    return this.firmwareUpgrades.inspectLive(req.user!.tenantId, id, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
   @Get(':id/firmware/upgrades')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
   listFirmwareUpgrades(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
