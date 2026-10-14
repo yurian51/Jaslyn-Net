@@ -96,9 +96,7 @@ export class NetworkFirmwareUpgradeService {
       || !/mikrotik/i.test(String(job.vendor))) {
       throw new ServiceUnavailableException('Pre-upgrade backup preparation currently supports blocked MikroTik RouterOS jobs only');
     }
-    if (job.releaseSourceUrl !== 'https://mikrotik.com/download' || !this.validWindow(
-      new Date(job.maintenanceWindowStart).toISOString(), new Date(job.maintenanceWindowEnd).toISOString(),
-    )) {
+    if (job.releaseSourceUrl !== 'https://mikrotik.com/download' || !this.validWindow(job.maintenanceWindowStart, job.maintenanceWindowEnd)) {
       throw new BadRequestException('A verified MikroTik official release and valid future maintenance window are required');
     }
     const live = await this.inspectLive(tenantId, routerId, context);
@@ -357,7 +355,7 @@ export class NetworkFirmwareUpgradeService {
       );
       await this.db.query(
         `UPDATE network_firmware_upgrade_attempts SET status='SUCCEEDED', finished_at=now(), evidence=$4::jsonb
-         WHERE tenant_id=$1 AND job_id=$2 AND attempt_number=3`,
+         WHERE tenant_id=$1 AND job_id=$2 AND attempt_number=$3`,
         [tenantId, jobId, 3, JSON.stringify(accepted)],
       );
       await this.audit.record(tenantId, 'MIKROTIK_FIRMWARE_INSTALL_ACCEPTED', 'firmware_upgrade_job', jobId,
@@ -392,10 +390,10 @@ export class NetworkFirmwareUpgradeService {
     if (!this.validWindow(input.maintenanceWindowStart, input.maintenanceWindowEnd)) throw new BadRequestException('A valid future maintenance window is required');
   }
 
-  private validWindow(start?: string, end?: string) {
-    if (!start || !end || typeof start !== 'string' || typeof end !== 'string') return false;
-    const a = new Date(start).getTime();
-    const b = new Date(end).getTime();
+  private validWindow(start?: string | Date, end?: string | Date) {
+    if (!start || !end) return false;
+    const a = start instanceof Date ? start.getTime() : new Date(start).getTime();
+    const b = end instanceof Date ? end.getTime() : new Date(end).getTime();
     const now = Date.now();
     return Number.isFinite(a) && Number.isFinite(b) && a > now && b > a && b - a <= 24 * 60 * 60 * 1000;
   }
