@@ -105,7 +105,7 @@ export class MerakiFirmwareExecutor {
     requestedNextUpgrade.time = scheduledAt.toISOString();
     requestedNextUpgrade.toVersion = { id: target.id };
     preservedProducts[credentials.productType] = {
-      ...(preservedProducts[credentials.productType] as Record<string, unknown> ?? {}),
+      ...((preservedProducts[credentials.productType] as Record<string, unknown> | undefined) ?? {}),
       nextUpgrade: requestedNextUpgrade,
       ...(product.participateInNextBetaRelease === undefined ? {} : { participateInNextBetaRelease: product.participateInNextBetaRelease }),
       ...(product.predownload === undefined ? {} : { predownload: product.predownload }),
