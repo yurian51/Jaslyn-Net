@@ -683,7 +683,7 @@ export default function NetworkPage() {
                 {firmwareJob.observedVersionAfter ? <p>Observed after upgrade: {firmwareJob.observedVersionAfter}</p> : null}
               </div>
             ) : null}
-            <p className="network-firmware-note">Firmware updates can interrupt connectivity. Approve only inside the maintenance window. Other vendors remain disabled until their executors are verified.</p>
+            <p className="network-firmware-note">Firmware updates can interrupt connectivity. MikroTik installs require an approved maintenance window and encrypted backup. Meraki scheduling changes the Dashboard network schedule; inspect the live version again after the scheduled upgrade. Other vendors remain disabled until their executors are verified.</p>
           </section>
         </div>
       ) : null}
