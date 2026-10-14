@@ -42,6 +42,7 @@ describe('FiberTopologyService', () => {
 
   it('rejects a router reference from another tenant', async () => {
     db.query.mockResolvedValueOnce({ rows: [], rowCount: 0 }).mockResolvedValueOnce({ rows: [{ id: 'parent-a' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ parent_asset_id: null }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(service.create('tenant-a', 'user-a', {
       assetType: 'ONU', name: 'ONU 2', assetCode: 'ONU-2', parentAssetId: 'parent-a', routerId: 'foreign-router',
