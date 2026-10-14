@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 
 export interface MerakiFirmwareCredentials {
   apiKey: string;
@@ -68,12 +68,15 @@ export class MerakiFirmwareExecutor {
     }
 
     const before = await this.request(credentials, 'GET', this.networkPath(credentials.networkId));
+    if (typeof before.timezone === 'string' && before.timezone !== input.timezone) {
+      throw new BadRequestException('Requested timezone must match the existing Meraki network timezone; change it in Dashboard separately');
+    }
     const products = this.asRecord(before.products, 'products');
     const product = this.asRecord(products[credentials.productType], 'configured product type');
     const available = Array.isArray(product.availableVersions) ? product.availableVersions : [];
     const target = available.find((v) => this.isRecord(v) && (v.id === input.targetVersion || v.firmware === input.targetVersion || v.shortName === input.targetVersion));
     if (!this.isRecord(target) || typeof target.id !== 'string') {
-      throw new ConflictVersionException('Requested firmware is not listed as available by Meraki for this network/product');
+      throw new ConflictException('Requested firmware is not listed as available by Meraki for this network/product');
     }
     const current = this.isRecord(product.currentVersion) ? product.currentVersion : null;
     if (current?.id === target.id) throw new BadRequestException('Requested firmware is already installed');
@@ -165,4 +168,3 @@ export class MerakiFirmwareExecutor {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 }
-class ConflictVersionException extends BadRequestException {}
