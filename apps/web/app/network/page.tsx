@@ -56,6 +56,15 @@ type MerakiFirmwareLive = {
   upgradeWindow?: unknown;
 };
 type MerakiFirmwareSchedule = { status: string; targetVersion: string; scheduledAt: string; verification: string };
+type MerakiFirmwareVerification = {
+  status: 'COMPLETED' | 'SCHEDULED' | 'PENDING_VERIFICATION' | 'NEEDS_ATTENTION' | string;
+  targetVersion: string;
+  installedVersion?: string | null;
+  scheduledTarget?: string | null;
+  scheduledAt?: string | null;
+  verifiedAt: string;
+  evidence: string;
+};
 
 function toLocalDateTimeInput(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -143,7 +152,7 @@ export default function NetworkPage() {
   const [merakiTarget, setMerakiTarget] = useState('');
   const [merakiScheduledAt, setMerakiScheduledAt] = useState('');
   const [merakiTimezone, setMerakiTimezone] = useState('Africa/Dar_es_Salaam');
-  const [merakiScheduleResult, setMerakiScheduleResult] = useState<MerakiFirmwareSchedule | null>(null);
+  const [merakiScheduleResult, setMerakiScheduleResult] = useState<MerakiFirmwareSchedule | null>(null);\n  const [merakiVerification, setMerakiVerification] = useState<MerakiFirmwareVerification | null>(null);
   const [firmwareJob, setFirmwareJob] = useState<FirmwareJob | null>(null);
   const [firmwareBusy, setFirmwareBusy] = useState(false);
   const [firmwareError, setFirmwareError] = useState<string | null>(null);
@@ -318,12 +327,12 @@ export default function NetworkPage() {
 
   async function inspectMerakiFirmware() {
     if (!firmwareRouter) return;
-    setFirmwareBusy(true); setFirmwareError(null); setMerakiScheduleResult(null);
+    setFirmwareBusy(true); setFirmwareError(null); setMerakiScheduleResult(null); setMerakiVerification(null);
     try {
       const result = await firmwareRequest<MerakiFirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/meraki/live');
       setMerakiLive(result);
       setMerakiTimezone(result.timezone || 'Africa/Dar_es_Salaam');
-      setMerakiTarget(result.availableVersions[0]?.id ?? '');
+      setMerakiTarget(result.nextUpgrade?.toVersion?.id ?? result.availableVersions[0]?.id ?? '');
     } catch (cause: unknown) {
       setFirmwareError(cause instanceof Error ? cause.message : 'Meraki firmware inspection failed.');
     } finally { setFirmwareBusy(false); }
@@ -343,6 +352,28 @@ export default function NetworkPage() {
       setMerakiScheduleResult(result);
     } catch (cause: unknown) {
       setFirmwareError(cause instanceof Error ? cause.message : 'Meraki firmware scheduling failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function verifyMerakiFirmware() {
+    if (!firmwareRouter || !merakiLive) return;
+    const targetVersion = merakiScheduleResult?.targetVersion || merakiLive.nextUpgrade?.toVersion?.id || merakiTarget;
+    const scheduledAt = merakiScheduleResult?.scheduledAt || merakiLive.nextUpgrade?.time || merakiScheduledAt;
+    if (!targetVersion || !scheduledAt) {
+      setFirmwareError('Choose or schedule a target version before checking completion.');
+      return;
+    }
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<MerakiFirmwareVerification>(
+        '/routers/' + firmwareRouter.id + '/firmware/meraki/verify', 'POST',
+        { targetVersion, scheduledAt: new Date(scheduledAt).toISOString() },
+      );
+      setMerakiVerification(result);
+      const live = await firmwareRequest<MerakiFirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/meraki/live');
+      setMerakiLive(live);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Meraki firmware completion verification failed.');
     } finally { setFirmwareBusy(false); }
   }
 
@@ -648,9 +679,17 @@ export default function NetworkPage() {
                 <p>This schedules the selected product type for the configured Meraki network in Dashboard. It is not proof the devices have completed the upgrade. Other product schedules are preserved.</p>
                 <label>Target version<select value={merakiTarget} onChange={(event) => setMerakiTarget(event.target.value)}><option value="">Choose a compatible version</option>{merakiLive.availableVersions.map((version) => <option key={version.id} value={version.id}>{version.shortName || version.firmware || version.id}{version.releaseType ? ' · '+version.releaseType : ''}</option>)}</select></label>
                 <label>Schedule at<input type="datetime-local" value={merakiScheduledAt} onChange={(event) => setMerakiScheduledAt(event.target.value)} /></label>
-                <label>Meraki network timezone<input value={merakiTimezone} readOnly aria-readonly="true" /></label><p className="network-firmware-note">Schedule time is converted to an absolute timestamp; the existing Dashboard timezone is preserved and cannot be changed here.</p>
+                <label>Meraki network timezone<input value={merakiTimezone} readOnly aria-readonly="true" /></label><p className="network-firmware-note">Enter the time in this browser’s timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}); Jaslyn Net converts it to an absolute timestamp. The existing Meraki network timezone is shown for reference and preserved.</p>
                 <button type="button" className="network-button primary" onClick={() => void scheduleMerakiFirmware()} disabled={firmwareBusy || !merakiTarget || !merakiScheduledAt || !merakiTimezone}>Confirm and schedule</button>
                 {merakiScheduleResult ? <p role="status">Scheduled {merakiScheduleResult.targetVersion} for {formatDate(merakiScheduleResult.scheduledAt)}. Confirmed by Meraki Dashboard; completion still requires post-upgrade verification.</p> : null}
+                {(merakiScheduleResult || merakiLive.nextUpgrade?.toVersion?.id) ? <button type="button" className="network-button secondary" onClick={() => void verifyMerakiFirmware()} disabled={firmwareBusy}>Verify upgrade completion</button> : null}
+                {merakiVerification ? <div className="network-firmware-details" role="status">
+                  <div><span>Completion status</span><strong>{merakiVerification.status}</strong></div>
+                  <div><span>Target version</span><strong>{merakiVerification.targetVersion}</strong></div>
+                  <div><span>Live installed version</span><strong>{merakiVerification.installedVersion ?? 'Not confirmed'}</strong></div>
+                  <div><span>Checked at</span><strong>{formatDate(merakiVerification.verifiedAt)}</strong></div>
+                  <p>{merakiVerification.evidence}</p>
+                </div> : null}
               </div>
             ) : null}
             {firmwareRouter.managementProtocol === 'MIKROTIK_REST' && firmwareLive && firmwareLive.update.installedVersion !== firmwareLive.update.latestVersion ? (
