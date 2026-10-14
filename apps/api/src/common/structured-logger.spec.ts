@@ -39,6 +39,8 @@ describe('StructuredLogger', () => {
     expect(output).not.toContain('dont-log-this-either');
     expect(output).not.toContain('abc.def.ghi');
     expect(output).toContain('[REDACTED]');
+    new StructuredLogger('DEBUG', 'test').debug('Authorization: Bearer plain-text-token');
+    expect(String(stdout.mock.calls[1][0])).not.toContain('plain-text-token');
   });
 
   it('writes errors to stderr and supports FATAL', () => {
