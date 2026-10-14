@@ -14,7 +14,7 @@ describe('PaymentsService', () => {
         if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
         if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
         if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
-        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa', purchaseId: '00000000-0000-0000-0000-000000000001' }] };
+        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa', samePurchase: true }] };
         return { rowCount: 0, rows: [] };
       }),
       release: jest.fn(),
@@ -34,7 +34,7 @@ describe('PaymentsService', () => {
         if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
         if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{
           id: 'pay-existing', status: 'PENDING', provider: 'mpesa',
-          purchaseId: '00000000-0000-0000-0000-000000000099',
+          samePurchase: false,
         }] };
         return { rowCount: 0, rows: [] };
       }),
@@ -136,7 +136,7 @@ describe('PaymentsService', () => {
       connect: jest.fn().mockResolvedValue(client),
       query: jest.fn().mockResolvedValue({
         rowCount: 1,
-        rows: [{ id: 'pay-existing', status: 'PENDING', provider: 'mpesa', purchaseId: '00000000-0000-0000-0000-000000000099', idempotencyKey: 'reused-key-1234567890' }],
+        rows: [{ id: 'pay-existing', status: 'PENDING', provider: 'mpesa', samePurchase: false, idempotencyKey: 'reused-key-1234567890' }],
       }),
     } as unknown as Pool;
 
