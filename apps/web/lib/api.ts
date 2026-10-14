@@ -43,7 +43,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const responseRequestId = response.headers.get('x-request-id') ?? requestId;
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+    if (response.status === 401 && typeof window !== 'undefined'
+      && !window.location.pathname.startsWith('/login')
+      && !window.location.pathname.startsWith('/register')
+      && !window.location.pathname.startsWith('/customer-portal')) {
       window.localStorage.removeItem('jaslyn.accessToken');
       window.localStorage.removeItem('nexora.accessToken');
       window.location.replace('/login');
