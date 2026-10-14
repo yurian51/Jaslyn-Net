@@ -11,11 +11,12 @@ import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
 import { NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
 import { NetworkFirmwareUpgradeService } from './network-firmware-upgrade.service';
+import { MikroTikFirmwareExecutor } from './mikrotik-firmware.executor';
 
 @Module({
   imports: [AuditModule, TrafficModule, CommunicationModule],
   controllers: [RoutersController, NetworkCapabilitiesController],
-  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, NetworkFirmwareInventoryService, NetworkFirmwareUpgradeService, RoutersService],
+  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, NetworkFirmwareInventoryService, NetworkFirmwareUpgradeService, MikroTikFirmwareExecutor, RoutersService],
   exports: [RoutersService, SecureNetworkCredentials, NetworkAdapterRegistry, NetworkEnforcementService],
 })
 export class RoutersModule {}
