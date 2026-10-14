@@ -64,6 +64,11 @@ export class MerakiFirmwareScheduleDto {
   @IsBoolean() approved!: boolean;
 }
 
+export class MerakiFirmwareVerifyDto {
+  @IsString() @MaxLength(160) targetVersion!: string;
+  @IsString() @MaxLength(40) scheduledAt!: string;
+}
+
 export class RouterHeartbeatDto {
   @IsOptional() @IsIn(['ONLINE', 'DEGRADED', 'OFFLINE']) status?: 'ONLINE' | 'DEGRADED' | 'OFFLINE';
   @IsOptional() @IsInt() @Min(0) @Max(2147483647) activeUsers?: number;
