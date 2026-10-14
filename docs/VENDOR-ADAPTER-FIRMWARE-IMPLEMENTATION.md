@@ -107,10 +107,13 @@ The existing production-readiness and enterprise capability documents report rou
 - Added GET /routers/:id/firmware and POST /routers/:id/firmware/observation. The observation route is restricted to owner/admin/agent roles, checks router ownership by tenant, validates inputs, and writes an audit event.
 - Unverified latest-release metadata deliberately remains UNKNOWN; a caller-supplied URL/version cannot mark firmware current or authorize an update.
 - Added unit coverage for scope metadata, unknown firmware status, invalid release URLs, tenant isolation, and empty inventory.
+- First vendor in sequence: MikroTik RouterOS v7. Added a native REST executor for live board/version/update-channel inspection, official-channel installation, configuration export backup, HTTPS/redirect protections, production-channel gating, exact target-version checks, and idempotent post-reboot verification state.
+- Added `GET /routers/:id/firmware/live`, `POST /routers/:id/firmware/upgrades/:jobId/backup`, and `POST /routers/:id/firmware/upgrades/:jobId/verify`. Backup exports are encrypted with the configured AES-GCM network-credential key before persistence; approval checks the stored backup receipt, maintenance window, and live version again before sending the install command.
+- MikroTik install flow is not hardware-validated yet. Post-reboot verification is currently an explicit API action, not an autonomous background worker.
 
 ## Remaining release blockers
 
-- No vendor-specific firmware download/install executor has been enabled. This repository currently lacks a verified firmware-update transport and authoritative model/revision release feed for every listed vendor. The implementation must not pretend a status-recording API is an updater.
+- MikroTik now has a vendor-specific RouterOS REST executor, but it has not been tested against a physical router and is not yet `NATIVE_TESTED`. All other vendors still lack enabled, individually verified firmware executors. Model-specific release constraints and recovery behavior must be validated per device family.
 - CI run results on this branch currently fail before useful job-step logs are available; inspect GitHub Actions after runner availability returns.
 - No live device, vendor credentials, hardware/model inventory, or maintenance-window approval was supplied, so firmware compatibility and upgrade/recovery cannot be verified against physical devices.
 - Do not promote adapters to fully verified or perform production firmware upgrades until these gates pass.
