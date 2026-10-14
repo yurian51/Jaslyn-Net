@@ -640,3 +640,34 @@
 .operator-focus-good .operator-focus-symbol{background:#eaf7f0;color:#16845b}
 .operator-focus-unknown .operator-focus-symbol{background:#f0f4fa;color:#53719c}
 @media(max-width:560px){.operator-focus{align-items:flex-start;flex-wrap:wrap;padding:12px}.operator-focus-copy{flex-basis:calc(100% - 45px)}.operator-focus>a{margin-left:43px}.operator-welcome-date{margin-left:0}}
+
+
+/* Searchable operator launchpad with keyboard- and screen-reader-friendly controls. */
+.operator-launchpad{margin:0 0 22px;padding:20px 21px;border:1px solid var(--ov-border,#e2e8f0);border-radius:13px;background:var(--ov-panel,#fff);box-shadow:0 4px 18px rgba(17,32,57,.025)}
+.operator-launchpad-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.operator-launchpad-heading h2{margin:5px 0;color:var(--ov-text,#26364c);font-size:16px;letter-spacing:-.025em}
+.operator-launchpad-heading p{margin:0;color:var(--ov-muted,#8290a3);font-size:10px;line-height:1.5}
+.operator-launchpad-count{flex:0 0 auto;padding:6px 8px;border:1px solid var(--ov-border,#e2e8f0);border-radius:6px;color:var(--ov-muted,#8290a3);font-size:8px;font-weight:800}
+.operator-launchpad-search{display:flex;align-items:center;gap:10px;margin:15px 0 12px;padding:0 12px;min-height:41px;border:1px solid var(--ov-border,#e2e8f0);border-radius:8px;background:var(--ov-input,#fbfcfe);color:var(--ov-muted,#8290a3)}
+.operator-launchpad-search:focus-within{border-color:#83a6db;box-shadow:0 0 0 3px rgba(54,112,190,.09)}
+.operator-launchpad-search svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+.operator-launchpad-search input{width:100%;min-width:0;padding:11px 0;border:0;outline:0;background:transparent;color:var(--ov-text,#26364c);font:inherit;font-size:11px}
+.operator-launchpad-search input::placeholder{color:#98a4b4}
+.operator-launchpad-search button{padding:5px 7px;border:0;border-radius:5px;background:transparent;color:#4d6d9d;font-size:9px;font-weight:750;cursor:pointer}
+.operator-launchpad-search button:hover{background:#edf3fb}
+.operator-launchpad-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.operator-launchpad-item{display:flex;align-items:center;gap:10px;min-width:0;padding:12px 10px;border:1px solid var(--ov-border,#e2e8f0);border-radius:9px;background:var(--ov-card,#fff);text-decoration:none;transition:border-color .15s,background .15s,transform .15s}
+.operator-launchpad-item:hover{border-color:#b5c9e5;background:#f7faff;transform:translateY(-1px)}
+.operator-launchpad-item:focus-visible,.operator-launchpad-search button:focus-visible{outline:2px solid #3976c6;outline-offset:2px}
+.operator-launchpad-icon{display:grid;place-items:center;flex:0 0 31px;width:31px;height:31px;border-radius:8px;background:#edf3fc;color:#315f9e;font-size:15px;font-weight:800}
+.operator-launchpad-item-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.operator-launchpad-item-copy strong{overflow:hidden;color:var(--ov-text,#26364c);font-size:10px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
+.operator-launchpad-item-copy small{overflow:hidden;color:var(--ov-muted,#8290a3);font-size:8px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
+.operator-launchpad-arrow{align-self:flex-start;color:#8299b8;font-size:11px}
+.operator-launchpad-empty{display:flex;grid-column:1/-1;flex-direction:column;gap:5px;padding:18px;border:1px dashed var(--ov-border,#e2e8f0);border-radius:8px;text-align:center}
+.operator-launchpad-empty strong{color:var(--ov-text,#26364c);font-size:11px}
+.operator-launchpad-empty span,.operator-launchpad-footnote{color:var(--ov-muted,#8290a3);font-size:9px;line-height:1.5}
+.operator-launchpad-footnote{display:flex;align-items:center;gap:7px;margin-top:13px}
+@media(max-width:1000px){.operator-launchpad-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.operator-launchpad{padding:15px 13px}.operator-launchpad-grid{grid-template-columns:1fr}.operator-launchpad-item{padding:11px}.operator-launchpad-heading h2{font-size:14px}}
+@media(prefers-reduced-motion:reduce){.operator-launchpad-item{transition:none}.operator-launchpad-item:hover{transform:none}}
