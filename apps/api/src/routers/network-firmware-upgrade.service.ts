@@ -100,7 +100,8 @@ export class NetworkFirmwareUpgradeService {
       throw new BadRequestException('A verified MikroTik official release and valid future maintenance window are required');
     }
     const live = await this.inspectLive(tenantId, routerId, context);
-    if (live.update.latestVersion !== job.targetVersion || live.update.installedVersion !== job.installedVersion) {
+    if (live.update.latestVersion !== job.targetVersion || live.update.installedVersion !== job.installedVersion
+      || live.identity.model.trim().toLowerCase() !== String(job.model ?? '').trim().toLowerCase()) {
       throw new ConflictException('Live MikroTik version or official latest release changed; create a fresh preview');
     }
     const routerResult = await this.db.query(
@@ -292,7 +293,7 @@ export class NetworkFirmwareUpgradeService {
   async approve(tenantId: string, routerId: string, jobId: string, context: AuditContext = {}) {
     const result = await this.db.query(
       `SELECT id, status, preview, vendor, management_protocol AS "managementProtocol",
-        installed_version AS "installedVersion", target_version AS "targetVersion",
+        installed_version AS "installedVersion", target_version AS "targetVersion", model,
         maintenance_window_start AS "maintenanceWindowStart", maintenance_window_end AS "maintenanceWindowEnd"
        FROM network_firmware_upgrade_jobs
        WHERE tenant_id=$1 AND router_id=$2 AND id=$3 FOR UPDATE`,
@@ -332,7 +333,8 @@ export class NetworkFirmwareUpgradeService {
     if (!endpoint) throw new ServiceUnavailableException('MikroTik REST endpoint is missing');
     const credentials = this.secureCredentials.decrypt(router.encryptedCredentials);
     const live = await this.mikrotikFirmware.inspect({ endpoint, credentials });
-    if (live.update.installedVersion !== job.installedVersion || live.update.latestVersion !== job.targetVersion) {
+    if (live.update.installedVersion !== job.installedVersion || live.update.latestVersion !== job.targetVersion
+      || live.identity.model.trim().toLowerCase() !== String(job.model ?? '').trim().toLowerCase()) {
       throw new ConflictException('MikroTik live version changed after backup; no install command was sent');
     }
     const transition = await this.db.query(
