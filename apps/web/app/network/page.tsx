@@ -257,6 +257,7 @@ export default function NetworkPage() {
     setFirmwareError(null);
     setMaintenanceStart(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
     setMaintenanceEnd(toLocalDateTimeInput(new Date(Date.now() + 2 * 60 * 60 * 1000)));
+    void loadExistingFirmwareJob(router);
   }
 
   async function firmwareRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -269,13 +270,22 @@ export default function NetworkPage() {
     });
   }
 
+  async function loadExistingFirmwareJob(router: Router) {
+    try {
+      const result = await firmwareRequest<FirmwareJobResponse>('/routers/' + router.id + '/firmware/upgrades');
+      const existing = result.data.find((item) => !['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(item.status)) ?? result.data[0];
+      if (existing) setFirmwareJob(existing);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Unable to load firmware job history.');
+    }
+  }
+
   async function inspectFirmware() {
     if (!firmwareRouter) return;
     setFirmwareBusy(true); setFirmwareError(null);
     try {
       const result = await firmwareRequest<FirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/live');
       setFirmwareLive(result);
-      setFirmwareJob(null);
     } catch (cause: unknown) {
       setFirmwareError(cause instanceof Error ? cause.message : 'Live firmware inspection failed.');
     } finally { setFirmwareBusy(false); }
