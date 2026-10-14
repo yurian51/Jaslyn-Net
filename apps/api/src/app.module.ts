@@ -39,6 +39,7 @@ import { OperationsIntelligenceModule } from './operations-intelligence/operatio
 import { AutomationModule } from './automation/automation.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { CaptivePortalModule } from './captive-portal/captive-portal.module';
+import { OperationsHubModule } from './operations-hub/operations-hub.module';
 import { FiberTopologyModule } from './fiber-topology/fiber-topology.module';
 import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-healing.module';
 
@@ -48,7 +49,11 @@ import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-he
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
+feat/operator-welcome-dashboard
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule,
+
     TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, FiberTopologyModule, NetworkAutoHealingModule,
+ main
   ],
 })
 export class AppModule implements NestModule {

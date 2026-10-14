@@ -34,6 +34,26 @@ const duration = (value?: string) => {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
 
+const OPERATOR_WORKSPACES = [
+  { label: 'Network & devices', detail: 'Routers, links and topology', href: '/network', terms: 'router device topology links' },
+  { label: 'Customers', detail: 'Subscriber accounts and profiles', href: '/customers', terms: 'subscriber client account' },
+  { label: 'Live sessions', detail: 'Connected users and activity', href: '/sessions', terms: 'online radius active users' },
+  { label: 'Payments', detail: 'Payment activity and records', href: '/payments', terms: 'money transaction reconciliation' },
+  { label: 'Finance & revenue assurance', detail: 'Ledger, reconciliation and leakage checks', href: '/revenue-assurance', terms: 'finance ledger billing reconciliation revenue leakage' },
+  { label: 'Incident center', detail: 'Service incidents and response', href: '/incidents', terms: 'outage alerts faults incident timeline' },
+  { label: 'Field operations', detail: 'On-site work and technicians', href: '/field-operations', terms: 'field technician jobs offline sync' },
+  { label: 'Network commands', detail: 'Command execution and results', href: '/network-commands', terms: 'terminal execute verify' },
+  { label: 'IP address management', detail: 'IPAM pools and allocations', href: '/ipam', terms: 'subnet ip address pool allocation' },
+  { label: 'RADIUS & AAA', detail: 'Authentication and accounting', href: '/radius', terms: 'aaa radius nas authentication accounting' },
+  { label: 'Fiber operations', detail: 'Fiber lines and service state', href: '/fiber', terms: 'fiber olt optical line' },
+  { label: 'Automation & approvals', detail: 'Event-driven workflows and approvals', href: '/automation', terms: 'workflow trigger event approval schedule' },
+  { label: 'Security posture', detail: 'Security controls and risk findings', href: '/security-posture', terms: 'security risk access control posture' },
+  { label: 'Security & audit', detail: 'Audit trail and security events', href: '/audit', terms: 'logs security compliance' },
+  { label: 'Communication', detail: 'Messages and delivery status', href: '/communication', terms: 'sms email notifications messages' },
+  { label: 'Integrations', detail: 'Connected systems and providers', href: '/integrations', terms: 'api webhooks external systems' },
+  { label: 'Operations Hub', detail: 'Artifacts, workspaces, runbooks and change reviews', href: '/operations-hub', terms: 'artifacts workspace runbooks integrations change review rollback' },
+] as const;
+
 const percent = (value: number, total: number) => {
   if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return null;
   return Math.round((value / total) * 100);
@@ -45,6 +65,46 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [welcomeNow, setWelcomeNow] = useState<Date | null>(null);
+  const [quickFind, setQuickFind] = useState('');
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
+
+  useEffect(() => { setWelcomeNow(new Date()); }, []);
+
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCommandOpen(false);
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, []);
+
+  const exportOperationalSnapshot = useCallback(() => {
+    if (!data) return;
+    const snapshot = {
+      reportType: 'jaslyn-net-operational-snapshot',
+      generatedAt: new Date().toISOString(),
+      tenant: data.tenant ?? null,
+      kpis: data.kpis ?? null,
+      network: data.network ?? null,
+      operations: data.operations ?? null,
+      locations: data.locations ?? [],
+      sessions: data.sessions ?? [],
+      note: 'Export of the latest authenticated overview API response; values are not inferred.',
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `jaslyn-net-operations-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [data]);
+
+
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -145,9 +205,95 @@ export default function DashboardPage() {
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
   const locations = data?.locations ?? [];
   const tenantName = data?.tenant?.name ?? 'Tenant workspace';
+  const greetingHour = welcomeNow?.getHours();
+  const greeting = greetingHour == null ? 'Welcome to Jaslyn Net' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
+  const operationalFocus = !data || !hasOperationalSignals
+    ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
+    : network.offline > 0
+      ? { tone: 'critical', title: `${n(network.offline)} router${network.offline === 1 ? '' : 's'} offline`, detail: 'Review device reachability and affected locations first.', href: '/network', action: 'Inspect network' }
+      : network.degraded > 0
+        ? { tone: 'warning', title: `${n(network.degraded)} router${network.degraded === 1 ? '' : 's'} degraded`, detail: 'Check device health before service quality drops further.', href: '/network', action: 'Review devices' }
+        : operations.networkCommands.failed > 0
+          ? { tone: 'critical', title: `${n(operations.networkCommands.failed)} failed network command${operations.networkCommands.failed === 1 ? '' : 's'}`, detail: 'Review command results and verification before retrying.', href: '/network-commands', action: 'Review commands' }
+          : operations.access.expiredButActive > 0
+            ? { tone: 'warning', title: `${n(operations.access.expiredButActive)} expired access entitlement${operations.access.expiredButActive === 1 ? '' : 's'} still active`, detail: 'Investigate entitlement and session synchronization.', href: '/sessions', action: 'Review sessions' }
+            : operations.access.expiring24h > 0
+              ? { tone: 'warning', title: `${n(operations.access.expiring24h)} access entitlement${operations.access.expiring24h === 1 ? '' : 's'} expiring soon`, detail: 'Check renewals and customer notifications.', href: '/customer-commerce', action: 'Review renewals' }
+              : { tone: 'good', title: 'No priority alerts in the overview', detail: 'Keep an eye on network health, sessions and payment processing.', href: '/incidents', action: 'Open incident center' };
 
   return (
     <main className="overview-page">
+      <section className="operator-welcome" aria-labelledby="operator-welcome-title">
+        <div className="operator-welcome-copy">
+          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
+          <h2 id="operator-welcome-title">{greeting}, operator!</h2>
+          <p>Your network, subscribers, payments and field operations — ready in one place.</p>
+          <div className="operator-welcome-actions">
+            <a href="/network">Open network <span aria-hidden="true">↗</span></a>
+            <a href="/sessions">View live sessions <span aria-hidden="true">↗</span></a>
+            <a href="/payments">Review payments <span aria-hidden="true">↗</span></a>
+            <a href="/incidents">Incident center <span aria-hidden="true">↗</span></a>
+            <a href="/field-operations">Field operations <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div className="operator-welcome-status" aria-live="polite">
+          <span className="operator-welcome-status-label">WORKSPACE STATUS</span>
+          <strong><i className={connection === 'online' ? 'is-online' : connection === 'offline' ? 'is-offline' : 'is-checking'} />{connection === 'online' ? 'Connected' : connection === 'offline' ? 'Offline' : connection === 'degraded' ? 'Needs attention' : 'Connecting…'}</strong>
+          <small>{lastUpdatedAt ? 'Updated ' + lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Checking live API status'}</small>
+        </div>
+      </section>
+      <section className={`operator-focus operator-focus-${operationalFocus.tone}`} aria-label="Suggested operational focus">
+        <div className="operator-focus-symbol" aria-hidden="true">{operationalFocus.tone === 'critical' ? '!' : operationalFocus.tone === 'warning' ? '•' : operationalFocus.tone === 'good' ? '✓' : '…'}</div>
+        <div className="operator-focus-copy"><span>RECOMMENDED NEXT ACTION</span><strong>{operationalFocus.title}</strong><p>{operationalFocus.detail}</p></div>
+        <a href={operationalFocus.href}>{operationalFocus.action} <span aria-hidden="true">↗</span></a>
+      </section>
+      {commandOpen && (
+        <div className="operator-command-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCommandOpen(false); }}>
+          <section className="operator-command-dialog" role="dialog" aria-modal="true" aria-labelledby="operator-command-title">
+            <div className="operator-command-search-row">
+              <span aria-hidden="true">⌕</span>
+              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search workspaces and actions…" aria-label="Search operator commands" />
+              <kbd>ESC</kbd>
+            </div>
+            <div className="operator-command-section-label" id="operator-command-title">QUICK ACTIONS</div>
+            <div className="operator-command-results">
+              {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).map((item) => (
+                <a key={item.href} href={item.href} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
+              ))}
+              {'export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data && (
+                <button type="button" onClick={() => { exportOperationalSnapshot(); setCommandOpen(false); }}><span className="operator-command-result-icon" aria-hidden="true">↓</span><span><strong>Export operational snapshot</strong><small>Download the latest authenticated overview as JSON</small></span><kbd>EXPORT</kbd></button>
+              )}
+              {!OPERATOR_WORKSPACES.some((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())) && !('export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data) && <div className="operator-command-empty">No matching commands. Try “network”, “payments” or “export”.</div>}
+            </div>
+            <div className="operator-command-footer"><span>Jaslyn Net operator workspace</span><span><kbd>ESC</kbd> to close</span></div>
+          </section>
+        </div>
+      )}
+      <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
+        <div className="operator-launchpad-heading">
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger">Dashboard actions</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
+        </div>
+        <label className="operator-launchpad-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
+          <input type="search" value={quickFind} onChange={(event) => setQuickFind(event.target.value)} placeholder="Search network, customers, finance…" aria-label="Search operator workspaces" />
+          {quickFind && <button type="button" onClick={() => setQuickFind('')} aria-label="Clear workspace search">Clear</button>}
+        </label>
+        <div className="operator-launchpad-grid" aria-live="polite">
+          {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).map((item) => (
+            <a className="operator-launchpad-item" href={item.href} key={item.href}>
+              <span className="operator-launchpad-icon" aria-hidden="true">{item.label === 'Network & devices' ? '⌘' : item.label === 'Customers' ? '◎' : item.label === 'Live sessions' ? '◉' : item.label === 'Payments' ? '$' : item.label === 'Incident center' ? '!' : item.label === 'Field operations' ? '↗' : item.label === 'Network commands' ? '›_' : '✓'}</span>
+              <span className="operator-launchpad-item-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
+              <span className="operator-launchpad-arrow" aria-hidden="true">↗</span>
+            </a>
+          ))}
+          {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length === 0 && (
+            <div className="operator-launchpad-empty"><strong>No matching workspace</strong><span>Try a different keyword, such as network, payments or customers.</span></div>
+          )}
+        </div>
+        <div className="operator-launchpad-footnote"><span aria-hidden="true">↳</span> Shortcuts open existing Jaslyn Net pages; access permissions still apply.</div>
+      </section>
       <header className="overview-header">
         <div className="overview-heading">
           <div className="eyebrow">JASLYN NET / CONTROL CENTER</div>
