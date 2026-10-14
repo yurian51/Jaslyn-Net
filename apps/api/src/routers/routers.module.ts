@@ -9,11 +9,12 @@ import { NetworkAdapterRegistry } from './network-adapter-registry';
 import { RoutersController } from './routers.controller';
 import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
+import { NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
 
 @Module({
   imports: [AuditModule, TrafficModule, CommunicationModule],
   controllers: [RoutersController, NetworkCapabilitiesController],
-  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, RoutersService],
+  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, NetworkFirmwareInventoryService, RoutersService],
   exports: [RoutersService, SecureNetworkCredentials, NetworkAdapterRegistry, NetworkEnforcementService],
 })
 export class RoutersModule {}
