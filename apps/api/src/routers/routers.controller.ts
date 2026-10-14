@@ -8,6 +8,7 @@ import { EnforceRouterPolicyDto } from './enforce-router-policy.dto';
 import { CreateRouterDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
 import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
+import { FirmwareObservationInput, NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
 
 @Controller('routers')
 @UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
@@ -15,6 +16,7 @@ export class RoutersController {
   constructor(
     private readonly routers: RoutersService,
     private readonly enforcement: NetworkEnforcementService,
+    private readonly firmware: NetworkFirmwareInventoryService,
   ) {}
 
   @Get()
@@ -27,6 +29,25 @@ export class RoutersController {
   @Permissions('network.changes.read')
   changeIntelligence(@Req() req: AuthenticatedRequest, @Query('routerId') routerId?: string, @Query('limit') limit?: string) {
     return this.routers.changeIntelligence(req.user!.tenantId, routerId, Number(limit) || 100);
+  }
+
+
+  @Get(':id/firmware')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  firmwareStatus(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.firmware.list(req.user!.tenantId, id);
+  }
+
+  @Post(':id/firmware/observation')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  observeFirmware(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: FirmwareObservationInput) {
+    const userAgent = req.headers['user-agent'];
+    return this.firmware.observe(req.user!.tenantId, id, dto, {
+      userId: req.user!.id,
+      requestId: req.requestId,
+      ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
   }
 
   @Get(':id')
