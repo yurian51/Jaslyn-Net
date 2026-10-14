@@ -3,7 +3,7 @@ import { stripOuterTransactionWrapper } from './migration-sql';
 describe('stripOuterTransactionWrapper', () => {
   it('removes optional outer BEGIN and COMMIT statements', () => {
     expect(stripOuterTransactionWrapper('BEGIN;\nCREATE TABLE sample(id int);\nCOMMIT;'))
-      .toBe('\nCREATE TABLE sample(id int);\n');
+      .toBe('CREATE TABLE sample(id int);\n');
   });
 
   it('preserves SQL without an outer transaction wrapper', () => {
