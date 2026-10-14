@@ -3,7 +3,7 @@ import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CustomerPortalGuard, CustomerPortalRequest } from './customer-portal.guard';
-import { CustomerPortalActivationDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
+import { CustomerPortalActivationDto, CustomerPortalCreatePurchaseDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
 import { CustomerPortalService } from './customer-portal.service';
 
 @Controller('customer-portal')
@@ -27,6 +27,11 @@ export class CustomerPortalController {
   @Get('packages')
   @UseGuards(CustomerPortalGuard)
   packages(@Req() req:CustomerPortalRequest){return this.portal.listPackages(req.customerPortal!.tenantId);}
+  @Post('purchases')
+  @UseGuards(CustomerPortalGuard)
+  createPurchase(@Req() req:CustomerPortalRequest,@Body() d:CustomerPortalCreatePurchaseDto){
+    const p=req.customerPortal!;return this.portal.createPurchase(p.tenantId,p.customerId,d);
+  }
   @Post('purchase-intents')
   @UseGuards(CustomerPortalGuard)
   purchaseIntent(@Req() req:CustomerPortalRequest,@Body() d:CustomerPortalPurchaseIntentDto){
