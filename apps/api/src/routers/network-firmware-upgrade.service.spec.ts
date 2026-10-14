@@ -59,7 +59,7 @@ describe('NetworkFirmwareUpgradeService', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
-  it('fails closed and records a blocked job when vendor-specific executor is unavailable', async () => {
+  it('fails closed and records a blocked job when encrypted backup is required', async () => {
     db.query
       .mockResolvedValueOnce({ rows: [{
         id: 'r1', vendor: 'MikroTik', model: 'hAP ax3', osVersion: '7.16.2',
@@ -77,7 +77,7 @@ describe('NetworkFirmwareUpgradeService', () => {
 
     expect(result.status).toBe('BLOCKED');
     expect(result.preview.safeToExecute).toBe(false);
-    expect(result.preview.blockers).toContain('durableEncryptedBackupAndPostUpgradeWorkerNotIntegrated');
+    expect(result.preview.blockers).toContain('encryptedPreUpgradeBackupAndExplicitApprovalRequired');
     expect(db.query.mock.calls[2][0]).toContain("'BLOCKED'");
     expect(audit.record).toHaveBeenCalledWith('t1', 'NETWORK_FIRMWARE_UPGRADE_PREVIEWED', 'firmware_upgrade_job', 'job1',
       expect.objectContaining({ status: 'BLOCKED' }), { userId: 'u1' });
