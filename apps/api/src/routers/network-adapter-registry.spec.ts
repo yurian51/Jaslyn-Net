@@ -39,6 +39,9 @@ describe('NetworkAdapterRegistry', () => {
     expect(registry.get('openwrt_ubus')?.lifecycle).toBe('NATIVE');
     expect(registry.get('generic_http')?.lifecycle).toBe('GENERIC');
     expect(registry.supports('MERAKI_DASHBOARD_API', 'bandwidth_enforcement')).toBe(true);
+    expect(registry.supports('MERAKI_DASHBOARD_API', 'firmware_inspection')).toBe(true);
+    expect(registry.supports('MERAKI_DASHBOARD_API', 'firmware_schedule')).toBe(true);
+    expect(registry.supports('MERAKI_DASHBOARD_API', 'firmware_verification')).toBe(true);
     expect(registry.supports('MERAKI_DASHBOARD_API', 'disconnect_client')).toBe(false);
     expect(registry.supports('OMADA_CONTROLLER_API', 'client_sessions')).toBe(true);
     expect(registry.supports('CAMBIUM_CNMAESTRO', 'client_sessions')).toBe(true);
