@@ -5,8 +5,8 @@ describe('NetworkFirmwareUpgradeService', () => {
   let db: { query: jest.Mock };
   let audit: { record: jest.Mock };
   let service: NetworkFirmwareUpgradeService;
-  let credentials: { decrypt: jest.Mock };
-  let mikrotik: { inspect: jest.Mock };
+  let credentials: { decrypt: jest.Mock; encrypt: jest.Mock };
+  let mikrotik: { inspect: jest.Mock; createConfigurationExport: jest.Mock; install: jest.Mock };
   const request = () => ({
     targetVersion: '7.17.1',
     releaseSourceUrl: 'https://mikrotik.com/download',
@@ -20,8 +20,8 @@ describe('NetworkFirmwareUpgradeService', () => {
   beforeEach(() => {
     db = { query: jest.fn() };
     audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
-    credentials = { decrypt: jest.fn().mockReturnValue({ username: 'u', password: 'p' }) };
-    mikrotik = { inspect: jest.fn().mockResolvedValue({ identity: { model: 'hAP ax3', architecture: 'arm64', version: '7.16.2', factoryFirmware: '7.10' }, update: { status: 'New version is available', installedVersion: '7.16.2', latestVersion: '7.17.1', channel: 'stable' } }) };
+    credentials = { decrypt: jest.fn().mockReturnValue({ username: 'u', password: 'p' }), encrypt: jest.fn().mockReturnValue('encrypted-backup-payload') };
+    mikrotik = { inspect: jest.fn().mockResolvedValue({ identity: { model: 'hAP ax3', architecture: 'arm64', version: '7.16.2', factoryFirmware: '7.10' }, update: { status: 'New version is available', installedVersion: '7.16.2', latestVersion: '7.17.1', channel: 'stable' } }), createConfigurationExport: jest.fn().mockResolvedValue({ fileName: 'backup.rsc', content: '/system identity set name=router', sha256: 'b'.repeat(64) }), install: jest.fn() };
     service = new NetworkFirmwareUpgradeService(db as any, audit as any, credentials as any, mikrotik as any);
   });
 
@@ -41,6 +41,24 @@ describe('NetworkFirmwareUpgradeService', () => {
     db.query.mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'Ubiquiti', managementProtocol: 'UNIFI_NETWORK_API', managementEnabled: true, encryptedCredentials: 'cipher' }], rowCount: 1 });
     await expect(service.inspectLive('t1', 'r1')).rejects.toThrow('MikroTik RouterOS only');
     expect(mikrotik.inspect).not.toHaveBeenCalled();
+  });
+
+  it('encrypts and persists a MikroTik configuration backup before allowing approval', async () => {
+    const start = new Date(Date.now() + 60 * 60 * 1000);
+    const end = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    db.query
+      .mockResolvedValueOnce({ rows: [{ id: 'job1', status: 'BLOCKED', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST', model: 'hAP ax3', installedVersion: '7.16.2', targetVersion: '7.17.1', releaseSourceUrl: 'https://mikrotik.com/download', maintenanceWindowStart: start, maintenanceWindowEnd: end }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'MikroTik', model: 'hAP ax3', managementProtocol: 'MIKROTIK_REST', managementEnabled: true, apiEndpoint: 'https://router.example/rest', controllerEndpoint: null, encryptedCredentials: 'router-cipher' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ controllerEndpoint: null, apiEndpoint: 'https://router.example/rest', encryptedCredentials: 'router-cipher' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'backup1', sha256: 'b'.repeat(64), createdAt: new Date() }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'job1' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 });
+    const result = await service.prepareBackup('t1', 'r1', 'job1', { userId: 'u1' });
+    expect(result).toMatchObject({ jobId: 'job1', status: 'AWAITING_APPROVAL', backupReceiptId: 'backup1', approvalRequired: true });
+    expect(credentials.encrypt).toHaveBeenCalledWith({ username: 'jaslyn-firmware-backup', password: '/system identity set name=router' });
+    expect(db.query.mock.calls.some((call) => call[0].includes('INSERT INTO network_firmware_backups'))).toBe(true);
+    expect(db.query.mock.calls.some((call) => call[0].includes("status='AWAITING_APPROVAL'"))).toBe(true);
   });
 
   it('rejects invalid or credential-bearing release URLs before database access', async () => {
