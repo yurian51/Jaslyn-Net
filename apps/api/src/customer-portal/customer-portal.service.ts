@@ -23,7 +23,7 @@ export class CustomerPortalService {
     if(!customer.rowCount)throw new NotFoundException('Active customer not found in this tenant');
     const token=randomBytes(32).toString('base64url'),tokenHash=this.hashToken(token);
     const client=await this.db.connect();
-    let invitation;
+    let invitation: { expiresAt: string };
     try{
       await client.query('BEGIN');
       await client.query('UPDATE customer_portal_invitations SET expires_at=now() WHERE tenant_id=$1 AND customer_id=$2 AND consumed_at IS NULL AND expires_at>now()',[tenantId,customerId]);
@@ -72,7 +72,7 @@ export class CustomerPortalService {
       await this.db.query(`UPDATE customer_portal_credentials SET failed_login_attempts=failed_login_attempts+1,
         locked_until=CASE WHEN failed_login_attempts+1>=5 THEN now()+interval '15 minutes' ELSE locked_until END
         WHERE tenant_id=$1 AND customer_id=$2`,[row.tenantId,row.customerId]);
-      await this.audit.record(row.tenantId,'CUSTOMER_PORTAL_LOGIN_FAILED','customer',row.customerId,{ip:context.ip??null});
+      await this.audit.record(row.tenantId,'CUSTOMER_PORTAL_LOGIN_FAILED','customer',row.customerId,{ip:context.ip??null},{ipAddress:context.ip,userAgent:context.userAgent});
       throw new UnauthorizedException('Invalid tenant, username or password');
     }
     const secret=this.config.get<string>('JWT_SECRET');
@@ -85,7 +85,7 @@ export class CustomerPortalService {
     const token=await new SignJWT({tenantId:row.tenantId,role:'CUSTOMER',sid:sessionId,username:row.username})
       .setProtectedHeader({alg:'HS256'}).setIssuer('jaslyn-net').setAudience('jaslyn-customer-portal')
       .setSubject(row.customerId).setIssuedAt().setExpirationTime('12h').sign(new TextEncoder().encode(secret));
-    await this.audit.record(row.tenantId,'CUSTOMER_PORTAL_LOGIN_SUCCEEDED','customer',row.customerId,{sessionId,ip:context.ip??null});
+    await this.audit.record(row.tenantId,'CUSTOMER_PORTAL_LOGIN_SUCCEEDED','customer',row.customerId,{sessionId,ip:context.ip??null},{ipAddress:context.ip,userAgent:context.userAgent});
     return {accessToken:token,tokenType:'Bearer',expiresAt:session.rows[0].expiresAt,customer:{id:row.customerId,fullName:row.fullName,username:row.username,tenantSlug:row.tenantSlug,email:row.email??null}};
   }
 
