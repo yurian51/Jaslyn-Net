@@ -53,6 +53,7 @@ export class CustomerPortalService {
         VALUES($1,$2,$3) ON CONFLICT(tenant_id,customer_id) DO UPDATE SET password_hash=EXCLUDED.password_hash,
         failed_login_attempts=0,locked_until=NULL,password_changed_at=now(),updated_at=now()`,[tenantId,customerId,hash]);
       await client.query('UPDATE customer_portal_invitations SET consumed_at=now() WHERE token_hash=$1',[tokenHash]);
+      await client.query('UPDATE customer_portal_sessions SET revoked_at=now() WHERE tenant_id=$1 AND customer_id=$2 AND revoked_at IS NULL',[tenantId,customerId]);
       await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK').catch(()=>undefined);throw error;}finally{client.release();}
     await this.audit.record(tenantId,'CUSTOMER_PORTAL_ACTIVATED','customer',customerId,{passwordSet:true});
