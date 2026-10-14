@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Client } from 'pg';
-import { findLegacyMigrationAlias } from './migration-aliases';
+import { findLegacyMigrationAlias, gitBlobSha } from './migration-aliases';
 import { stripOuterTransactionWrapper } from './migration-sql';
 
 const MIGRATION_LOCK_KEY = 7_421_931;
@@ -65,15 +65,16 @@ async function main() {
       const version = file.replace(/\.sql$/, '');
       if (appliedVersions.has(version)) continue;
 
-      const legacyAlias = findLegacyMigrationAlias(version, appliedVersions);
+      const rawSql = await readFile(join(migrationDir, file), 'utf8');
+      const legacyAlias = findLegacyMigrationAlias(version, appliedVersions, gitBlobSha(rawSql));
       if (legacyAlias) {
         await client.query('INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING', [version]);
         appliedVersions.add(version);
-        console.log(`Skipping migration ${version}; equivalent legacy migration ${legacyAlias} is already applied`);
+        console.log(`Skipping migration ${version}; identical legacy migration ${legacyAlias} is already applied`);
         continue;
       }
 
-      const sql = stripOuterTransactionWrapper(await readFile(join(migrationDir, file), 'utf8'));
+      const sql = stripOuterTransactionWrapper(rawSql);
       console.log(`Applying migration ${version}`);
       await client.query('BEGIN');
       try {
