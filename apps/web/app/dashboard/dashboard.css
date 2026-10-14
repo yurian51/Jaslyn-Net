@@ -603,6 +603,9 @@
 .operator-welcome-copy{min-width:0}
 .operator-welcome-eyebrow{display:flex;align-items:center;gap:8px;color:#70819a;font-size:9px;font-weight:800;letter-spacing:.13em}
 .operator-welcome-live-dot{width:7px;height:7px;border-radius:50%;background:#2a9b70;box-shadow:0 0 0 4px rgba(42,155,112,.1)}
+.operator-welcome-live-dot.is-online{background:#2a9b70;box-shadow:0 0 0 4px rgba(42,155,112,.1)}
+.operator-welcome-live-dot.is-offline{background:#c0444f;box-shadow:0 0 0 4px rgba(192,68,79,.1)}
+.operator-welcome-live-dot.is-checking{background:#d59a32;box-shadow:0 0 0 4px rgba(213,154,50,.12)}
 .operator-welcome h2{margin:13px 0 7px;color:#15253d;font-size:clamp(23px,2.4vw,32px);line-height:1.12;letter-spacing:-.045em;font-weight:780}
 .operator-welcome p{margin:0;color:#78879b;font-size:12px;line-height:1.6}
 .operator-welcome-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:19px}
