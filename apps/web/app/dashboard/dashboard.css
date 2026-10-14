@@ -620,3 +620,23 @@
 .operator-welcome-status small{color:#8b98a9;font-size:9px}
 @media(max-width:700px){.operator-welcome{align-items:stretch;flex-direction:column;padding:20px 17px;gap:18px}.operator-welcome-status{flex-basis:auto}.operator-welcome-actions a{flex:1 1 auto;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.operator-welcome-actions a{transition:none}}
+
+
+/* Context-aware next step: never report a healthy state before telemetry arrives. */
+.operator-welcome-eyebrow{flex-wrap:wrap}
+.operator-welcome-date{margin-left:5px;padding-left:11px;border-left:1px solid #dce4ef;color:#8c9aaf;font-weight:650;letter-spacing:.02em}
+.operator-focus{display:flex;align-items:center;gap:13px;margin:0 0 20px;padding:13px 16px;border:1px solid #e1e8f0;border-radius:11px;background:#fff}
+.operator-focus-symbol{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:9px;background:#f0f4fa;color:#53719c;font-size:17px;font-weight:800}
+.operator-focus-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.operator-focus-copy>span{color:#8d9bad;font-size:7px;font-weight:800;letter-spacing:.12em}
+.operator-focus-copy strong{color:#293b53;font-size:11px;font-weight:800;line-height:1.45}
+.operator-focus-copy p{margin:0;color:#7e8da1;font-size:9px;line-height:1.5}
+.operator-focus>a{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;padding:9px 11px;border:1px solid #dce4ef;border-radius:7px;color:#345b94;background:#fff;font-size:9px;font-weight:800;text-decoration:none}
+.operator-focus>a:hover{background:#f5f8fd;border-color:#b9c9df}
+.operator-focus-critical{border-color:#f0d8db;background:#fffafb}
+.operator-focus-critical .operator-focus-symbol{background:#fff0f1;color:#b22f3c}
+.operator-focus-warning{border-color:#eee2c9;background:#fffdf8}
+.operator-focus-warning .operator-focus-symbol{background:#fff5df;color:#a76b11}
+.operator-focus-good .operator-focus-symbol{background:#eaf7f0;color:#16845b}
+.operator-focus-unknown .operator-focus-symbol{background:#f0f4fa;color:#53719c}
+@media(max-width:560px){.operator-focus{align-items:flex-start;flex-wrap:wrap;padding:12px}.operator-focus-copy{flex-basis:calc(100% - 45px)}.operator-focus>a{margin-left:43px}.operator-welcome-date{margin-left:0}}
