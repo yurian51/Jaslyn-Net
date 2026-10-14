@@ -442,7 +442,7 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
       await this.audit.record(tenantId, 'MIKROTIK_FIRMWARE_INSTALL_ACCEPTED', 'firmware_upgrade_job', jobId,
         { routerId, targetVersion: job.targetVersion, backupReceiptId: backup.id }, context);
       return { jobId, status: 'VERIFYING', targetVersion: job.targetVersion, message: 'RouterOS accepted the official-channel install command. Verify the device after it reboots.' };
-    } catch (error) {
+    } catch {
       // The router may have accepted the command before the connection failed. Never retry automatically.
       await this.db.query(
         `UPDATE network_firmware_upgrade_jobs SET status='RECOVERY_REQUIRED',
