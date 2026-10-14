@@ -22,7 +22,7 @@ describe('CustomerPortalService purchase ownership',()=>{
   await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-a'}))
    .resolves.toMatchObject({id:'purchase-a',status:'PENDING_PAYMENT'});
   expect(db.query).toHaveBeenCalledWith(expect.stringContaining('tenant_id=$1 AND id=$2 AND is_active=true AND show_on_portal=true'),['tenant-a','package-a']);
-  expect(purchases.create).toHaveBeenCalledWith('tenant-a',{customerId:'customer-a',packageId:'package-a',routerId:undefined,promoCode:undefined});
+  expect(purchases.create).toHaveBeenCalledWith('tenant-a',{customerId:'customer-a',packageId:'package-a',routerId:undefined,promoCode:undefined,idempotencyKey:undefined});
  });
 
  it('does not create a purchase for a hidden or cross-tenant package',async()=>{
