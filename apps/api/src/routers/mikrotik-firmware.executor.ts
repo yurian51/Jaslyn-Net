@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { NetworkCredentials } from '../common/secure-network-credentials';
 
@@ -110,7 +110,7 @@ export class MikroTikFirmwareExecutor {
     }
     const before = await this.inspect(connection);
     if (before.update.installedVersion !== input.expectedInstalledVersion) {
-      throw new ConflictError('MikroTik installed version changed after approval; preview the upgrade again');
+      throw new ConflictException('MikroTik installed version changed after approval; preview the upgrade again');
     }
     if (before.update.latestVersion !== input.approvedTargetVersion || !/new version is available/i.test(before.update.status)) {
       throw new BadRequestException('MikroTik official update channel does not confirm the approved target version is available');
@@ -165,4 +165,3 @@ export class MikroTikFirmwareExecutor {
   private text(value: unknown): string { return typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : ''; }
 }
 
-class ConflictError extends ServiceUnavailableException {}
