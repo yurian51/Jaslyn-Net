@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS fiber_network_assets (
   CONSTRAINT fiber_assets_id_tenant_unique UNIQUE (tenant_id, id)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS fiber_assets_tenant_code_casefold_idx
+  ON fiber_network_assets (tenant_id, lower(asset_code));
+
 CREATE INDEX IF NOT EXISTS fiber_assets_tenant_type_status_idx
   ON fiber_network_assets (tenant_id, asset_type, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS fiber_assets_parent_idx
