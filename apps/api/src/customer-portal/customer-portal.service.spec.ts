@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { AuditService } from '../audit/audit.service';
 import { CustomerCommerceService } from '../customer-commerce/customer-commerce.service';
 import { PaymentsService } from '../payments/payments.service';
+import { PurchasesService } from '../purchases/purchases.service';
 import { CustomerPortalService } from './customer-portal.service';
 
 describe('CustomerPortalService purchase ownership',()=>{
@@ -11,8 +12,9 @@ describe('CustomerPortalService purchase ownership',()=>{
  const audit={record:jest.fn()};
  const commerce={overview:jest.fn(),createSupport:jest.fn()};
  const payments={createIntent:jest.fn()};
+ const purchases={create:jest.fn()};
  let service:CustomerPortalService;
- beforeEach(()=>{jest.clearAllMocks();service=new CustomerPortalService(db as unknown as Pool,new ConfigService({JWT_SECRET:'x'.repeat(40)}),audit as unknown as AuditService,commerce as unknown as CustomerCommerceService,payments as unknown as PaymentsService);});
+ beforeEach(()=>{jest.clearAllMocks();service=new CustomerPortalService(db as unknown as Pool,new ConfigService({JWT_SECRET:'x'.repeat(40)}),audit as unknown as AuditService,commerce as unknown as CustomerCommerceService,payments as unknown as PaymentsService,purchases as unknown as PurchasesService);});
 
  it('rejects a purchase that does not belong to the token-bound customer',async()=>{
   db.query.mockResolvedValueOnce({rows:[],rowCount:0});
