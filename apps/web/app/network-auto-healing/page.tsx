@@ -19,7 +19,7 @@ export default function NetworkAutoHealingPage(){
  },[]);
  useEffect(()=>{void load();},[load]);
  async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();const token=getAccessToken();if(!token)return;setSaving(true);setError('');setNotice('');
-  try{const p=await apiFetch<Policy>('/network-auto-healing/policy',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(policy)});setPolicy({...initial,...p});setNotice('Sera ya network auto-healing imehifadhiwa.');await load();}
+  try{const p=await apiFetch<Policy>('/network-auto-healing/policy',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(policy)});setPolicy({...initial,...p});await load();setNotice('Sera ya network auto-healing imehifadhiwa.');}
   catch(e){setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Imeshindikana kuhifadhi sera.');}finally{setSaving(false);}
  }
  return <main className="nah-page">
