@@ -11,7 +11,7 @@ export class NetworkCapabilitiesController {
   @Get()
   list() {
     return {
-      version: 3,
+      version: 4,
       generatedAt: new Date().toISOString(),
       adapters: this.adapters.list(),
       vendors: WORLDWIDE_NETWORK_CAPABILITIES.map((vendor) => ({
@@ -19,6 +19,9 @@ export class NetworkCapabilitiesController {
         protocols: vendor.protocols.map((protocol) => ({
           protocol,
           lifecycle: this.adapters.get(protocol)?.lifecycle ?? 'CATALOG_ONLY',
+          supportScope: this.adapters.get(protocol)?.supportScope ?? 'UNAVAILABLE',
+          capabilities: this.adapters.get(protocol)?.capabilities ?? [],
+          liveDeviceValidationRequired: this.adapters.get(protocol)?.liveDeviceValidationRequired ?? true,
         })),
       })),
     };
