@@ -35,6 +35,21 @@ describe('MikroTikFirmwareExecutor', () => {
     expect(fetchMock.mock.calls.every((call) => call[1].redirect === 'manual')).toBe(true);
   });
 
+  it('exports configuration in chunks and removes the temporary file', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response([]))
+      .mockResolvedValueOnce(response([{ data: '/system identity set name=router' }]))
+      .mockResolvedValueOnce(response([]));
+    const executor = new MikroTikFirmwareExecutor();
+    const result = await executor.createConfigurationExport(connection);
+    expect(result.content).toBe('/system identity set name=router');
+    expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://router.example/rest/export');
+    expect(fetchMock.mock.calls[1][0]).toBe('https://router.example/rest/file/read');
+    expect(fetchMock.mock.calls[2][0]).toMatch(/^https:\/\/router\.example\/rest\/file\/jaslyn-fw-preupgrade-.*\.rsc$/);
+    expect(fetchMock.mock.calls[2][1].method).toBe('DELETE');
+  });
+
   it('refuses install when target does not match the vendor update server latest version', async () => {
     const executor = new MikroTikFirmwareExecutor();
     await expect(executor.install(connection, {
