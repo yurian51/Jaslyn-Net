@@ -42,6 +42,38 @@ describe('MerakiFirmwareExecutor', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('reports completion only when live installed firmware matches the requested target', async () => {
+    global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({
+      timezone: 'Africa/Dar_es_Salaam',
+      products: { wireless: {
+        currentVersion: { id: 'v2', firmware: 'MR 31.1' },
+        availableVersions: [{ id: 'v2', firmware: 'MR 31.1' }],
+        isUpgradeAvailable: false,
+        nextUpgrade: null,
+      } },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const result = await new MerakiFirmwareExecutor().verifyUpgrade(credentials, {
+      targetVersion: 'v2', scheduledAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+    });
+    expect(result.status).toBe('COMPLETED');
+    expect(result.installedVersion).toBe('v2');
+  });
+
+  it('does not report completion while the installed firmware is still old', async () => {
+    global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({
+      timezone: 'Africa/Dar_es_Salaam',
+      products: { wireless: {
+        currentVersion: { id: 'v1' }, availableVersions: [{ id: 'v2' }],
+        isUpgradeAvailable: true, nextUpgrade: { time: new Date(Date.now() + 60 * 60_000).toISOString(), toVersion: { id: 'v2' } },
+      } },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const result = await new MerakiFirmwareExecutor().verifyUpgrade(credentials, {
+      targetVersion: 'v2', scheduledAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    });
+    expect(result.status).toBe('SCHEDULED');
+    expect(result.installedVersion).toBe('v1');
+  });
+
   it('schedules only an exact available target and preserves other product schedules', async () => {
     const fetchMock = jest.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ timezone: 'Africa/Dar_es_Salaam', upgradeWindow: { dayOfWeek: 'sun', hourOfDay: '3:00' }, products: {
