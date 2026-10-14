@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -24,7 +24,7 @@ export class FiberTopologyController {
 
   @Patch(':id')
   @Roles('OWNER','ADMIN','AGENT')
-  update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateFiberAssetDto) {
+  update(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateFiberAssetDto) {
     return this.fiber.update(req.user!.tenantId,req.user!.id,id,dto,{userId:req.user!.id,requestId:req.requestId,ipAddress:req.ip});
   }
 }
