@@ -8,7 +8,7 @@
 
 | # | Capability | Existing foundation to reuse | Additional work required before claiming complete |
 |---|---|---|---|
-| 1 | Network Auto-Healing | Router inventory, incidents, workflows, automation and network command verification | Explicit remediation policy allowlist, deduplication/cooldowns, approval gates, rollback strategy, post-action state verification and replay tests |
+| 1 | Network Auto-Healing | New disabled-by-default tenant policy, bounded retry ledger, cooldown, audit and retry queue through the existing network command worker | Router reboot and general remediation remain unsupported; prove migration, concurrency, command replay and post-action verification in integration tests |
 | 2 | Fiber GIS & OLT/ONU | New tenant-scoped `fiber_network_assets` schema, CRUD API, coordinate links, parent-child topology and audited status updates | OLT/ONU vendor adapters, optical telemetry, provisioning contracts, visual GIS map and device contract tests |
 | 3 | Customer Self-Service Portal | Customer commerce, packages, payments, subscriptions and incidents | Subscriber identity/ownership tests, invoices and receipts, renewals, service actions and secure account recovery |
 | 4 | Bandwidth Intelligence & QoS | Operations intelligence and capacity estimates | Time-series ingestion from tested adapters, data freshness, per-subscriber/site utilization, vendor-specific shaping policies and read-back verification |
