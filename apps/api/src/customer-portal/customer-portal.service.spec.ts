@@ -19,15 +19,15 @@ describe('CustomerPortalService purchase ownership',()=>{
  it('creates a purchase only from a published package in the authenticated tenant',async()=>{
   db.query.mockResolvedValueOnce({rows:[{id:'package-a'}],rowCount:1});
   purchases.create.mockResolvedValueOnce({id:'purchase-a',status:'PENDING_PAYMENT'});
-  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-a'}))
+  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-a',idempotencyKey:'purchase-key-123456'}))
    .resolves.toMatchObject({id:'purchase-a',status:'PENDING_PAYMENT'});
   expect(db.query).toHaveBeenCalledWith(expect.stringContaining('tenant_id=$1 AND id=$2 AND is_active=true AND show_on_portal=true'),['tenant-a','package-a']);
-  expect(purchases.create).toHaveBeenCalledWith('tenant-a',{customerId:'customer-a',packageId:'package-a',routerId:undefined,promoCode:undefined,idempotencyKey:undefined});
+  expect(purchases.create).toHaveBeenCalledWith('tenant-a',{customerId:'customer-a',packageId:'package-a',routerId:undefined,promoCode:undefined,idempotencyKey:'purchase-key-123456'});
  });
 
  it('does not create a purchase for a hidden or cross-tenant package',async()=>{
   db.query.mockResolvedValueOnce({rows:[],rowCount:0});
-  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-b'})).rejects.toBeInstanceOf(NotFoundException);
+  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-b',idempotencyKey:'purchase-key-123456'}).rejects.toBeInstanceOf(NotFoundException);
   expect(purchases.create).not.toHaveBeenCalled();
  });
 
