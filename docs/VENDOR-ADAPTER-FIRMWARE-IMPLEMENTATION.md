@@ -114,3 +114,4 @@ The existing production-readiness and enterprise capability documents report rou
 - CI run results on this branch currently fail before useful job-step logs are available; inspect GitHub Actions after runner availability returns.
 - No live device, vendor credentials, hardware/model inventory, or maintenance-window approval was supplied, so firmware compatibility and upgrade/recovery cannot be verified against physical devices.
 - Do not promote adapters to fully verified or perform production firmware upgrades until these gates pass.
+- OpenWrt client polling now destroys the authenticated ubus session in a `finally` path, including when telemetry polling fails; its test checks session cleanup.
