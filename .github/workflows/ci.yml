@@ -86,8 +86,9 @@ jobs:
           test -f apps/api/migrations/043_connectivity_correlation.sql
           test -f apps/api/migrations/044a_radius_correlation_convergence.sql
           grep -q "correlation_id" apps/api/migrations/043_connectivity_correlation.sql
-          grep -q "ALTER TABLE radius_events" apps/api/migrations/044_radius_correlation_convergence.sql
-          grep -q "correlation_id TYPE text" apps/api/migrations/044_radius_correlation_convergence.sql
+          grep -q "ALTER TABLE radius_events" apps/api/migrations/044a_radius_correlation_convergence.sql
+          grep -q "correlation_id TYPE text" apps/api/migrations/044a_radius_correlation_convergence.sql
+          grep -Fq 'DO $$' apps/api/migrations/075_event_driven_automation.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
           grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
