@@ -52,7 +52,9 @@ export class NetworkFirmwareUpgradeService {
     if (!endpoint) throw new ServiceUnavailableException('Configure the MikroTik RouterOS REST endpoint (for example https://router-address/rest)');
     const credentials = this.secureCredentials.decrypt(router.encryptedCredentials);
     const live = await this.mikrotikFirmware.inspect({ endpoint, credentials });
-    const hardwareRevision = live.identity.factoryFirmware || null;
+    // RouterOS factory-firmware is a firmware version, not a hardware revision.
+    // Keep this unknown rather than storing misleading metadata.
+    const hardwareRevision: string | null = null;
     const releaseSourceUrl = 'https://mikrotik.com/download';
     const status = live.update.installedVersion === live.update.latestVersion ? 'CURRENT' : 'UPDATE_AVAILABLE';
     const reason = 'Live RouterOS update status returned by the device from MikroTik official update channel; model identity and version read over authenticated HTTPS.';
