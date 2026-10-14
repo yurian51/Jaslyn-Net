@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS network_auto_heal_runs (
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   command_id uuid NOT NULL REFERENCES network_commands(id) ON DELETE CASCADE,
   failed_attempt_number integer NOT NULL CHECK (failed_attempt_number BETWEEN 1 AND 1000),
-  command_type text NOT NULL CHECK (command_type IN ('BANDWIDTH_ENFORCEMENT','DISCONNECT_SESSION')),
+  command_type text NOT NULL CHECK (command_type IN ('BANDWIDTH_ENFORCEMENT')),
   status text NOT NULL CHECK (status IN ('PROCESSING','REQUEUED','VERIFIED','FAILED','SKIPPED')),
   reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
