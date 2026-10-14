@@ -122,7 +122,7 @@ export class CustomerPortalService {
   async createPurchase(tenantId:string,customerId:string,input:CustomerPortalCreatePurchaseDto){
     const plan=await this.db.query('SELECT id FROM packages WHERE tenant_id=$1 AND id=$2 AND is_active=true AND show_on_portal=true',[tenantId,input.packageId]);
     if(!plan.rowCount)throw new NotFoundException('Package is not available for customer self-service');
-    const purchase=await this.purchases.create(tenantId,{customerId,packageId:input.packageId,routerId:input.routerId,promoCode:input.promoCode});
+    const purchase=await this.purchases.create(tenantId,{customerId,packageId:input.packageId,routerId:input.routerId,promoCode:input.promoCode,idempotencyKey:input.idempotencyKey});
     await this.audit.record(tenantId,'CUSTOMER_PORTAL_PURCHASE_CREATED','purchase',purchase.id,{customerId,packageId:input.packageId,routerId:input.routerId??null});
     return purchase;
   }
