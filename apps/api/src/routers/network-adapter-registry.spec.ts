@@ -18,6 +18,18 @@ describe('NetworkAdapterRegistry', () => {
     expect(registry.isImplemented('PFSENSE_API')).toBe(true);
   });
 
+  it('declares actual support scope and keeps hardware validation explicit', () => {
+    const registry = new NetworkAdapterRegistry();
+
+    expect(registry.get('MIKROTIK_REST')?.supportScope).toBe('ENFORCEMENT_AND_TELEMETRY');
+    expect(registry.get('MERAKI_DASHBOARD_API')?.supportScope).toBe('ENFORCEMENT_AND_TELEMETRY');
+    expect(registry.get('OMADA_CONTROLLER_API')?.supportScope).toBe('TELEMETRY_ONLY');
+    expect(registry.get('GENERIC_HTTP')?.supportScope).toBe('GENERIC_TELEMETRY');
+    for (const adapter of registry.list()) {
+      expect(adapter.liveDeviceValidationRequired).toBe(true);
+    }
+  });
+
   it('normalizes protocol lookup and exposes capability truth', () => {
     const registry = new NetworkAdapterRegistry();
 
