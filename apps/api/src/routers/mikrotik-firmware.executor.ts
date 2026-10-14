@@ -140,7 +140,9 @@ export class MikroTikFirmwareExecutor {
     const basePath = url.pathname.replace(/\/$/, '');
     const target = `${url.origin}${basePath}${path.startsWith('/') ? path : `/${path}`}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    // RouterOS update checks and installation can run much longer than ordinary REST reads.
+    const timeoutMs = path.endsWith('/check-for-updates') || path.endsWith('/install') ? 45_000 : 12_000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const auth = Buffer.from(`${connection.credentials.username}:${connection.credentials.password}`).toString('base64');
       const response = await fetch(target, {
