@@ -9,6 +9,7 @@ import { CreateRouterDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.
 import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
 import { FirmwareObservationInput, NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
+import { FirmwareUpgradeRequest, NetworkFirmwareUpgradeService } from './network-firmware-upgrade.service';
 
 @Controller('routers')
 @UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
@@ -17,6 +18,7 @@ export class RoutersController {
     private readonly routers: RoutersService,
     private readonly enforcement: NetworkEnforcementService,
     private readonly firmware: NetworkFirmwareInventoryService,
+    private readonly firmwareUpgrades: NetworkFirmwareUpgradeService,
   ) {}
 
   @Get()
@@ -48,6 +50,28 @@ export class RoutersController {
       ipAddress: req.ip,
       userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
     });
+  }
+
+  @Get(':id/firmware/upgrades')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  listFirmwareUpgrades(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.firmwareUpgrades.list(req.user!.tenantId, id);
+  }
+
+  @Post(':id/firmware/upgrades/preview')
+  @Roles('OWNER', 'ADMIN')
+  previewFirmwareUpgrade(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: FirmwareUpgradeRequest) {
+    const userAgent = req.headers['user-agent'];
+    return this.firmwareUpgrades.preview(req.user!.tenantId, id, dto, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
+  @Post(':id/firmware/upgrades/:jobId/approve')
+  @Roles('OWNER', 'ADMIN')
+  approveFirmwareUpgrade(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('jobId') jobId: string) {
+    return this.firmwareUpgrades.approve(req.user!.tenantId, id, jobId, { userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip });
   }
 
   @Get(':id')
