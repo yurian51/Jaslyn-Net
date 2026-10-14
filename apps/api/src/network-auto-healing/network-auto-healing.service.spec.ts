@@ -38,7 +38,7 @@ describe('NetworkAutoHealingService',()=>{
  it('does not report a retry when the command changed state before the update',async()=>{
   const client={query:jest.fn()
    .mockResolvedValueOnce({}).mockResolvedValueOnce({})
-   .mockResolvedValueOnce({rows:[{tenant_id:'tenant-a',id:'command-a',attempts:1,command_type:'DISCONNECT_SESSION',router_id:'router-a',actor:'operator',provider:'MIKROTIK_REST'}],rowCount:1})
+   .mockResolvedValueOnce({rows:[{tenant_id:'tenant-a',id:'command-a',attempts:1,command_type:'BANDWIDTH_ENFORCEMENT',router_id:'router-a',actor:'operator',provider:'MIKROTIK_REST'}],rowCount:1})
    .mockResolvedValueOnce({rows:[],rowCount:0})
    .mockResolvedValueOnce({rows:[{id:'run-a'}],rowCount:1})
    .mockResolvedValueOnce({rows:[],rowCount:0}) // command no longer FAILED
