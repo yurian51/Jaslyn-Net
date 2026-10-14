@@ -54,7 +54,7 @@ async function main() {
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
 
     const migrationDir = join(process.cwd(), 'migrations');
-    const files = (await readdir(migrationDir)).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
+    const files = (await readdir(migrationDir)).filter((file) => /^\d+[a-z]?_.+\.sql$/.test(file)).sort();
 
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');
