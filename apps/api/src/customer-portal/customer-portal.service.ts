@@ -8,7 +8,8 @@ import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { CustomerCommerceService } from '../customer-commerce/customer-commerce.service';
 import { PaymentsService } from '../payments/payments.service';
-import { CustomerPortalActivationDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
+import { PurchasesService } from '../purchases/purchases.service';
+import { CustomerPortalActivationDto, CustomerPortalCreatePurchaseDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
 
 const scrypt=promisify(scryptCallback);
 const KEY_LENGTH=64;
@@ -16,7 +17,7 @@ const SESSION_HOURS=12;
 @Injectable()
 export class CustomerPortalService {
   constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly config:ConfigService,private readonly audit:AuditService,
-    private readonly commerce:CustomerCommerceService,private readonly payments:PaymentsService){}
+    private readonly commerce:CustomerCommerceService,private readonly payments:PaymentsService,private readonly purchases:PurchasesService){}
 
   async issueInvitation(tenantId:string,actorId:string,customerId:string,context:AuditContext={}){
     const customer=await this.db.query('SELECT c.id,c.full_name AS "fullName",c.username,t.slug AS "tenantSlug" FROM customers c JOIN tenants t ON t.id=c.tenant_id WHERE c.tenant_id=$1 AND c.id=$2 AND c.is_active=true',[tenantId,customerId]);
@@ -114,6 +115,14 @@ export class CustomerPortalService {
       download_bps AS "downloadBps",upload_bps AS "uploadBps"
       FROM packages WHERE tenant_id=$1 AND is_active=true AND show_on_portal=true ORDER BY price ASC LIMIT 500`,[tenantId]);
     return {data:r.rows};
+  }
+
+  async createPurchase(tenantId:string,customerId:string,input:CustomerPortalCreatePurchaseDto){
+    const plan=await this.db.query('SELECT id FROM packages WHERE tenant_id=$1 AND id=$2 AND is_active=true AND show_on_portal=true',[tenantId,input.packageId]);
+    if(!plan.rowCount)throw new NotFoundException('Package is not available for customer self-service');
+    const purchase=await this.purchases.create(tenantId,{customerId,packageId:input.packageId,routerId:input.routerId,promoCode:input.promoCode});
+    await this.audit.record(tenantId,'CUSTOMER_PORTAL_PURCHASE_CREATED','purchase',purchase.id,{customerId,packageId:input.packageId,routerId:input.routerId??null});
+    return purchase;
   }
 
   async createPurchaseIntent(tenantId:string,customerId:string,input:CustomerPortalPurchaseIntentDto){
