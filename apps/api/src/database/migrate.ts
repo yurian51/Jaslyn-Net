@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Client } from 'pg';
 import { findLegacyMigrationAlias } from './migration-aliases';
+import { stripOuterTransactionWrapper } from './migration-sql';
 
 const MIGRATION_LOCK_KEY = 7_421_931;
 
@@ -72,7 +73,7 @@ async function main() {
         continue;
       }
 
-      const sql = await readFile(join(migrationDir, file), 'utf8');
+      const sql = stripOuterTransactionWrapper(await readFile(join(migrationDir, file), 'utf8'));
       console.log(`Applying migration ${version}`);
       await client.query('BEGIN');
       try {
