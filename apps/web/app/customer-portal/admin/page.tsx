@@ -17,7 +17,7 @@ export default function CustomerPortalAdminPage(){
  },[customerId]);
  useEffect(()=>{void load();},[load]);
  async function issue(){const token=getAccessToken();if(!token||!customerId)return;setBusy(true);setError('');setNotice('');setInvite(null);
-  try{const r=await apiFetch<Invite>('/customer-portal/customers/'+customerId+'/invitations',{method:'POST',headers:{Authorization:'Bearer '+token}});setInvite(r);setNotice('Invitation imetengenezwa. Nakili token na umfikishie mteja kupitia njia binafsi iliyoidhinishwa.');}
+  try{const r=await apiFetch<Invite>('/customer-portal/customers/'+customerId+'/invitations',{method:'POST',headers:{Authorization:'Bearer '+token}});setInvite(r);setNotice('Invitation imetengenezwa. '+r.delivery);}
   catch(e){setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Imeshindikana kutengeneza invitation.');}finally{setBusy(false);}
  }
  async function copy(){if(!invite)return;try{await navigator.clipboard.writeText(invite.invitationToken);setNotice('Invitation token imenakiliwa.');}catch{setNotice('Copy haikuruhusiwa na browser; chagua token kisha unakili manually.');}}
