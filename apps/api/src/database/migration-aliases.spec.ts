@@ -1,38 +1,33 @@
-import { findLegacyMigrationAlias, LEGACY_MIGRATION_ALIASES } from './migration-aliases';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { findLegacyMigrationAlias, gitBlobSha, LEGACY_MIGRATION_ALIASES } from './migration-aliases';
 
 describe('legacy migration aliases', () => {
   it('maps renamed migrations to their historical deployed version', () => {
-    expect(findLegacyMigrationAlias('044a_radius_correlation_convergence', new Set(['044_radius_correlation_convergence'])))
+    expect(findLegacyMigrationAlias('044a_radius_correlation_convergence', new Set(['044_radius_correlation_convergence']), '18222a872d06057c872fc6380a9c04269cd5e12c'))
       .toBe('044_radius_correlation_convergence');
-    expect(findLegacyMigrationAlias('075_event_driven_automation', new Set(['074_event_driven_automation'])))
+    expect(findLegacyMigrationAlias('075_event_driven_automation', new Set(['074_event_driven_automation']), '6b65557e464150e06ba47b6a24fa96c8379bf86d'))
       .toBe('074_event_driven_automation');
-    expect(findLegacyMigrationAlias('076_tenant_usage_quotas', new Set(['075_tenant_usage_quotas'])))
+    expect(findLegacyMigrationAlias('076_tenant_usage_quotas', new Set(['075_tenant_usage_quotas']), '05e43a0c4dd17a233e347fd55e4082ec57759024'))
       .toBe('075_tenant_usage_quotas');
-    expect(findLegacyMigrationAlias('077a_workflow_automation_engine', new Set(['077_workflow_automation_engine'])))
+    expect(findLegacyMigrationAlias('077a_workflow_automation_engine', new Set(['077_workflow_automation_engine']), 'a776167bc1b65fe461a4b8d64bf35c05f48e9c68'))
       .toBe('077_workflow_automation_engine');
   });
 
   it('does not skip a migration unless its exact legacy version is recorded as applied', () => {
-    expect(findLegacyMigrationAlias('044a_radius_correlation_convergence', new Set())).toBeUndefined();
-    expect(findLegacyMigrationAlias('078_fiber_topology_inventory', new Set(['077_workflow_automation_engine'])))
-      .toBeUndefined();
+    expect(findLegacyMigrationAlias('044a_radius_correlation_convergence', new Set(), '18222a872d06057c872fc6380a9c04269cd5e12c')).toBeUndefined();
+    expect(findLegacyMigrationAlias('078_fiber_topology_inventory', new Set(['077_workflow_automation_engine']), 'not-an-alias')).toBeUndefined();
   });
 
-  it('only contains the reviewed identical-SQL aliases', () => {
-    expect(Object.keys(LEGACY_MIGRATION_ALIASES)).toEqual([
-      '005a_payment_indexes',
-      '044a_radius_correlation_convergence',
-      '045a_invoice_number_sequences',
-      '046a_upesipay_capabilities',
-      '048a_remove_upesilipa_subsystem',
-      '060a_sms_delivery_provider',
-      '061a_sms_campaigns',
-      '062a_sms_provider_configs',
-      '071a_public_captive_portal_voucher_security',
-      '075_event_driven_automation',
-      '076_tenant_usage_quotas',
-      '077_financial_audit_head_guard',
-      '077a_workflow_automation_engine',
-    ]);
+  it('refuses to skip an alias if its SQL content has changed', () => {
+    expect(() => findLegacyMigrationAlias('044a_radius_correlation_convergence', new Set(['044_radius_correlation_convergence']), 'changed-content'))
+      .toThrow('no longer matches its reviewed legacy SQL alias');
+  });
+
+  it('keeps every alias SQL byte-for-byte pinned to the reviewed Git blob hash', () => {
+    for (const [version, alias] of Object.entries(LEGACY_MIGRATION_ALIASES)) {
+      const sql = readFileSync(join(__dirname, '../../migrations', version + '.sql'), 'utf8');
+      expect(gitBlobSha(sql)).toBe(alias.expectedGitBlobSha);
+    }
   });
 });
