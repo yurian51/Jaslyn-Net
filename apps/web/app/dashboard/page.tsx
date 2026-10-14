@@ -51,6 +51,7 @@ const OPERATOR_WORKSPACES = [
   { label: 'Security & audit', detail: 'Audit trail and security events', href: '/audit', terms: 'logs security compliance' },
   { label: 'Communication', detail: 'Messages and delivery status', href: '/communication', terms: 'sms email notifications messages' },
   { label: 'Integrations', detail: 'Connected systems and providers', href: '/integrations', terms: 'api webhooks external systems' },
+  { label: 'Operations Hub', detail: 'Artifacts, workspaces, runbooks and change reviews', href: '/operations-hub', terms: 'artifacts workspace runbooks integrations change review rollback' },
 ] as const;
 
 const percent = (value: number, total: number) => {
