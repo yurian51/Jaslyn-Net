@@ -4,10 +4,14 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestObservabilityInterceptor } from './common/request-observability.interceptor';
+import { StructuredLogger } from './common/structured-logger';
 import { CommunicationWebSocket } from './communication/communication.websocket';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    logger: new StructuredLogger(),
+  });
   const config = app.get(ConfigService);
   const environment = config.get<string>('NODE_ENV', 'development').trim().toLowerCase();
   const configuredOrigin = config.get<string>('CORS_ORIGIN', '*').trim();
