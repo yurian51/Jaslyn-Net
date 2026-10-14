@@ -68,6 +68,8 @@ jobs:
           grep -Fq 'FOREIGN KEY (tenant_id, router_id)' apps/api/migrations/078_fiber_topology_inventory.sql
           grep -Fq 'network_auto_heal_runs' apps/api/migrations/079_network_auto_healing.sql
           grep -Fq 'customer_portal_sessions' apps/api/migrations/080_customer_self_service_portal.sql
+          grep -Fq "c.command_type = 'BANDWIDTH_ENFORCEMENT'" apps/api/src/network-auto-healing/network-auto-healing.service.ts
+          grep -Fq 'customerPortal:CustomerPortalRequest' apps/api/src/customer-portal/customer-portal.guard.ts
           grep -Fq '/^\d+[a-z]?_.+\.sql$/' apps/api/src/database/migrate.ts
           test -f apps/api/migrations/062_session_audit_security_integrity.sql
           test -f apps/api/migrations/063_field_operations_offline_sync.sql
