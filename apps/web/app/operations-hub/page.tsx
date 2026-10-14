@@ -16,7 +16,7 @@ export default function OperationsHubPage() {
   const [tab, setTab] = useState<'artifacts'|'workspace'|'runbooks'|'integrations'|'changes'>('artifacts');
   const [artifacts, setArtifacts] = useState<Row[]>([]), [workspaces, setWorkspaces] = useState<Row[]>([]), [runbooks, setRunbooks] = useState<Row[]>([]), [integrations, setIntegrations] = useState<Row[]>([]), [changes, setChanges] = useState<Row[]>([]), [executions, setExecutions] = useState<Row[]>([]);
   const [title, setTitle] = useState(''), [artifactType, setArtifactType] = useState('DOCUMENT'), [artifactContent, setArtifactContent] = useState('{"summary":"","items":[]}'), [editingArtifact, setEditingArtifact] = useState<Row|null>(null), [versionContent, setVersionContent] = useState('{}'), [artifactVersions, setArtifactVersions] = useState<Row[]>([]);
-  const [workspaceName, setWorkspaceName] = useState('Jasora | Network Operations'), [workspaceLayout, setWorkspaceLayout] = useState('{}'), [workspacePins, setWorkspacePins] = useState('["/dashboard","/network"]');
+  const [workspaceName, setWorkspaceName] = useState('Jaslyn One | Network Operations'), [workspaceLayout, setWorkspaceLayout] = useState('{}'), [workspacePins, setWorkspacePins] = useState('["/dashboard","/network"]');
   const [runbookName, setRunbookName] = useState(''), [runbookSteps, setRunbookSteps] = useState('[{"title":"Verify the affected service","type":"CHECKLIST"}]'), [rollbackSteps, setRollbackSteps] = useState('[{"title":"Restore the previous known-good state","type":"MANUAL"}]');
   const [providerKey, setProviderKey] = useState(''), [providerName, setProviderName] = useState(''), [providerConfig, setProviderConfig] = useState('{}');
   const [changeTitle, setChangeTitle] = useState(''), [changeType, setChangeType] = useState('NETWORK_CONFIG'), [targetType, setTargetType] = useState('router'), [targetId, setTargetId] = useState(''), [proposed, setProposed] = useState('{}'), [rollbackPlan, setRollbackPlan] = useState('["Restore saved configuration"]');
@@ -50,7 +50,7 @@ export default function OperationsHubPage() {
         const user = profile.user;
         const owner = (user?.fullName || user?.email?.split('@')[0] || 'Operator').trim();
         const tenant = (user?.tenantName || user?.tenantSlug || 'Workspace').trim();
-        const suggested = 'Jasora | Network Operations';
+        const suggested = 'Jaslyn One | Network Operations';
         setWorkspaceName((current) => current === 'Jaslyn Net | Network Operations' || current === 'My workspace' ? suggested : current);
       })
       .catch(() => undefined);
@@ -79,7 +79,7 @@ export default function OperationsHubPage() {
   const list = (rows: Row[], columns: string[]) => <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}><thead><tr>{columns.map(c=><th key={c} style={{textAlign:'left',padding:8,borderBottom:'1px solid #e2e8f0'}}>{c}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={value(r.id)=== '—' ? i : value(r.id)}>{columns.map(c=>{const key=c.charAt(0).toLowerCase()+c.slice(1);return <td key={c} style={{padding:8,borderBottom:'1px solid #e2e8f0',verticalAlign:'top',overflowWrap:'anywhere'}}>{value(r[key] ?? r[c])}</td>;})}</tr>)}{!rows.length&&<tr><td colSpan={columns.length} style={{padding:10,color:'#64748b'}}>Hakuna rekodi bado.</td></tr>}</tbody></table></div>;
 
   return <main style={{maxWidth:1200,margin:'0 auto',padding:24,background:'#f8fafc',minHeight:'100vh',color:'#172033'}}>
-    <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><p style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:'#64748b'}}>JASORA / OPERATIONS</p><h1 style={{fontSize:32,margin:'6px 0'}}>Operations Hub</h1><p style={{color:'#64748b'}}>Artifacts zenye version history, workspaces, runbooks, connector registry na change review.</p></div><button style={button} onClick={()=>void load()} disabled={loading}>{loading?'Inapakia…':'Refresh data'}</button></header>
+    <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><p style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:'#64748b'}}>JASLYN ONE / OPERATIONS</p><h1 style={{fontSize:32,margin:'6px 0'}}>Operations Hub</h1><p style={{color:'#64748b'}}>Artifacts zenye version history, workspaces, runbooks, connector registry na change review.</p></div><button style={button} onClick={()=>void load()} disabled={loading}>{loading?'Inapakia…':'Refresh data'}</button></header>
     {error&&<p role="alert" style={{background:'#fff1f2',color:'#9f1239',padding:12,borderRadius:8}}>{error}</p>}{notice&&<p role="status" style={{background:'#ecfdf5',color:'#065f46',padding:12,borderRadius:8}}>{notice}</p>}
     <nav style={{display:'flex',gap:8,flexWrap:'wrap',margin:'18px 0'}}>{(['artifacts','workspace','runbooks','integrations','changes'] as const).map(t=><button key={t} style={{...button,background:tab===t?'#174ea6':'#e2e8f0',color:tab===t?'white':'#334155'}} onClick={()=>setTab(t)}>{({artifacts:'Artifacts',workspace:'My workspaces',runbooks:'Runbooks',integrations:'Integrations',changes:'Change review'})[t]}</button>)}</nav>
 
