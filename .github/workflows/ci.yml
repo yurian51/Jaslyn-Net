@@ -57,11 +57,14 @@ jobs:
             END { exit failed }
           ' "${migrations[@]}"
 
-          test -f apps/api/migrations/073_financial_procurement_msp_platform.sql
-          test -f apps/api/migrations/074_network_experience_capacity_power_sla.sql
-          test -f apps/api/migrations/075_event_driven_automation.sql
+          # Assert migrations that are present on the current base plus this feature branch.
+          # Earlier staged feature branches used conflicting 071-075 prefixes; do not require
+          # those unmerged files here. The numeric-prefix uniqueness check above catches collisions.
           test -f apps/api/migrations/076_tenant_usage_quotas.sql
           test -f apps/api/migrations/077_financial_audit_head_guard.sql
+          test -f apps/api/migrations/078_fiber_topology_inventory.sql
+          test -f apps/api/migrations/079_network_auto_healing.sql
+          test -f apps/api/migrations/080_customer_self_service_portal.sql
           test -f apps/api/migrations/062_session_audit_security_integrity.sql
           test -f apps/api/migrations/063_field_operations_offline_sync.sql
           test -f apps/api/migrations/064_incident_timeline_maintenance_status.sql
