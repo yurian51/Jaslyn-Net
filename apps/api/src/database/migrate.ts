@@ -4,6 +4,31 @@ import { Client } from 'pg';
 
 const MIGRATION_LOCK_KEY = 7_421_931;
 
+/**
+ * Some historical migration files were renamed with an alphabetic suffix to
+ * resolve prefix collisions. Production may already have applied the exact
+ * same SQL under the original version. Only list aliases whose SQL is identical.
+ */
+export const LEGACY_MIGRATION_ALIASES: Record<string, string[]> = {
+  '005a_payment_indexes': ['005_payment_indexes'],
+  '044a_radius_correlation_convergence': ['044_radius_correlation_convergence'],
+  '045a_invoice_number_sequences': ['045_invoice_number_sequences'],
+  '046a_upesipay_capabilities': ['046_upesipay_capabilities'],
+  '048a_remove_upesilipa_subsystem': ['048_remove_upesilipa_subsystem'],
+  '060a_sms_delivery_provider': ['060_sms_delivery_provider'],
+  '061a_sms_campaigns': ['061_sms_campaigns'],
+  '062a_sms_provider_configs': ['062_sms_provider_configs'],
+  '071a_public_captive_portal_voucher_security': ['071_public_captive_portal_voucher_security'],
+  '075_event_driven_automation': ['074_event_driven_automation'],
+  '076_tenant_usage_quotas': ['075_tenant_usage_quotas'],
+  '077_financial_audit_head_guard': ['076_financial_audit_head_guard'],
+  '077a_workflow_automation_engine': ['077_workflow_automation_engine'],
+};
+
+export function findLegacyMigrationAlias(version: string, appliedVersions: ReadonlySet<string>): string | undefined {
+  return LEGACY_MIGRATION_ALIASES[version]?.find((legacyVersion) => appliedVersions.has(legacyVersion));
+}
+
 function buildConnectionString(env: NodeJS.ProcessEnv): string {
   const direct = env.DATABASE_URL?.trim();
   if (direct) return direct;
@@ -52,14 +77,23 @@ async function main() {
     console.log('Migration runner: migration lock acquired');
 
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
+    const appliedRows = await client.query<{ version: string }>('SELECT version FROM schema_migrations');
+    const appliedVersions = new Set(appliedRows.rows.map((row) => row.version));
 
     const migrationDir = join(process.cwd(), 'migrations');
     const files = (await readdir(migrationDir)).filter((file) => /^\d+[a-z]?_.+\.sql$/.test(file)).sort();
 
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');
-      const applied = await client.query('SELECT 1 FROM schema_migrations WHERE version = $1', [version]);
-      if (applied.rowCount) continue;
+      if (appliedVersions.has(version)) continue;
+
+      const legacyAlias = findLegacyMigrationAlias(version, appliedVersions);
+      if (legacyAlias) {
+        await client.query('INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING', [version]);
+        appliedVersions.add(version);
+        console.log(`Skipping migration ${version}; equivalent legacy migration ${legacyAlias} is already applied`);
+        continue;
+      }
 
       const sql = await readFile(join(migrationDir, file), 'utf8');
       console.log(`Applying migration ${version}`);
@@ -69,6 +103,7 @@ async function main() {
         await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
         await client.query('COMMIT');
         console.log(`Applied migration ${version}`);
+        appliedVersions.add(version);
       } catch (error) {
         await client.query('ROLLBACK');
         console.error(`Migration failed: ${version}`);
