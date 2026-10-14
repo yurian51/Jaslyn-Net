@@ -148,6 +148,23 @@ export default function DashboardPage() {
 
   return (
     <main className="overview-page">
+      <section className="operator-welcome" aria-labelledby="operator-welcome-title">
+        <div className="operator-welcome-copy">
+          <div className="operator-welcome-eyebrow"><span className="operator-welcome-live-dot" /> JASLYN NET OPERATOR WORKSPACE</div>
+          <h2 id="operator-welcome-title">{new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}, operator!</h2>
+          <p>Your network, subscribers, payments and field operations — ready in one place.</p>
+          <div className="operator-welcome-actions">
+            <a href="/network">Open network <span aria-hidden="true">↗</span></a>
+            <a href="/sessions">View live sessions <span aria-hidden="true">↗</span></a>
+            <a href="/payments">Review payments <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div className="operator-welcome-status" aria-live="polite">
+          <span className="operator-welcome-status-label">WORKSPACE STATUS</span>
+          <strong><i className={connection === 'online' ? 'is-online' : connection === 'offline' ? 'is-offline' : 'is-checking'} />{connection === 'online' ? 'Connected' : connection === 'offline' ? 'Offline' : connection === 'degraded' ? 'Needs attention' : 'Connecting…'}</strong>
+          <small>{lastUpdatedAt ? 'Updated ' + lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Checking live API status'}</small>
+        </div>
+      </section>
       <header className="overview-header">
         <div className="overview-heading">
           <div className="eyebrow">JASLYN NET / CONTROL CENTER</div>
