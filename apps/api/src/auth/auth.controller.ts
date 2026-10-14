@@ -61,6 +61,6 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard)
   me(@Req() request: AuthenticatedRequest) {
-    return { user: request.user };
+    return this.auth.getCurrentUser(request.user!);
   }
 }
