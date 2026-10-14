@@ -27,7 +27,7 @@ export const LEGACY_MIGRATION_ALIASES: Readonly<Record<string, LegacyMigrationAl
 };
 
 export function gitBlobSha(content: string): string {
-  const header = `blob ${Buffer.byteLength(content)}\\0`;
+  const header = `blob ${Buffer.byteLength(content)}\0`;
   return createHash('sha1').update(header).update(content).digest('hex');
 }
 
