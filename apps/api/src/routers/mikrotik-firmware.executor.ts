@@ -109,6 +109,9 @@ export class MikroTikFirmwareExecutor {
       throw new BadRequestException('RouterOS only installs the latest version from its selected channel; target does not match the verified latest version');
     }
     const before = await this.inspect(connection);
+    if (!['stable', 'long-term'].includes(before.update.channel)) {
+      throw new BadRequestException('MikroTik firmware automation permits only stable or long-term release channels');
+    }
     if (before.update.installedVersion !== input.expectedInstalledVersion) {
       throw new ConflictException('MikroTik installed version changed after approval; preview the upgrade again');
     }
