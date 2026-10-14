@@ -5,7 +5,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { EnforceRouterPolicyDto } from './enforce-router-policy.dto';
-import { CreateRouterDto, MerakiFirmwareScheduleDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
+import { CreateRouterDto, MerakiFirmwareScheduleDto, MerakiFirmwareVerifyDto, RouterHeartbeatDto, UpdateRouterDto } from './routers.dto';
 import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
 import { FirmwareObservationInput, NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
@@ -83,6 +83,16 @@ export class RoutersController {
       userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
     });
   }
+  @Post(':id/firmware/meraki/verify')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  verifyMerakiFirmware(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: MerakiFirmwareVerifyDto) {
+    const userAgent = req.headers['user-agent'];
+    return this.merakiFirmware.verify(req.user!.tenantId, id, dto, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
   @Get(':id/firmware/upgrades')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
   listFirmwareUpgrades(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
