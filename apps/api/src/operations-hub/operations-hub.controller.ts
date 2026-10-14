@@ -12,13 +12,13 @@ export class OperationsHubController {
   constructor(private readonly hub: OperationsHubService) {}
   @Get('artifacts') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   artifacts(@Req() r: AuthenticatedRequest) { return this.hub.listArtifacts(r.user!.tenantId,r.user!.id); }
-  @Post('artifacts') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  @Post('artifacts') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
   createArtifact(@Req() r: AuthenticatedRequest,@Body() b: unknown) { return this.hub.createArtifact(r.user!.tenantId,r.user!.id,b); }
-  @Post('artifacts/:id/restore/:version') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  @Post('artifacts/:id/restore/:version') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
   restoreArtifactVersion(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Param('version') version: string) { return this.hub.restoreArtifactVersion(r.user!.tenantId,r.user!.id,id,Number(version)); }
   @Get('artifacts/:id/versions') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   artifactHistory(@Req() r: AuthenticatedRequest,@Param('id') id: string) { return this.hub.artifactHistory(r.user!.tenantId,r.user!.id,id); }
-  @Post('artifacts/:id/versions') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  @Post('artifacts/:id/versions') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
   versionArtifact(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.versionArtifact(r.user!.tenantId,r.user!.id,id,b); }
   @Get('workspaces') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   workspaces(@Req() r: AuthenticatedRequest) { return this.hub.listWorkspaces(r.user!.tenantId,r.user!.id); }
@@ -33,7 +33,7 @@ export class OperationsHubController {
   reviewRunbookExecution(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.reviewRunbookExecution(r.user!.tenantId,r.user!.id,id,b); }
   @Get('change-reviews/:id/evidence') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   changeEvidence(@Req() r: AuthenticatedRequest,@Param('id') id: string) { return this.hub.listChangeEvidence(r.user!.tenantId,id); }
-  @Post('change-reviews/:id/evidence') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  @Post('change-reviews/:id/evidence') @Roles('OWNER','ADMIN','AGENT') @Permissions('operations.change.request')
   addChangeEvidence(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.addChangeEvidence(r.user!.tenantId,r.user!.id,id,b); }
 
   @Get('runbooks') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
@@ -48,7 +48,7 @@ export class OperationsHubController {
   saveIntegration(@Req() r: AuthenticatedRequest,@Body() b: unknown) { return this.hub.saveIntegration(r.user!.tenantId,r.user!.id,b); }
   @Get('change-reviews') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   changes(@Req() r: AuthenticatedRequest) { return this.hub.listChanges(r.user!.tenantId); }
-  @Post('change-reviews') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  @Post('change-reviews') @Roles('OWNER','ADMIN','AGENT') @Permissions('operations.change.request')
   createChange(@Req() r: AuthenticatedRequest,@Body() b: unknown) { return this.hub.createChange(r.user!.tenantId,r.user!.id,b); }
   @Post('change-reviews/:id/review') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
   reviewChange(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.reviewChange(r.user!.tenantId,r.user!.id,id,b); }
