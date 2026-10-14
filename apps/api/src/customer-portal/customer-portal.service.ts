@@ -19,7 +19,7 @@ export class CustomerPortalService {
     private readonly commerce:CustomerCommerceService,private readonly payments:PaymentsService){}
 
   async issueInvitation(tenantId:string,actorId:string,customerId:string,context:AuditContext={}){
-    const customer=await this.db.query('SELECT id,full_name AS "fullName",username FROM customers WHERE tenant_id=$1 AND id=$2 AND is_active=true',[tenantId,customerId]);
+    const customer=await this.db.query('SELECT c.id,c.full_name AS "fullName",c.username,t.slug AS "tenantSlug" FROM customers c JOIN tenants t ON t.id=c.tenant_id WHERE c.tenant_id=$1 AND c.id=$2 AND c.is_active=true',[tenantId,customerId]);
     if(!customer.rowCount)throw new NotFoundException('Active customer not found in this tenant');
     const token=randomBytes(32).toString('base64url'),tokenHash=this.hashToken(token);
     const client=await this.db.connect();
