@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import QRCode from 'qrcode';
@@ -367,6 +368,9 @@ export default function NetworkPage() {
           </div>
         </div>
         <div className="network-actions">
+          <Link className="network-button secondary" href="/fiber-ops">Fiber GIS</Link>
+          <Link className="network-button secondary" href="/network-auto-healing">Auto-healing</Link>
+          <Link className="network-button secondary" href="/enterprise-capabilities">Enterprise</Link>
           <button className="network-button secondary" type="button" onClick={() => void load()} disabled={loading}>
             <Icon name="refresh" />
             <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
