@@ -67,6 +67,7 @@ describe('NetworkFirmwareUpgradeService', () => {
       .mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'MikroTik', model: 'hAP ax3', managementProtocol: 'MIKROTIK_REST', managementEnabled: true, apiEndpoint: 'https://router.example/rest', controllerEndpoint: null, encryptedCredentials: 'router-cipher' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rowCount: 1 });
+    mikrotik.inspect.mockResolvedValueOnce({ identity: { model: 'hAP ax3', architecture: 'arm64', version: '7.17.1', factoryFirmware: '7.10' }, update: { status: 'System is already up to date', installedVersion: '7.17.1', latestVersion: '7.17.1', channel: 'stable', mode: 'https', checkCertificate: 'yes' } });
     await (service as any).pollVerificationJobs();
     expect(db.query.mock.calls[0][0]).toContain("status IN ('VERIFYING','RECOVERY_REQUIRED')");
     expect(db.query.mock.calls[3][0]).toContain("status IN ('VERIFYING','RECOVERY_REQUIRED')");
