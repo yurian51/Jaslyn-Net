@@ -5,6 +5,8 @@ describe('NetworkFirmwareUpgradeService', () => {
   let db: { query: jest.Mock };
   let audit: { record: jest.Mock };
   let service: NetworkFirmwareUpgradeService;
+  let credentials: { decrypt: jest.Mock };
+  let mikrotik: { inspect: jest.Mock };
   const request = () => ({
     targetVersion: '7.17.1',
     releaseSourceUrl: 'https://mikrotik.com/download',
@@ -18,7 +20,27 @@ describe('NetworkFirmwareUpgradeService', () => {
   beforeEach(() => {
     db = { query: jest.fn() };
     audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
-    service = new NetworkFirmwareUpgradeService(db as any, audit as any);
+    credentials = { decrypt: jest.fn().mockReturnValue({ username: 'u', password: 'p' }) };
+    mikrotik = { inspect: jest.fn().mockResolvedValue({ identity: { model: 'hAP ax3', architecture: 'arm64', version: '7.16.2', factoryFirmware: '7.10' }, update: { status: 'New version is available', installedVersion: '7.16.2', latestVersion: '7.17.1', channel: 'stable' } }) };
+    service = new NetworkFirmwareUpgradeService(db as any, audit as any, credentials as any, mikrotik as any);
+  });
+
+  it('performs live MikroTik inspection and persists official update-channel evidence', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'MikroTik', model: 'hAP ax3', managementProtocol: 'MIKROTIK_REST', managementEnabled: true, apiEndpoint: 'https://router.example/rest', controllerEndpoint: null, encryptedCredentials: 'cipher' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const result = await service.inspectLive('t1', 'r1', { userId: 'u1' });
+    expect(credentials.decrypt).toHaveBeenCalledWith('cipher');
+    expect(mikrotik.inspect).toHaveBeenCalledWith({ endpoint: 'https://router.example/rest', credentials: { username: 'u', password: 'p' } });
+    expect(result.inventoryStatus).toBe('UPDATE_AVAILABLE');
+    expect(db.query.mock.calls[1][0]).toContain('release_source_verified=true');
+    expect(audit.record).toHaveBeenCalledWith('t1', 'MIKROTIK_FIRMWARE_LIVE_INSPECTED', 'router_firmware', 'r1', expect.any(Object), { userId: 'u1' });
+  });
+
+  it('rejects live inspection for a non-MikroTik vendor without making a device call', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'Ubiquiti', managementProtocol: 'UNIFI_NETWORK_API', managementEnabled: true, encryptedCredentials: 'cipher' }], rowCount: 1 });
+    await expect(service.inspectLive('t1', 'r1')).rejects.toThrow('MikroTik RouterOS only');
+    expect(mikrotik.inspect).not.toHaveBeenCalled();
   });
 
   it('rejects invalid or credential-bearing release URLs before database access', async () => {
