@@ -38,11 +38,13 @@ describe('NetworkDeviceAdapterRegistry', () => {
     const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { ubus_rpc_session: 'sid-123' }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { devices: ['wlan0'] }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { results: [{ mac: 'AA:BB:CC:DD:EE:FF', rx_bytes: '9007199254740992', tx_bytes: '42' }] }] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { results: [{ mac: 'AA:BB:CC:DD:EE:FF', rx_bytes: '9007199254740992', tx_bytes: '42' }] }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, {}] }), { status: 200 }));
     const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
     await expect(registry.readClients({ routerId: 'r4', protocol: 'OPENWRT_UBUS', endpoint: 'https://1.1.1.1', credentials: { username: 'root', password: 'secret' } })).resolves.toEqual([{ macAddress: 'AA:BB:CC:DD:EE:FF', bytesIn: '9007199254740992', bytesOut: '42' }]);
     expect(String(fetchMock.mock.calls[0][1]?.body)).toContain('root');
     expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({ Accept: 'application/json' });
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body)).params.slice(1, 3)).toEqual(['session', 'destroy']);
   });
 
   it('normalizes generic controller JSON for supported non-native adapters', async () => {
