@@ -26,6 +26,7 @@ import { IpamModule } from './ipam/ipam.module';
 import { RadiusModule } from './radius/radius.module';
 import { CommunicationModule } from './communication/communication.module';
 import { CustomerCommerceModule } from './customer-commerce/customer-commerce.module';
+import { CustomerPortalModule } from './customer-portal/customer-portal.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SecurityPostureModule } from './security-posture/security-posture.module';
@@ -39,6 +40,8 @@ import { AutomationModule } from './automation/automation.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { CaptivePortalModule } from './captive-portal/captive-portal.module';
 import { OperationsHubModule } from './operations-hub/operations-hub.module';
+import { FiberTopologyModule } from './fiber-topology/fiber-topology.module';
+import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-healing.module';
 
 @Module({
   imports: [
@@ -46,7 +49,7 @@ import { OperationsHubModule } from './operations-hub/operations-hub.module';
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule,
   ],
 })
 export class AppModule implements NestModule {
