@@ -18,9 +18,11 @@ describe('NetworkCapabilitiesController', () => {
     const controller = new NetworkCapabilitiesController(adapters);
     const result = controller.list();
 
-    expect(result.version).toBe(3);
+    expect(result.version).toBe(4);
     expect(result.adapters[0].lifecycle).toBe('NATIVE');
     expect(result.adapters[1].lifecycle).toBe('GENERIC');
+    expect(result.adapters[1].supportScope).toBe('GENERIC_TELEMETRY');
+    expect(result.adapters[1].liveDeviceValidationRequired).toBe(true);
     expect(result.vendors.find((v: any) => v.protocols.some((p: any) => p.protocol === 'GENERIC_HTTP'))?.protocols.find((p: any) => p.protocol === 'GENERIC_HTTP')?.lifecycle).toBe('GENERIC');
   });
 });
