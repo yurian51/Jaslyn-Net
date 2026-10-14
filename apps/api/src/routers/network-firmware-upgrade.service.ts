@@ -281,8 +281,8 @@ export class NetworkFirmwareUpgradeService {
     await this.db.query(
       `INSERT INTO network_firmware_upgrade_attempts
         (tenant_id, job_id, attempt_number, stage, status, finished_at, evidence, error_code, error_message)
-       VALUES ($1,$2,1,'PRECHECK','BLOCKED',now(),$3::jsonb,'EXECUTOR_NOT_READY',
-         'No device command sent; durable backup and post-reboot worker are not integrated')`,
+       VALUES ($1,$2,1,'PRECHECK','BLOCKED',now(),$3::jsonb,'BACKUP_REQUIRED',
+         'No device command sent; encrypted backup and explicit approval are required')`,
       [tenantId, job.id, JSON.stringify(preview)],
     );
     await this.audit.record(tenantId, 'NETWORK_FIRMWARE_UPGRADE_PREVIEWED', 'firmware_upgrade_job', job.id,
