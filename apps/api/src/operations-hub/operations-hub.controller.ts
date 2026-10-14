@@ -17,7 +17,7 @@ export class OperationsHubController {
   @Get('artifacts/:id/versions') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   artifactHistory(@Req() r: AuthenticatedRequest,@Param('id') id: string) { return this.hub.artifactHistory(r.user!.tenantId,r.user!.id,id); }
   @Post('artifacts/:id/versions') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
-  versionArtifact(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.versionArtifact(r.user!.tenantId,r.user!.id,b); }
+  versionArtifact(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.versionArtifact(r.user!.tenantId,r.user!.id,id,b); }
   @Get('workspaces') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   workspaces(@Req() r: AuthenticatedRequest) { return this.hub.listWorkspaces(r.user!.tenantId,r.user!.id); }
   @Post('workspaces') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
@@ -37,5 +37,5 @@ export class OperationsHubController {
   @Post('change-reviews') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
   createChange(@Req() r: AuthenticatedRequest,@Body() b: unknown) { return this.hub.createChange(r.user!.tenantId,r.user!.id,b); }
   @Post('change-reviews/:id/review') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
-  reviewChange(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.reviewChange(r.user!.tenantId,r.user!.id,b); }
+  reviewChange(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.reviewChange(r.user!.tenantId,r.user!.id,id,b); }
 }
