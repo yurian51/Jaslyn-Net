@@ -238,7 +238,7 @@ export class NetworkFirmwareUpgradeService {
       managementEnabled: router.managementEnabled === true,
       credentialsConfigured: router.credentialsConfigured === true,
       installedVersionKnown: Boolean(inventory?.installedVersion ?? router.osVersion),
-      hardwareRevisionKnown: Boolean(input.hardwareRevision ?? inventory?.hardwareRevision),
+      deviceIdentityKnown: Boolean(input.hardwareRevision ?? inventory?.hardwareRevision),
       releaseSourceVerified: inventory?.releaseSourceVerified === true
         && inventory?.releaseSourceUrl === input.releaseSourceUrl
         && inventory?.latestVersion === input.targetVersion,
@@ -247,7 +247,7 @@ export class NetworkFirmwareUpgradeService {
     };
     const isMikroTik = protocol === 'MIKROTIK_REST' && /mikrotik/i.test(String(router.vendor ?? ''));
     if (isMikroTik) {
-      checks.hardwareRevisionKnown = Boolean(router.model && (inventory?.installedVersion ?? router.osVersion));
+      checks.deviceIdentityKnown = Boolean(router.model && (inventory?.installedVersion ?? router.osVersion));
       checks.artifactDigestProvided = true; // RouterOS installs through MikroTik's own signed update channel, not a caller-supplied image URL.
     }
     const blockers = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
