@@ -90,9 +90,10 @@ export class PaymentsService {
         }
       }
       if (dbError.code === '23505') {
-        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
+        const existing = await this.db.query(`SELECT id, status, provider, purchase_id AS "purchaseId", idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
+          if (existing.rows[0].purchaseId !== input.purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
           return { ...existing.rows[0], reused: true };
         }
       }
