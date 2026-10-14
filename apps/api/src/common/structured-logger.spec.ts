@@ -43,6 +43,22 @@ describe('StructuredLogger', () => {
     expect(String(stdout.mock.calls[1][0])).not.toContain('plain-text-token');
   });
 
+  it('keeps structured event fields at the JSON root', () => {
+    new StructuredLogger('INFO', 'test').log({
+      event: 'http.request.completed',
+      requestId: 'req-123',
+      status: 503,
+    });
+    const entry = JSON.parse(String(stdout.mock.calls[0][0]));
+    expect(entry).toMatchObject({
+      event: 'http.request.completed',
+      requestId: 'req-123',
+      status: 503,
+      level: 'INFO',
+    });
+    expect(entry.message).toBeUndefined();
+  });
+
   it('writes errors to stderr and supports FATAL', () => {
     new StructuredLogger('TRACE', 'test').fatal('database unavailable');
     expect(stderr).toHaveBeenCalledTimes(1);
