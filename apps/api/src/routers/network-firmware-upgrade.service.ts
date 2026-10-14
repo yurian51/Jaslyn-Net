@@ -234,14 +234,15 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
     }
     const live = await this.inspectLive(tenantId, routerId, context);
     const succeeded = live.update.installedVersion === job.targetVersion;
-    const status = succeeded ? 'SUCCEEDED' : 'VERIFYING';
+    // A manual read-only check must not erase the stronger recovery-required state.
+    const status = succeeded ? 'SUCCEEDED' : job.status === 'RECOVERY_REQUIRED' ? 'RECOVERY_REQUIRED' : 'VERIFYING';
     await this.db.query(
       `UPDATE network_firmware_upgrade_jobs SET status=$4, observed_version_after=$5,
         verification_evidence=$6::jsonb, execution_finished_at=CASE WHEN $4='SUCCEEDED' THEN now() ELSE execution_finished_at END,
-        error_code=CASE WHEN $4='SUCCEEDED' THEN NULL ELSE 'TARGET_VERSION_NOT_OBSERVED' END,
-        error_message=CASE WHEN $4='SUCCEEDED' THEN NULL ELSE 'Device is reachable but the approved target version is not yet observed' END,
+        error_code=CASE WHEN $4='SUCCEEDED' THEN NULL WHEN $4='RECOVERY_REQUIRED' THEN 'INSTALL_RESULT_UNCERTAIN' ELSE 'TARGET_VERSION_NOT_OBSERVED' END,
+        error_message=CASE WHEN $4='SUCCEEDED' THEN NULL WHEN $4='RECOVERY_REQUIRED' THEN 'Install result is uncertain; inspect device and recovery plan before any retry' ELSE 'Device is reachable but the approved target version is not yet observed' END,
         updated_at=now()
-       WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status IN ('VERIFYING','RECOVERY_REQUIRED')`,
       [tenantId, routerId, jobId, status, live.update.installedVersion, JSON.stringify({
         installedVersion: live.update.installedVersion, targetVersion: job.targetVersion,
         latestVersion: live.update.latestVersion, channel: live.update.channel,
@@ -445,9 +446,9 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
       // The router may have accepted the command before the connection failed. Never retry automatically.
       await this.db.query(
         `UPDATE network_firmware_upgrade_jobs SET status='RECOVERY_REQUIRED',
-          error_code='INSTALL_RESULT_UNCERTAIN', error_message=$4, updated_at=now()
+          error_code='INSTALL_RESULT_UNCERTAIN', error_message='Install response was uncertain; inspect device reachability and version before any retry', updated_at=now()
          WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
-        [tenantId, routerId, jobId, error instanceof Error ? error.message.slice(0, 500) : 'Install result uncertain'],
+        [tenantId, routerId, jobId],
       );
       throw new ServiceUnavailableException('MikroTik install result is uncertain. Job marked RECOVERY_REQUIRED; inspect device before retrying.');
     }
