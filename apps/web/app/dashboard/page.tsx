@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
+type OperatorProfile = { user?: { fullName?: string; email?: string; role?: string; tenantName?: string; tenantSlug?: string } };
+
 type Overview = {
   tenant?: { currency?: string; timezone?: string; name?: string; status?: string };
   revenueSeries?: number[];
@@ -66,11 +68,22 @@ export default function DashboardPage() {
   const [connection, setConnection] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [welcomeNow, setWelcomeNow] = useState<Date | null>(null);
+  const [operatorProfile, setOperatorProfile] = useState<OperatorProfile['user'] | null>(null);
   const [quickFind, setQuickFind] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
 
   useEffect(() => { setWelcomeNow(new Date()); }, []);
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    void apiFetch<OperatorProfile>('/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+      .then((profile) => { if (!cancelled) setOperatorProfile(profile.user ?? null); })
+      .catch(() => { if (!cancelled) setOperatorProfile(null); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
@@ -204,9 +217,10 @@ export default function DashboardPage() {
   const availability = data?.kpis?.networkAvailability;
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
   const locations = data?.locations ?? [];
-  const tenantName = data?.tenant?.name ?? 'Tenant workspace';
+  const tenantName = operatorProfile?.tenantName ?? data?.tenant?.name ?? 'Jaslyn Net';
   const greetingHour = welcomeNow?.getHours();
-  const greeting = greetingHour == null ? 'Welcome to Jaslyn Net' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = greetingHour == null ? 'Welcome' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const operatorName = operatorProfile?.fullName?.trim() || operatorProfile?.email?.split('@')[0] || 'Operator';
   const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
@@ -226,8 +240,8 @@ export default function DashboardPage() {
     <main className="overview-page">
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
-          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
-          <h2 id="operator-welcome-title">{greeting}, operator!</h2>
+          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> {tenantName} · OPERATIONS COMMAND CENTER <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
+          <h2 id="operator-welcome-title">{greeting}, {operatorName}!</h2>
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
             <a href="/network">Open network <span aria-hidden="true">↗</span></a>
