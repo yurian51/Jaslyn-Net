@@ -68,7 +68,7 @@ export class MikroTikFirmwareExecutor {
       const chunks: string[] = [];
       let offset = 0;
       const chunkSize = 32768;
-      for (let i = 0; i < 4096; i += 1) {
+      for (let i = 0; i < 512; i += 1) {
         const result = await this.request(connection, '/file/read', 'POST', {
           file: `${fileName}.rsc`, 'chunk-size': String(chunkSize), offset: String(offset),
         });
@@ -78,7 +78,7 @@ export class MikroTikFirmwareExecutor {
         chunks.push(chunk);
         offset += Buffer.byteLength(chunk, 'utf8');
         if (Buffer.byteLength(chunk, 'utf8') < chunkSize) break;
-        if (i === 4095) throw new ServiceUnavailableException('MikroTik configuration export exceeded the safety size limit');
+        if (i === 511) throw new ServiceUnavailableException('MikroTik configuration export exceeded the 16 MiB safety size limit');
       }
       const content = chunks.join('');
       if (!content.trim()) throw new ServiceUnavailableException('MikroTik configuration export was empty');
