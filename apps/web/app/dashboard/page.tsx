@@ -210,7 +210,7 @@ export default function DashboardPage() {
   const tenantName = data?.tenant?.name ?? 'Tenant workspace';
   const greetingHour = welcomeNow?.getHours();
   const greeting = greetingHour == null ? 'Welcome to Jaslyn Net' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
-  const hasOperationalSignals = Boolean(data && (data.network?.offline !== undefined || data.network?.degraded !== undefined || data.operations?.networkCommands?.failed !== undefined || data.operations?.access?.expiredButActive !== undefined || data.operations?.access?.expiring24h !== undefined));
+  const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
     : network.offline > 0
