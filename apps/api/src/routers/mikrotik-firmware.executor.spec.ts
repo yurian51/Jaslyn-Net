@@ -11,7 +11,7 @@ describe('MikroTikFirmwareExecutor', () => {
   const resource = [{ 'board-name': 'hAP ax3', 'architecture-name': 'arm64', version: '7.16.2' }];
   const board = [{ 'board-name': 'C53UiG+5HPaxD2HPaxD', model: 'hAP ax3', 'factory-firmware': '7.10' }];
   const updateCheck = [{ status: 'Connecting' }, { status: 'New version is available', 'latest-version': '7.17.1' }];
-  const updatePrint = [{ channel: 'stable', 'installed-version': '7.16.2', 'latest-version': '7.17.1', status: 'New version is available' }];
+  const updatePrint = [{ channel: 'stable', mode: 'https', 'check-certificate': 'yes', 'installed-version': '7.16.2', 'latest-version': '7.17.1', status: 'New version is available' }];
 
   beforeEach(() => {
     fetchMock.mockReset();
@@ -75,7 +75,7 @@ describe('MikroTikFirmwareExecutor', () => {
       .mockResolvedValueOnce(response([{ 'board-name': 'hAP ax3', 'architecture-name': 'arm64', version: '7.16.3' }]))
       .mockResolvedValueOnce(response(board))
       .mockResolvedValueOnce(response(updateCheck))
-      .mockResolvedValueOnce(response([{ channel: 'stable', 'installed-version': '7.16.3', 'latest-version': '7.17.1', status: 'New version is available' }]));
+      .mockResolvedValueOnce(response([{ channel: 'stable', mode: 'https', 'check-certificate': 'yes', 'installed-version': '7.16.3', 'latest-version': '7.17.1', status: 'New version is available' }]));
     const executor = new MikroTikFirmwareExecutor();
     await expect(executor.install(connection, {
       approvedTargetVersion: '7.17.1', expectedInstalledVersion: '7.16.2',
