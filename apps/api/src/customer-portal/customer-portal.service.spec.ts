@@ -27,7 +27,7 @@ describe('CustomerPortalService purchase ownership',()=>{
 
  it('does not create a purchase for a hidden or cross-tenant package',async()=>{
   db.query.mockResolvedValueOnce({rows:[],rowCount:0});
-  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-b',idempotencyKey:'purchase-key-123456'}).rejects.toBeInstanceOf(NotFoundException);
+  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-b',idempotencyKey:'purchase-key-123456'})).rejects.toBeInstanceOf(NotFoundException);
   expect(purchases.create).not.toHaveBeenCalled();
  });
 
