@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { apiFetch, ApiError } from '../../../lib/api';
-import { getAccessToken } from '../../../lib/auth';
+import { apiFetch, ApiError } from '../../../../lib/api';
+import { getAccessToken } from '../../../../lib/auth';
 
 type RouterAsset = {
   id: string;
