@@ -222,8 +222,8 @@ export default function NetworkPage() {
         clientSecret: form.clientSecret,
         accessToken: form.accessToken,
         refreshToken: form.refreshToken,
-        networkId: form.networkId,
-        productType: form.productType,
+        networkId: form.managementProtocol === 'MERAKI_DASHBOARD_API' ? form.networkId : '',
+        productType: form.managementProtocol === 'MERAKI_DASHBOARD_API' ? form.productType : '',
       }).filter(([, value]) => value.trim()),
     );
 
