@@ -28,6 +28,9 @@ export class FiberTopologyService {
 
   async create(tenantId: string, actorId: string, input: CreateFiberAssetDto, context: AuditContext = {}) {
     const code = input.assetCode.trim();
+    const name = input.name.trim();
+    if (code.length < 2 || code.length > 80) throw new BadRequestException('Asset code must contain 2–80 non-whitespace characters');
+    if (name.length < 2 || name.length > 160) throw new BadRequestException('Asset name must contain 2–160 non-whitespace characters');
     const existing = await this.db.query('SELECT id FROM fiber_network_assets WHERE tenant_id=$1 AND lower(asset_code)=lower($2)', [tenantId, code]);
     if (existing.rowCount) throw new ConflictException('An asset with this code already exists in this tenant');
     await this.validateRelationships(tenantId, input.parentAssetId, input.routerId);
@@ -38,7 +41,7 @@ export class FiberTopologyService {
        VALUES ($1,$2,$3,$4,COALESCE($5,'PLANNED'),$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$14)
        RETURNING id,asset_type AS "assetType",name,asset_code AS "assetCode",status,latitude,longitude,
         parent_asset_id AS "parentAssetId",router_id AS "routerId",vendor,model,serial_number AS "serialNumber",metadata,created_at AS "createdAt",updated_at AS "updatedAt"`,
-      [tenantId,input.assetType,input.name.trim(),code,input.status??null,input.latitude??null,input.longitude??null,input.parentAssetId??null,input.routerId??null,input.vendor?.trim()||null,input.model?.trim()||null,input.serialNumber?.trim()||null,JSON.stringify(input.metadata??{}),actorId],
+      [tenantId,input.assetType,name,code,input.status??null,input.latitude??null,input.longitude??null,input.parentAssetId??null,input.routerId??null,input.vendor?.trim()||null,input.model?.trim()||null,input.serialNumber?.trim()||null,JSON.stringify(input.metadata??{}),actorId],
     );
     const asset = result.rows[0];
     await this.audit.record(tenantId,'FIBER_ASSET_CREATED','fiber_network_asset',asset.id,{assetType:asset.assetType,assetCode:asset.assetCode,status:asset.status},context);
@@ -49,6 +52,7 @@ export class FiberTopologyService {
     const current = await this.db.query('SELECT id,latitude,longitude,parent_asset_id AS "parentAssetId",router_id AS "routerId" FROM fiber_network_assets WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
     if (!current.rowCount) throw new NotFoundException('Fiber asset not found');
     const row=current.rows[0];
+    if(input.name!==undefined && (input.name.trim().length<2 || input.name.trim().length>160)) throw new BadRequestException('Asset name must contain 2–160 non-whitespace characters');
     const parent = input.parentAssetId === undefined ? row.parentAssetId : input.parentAssetId;
     const router = input.routerId === undefined ? row.routerId : input.routerId;
     await this.validateRelationships(tenantId,parent,router,id);
