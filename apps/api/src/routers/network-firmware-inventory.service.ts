@@ -36,13 +36,17 @@ export class NetworkFirmwareInventoryService {
   }
 
   async observe(tenantId: string, routerId: string, input: FirmwareObservationInput, context: AuditContext = {}) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new BadRequestException('Firmware observation body must be an object');
+    }
     const installedVersion = this.requiredText(input.installedVersion, 'installedVersion', 120);
     const hardwareRevision = this.optionalText(input.hardwareRevision, 'hardwareRevision', 120);
     const latestVersion = this.optionalText(input.latestVersion, 'latestVersion', 120);
     const releaseNotes = this.optionalText(input.releaseNotes, 'releaseNotes', 4000);
     const releaseSourceUrl = this.optionalUrl(input.releaseSourceUrl);
     let releasePublishedAt: Date | null = null;
-    if (input.releasePublishedAt) {
+    if (input.releasePublishedAt !== undefined && input.releasePublishedAt !== null && input.releasePublishedAt !== '') {
+      if (typeof input.releasePublishedAt !== 'string') throw new BadRequestException('releasePublishedAt must be a valid ISO date');
       releasePublishedAt = new Date(input.releasePublishedAt);
       if (!Number.isFinite(releasePublishedAt.getTime())) throw new BadRequestException('releasePublishedAt must be a valid ISO date');
     }
