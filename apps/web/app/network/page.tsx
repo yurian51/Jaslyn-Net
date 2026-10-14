@@ -129,8 +129,8 @@ export default function NetworkPage() {
   const [firmwareJob, setFirmwareJob] = useState<FirmwareJob | null>(null);
   const [firmwareBusy, setFirmwareBusy] = useState(false);
   const [firmwareError, setFirmwareError] = useState<string | null>(null);
-  const [maintenanceStart, setMaintenanceStart] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
-  const [maintenanceEnd, setMaintenanceEnd] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 2 * 60 * 60 * 1000)));
+  const [maintenanceStart, setMaintenanceStart] = useState('');
+  const [maintenanceEnd, setMaintenanceEnd] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -303,7 +303,7 @@ export default function NetworkPage() {
     setFirmwareBusy(true); setFirmwareError(null);
     try {
       await firmwareRequest('/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/backup', 'POST');
-      setFirmwareJob((current) => current ? { ...current, status: 'AWAITING_APPROVAL', preview: { ...current.preview, safeToExecute: true } } : current);
+      setFirmwareJob((current) => current ? { ...current, status: 'AWAITING_APPROVAL', preview: { ...current.preview, safeToExecute: true, blockers: [] } } : current);
     } catch (cause: unknown) {
       setFirmwareError(cause instanceof Error ? cause.message : 'Encrypted backup preparation failed.');
     } finally { setFirmwareBusy(false); }
@@ -582,10 +582,10 @@ export default function NetworkPage() {
                 <div className="network-firmware-actions">
                   {firmwareJob.status === 'BLOCKED' ? <button type="button" className="network-button secondary" onClick={() => void prepareFirmwareBackup()} disabled={firmwareBusy}>Create encrypted backup</button> : null}
                   {firmwareJob.status === 'AWAITING_APPROVAL' ? <button type="button" className="network-button primary" onClick={() => void approveFirmware()} disabled={firmwareBusy}>Approve & install</button> : null}
-                  {['VERIFYING', 'RECOVERY_REQUIRED'].includes(firmwareJob.status) ? (
+                  {['VERIFYING', 'RECOVERY_REQUIRED', 'SUCCEEDED', 'FAILED'].includes(firmwareJob.status) ? (
                     <>
                       <button type="button" className="network-button secondary" onClick={() => void refreshFirmwareJob()} disabled={firmwareBusy}>Refresh status</button>
-                      <button type="button" className="network-button secondary" onClick={() => void verifyFirmwareNow()} disabled={firmwareBusy}>Verify now</button>
+                      {['VERIFYING', 'RECOVERY_REQUIRED'].includes(firmwareJob.status) ? <button type="button" className="network-button secondary" onClick={() => void verifyFirmwareNow()} disabled={firmwareBusy}>Verify now</button> : null}
                     </>
                   ) : null}
                 </div>
