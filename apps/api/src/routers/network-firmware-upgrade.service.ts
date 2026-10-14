@@ -335,7 +335,11 @@ export class NetworkFirmwareUpgradeService {
     const live = await this.mikrotikFirmware.inspect({ endpoint, credentials });
     if (live.update.installedVersion !== job.installedVersion || live.update.latestVersion !== job.targetVersion
       || live.identity.model.trim().toLowerCase() !== String(job.model ?? '').trim().toLowerCase()) {
-      throw new ConflictException('MikroTik live version changed after backup; no install command was sent');
+      throw new ConflictException('MikroTik live version or model changed after backup; no install command was sent');
+    }
+    if (!['stable', 'long-term'].includes(live.update.channel) || live.update.mode !== 'https'
+      || live.update.checkCertificate !== 'yes') {
+      throw new BadRequestException('MikroTik firmware requires stable/long-term channel, HTTPS, and certificate validation before approval');
     }
     const transition = await this.db.query(
       `UPDATE network_firmware_upgrade_jobs SET status='RUNNING', approved_by=$4, approved_at=now(),
