@@ -78,6 +78,26 @@ export class RoutersController {
     });
   }
 
+  @Post(':id/firmware/upgrades/:jobId/backup')
+  @Roles('OWNER', 'ADMIN')
+  prepareFirmwareBackup(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('jobId') jobId: string) {
+    const userAgent = req.headers['user-agent'];
+    return this.firmwareUpgrades.prepareBackup(req.user!.tenantId, id, jobId, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
+  @Post(':id/firmware/upgrades/:jobId/verify')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  verifyFirmwareUpgrade(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('jobId') jobId: string) {
+    const userAgent = req.headers['user-agent'];
+    return this.firmwareUpgrades.verifyAfterUpgrade(req.user!.tenantId, id, jobId, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
   @Post(':id/firmware/upgrades/:jobId/approve')
   @Roles('OWNER', 'ADMIN')
   approveFirmwareUpgrade(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('jobId') jobId: string) {
