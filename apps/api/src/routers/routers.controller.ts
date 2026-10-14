@@ -10,6 +10,7 @@ import { NetworkEnforcementService } from './network-enforcement.service';
 import { RoutersService } from './routers.service';
 import { FirmwareObservationInput, NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
 import { FirmwareUpgradeRequest, NetworkFirmwareUpgradeService } from './network-firmware-upgrade.service';
+import { MerakiFirmwareService } from './meraki-firmware.service';
 
 @Controller('routers')
 @UseGuards(AuthGuard, RolesGuard, PermissionsGuard)
@@ -19,6 +20,7 @@ export class RoutersController {
     private readonly enforcement: NetworkEnforcementService,
     private readonly firmware: NetworkFirmwareInventoryService,
     private readonly firmwareUpgrades: NetworkFirmwareUpgradeService,
+    private readonly merakiFirmware: MerakiFirmwareService,
   ) {}
 
   @Get()
@@ -62,6 +64,25 @@ export class RoutersController {
     });
   }
 
+  @Get(':id/firmware/meraki/live')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  inspectMerakiFirmware(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const userAgent = req.headers['user-agent'];
+    return this.merakiFirmware.inspect(req.user!.tenantId, id, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
+
+  @Post(':id/firmware/meraki/schedule')
+  @Roles('OWNER', 'ADMIN')
+  scheduleMerakiFirmware(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { targetVersion: string; scheduledAt: string; timezone: string; approved: boolean }) {
+    const userAgent = req.headers['user-agent'];
+    return this.merakiFirmware.schedule(req.user!.tenantId, id, dto, {
+      userId: req.user!.id, requestId: req.requestId, ipAddress: req.ip,
+      userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
+    });
+  }
   @Get(':id/firmware/upgrades')
   @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
   listFirmwareUpgrades(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
