@@ -35,7 +35,7 @@ export default function CustomerPortalPage(){
   if(!token)return;setBusy(true);setNotice(null);
   let purchase:Purchase|undefined;
   try{
-   purchase=await apiFetch<Purchase>('/customer-portal/purchases',{method:'POST',headers:headers(token),body:JSON.stringify({packageId})});
+   purchase=await apiFetch<Purchase>('/customer-portal/purchases',{method:'POST',headers:headers(token),body:JSON.stringify({packageId,idempotencyKey:crypto.randomUUID()})});
    try{
     await apiFetch('/customer-portal/purchase-intents',{method:'POST',headers:headers(token),body:JSON.stringify({purchaseId:purchase.id,provider,idempotencyKey:crypto.randomUUID()})});
     await load(token);setNotice({kind:'ok',text:'Package purchase imeundwa na payment intent imetumwa. Angalia status kwenye Purchases zangu.'});
