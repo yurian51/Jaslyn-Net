@@ -4,13 +4,13 @@ describe('NetworkCapabilitiesController', () => {
   it('returns executable lifecycle truth instead of collapsing generic transport into native support', () => {
     const adapters = {
       list: () => [
-        { protocol: 'MIKROTIK_REST', lifecycle: 'NATIVE', capabilities: ['disconnect_client'] },
-        { protocol: 'GENERIC_HTTP', lifecycle: 'GENERIC', capabilities: ['client_sessions'] },
+        { protocol: 'MIKROTIK_REST', lifecycle: 'NATIVE', supportScope: 'ENFORCEMENT_AND_TELEMETRY', liveDeviceValidationRequired: true, capabilities: ['disconnect_client'] },
+        { protocol: 'GENERIC_HTTP', lifecycle: 'GENERIC', supportScope: 'GENERIC_TELEMETRY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
       ],
       get: (protocol: string) => protocol === 'MIKROTIK_REST'
-        ? { protocol, lifecycle: 'NATIVE', capabilities: ['disconnect_client'] }
+        ? { protocol, lifecycle: 'NATIVE', supportScope: 'ENFORCEMENT_AND_TELEMETRY', liveDeviceValidationRequired: true, capabilities: ['disconnect_client'] }
         : protocol === 'GENERIC_HTTP'
-          ? { protocol, lifecycle: 'GENERIC', capabilities: ['client_sessions'] }
+          ? { protocol, lifecycle: 'GENERIC', supportScope: 'GENERIC_TELEMETRY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] }
           : undefined,
       isImplemented: (protocol: string) => ['MIKROTIK_REST', 'GENERIC_HTTP'].includes(protocol),
     } as any;
