@@ -7,6 +7,7 @@ import { SignJWT } from 'jose';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { CustomerCommerceService } from '../customer-commerce/customer-commerce.service';
+import { RenewalScheduleDto } from '../customer-commerce/customer-commerce.dto';
 import { PaymentsService } from '../payments/payments.service';
 import { PurchasesService } from '../purchases/purchases.service';
 import { CustomerPortalActivationDto, CustomerPortalCreatePurchaseDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
@@ -131,6 +132,10 @@ export class CustomerPortalService {
     if(!['PENDING_PAYMENT','PAID'].includes(purchase.rows[0].status))throw new BadRequestException('This purchase cannot accept a payment intent');
     if(purchase.rows[0].status==='PAID')throw new BadRequestException('This purchase is already paid');
     return this.payments.createIntent(tenantId,input);
+  }
+
+  async setRenewal(tenantId:string,customerId:string,input:RenewalScheduleDto){
+    return this.commerce.setRenewal(tenantId,customerId,input);
   }
 
   async createSupport(tenantId:string,customerId:string,input:CustomerPortalSupportDto){
