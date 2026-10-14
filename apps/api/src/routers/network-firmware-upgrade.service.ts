@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
@@ -23,7 +23,66 @@ const SUPPORTED_PROTOCOLS = new Set([
 ]);
 
 @Injectable()
-export class NetworkFirmwareUpgradeService {
+export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDestroy {
+  private verificationTimer?: ReturnType<typeof setInterval>;
+
+  onModuleInit() {
+    void this.pollVerificationJobs().catch(() => undefined);
+    this.verificationTimer = setInterval(() => { void this.pollVerificationJobs().catch(() => undefined); }, 30_000);
+    this.verificationTimer.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.verificationTimer) clearInterval(this.verificationTimer);
+  }
+
+  private async pollVerificationJobs() {
+    const claimed = await this.db.query(
+      `WITH candidates AS (
+         SELECT id FROM network_firmware_upgrade_jobs
+         WHERE status='VERIFYING'
+           AND (verification_claimed_at IS NULL OR verification_claimed_at < now() - interval '2 minutes')
+         ORDER BY updated_at ASC
+         FOR UPDATE SKIP LOCKED LIMIT 10
+       )
+       UPDATE network_firmware_upgrade_jobs j SET verification_claimed_at=now(), updated_at=now()
+       FROM candidates c WHERE j.id=c.id
+       RETURNING j.id, j.tenant_id AS "tenantId", j.router_id AS "routerId",
+         j.target_version AS "targetVersion", j.vendor, j.management_protocol AS "managementProtocol"`,
+    );
+    for (const job of claimed.rows) {
+      try {
+        const live = await this.inspectLive(job.tenantId, job.routerId);
+        const succeeded = live.update.installedVersion === job.targetVersion;
+        const status = succeeded ? 'SUCCEEDED' : 'VERIFYING';
+        await this.db.query(
+          `UPDATE network_firmware_upgrade_jobs SET status=$4, observed_version_after=$5,
+            verification_evidence=$6::jsonb,
+            execution_finished_at=CASE WHEN $4='SUCCEEDED' THEN now() ELSE execution_finished_at END,
+            error_code=CASE WHEN $4='SUCCEEDED' THEN NULL ELSE 'TARGET_VERSION_NOT_OBSERVED' END,
+            error_message=CASE WHEN $4='SUCCEEDED' THEN NULL ELSE 'Device is reachable but the approved target version is not yet observed' END,
+            updated_at=now()
+           WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='VERIFYING'`,
+          [job.tenantId, job.routerId, job.id, status, live.update.installedVersion, JSON.stringify({
+            installedVersion: live.update.installedVersion, targetVersion: job.targetVersion,
+            latestVersion: live.update.latestVersion, channel: live.update.channel,
+          })],
+        );
+        if (succeeded) await this.audit.record(job.tenantId, 'MIKROTIK_FIRMWARE_AUTO_VERIFIED', 'firmware_upgrade_job', job.id, {
+          routerId: job.routerId, targetVersion: job.targetVersion, installedVersion: live.update.installedVersion,
+        });
+      } catch {
+        // Never retry installation automatically. Only retry read-only verification after a delay.
+        await this.db.query(
+          `UPDATE network_firmware_upgrade_jobs SET verification_claimed_at=now(),
+            error_code='DEVICE_NOT_REACHABLE_YET',
+            error_message='Post-upgrade device verification is waiting for the router to return', updated_at=now()
+           WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='VERIFYING'`,
+          [job.tenantId, job.routerId, job.id],
+        );
+      }
+    }
+  }
   constructor(
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly audit: AuditService,
