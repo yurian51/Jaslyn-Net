@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS automation_event_receipts (
 );
 CREATE INDEX IF NOT EXISTS automation_event_receipts_due_idx ON automation_event_receipts(status,next_attempt_at,created_at);
 
-DO $
+DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['automation_rules','automation_rule_runs','automation_alerts'] LOOP
