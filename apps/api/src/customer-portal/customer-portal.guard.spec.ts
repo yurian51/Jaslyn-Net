@@ -14,7 +14,7 @@ describe('CustomerPortalGuard',()=>{
   const token=await new SignJWT({tenantId:'tenant-a',role:'CUSTOMER',sid:'session-a',username:'subscriber-a'})
    .setProtectedHeader({alg:'HS256'}).setIssuer('jaslyn-net').setAudience('jaslyn-customer-portal')
    .setSubject('customer-a').setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(secret));
-  const req:CustomerPortalRequest={headers:{authorization:'Bearer '+token}};
+  const req={headers:{authorization:'Bearer '+token}} as unknown as CustomerPortalRequest;
   const ctx={switchToHttp:()=>({getRequest:()=>req})} as unknown as ExecutionContext;
   return {ctx,req};
  }
