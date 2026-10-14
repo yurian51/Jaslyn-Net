@@ -9,7 +9,7 @@
 | # | Capability | Existing foundation to reuse | Additional work required before claiming complete |
 |---|---|---|---|
 | 1 | Network Auto-Healing | Router inventory, incidents, workflows, automation and network command verification | Explicit remediation policy allowlist, deduplication/cooldowns, approval gates, rollback strategy, post-action state verification and replay tests |
-| 2 | Fiber GIS & OLT/ONU | Network inventory and IPAM | Geospatial asset/route schema, splitter/port topology, OLT/ONU vendor adapters, optical telemetry, topology validation and map integration |
+| 2 | Fiber GIS & OLT/ONU | New tenant-scoped `fiber_network_assets` schema, CRUD API, coordinate links, parent-child topology and audited status updates | OLT/ONU vendor adapters, optical telemetry, provisioning contracts, visual GIS map and device contract tests |
 | 3 | Customer Self-Service Portal | Customer commerce, packages, payments, subscriptions and incidents | Subscriber identity/ownership tests, invoices and receipts, renewals, service actions and secure account recovery |
 | 4 | Bandwidth Intelligence & QoS | Operations intelligence and capacity estimates | Time-series ingestion from tested adapters, data freshness, per-subscriber/site utilization, vendor-specific shaping policies and read-back verification |
 | 5 | Revenue Assurance | Revenue assurance and financial ledger domains | Provider settlement imports, invoice reconciliation against the canonical invoice domain, discrepancy workflows and concurrent/idempotency tests |
