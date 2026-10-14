@@ -42,8 +42,8 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
          SELECT id FROM network_firmware_upgrade_jobs
          WHERE status='VERIFYING'
            AND (verification_claimed_at IS NULL OR verification_claimed_at < now() - interval '2 minutes')
-         ORDER BY updated_at ASC
-         FOR UPDATE SKIP LOCKED LIMIT 10
+         ORDER BY updated_at ASC LIMIT 10
+         FOR UPDATE SKIP LOCKED
        )
        UPDATE network_firmware_upgrade_jobs j SET verification_claimed_at=now(), updated_at=now()
        FROM candidates c WHERE j.id=c.id
