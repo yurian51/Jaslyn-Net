@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS integration_connections (
 );
 -- Composite FK targets must have a matching unique key. Keep this idempotent because
 -- a failed deployment can leave the table present before the migration is retried.
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
@@ -135,7 +135,7 @@ BEGIN
     ALTER TABLE integration_connections
       ADD CONSTRAINT integration_connections_tenant_id_id_key UNIQUE (tenant_id, id);
   END IF;
-END $;
+END $$;
 CREATE TABLE IF NOT EXISTS integration_action_receipts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
