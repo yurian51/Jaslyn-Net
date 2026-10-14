@@ -75,6 +75,20 @@ describe('NetworkFirmwareUpgradeService', () => {
     expect(audit.record).toHaveBeenCalledWith('t1', 'MIKROTIK_FIRMWARE_AUTO_VERIFIED', 'firmware_upgrade_job', 'job1', expect.any(Object));
   });
 
+  it('keeps uncertain installs in RECOVERY_REQUIRED when manual verification cannot confirm the target', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ id: 'job1', status: 'RECOVERY_REQUIRED', targetVersion: '7.17.1' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'MikroTik', model: 'hAP ax3', managementProtocol: 'MIKROTIK_REST', managementEnabled: true, apiEndpoint: 'https://router.example/rest', controllerEndpoint: null, encryptedCredentials: 'router-cipher' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 });
+    mikrotik.inspect.mockResolvedValueOnce({ identity: { model: 'hAP ax3', architecture: 'arm64', version: '7.16.2', factoryFirmware: '7.10' }, update: { status: 'New version is available', installedVersion: '7.16.2', latestVersion: '7.17.1', channel: 'stable', mode: 'https', checkCertificate: 'yes' } });
+    const result = await service.verifyAfterUpgrade('t1', 'r1', 'job1');
+    expect(result.status).toBe('RECOVERY_REQUIRED');
+    expect(db.query.mock.calls[4][0]).toContain("'RECOVERY_REQUIRED'");
+    expect(db.query.mock.calls[4][1][3]).toBe('RECOVERY_REQUIRED');
+    expect(db.query.mock.calls[4][0]).toContain('status IN');
+  });
   it('rejects invalid or credential-bearing release URLs before database access', async () => {
     await expect(service.preview('t1', 'r1', { ...request(), releaseSourceUrl: 'http://example.com/fw' }))
       .rejects.toThrow(BadRequestException);
