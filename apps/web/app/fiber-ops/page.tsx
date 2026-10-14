@@ -26,7 +26,7 @@ export default function FiberOpsPage(){
   const token=getAccessToken();if(!token){setError('Ingia kwanza ili kuona assets za fiber za tenant yako.');setLoading(false);return;}
   setLoading(true);setError('');
   try{const qs=new URLSearchParams();if(filterType)qs.set('assetType',filterType);if(filterStatus)qs.set('status',filterStatus);
-   const result=await apiFetch<AssetResponse>('/fiber/assets'+(qs.size?'?'+qs.toString():''),{headers:{Authorization:'Bearer '+token}});
+   const query=qs.toString();\n   const result=await apiFetch<AssetResponse>('/fiber/assets'+(query?'?'+query:''),{headers:{Authorization:'Bearer '+token}});
    setAssets(Array.isArray(result.data)?result.data:[]);
   }catch(e){setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Imeshindikana kupakia fiber assets.');}
   finally{setLoading(false);}
