@@ -80,6 +80,114 @@ export class NetworkFirmwareUpgradeService {
     return { routerId, vendor: 'MikroTik', model: live.identity.model || router.model, ...live, inventoryStatus: status };
   }
 
+  async prepareBackup(tenantId: string, routerId: string, jobId: string, context: AuditContext = {}) {
+    const jobResult = await this.db.query(
+      `SELECT id, status, vendor, management_protocol AS "managementProtocol", model,
+        installed_version AS "installedVersion", target_version AS "targetVersion",
+        release_source_url AS "releaseSourceUrl", maintenance_window_start AS "maintenanceWindowStart",
+        maintenance_window_end AS "maintenanceWindowEnd"
+       FROM network_firmware_upgrade_jobs
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
+      [tenantId, routerId, jobId],
+    );
+    const job = jobResult.rows[0];
+    if (!job) throw new NotFoundException('Firmware upgrade job not found');
+    if (job.status !== 'BLOCKED' || String(job.managementProtocol).toUpperCase() !== 'MIKROTIK_REST'
+      || !/mikrotik/i.test(String(job.vendor))) {
+      throw new ServiceUnavailableException('Pre-upgrade backup preparation currently supports blocked MikroTik RouterOS jobs only');
+    }
+    if (job.releaseSourceUrl !== 'https://mikrotik.com/download' || !this.validWindow(
+      new Date(job.maintenanceWindowStart).toISOString(), new Date(job.maintenanceWindowEnd).toISOString(),
+    )) {
+      throw new BadRequestException('A verified MikroTik official release and valid future maintenance window are required');
+    }
+    const live = await this.inspectLive(tenantId, routerId, context);
+    if (live.update.latestVersion !== job.targetVersion || live.update.installedVersion !== job.installedVersion) {
+      throw new ConflictException('Live MikroTik version or official latest release changed; create a fresh preview');
+    }
+    const routerResult = await this.db.query(
+      `SELECT controller_endpoint AS "controllerEndpoint", api_endpoint AS "apiEndpoint",
+        management_credentials_encrypted AS "encryptedCredentials"
+       FROM routers WHERE tenant_id=$1 AND id=$2`,
+      [tenantId, routerId],
+    );
+    const router = routerResult.rows[0];
+    if (!router?.encryptedCredentials) throw new ServiceUnavailableException('Encrypted MikroTik credentials are missing');
+    const credentials = this.secureCredentials.decrypt(router.encryptedCredentials);
+    const endpoint = router.controllerEndpoint || router.apiEndpoint;
+    if (!endpoint) throw new ServiceUnavailableException('MikroTik REST endpoint is missing');
+    const backup = await this.mikrotikFirmware.createConfigurationExport({ endpoint, credentials });
+    // Reuse the authenticated AES-GCM credential envelope to encrypt the backup payload at rest.
+    const encryptedPayload = this.secureCredentials.encrypt({ username: 'jaslyn-firmware-backup', password: backup.content });
+    const stored = await this.db.query(
+      `INSERT INTO network_firmware_backups
+        (tenant_id, router_id, job_id, encrypted_payload, sha256, file_name, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (tenant_id,job_id) DO NOTHING
+       RETURNING id, sha256, created_at AS "createdAt"`,
+      [tenantId, routerId, jobId, encryptedPayload, backup.sha256, backup.fileName, context.userId ?? null],
+    );
+    if (!stored.rowCount) throw new ConflictException('A backup already exists for this firmware job; do not overwrite it');
+    const receipt = stored.rows[0];
+    const preview = {
+      safeToExecute: true,
+      vendor: 'MikroTik',
+      releaseSourceVerified: true,
+      targetVersion: job.targetVersion,
+      backupReceiptId: receipt.id,
+      backupSha256: receipt.sha256,
+      backupEncryptedAtRest: true,
+      message: 'Encrypted configuration backup stored. Explicit administrator approval is still required; installation has not started.',
+    };
+    await this.db.query(
+      `UPDATE network_firmware_upgrade_jobs SET status='AWAITING_APPROVAL', preview=$4::jsonb,
+        error_code=NULL, error_message=NULL, updated_at=now()
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='BLOCKED'`,
+      [tenantId, routerId, jobId, JSON.stringify(preview)],
+    );
+    await this.db.query(
+      `INSERT INTO network_firmware_upgrade_attempts
+        (tenant_id, job_id, attempt_number, stage, status, finished_at, evidence)
+       VALUES ($1,$2,2,'BACKUP','SUCCEEDED',now(),$3::jsonb)
+       ON CONFLICT (job_id,attempt_number) DO NOTHING`,
+      [tenantId, jobId, JSON.stringify({ backupReceiptId: receipt.id, sha256: receipt.sha256 })],
+    );
+    await this.audit.record(tenantId, 'MIKROTIK_FIRMWARE_BACKUP_STORED', 'firmware_upgrade_job', jobId,
+      { routerId, backupReceiptId: receipt.id, sha256: receipt.sha256, encryptedAtRest: true }, context);
+    return { jobId, status: 'AWAITING_APPROVAL', backupReceiptId: receipt.id, sha256: receipt.sha256, approvalRequired: true };
+  }
+
+  async verifyAfterUpgrade(tenantId: string, routerId: string, jobId: string, context: AuditContext = {}) {
+    const jobResult = await this.db.query(
+      `SELECT id, status, target_version AS "targetVersion"
+       FROM network_firmware_upgrade_jobs WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
+      [tenantId, routerId, jobId],
+    );
+    const job = jobResult.rows[0];
+    if (!job) throw new NotFoundException('Firmware upgrade job not found');
+    if (!['VERIFYING', 'RECOVERY_REQUIRED'].includes(job.status)) {
+      throw new ConflictException('Only a started firmware upgrade can be verified');
+    }
+    const live = await this.inspectLive(tenantId, routerId, context);
+    const succeeded = live.update.installedVersion === job.targetVersion;
+    const status = succeeded ? 'SUCCEEDED' : 'VERIFYING';
+    await this.db.query(
+      `UPDATE network_firmware_upgrade_jobs SET status=$4, observed_version_after=$5,
+        verification_evidence=$6::jsonb, execution_finished_at=CASE WHEN $4='SUCCEEDED' THEN now() ELSE execution_finished_at END,
+        error_code=CASE WHEN $4='SUCCEEDED' THEN NULL ELSE 'TARGET_VERSION_NOT_OBSERVED' END,
+        error_message=CASE WHEN $4='SUCCEEDED' THEN NULL ELSE 'Device is reachable but the approved target version is not yet observed' END,
+        updated_at=now()
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
+      [tenantId, routerId, jobId, status, live.update.installedVersion, JSON.stringify({
+        installedVersion: live.update.installedVersion, targetVersion: job.targetVersion,
+        latestVersion: live.update.latestVersion, channel: live.update.channel,
+      })],
+    );
+    await this.audit.record(tenantId, 'MIKROTIK_FIRMWARE_POST_UPGRADE_VERIFIED', 'firmware_upgrade_job', jobId,
+      { routerId, status, installedVersion: live.update.installedVersion, targetVersion: job.targetVersion }, context);
+    return { jobId, status, installedVersion: live.update.installedVersion, targetVersion: job.targetVersion };
+  }
+
   async list(tenantId: string, routerId: string) {
     const router = await this.db.query('SELECT id FROM routers WHERE tenant_id=$1 AND id=$2', [tenantId, routerId]);
     if (!router.rowCount) throw new NotFoundException('Router not found');
@@ -176,16 +284,95 @@ export class NetworkFirmwareUpgradeService {
 
   async approve(tenantId: string, routerId: string, jobId: string, context: AuditContext = {}) {
     const result = await this.db.query(
-      `SELECT id, status, preview FROM network_firmware_upgrade_jobs
+      `SELECT id, status, preview, vendor, management_protocol AS "managementProtocol",
+        installed_version AS "installedVersion", target_version AS "targetVersion",
+        maintenance_window_start AS "maintenanceWindowStart", maintenance_window_end AS "maintenanceWindowEnd"
+       FROM network_firmware_upgrade_jobs
        WHERE tenant_id=$1 AND router_id=$2 AND id=$3 FOR UPDATE`,
       [tenantId, routerId, jobId],
     );
     const job = result.rows[0];
     if (!job) throw new NotFoundException('Firmware upgrade job not found');
-    if (job.status !== 'AWAITING_APPROVAL' || job.preview?.safeToExecute !== true) {
-      throw new ServiceUnavailableException('Firmware upgrade is blocked: verified release, maintenance window, durable backup and post-upgrade verification are required. No device command was sent.');
+    if (job.status !== 'AWAITING_APPROVAL' || job.preview?.safeToExecute !== true
+      || String(job.managementProtocol).toUpperCase() !== 'MIKROTIK_REST'
+      || !/mikrotik/i.test(String(job.vendor))) {
+      throw new ServiceUnavailableException('Firmware upgrade is blocked: verified release and encrypted pre-upgrade backup are required. No device command was sent.');
     }
-    throw new ServiceUnavailableException('Execution remains disabled until the durable backup and post-reboot worker are integrated.');
+    const start = new Date(job.maintenanceWindowStart).getTime();
+    const end = new Date(job.maintenanceWindowEnd).getTime();
+    const now = Date.now();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || now < start || now > end) {
+      throw new BadRequestException('Approval must occur inside the approved maintenance window');
+    }
+    const backupResult = await this.db.query(
+      `SELECT id, sha256 FROM network_firmware_backups
+       WHERE tenant_id=$1 AND router_id=$2 AND job_id=$3 AND status IN ('STORED','RESTORE_TESTED')`,
+      [tenantId, routerId, jobId],
+    );
+    const backup = backupResult.rows[0];
+    if (!backup || backup.id !== job.preview.backupReceiptId || backup.sha256 !== job.preview.backupSha256) {
+      throw new ServiceUnavailableException('Encrypted durable backup receipt is missing or does not match the approved preview');
+    }
+    const routerResult = await this.db.query(
+      `SELECT controller_endpoint AS "controllerEndpoint", api_endpoint AS "apiEndpoint",
+        management_credentials_encrypted AS "encryptedCredentials"
+       FROM routers WHERE tenant_id=$1 AND id=$2`,
+      [tenantId, routerId],
+    );
+    const router = routerResult.rows[0];
+    if (!router?.encryptedCredentials) throw new ServiceUnavailableException('Encrypted MikroTik credentials are missing');
+    const endpoint = router.controllerEndpoint || router.apiEndpoint;
+    if (!endpoint) throw new ServiceUnavailableException('MikroTik REST endpoint is missing');
+    const credentials = this.secureCredentials.decrypt(router.encryptedCredentials);
+    const live = await this.mikrotikFirmware.inspect({ endpoint, credentials });
+    if (live.update.installedVersion !== job.installedVersion || live.update.latestVersion !== job.targetVersion) {
+      throw new ConflictException('MikroTik live version changed after backup; no install command was sent');
+    }
+    await this.db.query(
+      `UPDATE network_firmware_upgrade_jobs SET status='RUNNING', approved_by=$4, approved_at=now(),
+        execution_started_at=now(), updated_at=now()
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='AWAITING_APPROVAL'`,
+      [tenantId, routerId, jobId, context.userId ?? null],
+    );
+    await this.db.query(
+      `INSERT INTO network_firmware_upgrade_attempts
+        (tenant_id, job_id, attempt_number, stage, status, evidence)
+       VALUES ($1,$2,3,'INSTALL','STARTED',$3::jsonb)
+       ON CONFLICT (job_id,attempt_number) DO NOTHING`,
+      [tenantId, jobId, JSON.stringify({ backupReceiptId: backup.id, backupSha256: backup.sha256 })],
+    );
+    try {
+      const accepted = await this.mikrotikFirmware.install({ endpoint, credentials }, {
+        approvedTargetVersion: job.targetVersion,
+        expectedInstalledVersion: job.installedVersion,
+        observedLatestVersion: live.update.latestVersion,
+        backupReceiptId: backup.id,
+        backupSha256: backup.sha256,
+        maintenanceWindowActive: true,
+      });
+      await this.db.query(
+        `UPDATE network_firmware_upgrade_jobs SET status='VERIFYING', updated_at=now()
+         WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
+        [tenantId, routerId, jobId],
+      );
+      await this.db.query(
+        `UPDATE network_firmware_upgrade_attempts SET status='SUCCEEDED', finished_at=now(), evidence=$4::jsonb
+         WHERE tenant_id=$1 AND job_id=$2 AND attempt_number=3`,
+        [tenantId, jobId, 3, JSON.stringify(accepted)],
+      );
+      await this.audit.record(tenantId, 'MIKROTIK_FIRMWARE_INSTALL_ACCEPTED', 'firmware_upgrade_job', jobId,
+        { routerId, targetVersion: job.targetVersion, backupReceiptId: backup.id }, context);
+      return { jobId, status: 'VERIFYING', targetVersion: job.targetVersion, message: 'RouterOS accepted the official-channel install command. Verify the device after it reboots.' };
+    } catch (error) {
+      // The router may have accepted the command before the connection failed. Never retry automatically.
+      await this.db.query(
+        `UPDATE network_firmware_upgrade_jobs SET status='RECOVERY_REQUIRED',
+          error_code='INSTALL_RESULT_UNCERTAIN', error_message=$4, updated_at=now()
+         WHERE tenant_id=$1 AND router_id=$2 AND id=$3`,
+        [tenantId, routerId, jobId, error instanceof Error ? error.message.slice(0, 500) : 'Install result uncertain'],
+      );
+      throw new ServiceUnavailableException('MikroTik install result is uncertain. Job marked RECOVERY_REQUIRED; inspect device before retrying.');
+    }
   }
 
   private validateRequest(input: FirmwareUpgradeRequest) {
