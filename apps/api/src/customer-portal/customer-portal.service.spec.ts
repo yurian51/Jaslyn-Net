@@ -16,6 +16,21 @@ describe('CustomerPortalService purchase ownership',()=>{
  let service:CustomerPortalService;
  beforeEach(()=>{jest.clearAllMocks();service=new CustomerPortalService(db as unknown as Pool,new ConfigService({JWT_SECRET:'x'.repeat(40)}),audit as unknown as AuditService,commerce as unknown as CustomerCommerceService,payments as unknown as PaymentsService,purchases as unknown as PurchasesService);});
 
+ it('creates a purchase only from a published package in the authenticated tenant',async()=>{
+  db.query.mockResolvedValueOnce({rows:[{id:'package-a'}],rowCount:1});
+  purchases.create.mockResolvedValueOnce({id:'purchase-a',status:'PENDING_PAYMENT'});
+  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-a'}))
+   .resolves.toMatchObject({id:'purchase-a',status:'PENDING_PAYMENT'});
+  expect(db.query).toHaveBeenCalledWith(expect.stringContaining('tenant_id=$1 AND id=$2 AND is_active=true AND show_on_portal=true'),['tenant-a','package-a']);
+  expect(purchases.create).toHaveBeenCalledWith('tenant-a',{customerId:'customer-a',packageId:'package-a',routerId:undefined,promoCode:undefined});
+ });
+
+ it('does not create a purchase for a hidden or cross-tenant package',async()=>{
+  db.query.mockResolvedValueOnce({rows:[],rowCount:0});
+  await expect(service.createPurchase('tenant-a','customer-a',{packageId:'package-b'})).rejects.toBeInstanceOf(NotFoundException);
+  expect(purchases.create).not.toHaveBeenCalled();
+ });
+
  it('rejects a purchase that does not belong to the token-bound customer',async()=>{
   db.query.mockResolvedValueOnce({rows:[],rowCount:0});
   await expect(service.createPurchaseIntent('tenant-a','customer-a',{purchaseId:'purchase-b',provider:'UPESIPAY'}))
