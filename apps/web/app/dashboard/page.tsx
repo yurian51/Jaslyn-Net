@@ -145,18 +145,35 @@ export default function DashboardPage() {
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
   const locations = data?.locations ?? [];
   const tenantName = data?.tenant?.name ?? 'Tenant workspace';
+  const greetingHour = new Date().getHours();
+  const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const operationalFocus = !data
+    ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
+    : network.offline > 0
+      ? { tone: 'critical', title: `${n(network.offline)} router${network.offline === 1 ? '' : 's'} offline`, detail: 'Review device reachability and affected locations first.', href: '/network', action: 'Inspect network' }
+      : network.degraded > 0
+        ? { tone: 'warning', title: `${n(network.degraded)} router${network.degraded === 1 ? '' : 's'} degraded`, detail: 'Check device health before service quality drops further.', href: '/network', action: 'Review devices' }
+        : operations.networkCommands.failed > 0
+          ? { tone: 'critical', title: `${n(operations.networkCommands.failed)} failed network command${operations.networkCommands.failed === 1 ? '' : 's'}`, detail: 'Review command results and verification before retrying.', href: '/network-commands', action: 'Review commands' }
+          : operations.access.expiredButActive > 0
+            ? { tone: 'warning', title: `${n(operations.access.expiredButActive)} expired access entitlement${operations.access.expiredButActive === 1 ? '' : 's'} still active`, detail: 'Investigate entitlement and session synchronization.', href: '/sessions', action: 'Review sessions' }
+            : operations.access.expiring24h > 0
+              ? { tone: 'warning', title: `${n(operations.access.expiring24h)} access entitlement${operations.access.expiring24h === 1 ? '' : 's'} expiring soon`, detail: 'Check renewals and customer notifications.', href: '/customer-commerce', action: 'Review renewals' }
+              : { tone: 'good', title: 'No priority alerts in the overview', detail: 'Keep an eye on network health, sessions and payment processing.', href: '/incidents', action: 'Open incident center' };
 
   return (
     <main className="overview-page">
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
-          <div className="operator-welcome-eyebrow"><span className="operator-welcome-live-dot" /> JASLYN NET OPERATOR WORKSPACE</div>
-          <h2 id="operator-welcome-title">{new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}, operator!</h2>
+          <div className="operator-welcome-eyebrow"><span className="operator-welcome-live-dot" /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}</span></div>
+          <h2 id="operator-welcome-title">{greeting}, operator!</h2>
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
             <a href="/network">Open network <span aria-hidden="true">↗</span></a>
             <a href="/sessions">View live sessions <span aria-hidden="true">↗</span></a>
             <a href="/payments">Review payments <span aria-hidden="true">↗</span></a>
+            <a href="/incidents">Incident center <span aria-hidden="true">↗</span></a>
+            <a href="/field-operations">Field operations <span aria-hidden="true">↗</span></a>
           </div>
         </div>
         <div className="operator-welcome-status" aria-live="polite">
@@ -164,6 +181,11 @@ export default function DashboardPage() {
           <strong><i className={connection === 'online' ? 'is-online' : connection === 'offline' ? 'is-offline' : 'is-checking'} />{connection === 'online' ? 'Connected' : connection === 'offline' ? 'Offline' : connection === 'degraded' ? 'Needs attention' : 'Connecting…'}</strong>
           <small>{lastUpdatedAt ? 'Updated ' + lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Checking live API status'}</small>
         </div>
+      </section>
+      <section className={`operator-focus operator-focus-${operationalFocus.tone}`} aria-label="Suggested operational focus">
+        <div className="operator-focus-symbol" aria-hidden="true">{operationalFocus.tone === 'critical' ? '!' : operationalFocus.tone === 'warning' ? '•' : operationalFocus.tone === 'good' ? '✓' : '…'}</div>
+        <div className="operator-focus-copy"><span>RECOMMENDED NEXT ACTION</span><strong>{operationalFocus.title}</strong><p>{operationalFocus.detail}</p></div>
+        <a href={operationalFocus.href}>{operationalFocus.action} <span aria-hidden="true">↗</span></a>
       </section>
       <header className="overview-header">
         <div className="overview-heading">
