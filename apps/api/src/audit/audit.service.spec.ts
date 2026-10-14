@@ -17,6 +17,8 @@ describe('AuditService', () => {
         nested: [{ accessToken: 'token-secret', safe: 'ok' }],
       },
       safe: { status: 'ONLINE' },
+      diagnostic: 'Authorization: Bearer raw-token-value',
+      url: '/api?access_token=query-token-value',
     });
 
     const params = (db.query as jest.Mock).mock.calls[0][1] as unknown[];
@@ -32,7 +34,9 @@ describe('AuditService', () => {
     });
     expect(JSON.stringify(params[8])).not.toContain('super-secret');
     expect(JSON.stringify(params[8])).not.toContain('api-secret');
-    expect(JSON.stringify(params[8])).not.toContain('token-secret');
+    expect(JSON.stringify(params[9])).not.toContain('token-secret');
+    expect(JSON.stringify(params[9])).not.toContain('raw-token-value');
+    expect(JSON.stringify(params[9])).not.toContain('query-token-value');
   });
 
   it('bounds oversized audit metadata collections and strings', async () => {
