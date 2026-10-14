@@ -84,15 +84,31 @@ export class MerakiFirmwareExecutor {
     const preservedProducts: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(products)) {
       if (!this.isRecord(value)) continue;
-      preservedProducts[key] = value;
+      const writable: Record<string, unknown> = {};
+      if (this.isRecord(value.nextUpgrade)) {
+        const priorNext = value.nextUpgrade;
+        const next: Record<string, unknown> = {};
+        for (const field of ['time', 'toVersion', 'strategy', 'predownload']) {
+          if (priorNext[field] !== undefined) next[field] = priorNext[field];
+        }
+        writable.nextUpgrade = next;
+      }
+      for (const field of ['participateInNextBetaRelease', 'predownload']) {
+        if (value[field] !== undefined) writable[field] = value[field];
+      }
+      preservedProducts[key] = writable;
     }
+    const requestedNextUpgrade: Record<string, unknown> = {};
+    for (const field of ['strategy', 'predownload']) {
+      if (nextUpgrade[field] !== undefined) requestedNextUpgrade[field] = nextUpgrade[field];
+    }
+    requestedNextUpgrade.time = scheduledAt.toISOString();
+    requestedNextUpgrade.toVersion = { id: target.id };
     preservedProducts[credentials.productType] = {
-      ...product,
-      nextUpgrade: {
-        ...nextUpgrade,
-        time: scheduledAt.toISOString(),
-        toVersion: { id: target.id },
-      },
+      ...(preservedProducts[credentials.productType] as Record<string, unknown> ?? {}),
+      nextUpgrade: requestedNextUpgrade,
+      ...(product.participateInNextBetaRelease === undefined ? {} : { participateInNextBetaRelease: product.participateInNextBetaRelease }),
+      ...(product.predownload === undefined ? {} : { predownload: product.predownload }),
     };
     const body: Record<string, unknown> = { products: preservedProducts };
     if (typeof before.timezone === 'string') body.timezone = before.timezone;
