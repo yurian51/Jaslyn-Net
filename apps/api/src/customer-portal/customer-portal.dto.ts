@@ -1,5 +1,4 @@
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
-import { CreatePaymentIntentDto } from '../payments/payments.dto';
 export class CustomerPortalCreatePurchaseDto {
   @IsUUID() packageId!: string;
   @IsOptional() @IsUUID() routerId?: string;
@@ -14,7 +13,11 @@ export class CustomerPortalActivationDto {
   @IsString() @MinLength(32) @MaxLength(128) invitationToken!: string;
   @IsString() @MinLength(12) @MaxLength(256) password!: string;
 }
-export class CustomerPortalPurchaseIntentDto extends CreatePaymentIntentDto {}
+export class CustomerPortalPurchaseIntentDto {
+  @IsUUID() purchaseId!: string;
+  @IsString() @MinLength(2) @MaxLength(40) provider!: string;
+  @IsOptional() @IsString() @MaxLength(160) idempotencyKey?: string;
+}
 export class CustomerPortalSupportDto {
   @IsString() @MinLength(2) @MaxLength(80) category!: string;
   @IsString() @MinLength(3) @MaxLength(180) subject!: string;
