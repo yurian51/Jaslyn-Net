@@ -37,6 +37,20 @@ export class MerakiFirmwareService {
     return result;
   }
 
+  async verify(tenantId: string, routerId: string, input: { targetVersion: string; scheduledAt: string }, context: AuditContext = {}) {
+    if (!input || typeof input !== 'object' || !input.targetVersion || !input.scheduledAt) {
+      throw new BadRequestException('targetVersion and scheduledAt are required for firmware verification');
+    }
+    const { credentials } = await this.load(tenantId, routerId);
+    const result = await this.executor.verifyUpgrade(credentials, input);
+    await this.audit.record(tenantId, 'MERAKI_FIRMWARE_UPGRADE_VERIFIED', 'router_firmware', routerId, {
+      networkId: credentials.networkId, productType: credentials.productType,
+      targetVersion: result.targetVersion, installedVersion: result.installedVersion,
+      status: result.status, verifiedAt: result.verifiedAt,
+    }, context);
+    return result;
+  }
+
   private async load(tenantId: string, routerId: string): Promise<{ router: any; credentials: MerakiFirmwareCredentials }> {
     const result = await this.db.query(
       `SELECT id, vendor, management_protocol AS "managementProtocol", management_enabled AS "managementEnabled",
