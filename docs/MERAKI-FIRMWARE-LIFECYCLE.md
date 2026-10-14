@@ -30,11 +30,13 @@ API keys must be stored only in Jaslyn Net's encrypted credential field. Never p
   }
   ```
 
+- `POST /routers/:id/firmware/meraki/verify` — owner/admin/agent. JSON body contains `targetVersion` (the version ID returned by the schedule endpoint) and `scheduledAt`. This re-reads live Dashboard state and reports `COMPLETED` only when `currentVersion.id` matches the requested target; otherwise it reports `SCHEDULED`, `PENDING_VERIFICATION`, or `NEEDS_ATTENTION` with evidence.
+
 The executor checks the requested version against Meraki's live `availableVersions`, rejects the current version, requires explicit approval and a future schedule, preserves other product schedules and the existing network timezone, then checks that the response reports the exact scheduled target. It uses HTTPS to `api.meraki.com`, refuses redirects, has a bounded timeout, and does not automatically retry a mutation whose result may be uncertain.
 
 ## Validation and limitations
 
-- Automated executor tests cover live inspection, rejecting unlisted versions, approval/schedule validation, preserving other product schedules and verifying the scheduled target.
+- Automated executor tests cover live inspection, rejecting unlisted versions, approval/schedule validation, preserving other product schedules, verifying the scheduled target, and verifying live completion only after the installed version matches.
 - A successful API response means **scheduled**, not that the physical devices have completed reboot/upgrade. Verify actual completion from Meraki's post-upgrade firmware state/events.
 - The current Jaslyn Net Meraki workflow does not perform local device configuration backup or automatic rollback. Meraki cloud rollback is a separate vendor operation and is intentionally not inferred from the existence of a schedule endpoint.
 - Do not mark production-ready until CI passes and a controlled Meraki test network confirms supported product types, version IDs, scheduling behavior, and post-upgrade state.
