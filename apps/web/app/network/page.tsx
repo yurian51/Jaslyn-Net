@@ -250,6 +250,101 @@ export default function NetworkPage() {
     );
   }, [query, routers]);
 
+  function openFirmware(router: Router) {
+    setFirmwareRouter(router);
+    setFirmwareLive(null);
+    setFirmwareJob(null);
+    setFirmwareError(null);
+    setMaintenanceStart(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
+    setMaintenanceEnd(toLocalDateTimeInput(new Date(Date.now() + 2 * 60 * 60 * 1000)));
+  }
+
+  async function firmwareRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    const token = getAccessToken();
+    if (!token) throw new Error('Authentication required.');
+    return apiFetch<T>(path, {
+      method,
+      headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  }
+
+  async function inspectFirmware() {
+    if (!firmwareRouter) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<FirmwareLive>('/routers/' + firmwareRouter.id + '/firmware/live');
+      setFirmwareLive(result);
+      setFirmwareJob(null);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Live firmware inspection failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function previewFirmware() {
+    if (!firmwareRouter || !firmwareLive) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<FirmwareJob>('/routers/' + firmwareRouter.id + '/firmware/upgrades/preview', 'POST', {
+        targetVersion: firmwareLive.update.latestVersion,
+        releaseSourceUrl: 'https://mikrotik.com/download',
+        idempotencyKey: 'firmware-' + firmwareRouter.id + '-' + Date.now() + '-' + crypto.randomUUID(),
+        maintenanceWindowStart: new Date(maintenanceStart).toISOString(),
+        maintenanceWindowEnd: new Date(maintenanceEnd).toISOString(),
+      });
+      setFirmwareJob(result);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Firmware preflight failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function prepareFirmwareBackup() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      await firmwareRequest('/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/backup', 'POST');
+      setFirmwareJob((current) => current ? { ...current, status: 'AWAITING_APPROVAL', preview: { ...current.preview, safeToExecute: true } } : current);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Encrypted backup preparation failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function approveFirmware() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<{ status: string }>('/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/approve', 'POST');
+      setFirmwareJob((current) => current ? { ...current, status: result.status } : current);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Firmware approval or installation failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function refreshFirmwareJob() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<FirmwareJobResponse>('/routers/' + firmwareRouter.id + '/firmware/upgrades');
+      const updated = result.data.find((item) => item.id === firmwareJob.id);
+      if (updated) setFirmwareJob(updated);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Unable to refresh firmware job.');
+    } finally { setFirmwareBusy(false); }
+  }
+
+  async function verifyFirmwareNow() {
+    if (!firmwareRouter || !firmwareJob) return;
+    setFirmwareBusy(true); setFirmwareError(null);
+    try {
+      const result = await firmwareRequest<{ status: string; observedVersionAfter?: string; installedVersion?: string }>(
+        '/routers/' + firmwareRouter.id + '/firmware/upgrades/' + firmwareJob.id + '/verify', 'POST',
+      );
+      setFirmwareJob((current) => current ? { ...current, status: result.status, observedVersionAfter: result.installedVersion ?? result.observedVersionAfter } : current);
+    } catch (cause: unknown) {
+      setFirmwareError(cause instanceof Error ? cause.message : 'Post-upgrade verification failed.');
+    } finally { setFirmwareBusy(false); }
+  }
+
   return (
     <main className="network-page">
       <header className="network-header">
