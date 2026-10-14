@@ -19,9 +19,10 @@ CREATE TABLE IF NOT EXISTS customer_portal_invitations (
   token_hash text NOT NULL UNIQUE,
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
-  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE
+  FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id, created_by) REFERENCES users(tenant_id, id) ON DELETE SET NULL (created_by)
 );
 CREATE INDEX IF NOT EXISTS customer_portal_invitation_customer_idx
   ON customer_portal_invitations (tenant_id, customer_id, created_at DESC);
