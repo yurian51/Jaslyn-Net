@@ -10,6 +10,8 @@ import { CustomerCommerceService } from '../customer-commerce/customer-commerce.
 import { RenewalScheduleDto } from '../customer-commerce/customer-commerce.dto';
 import { PaymentsService } from '../payments/payments.service';
 import { PurchasesService } from '../purchases/purchases.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { SmsGatewayService } from '../notifications/sms-gateway.service';
 import { CustomerPortalActivationDto, CustomerPortalCreatePurchaseDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
 
 const scrypt=promisify(scryptCallback);
@@ -18,10 +20,23 @@ const SESSION_HOURS=12;
 @Injectable()
 export class CustomerPortalService {
   constructor(@Inject(PG_POOL) private readonly db:Pool,private readonly config:ConfigService,private readonly audit:AuditService,
-    private readonly commerce:CustomerCommerceService,private readonly payments:PaymentsService,private readonly purchases:PurchasesService){}
+    private readonly commerce:CustomerCommerceService,private readonly payments:PaymentsService,private readonly purchases:PurchasesService,
+    private readonly notifications:NotificationsService,private readonly smsGateway:SmsGatewayService){}
+
+  private activationUrl(token:string):string|undefined {
+    const configured=this.config.get<string>('CUSTOMER_PORTAL_PUBLIC_URL')?.trim();
+    if(!configured)return undefined;
+    try{
+      const base=new URL(configured);
+      if(base.protocol!=='https:'||base.username||base.password||base.search||base.hash)return undefined;
+      const activation=new URL('/customer-portal',base.origin);
+      activation.hash='invite='+encodeURIComponent(token);
+      return activation.toString();
+    }catch{return undefined;}
+  }
 
   async issueInvitation(tenantId:string,actorId:string,customerId:string,context:AuditContext={}){
-    const customer=await this.db.query('SELECT c.id,c.full_name AS "fullName",c.username,t.slug AS "tenantSlug" FROM customers c JOIN tenants t ON t.id=c.tenant_id WHERE c.tenant_id=$1 AND c.id=$2 AND c.is_active=true',[tenantId,customerId]);
+    const customer=await this.db.query('SELECT c.id,c.full_name AS "fullName",c.username,c.phone,t.slug AS "tenantSlug" FROM customers c JOIN tenants t ON t.id=c.tenant_id WHERE c.tenant_id=$1 AND c.id=$2 AND c.is_active=true',[tenantId,customerId]);
     if(!customer.rowCount)throw new NotFoundException('Active customer not found in this tenant');
     const token=randomBytes(32).toString('base64url'),tokenHash=this.hashToken(token);
     const client=await this.db.connect();
@@ -34,8 +49,35 @@ export class CustomerPortalService {
       invitation=r.rows[0];
       await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK').catch(()=>undefined);throw error;}finally{client.release();}
-    await this.audit.record(tenantId,'CUSTOMER_PORTAL_INVITATION_ISSUED','customer',customerId,{expiresAt:invitation.expiresAt},{...context,userId:actorId});
-    return {customer:customer.rows[0],invitationToken:token,expiresAt:invitation.expiresAt,delivery:'Share this one-time token through an approved private channel; it is shown only once.'};
+
+    const customerRecord=customer.rows[0] as {id:string;fullName:string;username:string;tenantSlug:string;phone?:string|null};
+    const {phone,...customerPublic}=customerRecord;
+    let delivery='SMS not queued; share the one-time token through an approved private channel.';
+    const activationUrl=phone?this.activationUrl(token):undefined;
+    if(phone&&activationUrl){
+      try{
+        const smsStatus=await this.smsGateway.status(tenantId);
+        if(smsStatus.configured){
+          const queued=await this.notifications.enqueueSms(tenantId,{
+            recipient:phone,
+            message:`Jaslyn Net: Activate your customer account: ${activationUrl}. Link expires in 24 hours.`,
+            category:'TRANSACTIONAL',
+            idempotencyKey:`customer-portal-invitation:${tokenHash}`,
+          });
+          delivery=`SMS invitation queued (outbox status: ${queued.status}). The token is also shown once as a fallback.`;
+        }else{
+          delivery='SMS is not configured for this tenant; share the one-time token through an approved private channel.';
+        }
+      }catch{
+        delivery='SMS invitation could not be queued; share the one-time token through an approved private channel.';
+      }
+    }else if(!phone){
+      delivery='No customer phone number is on file; share the one-time token through an approved private channel.';
+    }else{
+      delivery='Customer portal public URL is not configured securely; share the one-time token through an approved private channel.';
+    }
+    await this.audit.record(tenantId,'CUSTOMER_PORTAL_INVITATION_ISSUED','customer',customerId,{expiresAt:invitation.expiresAt,delivery},{...context,userId:actorId});
+    return {customer:customerPublic,invitationToken:token,expiresAt:invitation.expiresAt,delivery};
   }
 
   async activate(input:CustomerPortalActivationDto){
