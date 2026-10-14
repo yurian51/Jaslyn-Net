@@ -61,6 +61,19 @@ describe('NetworkFirmwareUpgradeService', () => {
     expect(db.query.mock.calls.some((call) => call[0].includes("status='AWAITING_APPROVAL'"))).toBe(true);
   });
 
+  it('automatically verifies a RouterOS job only after the target version is observed live', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ id: 'job1', tenantId: 't1', routerId: 'r1', targetVersion: '7.17.1', vendor: 'MikroTik', status: 'VERIFYING', managementProtocol: 'MIKROTIK_REST' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'r1', vendor: 'MikroTik', model: 'hAP ax3', managementProtocol: 'MIKROTIK_REST', managementEnabled: true, apiEndpoint: 'https://router.example/rest', controllerEndpoint: null, encryptedCredentials: 'router-cipher' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 });
+    await (service as any).pollVerificationJobs();
+    expect(db.query.mock.calls[0][0]).toContain("status IN ('VERIFYING','RECOVERY_REQUIRED')");
+    expect(db.query.mock.calls[3][0]).toContain("status IN ('VERIFYING','RECOVERY_REQUIRED')");
+    expect(db.query.mock.calls[3][1][3]).toBe('SUCCEEDED');
+    expect(audit.record).toHaveBeenCalledWith('t1', 'MIKROTIK_FIRMWARE_AUTO_VERIFIED', 'firmware_upgrade_job', 'job1', expect.any(Object));
+  });
+
   it('rejects invalid or credential-bearing release URLs before database access', async () => {
     await expect(service.preview('t1', 'r1', { ...request(), releaseSourceUrl: 'http://example.com/fw' }))
       .rejects.toThrow(BadRequestException);
