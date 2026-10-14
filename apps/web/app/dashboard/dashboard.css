@@ -591,3 +591,32 @@
 @media(prefers-reduced-motion:reduce){
   .commandbar-primary a{transition:none}
 }
+
+
+/* Operator welcome panel inspired by a modern developer workspace. */
+.operator-welcome{
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+  margin:0 0 22px;padding:25px 27px;border:1px solid #e0e7f0;border-radius:14px;
+  background:linear-gradient(115deg,#fff 0%,#f8fbff 68%,#f0f6ff 100%);
+  box-shadow:0 5px 20px rgba(17,32,57,.035);
+}
+.operator-welcome-copy{min-width:0}
+.operator-welcome-eyebrow{display:flex;align-items:center;gap:8px;color:#70819a;font-size:9px;font-weight:800;letter-spacing:.13em}
+.operator-welcome-live-dot{width:7px;height:7px;border-radius:50%;background:#2a9b70;box-shadow:0 0 0 4px rgba(42,155,112,.1)}
+.operator-welcome h2{margin:13px 0 7px;color:#15253d;font-size:clamp(23px,2.4vw,32px);line-height:1.12;letter-spacing:-.045em;font-weight:780}
+.operator-welcome p{margin:0;color:#78879b;font-size:12px;line-height:1.6}
+.operator-welcome-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:19px}
+.operator-welcome-actions a{display:inline-flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid #dce4ef;border-radius:8px;background:#fff;color:#304969;font-size:10px;font-weight:750;text-decoration:none;transition:background .15s,border-color .15s}
+.operator-welcome-actions a:first-child{background:#245bb4;border-color:#245bb4;color:#fff}
+.operator-welcome-actions a:hover{border-color:#9fb5d5;background:#f3f7fc}
+.operator-welcome-actions a:first-child:hover{background:#194b9b}
+.operator-welcome-status{display:flex;flex:0 0 170px;flex-direction:column;gap:9px;padding:17px;border:1px solid #e0e8f1;border-radius:10px;background:rgba(255,255,255,.8)}
+.operator-welcome-status-label{color:#94a0b1;font-size:8px;font-weight:800;letter-spacing:.1em}
+.operator-welcome-status strong{display:flex;align-items:center;gap:8px;color:#243750;font-size:13px}
+.operator-welcome-status strong i{width:8px;height:8px;border-radius:50%;background:#9aa7b8}
+.operator-welcome-status strong i.is-online{background:#23966a;box-shadow:0 0 0 4px rgba(35,150,106,.1)}
+.operator-welcome-status strong i.is-offline{background:#c0444f;box-shadow:0 0 0 4px rgba(192,68,79,.1)}
+.operator-welcome-status strong i.is-checking{background:#d59a32}
+.operator-welcome-status small{color:#8b98a9;font-size:9px}
+@media(max-width:700px){.operator-welcome{align-items:stretch;flex-direction:column;padding:20px 17px;gap:18px}.operator-welcome-status{flex-basis:auto}.operator-welcome-actions a{flex:1 1 auto;justify-content:center}}
+@media(prefers-reduced-motion:reduce){.operator-welcome-actions a{transition:none}}
