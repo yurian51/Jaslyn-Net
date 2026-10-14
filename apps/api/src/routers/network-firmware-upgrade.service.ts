@@ -160,6 +160,7 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
     }
     const live = await this.inspectLive(tenantId, routerId, context);
     if (live.update.latestVersion !== job.targetVersion || live.update.installedVersion !== job.installedVersion
+      || live.update.installedVersion === live.update.latestVersion || !/new version is available/i.test(live.update.status)
       || live.identity.model.trim().toLowerCase() !== String(job.model ?? '').trim().toLowerCase()) {
       throw new ConflictException('Live MikroTik version or official latest release changed; create a fresh preview');
     }
@@ -301,6 +302,8 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
       releaseSourceVerified: inventory?.releaseSourceVerified === true
         && inventory?.releaseSourceUrl === input.releaseSourceUrl
         && inventory?.latestVersion === input.targetVersion,
+      targetVersionAvailable: Boolean(input.targetVersion && input.targetVersion !== (inventory?.installedVersion ?? router.osVersion)
+        && inventory?.latestVersion === input.targetVersion),
       maintenanceWindowValid: this.validWindow(input.maintenanceWindowStart, input.maintenanceWindowEnd),
       artifactDigestProvided: typeof input.artifactSha256 === 'string' && /^[a-f0-9]{64}$/i.test(input.artifactSha256),
     };
@@ -393,6 +396,7 @@ export class NetworkFirmwareUpgradeService implements OnModuleInit, OnModuleDest
     const credentials = this.secureCredentials.decrypt(router.encryptedCredentials);
     const live = await this.mikrotikFirmware.inspect({ endpoint, credentials });
     if (live.update.installedVersion !== job.installedVersion || live.update.latestVersion !== job.targetVersion
+      || live.update.installedVersion === live.update.latestVersion || !/new version is available/i.test(live.update.status)
       || live.identity.model.trim().toLowerCase() !== String(job.model ?? '').trim().toLowerCase()) {
       throw new ConflictException('MikroTik live version or model changed after backup; no install command was sent');
     }
