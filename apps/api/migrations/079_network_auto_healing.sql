@@ -3,9 +3,11 @@ CREATE TABLE IF NOT EXISTS network_auto_heal_policies (
   enabled boolean NOT NULL DEFAULT false,
   max_auto_retries smallint NOT NULL DEFAULT 1 CHECK (max_auto_retries BETWEEN 1 AND 3),
   cooldown_seconds integer NOT NULL DEFAULT 60 CHECK (cooldown_seconds BETWEEN 30 AND 3600),
-  updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  updated_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT network_auto_heal_policy_updated_by_tenant_fk
+    FOREIGN KEY (tenant_id, updated_by) REFERENCES users(tenant_id, id) ON DELETE SET NULL (updated_by)
 );
 
 CREATE TABLE IF NOT EXISTS network_auto_heal_runs (
