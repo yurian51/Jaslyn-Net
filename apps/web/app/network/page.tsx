@@ -520,6 +520,7 @@ export default function NetworkPage() {
             <span>Quick setup</span>
             <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'MikroTik Router', vendor: 'MikroTik', managementProtocol: 'MIKROTIK_REST' })}>MikroTik</button>
             <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Omada EAP', vendor: 'TP-Link Omada', managementProtocol: 'OMADA_CONTROLLER_API' })}>Omada</button>
+            <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'Cisco Meraki Network', vendor: 'Cisco Meraki', managementProtocol: 'MERAKI_DASHBOARD_API' })}>Cisco Meraki</button>
             <button type="button" onClick={() => setForm({ ...INITIAL_FORM, name: 'RADIUS NAS', vendor: 'RADIUS NAS', managementProtocol: 'RADIUS_NAS' })}>RADIUS NAS</button>
           </div>
 
