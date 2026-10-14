@@ -671,3 +671,28 @@
 @media(max-width:1000px){.operator-launchpad-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.operator-launchpad{padding:15px 13px}.operator-launchpad-grid{grid-template-columns:1fr}.operator-launchpad-item{padding:11px}.operator-launchpad-heading h2{font-size:14px}}
 @media(prefers-reduced-motion:reduce){.operator-launchpad-item{transition:none}.operator-launchpad-item:hover{transform:none}}
+
+
+/* Keyboard command palette and portable operational snapshot (Claude-inspired workflows, native Jaslyn UI). */
+.operator-launchpad-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:7px}
+.operator-command-trigger{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(--ov-border,#e2e8f0);border-radius:7px;background:var(--ov-card,#fff);color:var(--ov-muted,#64748b);font-size:9px;font-weight:750;cursor:pointer}
+.operator-command-trigger:hover:not(:disabled){border-color:#a8bdd9;background:#f6f9fe;color:#315f9e}
+.operator-command-trigger:disabled{opacity:.45;cursor:not-allowed}
+.operator-command-trigger kbd,.operator-command-search-row kbd,.operator-command-results kbd,.operator-command-footer kbd{padding:3px 5px;border:1px solid #e0e6ef;border-radius:4px;background:#f7f9fc;color:#758399;font:700 8px ui-monospace,SFMono-Regular,Menlo,monospace}
+.operator-command-overlay{position:fixed;z-index:1000;inset:0;display:flex;align-items:flex-start;justify-content:center;padding: min(15vh,120px) 16px 24px;background:rgba(13,24,42,.48);backdrop-filter:blur(4px)}
+.operator-command-dialog{width:min(620px,100%);max-height:min(70vh,620px);overflow:hidden;border:1px solid #dce4ef;border-radius:14px;background:#fff;box-shadow:0 24px 90px rgba(10,24,46,.25);color:#25364e}
+.operator-command-search-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #edf0f5;color:#6b82a1}
+.operator-command-search-row>span{font-size:22px;line-height:1}
+.operator-command-search-row input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:#26364c;font:inherit;font-size:13px}
+.operator-command-section-label{padding:13px 16px 7px;color:#93a0b2;font-size:8px;font-weight:850;letter-spacing:.13em}
+.operator-command-results{max-height:calc(min(70vh,620px) - 120px);overflow:auto;padding:0 8px 9px}
+.operator-command-results>a,.operator-command-results>button{display:flex;width:100%;align-items:center;gap:11px;padding:10px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left;text-decoration:none;cursor:pointer}
+.operator-command-results>a:hover,.operator-command-results>button:hover{background:#f1f6fd}
+.operator-command-result-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border:1px solid #e1e8f2;border-radius:8px;background:#fff;color:#5076ad;font-size:14px}
+.operator-command-results>a>span:nth-child(2),.operator-command-results>button>span:nth-child(2){display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.operator-command-results strong{color:#2b3d55;font-size:11px}
+.operator-command-results small{color:#8290a3;font-size:9px}
+.operator-command-empty{padding:25px 12px;color:#7f8da0;text-align:center;font-size:10px}
+.operator-command-footer{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid #edf0f5;color:#8b98aa;font-size:8px}
+@media(max-width:600px){.operator-launchpad-heading{flex-wrap:wrap}.operator-launchpad-tools{width:100%;justify-content:flex-start}.operator-command-overlay{padding:8vh 10px 15px}.operator-command-footer{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.operator-command-trigger{transition:none}}
