@@ -45,7 +45,7 @@ describe('AuditService', () => {
     await service.record('tenant-1', 'test', 'system', undefined, { huge });
 
     const params = (db.query as jest.Mock).mock.calls[0][1] as unknown[];
-    const metadata = params[8] as { huge: Array<{ index: number; value: string }> };
+    const metadata = params[9] as { huge: Array<{ index: number; value: string }> };
     expect(metadata.huge).toHaveLength(100);
     expect(metadata.huge[0].value).toHaveLength(2001);
   });
