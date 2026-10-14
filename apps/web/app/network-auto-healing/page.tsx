@@ -23,9 +23,9 @@ export default function NetworkAutoHealingPage(){
   catch(e){setError(e instanceof ApiError?e.message:e instanceof Error?e.message:'Imeshindikana kuhifadhi sera.');}finally{setSaving(false);}
  }
  return <main className="nah-page">
-  <header className="nah-header"><div><p className="nah-eyebrow">JASLYN NET / NETWORK RELIABILITY</p><h1>Network Auto-Healing</h1><p>Retries za network commands zilizoshindwa, kwa mipaka iliyowekwa na msimamizi na kupitia worker ileile inayothibitisha hali ya kifaa.</p></div><Link href="/enterprise-capabilities">← Enterprise capabilities</Link></header>
+  <header className="nah-header"><div><p className="nah-eyebrow">JASLYN NET / NETWORK RELIABILITY</p><h1>Network Auto-Healing</h1><p>Retries za bandwidth-enforcement commands zilizoshindwa, kwa mipaka iliyowekwa na msimamizi na kupitia worker ileile inayothibitisha hali ya kifaa.</p></div><Link href="/enterprise-capabilities">← Enterprise capabilities</Link></header>
   {error&&<div className="nah-alert" role="alert">{error}</div>}{notice&&<div className="nah-notice" role="status">{notice}</div>}
-  <section className="nah-warning"><strong>Safety boundary</strong><p>Auto-healing imezimwa kwa default. Inajaribu tena tu commands za <code>BANDWIDTH_ENFORCEMENT</code> na <code>DISCONNECT_SESSION</code> zilizoshindwa, baada ya cooldown, na hadi mara 3. Haitawashi upya router, haibuni shell commands, na haitaruka verification ya network worker.</p></section>
+  <section className="nah-warning"><strong>Safety boundary</strong><p>Auto-healing imezimwa kwa default. Inajaribu tena tu command za <code>BANDWIDTH_ENFORCEMENT</code> zilizoshindwa, baada ya cooldown, na hadi mara 3. Haitawashi upya router, haibuni shell commands, na haitaruka verification ya network worker.</p></section>
   <section className="nah-grid">
    <form className="nah-panel" onSubmit={save}><h2>Sera ya tenant</h2><p>Washa baada ya kuidhinisha retry policy ya timu ya network.</p>
     <label className="nah-toggle"><input type="checkbox" checked={policy.enabled} onChange={e=>setPolicy(p=>({...p,enabled:e.target.checked}))}/><span><strong>{policy.enabled?'Auto-healing imewashwa':'Auto-healing imezimwa'}</strong><small>Hali ya default ni OFF</small></span></label>
