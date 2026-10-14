@@ -28,6 +28,27 @@ type Router = {
 };
 
 type RouterResponse = { data: Router[] };
+type FirmwareLive = {
+  routerId: string;
+  vendor: string;
+  model?: string;
+  identity: { model: string; architecture: string; version: string; factoryFirmware: string };
+  update: { status: string; installedVersion: string; latestVersion: string; channel: string; mode: string; checkCertificate: string };
+  inventoryStatus: string;
+};
+type FirmwareJob = {
+  id: string;
+  status: string;
+  targetVersion: string;
+  preview?: { safeToExecute?: boolean; blockers?: string[]; backupReceiptId?: string; message?: string };
+  errorMessage?: string;
+  observedVersionAfter?: string;
+};
+type FirmwareJobResponse = { data: FirmwareJob[] };
+
+function toLocalDateTimeInput(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 const MANAGEMENT_PROTOCOLS = [
   ['MIKROTIK_REST', 'MikroTik RouterOS REST'],
@@ -103,6 +124,13 @@ export default function NetworkPage() {
   const [qrRouter, setQrRouter] = useState<Router | null>(null);
   const [qrData, setQrData] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [firmwareRouter, setFirmwareRouter] = useState<Router | null>(null);
+  const [firmwareLive, setFirmwareLive] = useState<FirmwareLive | null>(null);
+  const [firmwareJob, setFirmwareJob] = useState<FirmwareJob | null>(null);
+  const [firmwareBusy, setFirmwareBusy] = useState(false);
+  const [firmwareError, setFirmwareError] = useState<string | null>(null);
+  const [maintenanceStart, setMaintenanceStart] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
+  const [maintenanceEnd, setMaintenanceEnd] = useState(() => toLocalDateTimeInput(new Date(Date.now() + 2 * 60 * 60 * 1000)));
 
   const load = useCallback(async () => {
     const token = getAccessToken();
