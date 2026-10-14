@@ -18,6 +18,8 @@ export class NetworkCredentialsDto {
   @IsOptional() @IsString() @MaxLength(2000) refreshToken?: string;
   @IsOptional() @IsString() @MaxLength(200) omadacId?: string;
   @IsOptional() @IsString() @MaxLength(200) siteId?: string;
+  @IsOptional() @IsString() @MaxLength(160) networkId?: string;
+  @IsOptional() @IsIn(['wireless', 'appliance', 'switch', 'camera', 'cellularGateway', 'sensor', 'wirelessController', 'campusGateway', 'secureConnect', 'switchCatalyst']) productType?: string;
   @IsOptional() @IsString() @MaxLength(200) groupId?: string;
 }
 
