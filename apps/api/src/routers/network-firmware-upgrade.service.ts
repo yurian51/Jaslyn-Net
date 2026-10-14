@@ -265,13 +265,13 @@ export class NetworkFirmwareUpgradeService {
          target_version, release_source_url, release_source_verified, artifact_sha256, artifact_signature_verified,
          maintenance_window_start, maintenance_window_end, status, preview, requested_by, idempotency_key,
          error_code, error_message)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,$10,false,$11,$12,'BLOCKED',$13::jsonb,$14,$15,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,$12,$13,'BLOCKED',$14::jsonb,$15,$16,
          'BACKUP_REQUIRED','No firmware command sent; encrypted backup and explicit approval are required.')
        ON CONFLICT (tenant_id,idempotency_key) DO NOTHING
        RETURNING id, status, preview, created_at AS "createdAt"`,
       [tenantId, routerId, router.vendor ?? 'Unknown', protocol, router.model ?? 'Unknown',
         input.hardwareRevision ?? inventory?.hardwareRevision ?? null, installedVersion, input.targetVersion,
-        input.releaseSourceUrl, input.artifactSha256?.toLowerCase() ?? null,
+        input.releaseSourceUrl, checks.releaseSourceVerified, input.artifactSha256?.toLowerCase() ?? null,
         input.maintenanceWindowStart ? new Date(input.maintenanceWindowStart) : null,
         input.maintenanceWindowEnd ? new Date(input.maintenanceWindowEnd) : null,
         JSON.stringify(preview), context.userId ?? null, input.idempotencyKey],
