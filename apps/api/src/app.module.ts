@@ -39,6 +39,7 @@ import { AutomationModule } from './automation/automation.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { CaptivePortalModule } from './captive-portal/captive-portal.module';
 import { FiberTopologyModule } from './fiber-topology/fiber-topology.module';
+import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-healing.module';
 
 @Module({
   imports: [
@@ -46,7 +47,7 @@ import { FiberTopologyModule } from './fiber-topology/fiber-topology.module';
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, FiberTopologyModule,
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, FiberTopologyModule, NetworkAutoHealingModule,
   ],
 })
 export class AppModule implements NestModule {
