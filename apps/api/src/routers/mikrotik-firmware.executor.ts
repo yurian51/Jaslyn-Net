@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { NetworkCredentials } from '../common/secure-network-credentials';
 
 export interface MikroTikFirmwareEndpoint {
@@ -9,7 +9,7 @@ export interface MikroTikFirmwareEndpoint {
 
 export interface MikroTikFirmwareInspection {
   identity: { boardName: string; model: string; architecture: string; version: string; factoryFirmware: string };
-  update: { status: string; installedVersion: string; latestVersion: string; channel: string };
+  update: { status: string; installedVersion: string; latestVersion: string; channel: string; mode: string; checkCertificate: string };
 }
 
 /**
@@ -50,6 +50,8 @@ export class MikroTikFirmwareExecutor {
         installedVersion,
         latestVersion,
         channel: this.text(updateRow?.channel) || 'stable',
+        mode: this.text(updateRow?.mode),
+        checkCertificate: this.text(updateRow?.['check-certificate']),
       },
     };
   }
@@ -60,7 +62,7 @@ export class MikroTikFirmwareExecutor {
    * persist this export in durable backup storage before invoking install().
    */
   async createConfigurationExport(connection: MikroTikFirmwareEndpoint): Promise<{ fileName: string; content: string; sha256: string }> {
-    const fileName = `jaslyn-fw-preupgrade-${Date.now()}`;
+    const fileName = `jaslyn-fw-preupgrade-${randomUUID()}`;
     await this.request(connection, '/export', 'POST', { file: fileName });
     try {
       const chunks: string[] = [];
@@ -109,6 +111,9 @@ export class MikroTikFirmwareExecutor {
       throw new BadRequestException('RouterOS only installs the latest version from its selected channel; target does not match the verified latest version');
     }
     const before = await this.inspect(connection);
+    if (before.update.mode !== 'https' || before.update.checkCertificate !== 'yes') {
+      throw new BadRequestException('MikroTik updates require HTTPS and certificate validation set to yes');
+    }
     if (!['stable', 'long-term'].includes(before.update.channel)) {
       throw new BadRequestException('MikroTik firmware automation permits only stable or long-term release channels');
     }
@@ -147,7 +152,7 @@ export class MikroTikFirmwareExecutor {
       });
       if (response.status >= 300 && response.status < 400) throw new ServiceUnavailableException('MikroTik REST redirects are not allowed');
       const text = await response.text();
-      if (!response.ok) throw new ServiceUnavailableException(`MikroTik REST request failed with HTTP ${response.status}: ${text.slice(0, 300)}`);
+      if (!response.ok) throw new ServiceUnavailableException(`MikroTik REST request failed with HTTP ${response.status}`);
       if (!text.trim()) return [];
       try { return JSON.parse(text) as unknown; } catch { throw new ServiceUnavailableException('MikroTik REST returned invalid JSON'); }
     } catch (error) {
