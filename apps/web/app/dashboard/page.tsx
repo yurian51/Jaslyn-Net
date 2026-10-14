@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
-type OperatorProfile = { user?: { fullName?: string; email?: string; role?: string; tenantName?: string; tenantSlug?: string } };
+type OperatorProfile = { user?: { fullName?: string; username?: string; userName?: string; email?: string; role?: string; tenantName?: string; tenantSlug?: string } };
 
 type Overview = {
   tenant?: { currency?: string; timezone?: string; name?: string; status?: string };
@@ -220,7 +220,10 @@ export default function DashboardPage() {
   const tenantName = operatorProfile?.tenantName ?? data?.tenant?.name ?? 'Jaslyn Net';
   const greetingHour = welcomeNow?.getHours();
   const greeting = greetingHour == null ? 'Welcome' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
-  const operatorName = operatorProfile?.fullName?.trim() || operatorProfile?.email?.split('@')[0] || 'Operator';
+  const operatorFullName = operatorProfile?.fullName?.trim() || '';
+  const operatorUsername = operatorProfile?.username?.trim() || operatorProfile?.userName?.trim() || '';
+  const operatorEmail = operatorProfile?.email?.trim() || '';
+  const operatorDisplayName = operatorFullName ? operatorFullName.split(/\\s+/)[0] : operatorUsername || operatorEmail.split('@')[0] || 'Operator';
   const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
@@ -241,7 +244,8 @@ export default function DashboardPage() {
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
           <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN NET · NETWORK OPERATIONS <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
-          <h2 id="operator-welcome-title">{greeting}, {operatorName}!</h2>
+          <h2 id="operator-welcome-title">{greeting}, {operatorDisplayName}!</h2>
+          {(operatorFullName || operatorUsername || operatorEmail) && <p className="operator-welcome-identity">{operatorFullName && <span>{operatorFullName}</span>}{operatorUsername && <span>@{operatorUsername.replace(/^@/, '')}</span>}{operatorEmail && <span>{operatorEmail}</span>}</p>}
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
             <a href="/network">Open network <span aria-hidden="true">↗</span></a>
