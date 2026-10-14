@@ -63,7 +63,9 @@ export class MikroTikFirmwareExecutor {
    */
   async createConfigurationExport(connection: MikroTikFirmwareEndpoint): Promise<{ fileName: string; content: string; sha256: string }> {
     const fileName = `jaslyn-fw-preupgrade-${randomUUID()}`;
-    await this.request(connection, '/export', 'POST', { file: fileName });
+    // Include sensitive settings in the export; this requires the dedicated RouterOS sensitive policy.
+    // The returned text is encrypted before persistence and is never sent to the browser or audit log.
+    await this.request(connection, '/export', 'POST', { file: fileName, 'show-sensitive': '' });
     try {
       const chunks: string[] = [];
       let offset = 0;
