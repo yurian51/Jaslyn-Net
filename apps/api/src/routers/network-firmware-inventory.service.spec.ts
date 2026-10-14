@@ -33,6 +33,12 @@ describe('NetworkFirmwareInventoryService', () => {
     expect(audit.record).toHaveBeenCalledWith('tenant-1', 'NETWORK_FIRMWARE_OBSERVED', 'router_firmware', 'firmware-1', expect.objectContaining({ status: 'UNKNOWN', releaseSourceVerified: false }), { userId: 'user-1' });
   });
 
+  it('rejects malformed request bodies and non-string release dates', async () => {
+    await expect(service.observe('tenant-1', 'router-1', null as any)).rejects.toThrow(BadRequestException);
+    await expect(service.observe('tenant-1', 'router-1', { installedVersion: '1.0', releasePublishedAt: 123 as any })).rejects.toThrow(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('rejects non-HTTPS or credential-bearing release source URLs', async () => {
     await expect(service.observe('tenant-1', 'router-1', {
       installedVersion: '1.0', releaseSourceUrl: 'http://example.com/fw',
