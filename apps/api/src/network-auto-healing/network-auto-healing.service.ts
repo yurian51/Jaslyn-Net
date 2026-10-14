@@ -4,7 +4,7 @@ import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { UpdateNetworkAutoHealingPolicyDto } from './network-auto-healing.dto';
 
-type Candidate={tenant_id:string;id:string;attempts:number;command_type:'BANDWIDTH_ENFORCEMENT'|'DISCONNECT_SESSION';router_id:string|null;actor:string|null;provider:string|null};
+type Candidate={tenant_id:string;id:string;attempts:number;command_type:'BANDWIDTH_ENFORCEMENT';router_id:string|null;actor:string|null;provider:string|null};
 
 @Injectable()
 export class NetworkAutoHealingService implements OnModuleInit,OnModuleDestroy {
@@ -60,7 +60,7 @@ export class NetworkAutoHealingService implements OnModuleInit,OnModuleDestroy {
         const candidates=await client.query<Candidate>(`SELECT c.tenant_id,c.id,c.attempts,c.command_type,c.router_id,c.actor,c.provider
           FROM network_commands c JOIN network_auto_heal_policies p ON p.tenant_id=c.tenant_id
           WHERE p.enabled=true AND c.status='FAILED'
-            AND c.command_type IN ('BANDWIDTH_ENFORCEMENT','DISCONNECT_SESSION')
+            AND c.command_type = 'BANDWIDTH_ENFORCEMENT'
             AND c.attempts BETWEEN 1 AND p.max_auto_retries
             AND c.updated_at<=now()-(p.cooldown_seconds*interval '1 second')
           ORDER BY c.updated_at FOR UPDATE OF c SKIP LOCKED LIMIT 25`);
