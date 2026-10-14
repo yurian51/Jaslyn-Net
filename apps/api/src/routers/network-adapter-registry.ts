@@ -45,6 +45,8 @@ export class NetworkAdapterRegistry {
     {
       protocol: 'OPENWRT_UBUS',
       lifecycle: 'NATIVE',
+      supportScope: 'TELEMETRY_ONLY',
+      liveDeviceValidationRequired: true,
       capabilities: ['client_sessions'],
     },
     {
