@@ -31,9 +31,11 @@ describe('AuditService', () => {
         nested: [{ accessToken: '[REDACTED]', safe: 'ok' }],
       },
       safe: { status: 'ONLINE' },
+      diagnostic: 'Authorization: Bearer [REDACTED]',
+      url: '/api?access_token=[REDACTED]',
     });
-    expect(JSON.stringify(params[8])).not.toContain('super-secret');
-    expect(JSON.stringify(params[8])).not.toContain('api-secret');
+    expect(JSON.stringify(params[9])).not.toContain('super-secret');
+    expect(JSON.stringify(params[9])).not.toContain('api-secret');
     expect(JSON.stringify(params[9])).not.toContain('token-secret');
     expect(JSON.stringify(params[9])).not.toContain('raw-token-value');
     expect(JSON.stringify(params[9])).not.toContain('query-token-value');
