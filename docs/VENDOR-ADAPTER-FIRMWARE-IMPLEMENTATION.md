@@ -109,7 +109,7 @@ The existing production-readiness and enterprise capability documents report rou
 - Added unit coverage for scope metadata, unknown firmware status, invalid release URLs, tenant isolation, and empty inventory.
 - First vendor in sequence: MikroTik RouterOS v7. Added a native REST executor for live board/version/update-channel inspection, official-channel installation, configuration export backup, HTTPS/redirect protections, production-channel gating, exact target-version checks, and idempotent post-reboot verification state.
 - Added `GET /routers/:id/firmware/live`, `POST /routers/:id/firmware/upgrades/:jobId/backup`, and `POST /routers/:id/firmware/upgrades/:jobId/verify`. Backup exports are encrypted with the configured AES-GCM network-credential key before persistence; approval checks the stored backup receipt, maintenance window, and live version again before sending the install command.
-- MikroTik install flow is not hardware-validated yet. Post-reboot verification is currently an explicit API action, not an autonomous background worker.
+- MikroTik install flow is not hardware-validated yet. A leased API-process worker now polls VERIFYING jobs every 30 seconds, rechecks live RouterOS version, and marks success only when the exact target is observed. The explicit verification endpoint remains available for operator-triggered checks.
 
 ## Remaining release blockers
 
