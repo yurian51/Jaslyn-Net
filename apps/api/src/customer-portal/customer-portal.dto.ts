@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 export class CustomerPortalCreatePurchaseDto {
   @IsUUID() packageId!: string;
+  @IsString() @MinLength(16) @MaxLength(160) idempotencyKey!: string;
   @IsOptional() @IsUUID() routerId?: string;
   @IsOptional() @IsString() @MaxLength(80) promoCode?: string;
 }
