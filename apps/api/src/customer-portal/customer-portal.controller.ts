@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CustomerPortalGuard, CustomerPortalRequest } from './customer-portal.guard';
 import { CustomerPortalActivationDto, CustomerPortalCreatePurchaseDto, CustomerPortalLoginDto, CustomerPortalPurchaseIntentDto, CustomerPortalSupportDto } from './customer-portal.dto';
+import { RenewalScheduleDto } from '../customer-commerce/customer-commerce.dto';
 import { CustomerPortalService } from './customer-portal.service';
 
 @Controller('customer-portal')
@@ -36,6 +37,11 @@ export class CustomerPortalController {
   @UseGuards(CustomerPortalGuard)
   purchaseIntent(@Req() req:CustomerPortalRequest,@Body() d:CustomerPortalPurchaseIntentDto){
     const p=req.customerPortal!;return this.portal.createPurchaseIntent(p.tenantId,p.customerId,d);
+  }
+  @Put('renewals')
+  @UseGuards(CustomerPortalGuard)
+  setRenewal(@Req() req:CustomerPortalRequest,@Body() d:RenewalScheduleDto){
+    const p=req.customerPortal!;return this.portal.setRenewal(p.tenantId,p.customerId,d);
   }
   @Post('support')
   @UseGuards(CustomerPortalGuard)
