@@ -46,7 +46,7 @@ export class OperationsHubService {
     try {
       await client.query('BEGIN');
       const a=await client.query(`SELECT current_version,owner_user_id,visibility FROM operational_artifacts WHERE tenant_id=$1 AND id=$2 AND archived_at IS NULL FOR UPDATE`,[tenantId,id]);
-      if(!a.rowCount || (a.rows[0].visibility!=='TENANT' && a.rows[0].owner_user_id!==actorId)) throw new NotFoundException('Artifact not found');
+      if(!a.rowCount || a.rows[0].owner_user_id!==actorId) throw new NotFoundException('Artifact not found');
       const version=Number(a.rows[0].current_version)+1;
       await client.query(`INSERT INTO operational_artifact_versions(tenant_id,artifact_id,version,content,content_sha256,created_by,change_note) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)`,[tenantId,id,version,serialized,hash,actorId,typeof b.changeNote==='string'?b.changeNote.slice(0,1000):'']);
       await client.query('UPDATE operational_artifacts SET current_version=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,id,version]);
