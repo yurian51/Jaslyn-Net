@@ -15,7 +15,7 @@ export class MerakiFirmwareService {
   ) {}
 
   async inspect(tenantId: string, routerId: string, context: AuditContext = {}) {
-    const { router, credentials } = await this.load(tenantId, routerId);
+    const { credentials } = await this.load(tenantId, routerId);
     const inspection = await this.executor.inspect(credentials);
     await this.audit.record(tenantId, 'MERAKI_FIRMWARE_LIVE_INSPECTED', 'router_firmware', routerId, {
       networkId: credentials.networkId, productType: credentials.productType,
