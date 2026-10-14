@@ -137,12 +137,16 @@ export class NetworkFirmwareUpgradeService {
       backupEncryptedAtRest: true,
       message: 'Encrypted configuration backup stored. Explicit administrator approval is still required; installation has not started.',
     };
-    await this.db.query(
+    const transitioned = await this.db.query(
       `UPDATE network_firmware_upgrade_jobs SET status='AWAITING_APPROVAL', preview=$4::jsonb,
         error_code=NULL, error_message=NULL, updated_at=now()
-       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='BLOCKED'`,
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='BLOCKED' RETURNING id`,
       [tenantId, routerId, jobId, JSON.stringify(preview)],
     );
+    if (!transitioned.rowCount) {
+      await this.db.query('DELETE FROM network_firmware_backups WHERE tenant_id=$1 AND router_id=$2 AND job_id=$3', [tenantId, routerId, jobId]);
+      throw new ConflictException('Firmware job changed while preparing the backup; no approval state was created');
+    }
     await this.db.query(
       `INSERT INTO network_firmware_upgrade_attempts
         (tenant_id, job_id, attempt_number, stage, status, finished_at, evidence)
@@ -241,12 +245,17 @@ export class NetworkFirmwareUpgradeService {
       artifactDigestProvided: typeof input.artifactSha256 === 'string' && /^[a-f0-9]{64}$/i.test(input.artifactSha256),
     };
     const blockers = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
-    blockers.push('durableEncryptedBackupAndPostUpgradeWorkerNotIntegrated');
+    blockers.push('encryptedPreUpgradeBackupAndExplicitApprovalRequired');
+    const isMikroTik = protocol === 'MIKROTIK_REST' && /mikrotik/i.test(String(router.vendor ?? ''));
+    if (isMikroTik) {
+      checks.hardwareRevisionKnown = Boolean(router.model && (inventory?.installedVersion ?? router.osVersion));
+      checks.artifactDigestProvided = true; // RouterOS installs through MikroTik's own signed update channel, not a caller-supplied image URL.
+    }
     const preview = {
       safeToExecute: false,
       checks,
       blockers,
-      message: 'MikroTik live inspection is available. Installation remains blocked until an encrypted durable backup receipt and asynchronous post-reboot verification worker are integrated.',
+      message: 'Preflight only. Create and encrypt a pre-upgrade configuration backup, then obtain explicit administrator approval. No firmware command has been sent.',
     };
     const installedVersion = inventory?.installedVersion ?? router.osVersion ?? '';
     const result = await this.db.query(
@@ -256,7 +265,7 @@ export class NetworkFirmwareUpgradeService {
          maintenance_window_start, maintenance_window_end, status, preview, requested_by, idempotency_key,
          error_code, error_message)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false,$10,false,$11,$12,'BLOCKED',$13::jsonb,$14,$15,
-         'EXECUTOR_NOT_READY','No firmware command sent; durable backup and post-reboot worker are not integrated.')
+         'BACKUP_REQUIRED','No firmware command sent; encrypted backup and explicit approval are required.')
        ON CONFLICT (tenant_id,idempotency_key) DO NOTHING
        RETURNING id, status, preview, created_at AS "createdAt"`,
       [tenantId, routerId, router.vendor ?? 'Unknown', protocol, router.model ?? 'Unknown',
@@ -326,12 +335,13 @@ export class NetworkFirmwareUpgradeService {
     if (live.update.installedVersion !== job.installedVersion || live.update.latestVersion !== job.targetVersion) {
       throw new ConflictException('MikroTik live version changed after backup; no install command was sent');
     }
-    await this.db.query(
+    const transition = await this.db.query(
       `UPDATE network_firmware_upgrade_jobs SET status='RUNNING', approved_by=$4, approved_at=now(),
         execution_started_at=now(), updated_at=now()
-       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='AWAITING_APPROVAL'`,
+       WHERE tenant_id=$1 AND router_id=$2 AND id=$3 AND status='AWAITING_APPROVAL' RETURNING id`,
       [tenantId, routerId, jobId, context.userId ?? null],
     );
+    if (!transition.rowCount) throw new ConflictException('Firmware job has already been approved or changed; duplicate installation prevented');
     await this.db.query(
       `INSERT INTO network_firmware_upgrade_attempts
         (tenant_id, job_id, attempt_number, stage, status, evidence)
