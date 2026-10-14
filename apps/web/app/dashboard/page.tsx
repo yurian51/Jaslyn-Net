@@ -45,6 +45,9 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [welcomeNow, setWelcomeNow] = useState<Date | null>(null);
+
+  useEffect(() => { setWelcomeNow(new Date()); }, []);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -145,8 +148,8 @@ export default function DashboardPage() {
   const healthStyle: CSSProperties = { '--overview-availability': `${Math.max(0, Math.min(100, availability ?? 0))}%` } as CSSProperties;
   const locations = data?.locations ?? [];
   const tenantName = data?.tenant?.name ?? 'Tenant workspace';
-  const greetingHour = new Date().getHours();
-  const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const greetingHour = welcomeNow?.getHours();
+  const greeting = greetingHour == null ? 'Welcome to Jaslyn Net' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
   const operationalFocus = !data
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
     : network.offline > 0
@@ -165,7 +168,7 @@ export default function DashboardPage() {
     <main className="overview-page">
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
-          <div className="operator-welcome-eyebrow"><span className="operator-welcome-live-dot" /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}</span></div>
+          <div className="operator-welcome-eyebrow"><span className="operator-welcome-live-dot" /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
           <h2 id="operator-welcome-title">{greeting}, operator!</h2>
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
