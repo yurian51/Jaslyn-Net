@@ -19,14 +19,14 @@
 | 9 | Security Operations Center | Security posture, audit, synthetic monitoring and incident lifecycle | Unified alert queue, severity/ownership/escalation, evidence links, deduplication and tested incident-to-resolution workflow |
 | 10 | SaaS Marketplace & Tenant Plans | Tenant usage/quota controls, API/webhooks and tenant branding | Canonical platform plan entitlements, plan lifecycle, enforcement at every API boundary, subscription billing integration and quota tests |
 
-## Safety and implementation rules
+## Added end-to-end foundations in this change\n\n- **Fiber topology inventory:** migration `078_fiber_topology_inventory.sql`, tenant-scoped CRUD endpoints at `/api/v1/fiber/assets`, parent-child validation, case-insensitive tenant asset codes, coordinates, optional same-tenant router links, and audit events. This is not yet a live optical telemetry or vendor provisioning integration.\n- **Network Auto-Healing:** migration `079_network_auto_healing.sql`, tenant policy API and console, disabled-by-default bounded retries for supported failed network commands, cooldown, a unique attempt ledger, and audit records. Retries re-enter the existing network command worker; only that worker can execute and verify. Router reboot and arbitrary command execution are deliberately unsupported.\n- **Automated tests authored:** service tests cover tenant isolation and bounded retry logic. They must still execute in CI and against PostgreSQL before these capabilities can be called verified.\n\n## Safety and implementation rules
 
 - No AI feature is introduced by this work.
 - Every request must remain tenant-scoped and permission-checked in the API; UI hiding is not authorization.
 - State-changing router operations must use the existing command fabric and vendor capability contract. Do not claim success until device state is read back.
 - Do not create a second source of truth for invoices, payments, entitlements, incidents, tenant plans or device inventory.
 - Hardware-dependent capabilities must show `Integration required` until the actual adapter is configured and passes contract tests.
-- Database changes must use the next unused migration number after checking every relevant base/stacked branch. Never guess the next migration number from a single branch.
+- Migration `078` and `079` are independent of the staged financial/MSP migrations `073`–`077`; when those changes land together, run all migrations in lexical order. Verify migration-prefix uniqueness and run fresh-install/upgrade tests before release.
 - Never commit credentials, tokens, customer data or router configuration secrets.
 - A capability is complete only after API/UI integration, migration/fresh-install/upgrade/rollback checks, tenant-isolation tests, permission tests, unit/integration tests, and reproducible verification evidence.
 
