@@ -54,6 +54,24 @@ export class OperationsHubService {
     } catch(e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   }
 
+  async restoreArtifactVersion(tenantId:string,actorId:string,id:string,version:number) {
+    if(!Number.isInteger(version)||version<1) throw new BadRequestException('version must be a positive integer');
+    const client=await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const a=await client.query(`SELECT current_version,owner_user_id FROM operational_artifacts WHERE tenant_id=$1 AND id=$2 AND archived_at IS NULL FOR UPDATE`,[tenantId,id]);
+      if(!a.rowCount || a.rows[0].owner_user_id!==actorId) throw new NotFoundException('Artifact not found');
+      const old=await client.query(`SELECT content FROM operational_artifact_versions WHERE tenant_id=$1 AND artifact_id=$2 AND version=$3`,[tenantId,id,version]);
+      if(!old.rowCount) throw new NotFoundException('Artifact version not found');
+      const serialized=json(old.rows[0].content); const hash=createHash('sha256').update(serialized).digest('hex'); const next=Number(a.rows[0].current_version)+1;
+      await client.query(`INSERT INTO operational_artifact_versions(tenant_id,artifact_id,version,content,content_sha256,created_by,change_note) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)`,[tenantId,id,next,serialized,hash,actorId,'Restored from version '+version]);
+      await client.query('UPDATE operational_artifacts SET current_version=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,id,next]);
+      await client.query('COMMIT');
+      await this.audit.record(tenantId,'RESTORE_VERSION','operational_artifact',id,{restoredFrom:version,newVersion:next,contentSha256:hash},{userId:actorId});
+      return {id,restoredFrom:version,version:next,contentSha256:hash};
+    } catch(e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+  }
+
   async artifactHistory(tenantId:string,actorId:string,id:string) {
     const owner=await this.db.query(`SELECT id FROM operational_artifacts WHERE tenant_id=$1 AND id=$2 AND archived_at IS NULL AND (visibility='TENANT' OR owner_user_id=$3)`,[tenantId,id,actorId]);
     if(!owner.rowCount) throw new NotFoundException('Artifact not found');
