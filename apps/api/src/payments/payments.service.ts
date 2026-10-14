@@ -69,10 +69,10 @@ export class PaymentsService {
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
       correlationId ??= purchase.rows[0].correlation_id ?? `payment-intent:${input.purchaseId}`;
       await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency, client);
-      const existing = await client.query(`SELECT id, status, provider, purchase_id AS "purchaseId" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
+      const existing = await client.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-        if (existing.rows[0].purchaseId !== input.purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
+        if (existing.rows[0].samePurchase !== true) throw new ConflictException('Idempotency key is already bound to another purchase');
         await client.query('COMMIT');
         return { id: existing.rows[0].id, status: existing.rows[0].status, provider: existing.rows[0].provider, idempotencyKey: key, reused: true };
       }
@@ -90,7 +90,7 @@ export class PaymentsService {
         }
       }
       if (dbError.code === '23505') {
-        const existing = await this.db.query(`SELECT id, status, provider, purchase_id AS "purchaseId", idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
+        const existing = await this.db.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase", idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
           if (existing.rows[0].purchaseId !== input.purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
