@@ -223,7 +223,7 @@ export default function DashboardPage() {
   const operatorFullName = operatorProfile?.fullName?.trim() || '';
   const operatorUsername = operatorProfile?.username?.trim() || operatorProfile?.userName?.trim() || '';
   const operatorEmail = operatorProfile?.email?.trim() || '';
-  const operatorDisplayName = operatorFullName ? operatorFullName.split(/\\s+/)[0] : operatorUsername || operatorEmail.split('@')[0] || 'Operator';
+  const operatorDisplayName = operatorFullName ? operatorFullName.split(/\s+/)[0] : operatorUsername || operatorEmail.split('@')[0] || 'Operator';
   const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
