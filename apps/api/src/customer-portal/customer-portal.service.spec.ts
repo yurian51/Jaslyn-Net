@@ -58,9 +58,7 @@ describe('CustomerPortalService purchase ownership',()=>{
   expect(db.query).toHaveBeenCalledWith(expect.stringContaining('tenant_id=$1 AND customer_id=$2 AND id=$3'),['tenant-a','customer-a','purchase-a']);
   expect(payments.createIntent).toHaveBeenCalledWith('tenant-a',{purchaseId:'purchase-a',provider:'UPESIPAY',idempotencyKey:'intent-key'});
  });
-});
 
-describe('CustomerPortalService invitation delivery',()=>{
  const portalConfig=()=>new ConfigService({JWT_SECRET:'x'.repeat(40),CUSTOMER_PORTAL_PUBLIC_URL:'https://portal.example.com'});
  function setupInvitation(phone:string|null){
   db.query.mockResolvedValueOnce({rows:[{id:'customer-a',fullName:'Ada',username:'ada',tenantSlug:'tenant-a',phone}],rowCount:1});
