@@ -39,10 +39,18 @@ const OPERATOR_WORKSPACES = [
   { label: 'Customers', detail: 'Subscriber accounts and profiles', href: '/customers', terms: 'subscriber client account' },
   { label: 'Live sessions', detail: 'Connected users and activity', href: '/sessions', terms: 'online radius active users' },
   { label: 'Payments', detail: 'Payment activity and records', href: '/payments', terms: 'money transaction reconciliation' },
-  { label: 'Incident center', detail: 'Service incidents and response', href: '/incidents', terms: 'outage alerts faults' },
-  { label: 'Field operations', detail: 'On-site work and technicians', href: '/field-operations', terms: 'field technician jobs' },
+  { label: 'Finance & revenue assurance', detail: 'Ledger, reconciliation and leakage checks', href: '/revenue-assurance', terms: 'finance ledger billing reconciliation revenue leakage' },
+  { label: 'Incident center', detail: 'Service incidents and response', href: '/incidents', terms: 'outage alerts faults incident timeline' },
+  { label: 'Field operations', detail: 'On-site work and technicians', href: '/field-operations', terms: 'field technician jobs offline sync' },
   { label: 'Network commands', detail: 'Command execution and results', href: '/network-commands', terms: 'terminal execute verify' },
+  { label: 'IP address management', detail: 'IPAM pools and allocations', href: '/ipam', terms: 'subnet ip address pool allocation' },
+  { label: 'RADIUS & AAA', detail: 'Authentication and accounting', href: '/radius', terms: 'aaa radius nas authentication accounting' },
+  { label: 'Fiber operations', detail: 'Fiber lines and service state', href: '/fiber', terms: 'fiber olt optical line' },
+  { label: 'Automation & approvals', detail: 'Event-driven workflows and approvals', href: '/automation', terms: 'workflow trigger event approval schedule' },
+  { label: 'Security posture', detail: 'Security controls and risk findings', href: '/security-posture', terms: 'security risk access control posture' },
   { label: 'Security & audit', detail: 'Audit trail and security events', href: '/audit', terms: 'logs security compliance' },
+  { label: 'Communication', detail: 'Messages and delivery status', href: '/communication', terms: 'sms email notifications messages' },
+  { label: 'Integrations', detail: 'Connected systems and providers', href: '/integrations', terms: 'api webhooks external systems' },
 ] as const;
 
 const percent = (value: number, total: number) => {
@@ -96,7 +104,7 @@ export default function DashboardPage() {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [data]);
 
 
@@ -202,8 +210,9 @@ export default function DashboardPage() {
   const tenantName = data?.tenant?.name ?? 'Tenant workspace';
   const greetingHour = welcomeNow?.getHours();
   const greeting = greetingHour == null ? 'Welcome to Jaslyn Net' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
-  const operationalFocus = !data
-    ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
+  const hasOperationalSignals = Boolean(data && (data.network?.offline !== undefined || data.network?.degraded !== undefined || data.operations?.networkCommands?.failed !== undefined || data.operations?.access?.expiredButActive !== undefined || data.operations?.access?.expiring24h !== undefined));
+  const operationalFocus = !data || !hasOperationalSignals
+    ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
     : network.offline > 0
       ? { tone: 'critical', title: `${n(network.offline)} router${network.offline === 1 ? '' : 's'} offline`, detail: 'Review device reachability and affected locations first.', href: '/network', action: 'Inspect network' }
       : network.degraded > 0
@@ -220,7 +229,7 @@ export default function DashboardPage() {
     <main className="overview-page">
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
-          <div className="operator-welcome-eyebrow"><span className="operator-welcome-live-dot" /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
+          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN NET OPERATOR WORKSPACE <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
           <h2 id="operator-welcome-title">{greeting}, operator!</h2>
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
@@ -266,7 +275,7 @@ export default function DashboardPage() {
       )}
       <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
         <div className="operator-launchpad-heading">
-          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => setCommandOpen(true)} className="operator-command-trigger"><kbd>Ctrl K</kbd> Quick open</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger"><kbd>Ctrl K</kbd> Quick open</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
           <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
         </div>
         <label className="operator-launchpad-search">
