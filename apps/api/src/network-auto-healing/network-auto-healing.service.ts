@@ -40,7 +40,7 @@ export class NetworkAutoHealingService implements OnModuleInit,OnModuleDestroy {
     const r=await this.db.query(`SELECT h.id,h.command_id AS "commandId",h.command_type AS "commandType",
       h.failed_attempt_number AS "failedAttemptNumber",
       CASE WHEN c.status='VERIFIED' THEN 'VERIFIED' WHEN c.status='FAILED' THEN 'FAILED' ELSE h.status END AS status,
-      c.status AS "networkCommandStatus",c.router_id AS "routerId",c.error AS "lastError",
+      c.status AS "networkCommandStatus",c.router_id AS "routerId",CASE WHEN c.error IS NULL THEN NULL ELSE 'Command failed; inspect protected command details.' END AS "lastError",
       h.reason,h.created_at AS "createdAt",h.completed_at AS "completedAt"
       FROM network_auto_heal_runs h JOIN network_commands c ON c.id=h.command_id
       WHERE h.tenant_id=$1 ORDER BY h.created_at DESC LIMIT 300`,[tenantId]);
