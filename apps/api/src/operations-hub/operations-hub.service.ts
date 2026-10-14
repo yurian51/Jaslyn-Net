@@ -90,6 +90,45 @@ export class OperationsHubService {
     } catch(e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   }
 
+
+  async activateRunbook(tenantId:string,actorId:string,id:string) {
+    const r=await this.db.query(`UPDATE operational_runbooks SET status='ACTIVE',updated_by=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='DRAFT' RETURNING id,name,status,current_version AS "currentVersion"`,[tenantId,id,actorId]);
+    if(!r.rowCount) throw new NotFoundException('Draft runbook not found');
+    await this.audit.record(tenantId,'ACTIVATE','operational_runbook',id,{version:r.rows[0].currentVersion},{userId:actorId});
+    return r.rows[0];
+  }
+
+  async reviewRunbookExecution(tenantId:string,actorId:string,id:string,body:unknown) {
+    const b=object(body,'body'); const status=String(b.status??'').toUpperCase();
+    if(!['APPROVED','CANCELLED'].includes(status)) throw new BadRequestException('Execution review status must be APPROVED or CANCELLED');
+    const r=await this.db.query(`UPDATE operational_runbook_executions SET status=$3 WHERE tenant_id=$1 AND id=$2 AND status='PENDING_APPROVAL' AND requested_by<>$4 RETURNING id,runbook_id AS "runbookId",status,runbook_version AS "runbookVersion"`,[tenantId,id,status,actorId]);
+    if(!r.rowCount) throw new NotFoundException('Pending execution not found or requester cannot approve own execution');
+    await this.audit.record(tenantId,status,'operational_runbook_execution',id,{runbookId:r.rows[0].runbookId,version:r.rows[0].runbookVersion},{userId:actorId});
+    return r.rows[0];
+  }
+
+  async listRunbookExecutions(tenantId:string) {
+    const r=await this.db.query(`SELECT e.id,e.runbook_id AS "runbookId",r.name AS "runbookName",e.runbook_version AS "runbookVersion",e.status,e.requested_by AS "requestedBy",e.step_results AS "stepResults",e.created_at AS "createdAt",e.started_at AS "startedAt",e.completed_at AS "completedAt" FROM operational_runbook_executions e JOIN operational_runbooks r ON r.tenant_id=e.tenant_id AND r.id=e.runbook_id WHERE e.tenant_id=$1 ORDER BY e.created_at DESC LIMIT 200`,[tenantId]);
+    return {data:r.rows};
+  }
+
+  async addChangeEvidence(tenantId:string,actorId:string,id:string,body:unknown) {
+    const b=object(body,'body'); const type=String(b.evidenceType??'').toUpperCase();
+    if(!['BACKUP','DIFF','TEST','APPROVAL','DEPLOYMENT','ROLLBACK','AUDIT'].includes(type)) throw new BadRequestException('Invalid evidenceType');
+    const evidence=object(b.evidence,'evidence');
+    const r=await this.db.query(`INSERT INTO operational_change_evidence(tenant_id,change_review_id,evidence_type,evidence,created_by) SELECT $1,id,$3,$4::jsonb,$5 FROM operational_change_reviews WHERE tenant_id=$1 AND id=$2 RETURNING id,evidence_type AS "evidenceType",evidence,created_at AS "createdAt"`,[tenantId,id,type,json(evidence),actorId]);
+    if(!r.rowCount) throw new NotFoundException('Change review not found');
+    await this.audit.record(tenantId,'ADD_EVIDENCE','operational_change_review',id,{evidenceType:type,evidenceId:r.rows[0].id},{userId:actorId});
+    return r.rows[0];
+  }
+
+  async listChangeEvidence(tenantId:string,id:string) {
+    const exists=await this.db.query('SELECT 1 FROM operational_change_reviews WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
+    if(!exists.rowCount) throw new NotFoundException('Change review not found');
+    const r=await this.db.query(`SELECT id,evidence_type AS "evidenceType",evidence,created_by AS "createdBy",created_at AS "createdAt" FROM operational_change_evidence WHERE tenant_id=$1 AND change_review_id=$2 ORDER BY created_at ASC`,[tenantId,id]);
+    return {data:r.rows};
+  }
+
   async executeRunbook(tenantId:string,actorId:string,id:string,body:unknown) {
     const b=object(body,'body'); const key=text(b.idempotencyKey,'idempotencyKey',200);
     if(key.length<8) throw new BadRequestException('idempotencyKey must contain at least 8 characters');
