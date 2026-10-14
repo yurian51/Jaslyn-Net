@@ -12,11 +12,13 @@ import { RoutersService } from './routers.service';
 import { NetworkFirmwareInventoryService } from './network-firmware-inventory.service';
 import { NetworkFirmwareUpgradeService } from './network-firmware-upgrade.service';
 import { MikroTikFirmwareExecutor } from './mikrotik-firmware.executor';
+import { MerakiFirmwareExecutor } from './meraki-firmware.executor';
+import { MerakiFirmwareService } from './meraki-firmware.service';
 
 @Module({
   imports: [AuditModule, TrafficModule, CommunicationModule],
   controllers: [RoutersController, NetworkCapabilitiesController],
-  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, NetworkFirmwareInventoryService, NetworkFirmwareUpgradeService, MikroTikFirmwareExecutor, RoutersService],
+  providers: [SecureNetworkCredentials, IncidentsService, NetworkAdapterRegistry, NetworkEnforcementService, NetworkFirmwareInventoryService, NetworkFirmwareUpgradeService, MikroTikFirmwareExecutor, MerakiFirmwareExecutor, MerakiFirmwareService, RoutersService],
   exports: [RoutersService, SecureNetworkCredentials, NetworkAdapterRegistry, NetworkEnforcementService],
 })
 export class RoutersModule {}
