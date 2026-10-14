@@ -124,6 +124,7 @@ const required = [
   ['operator launchpad covers core operations domains', ['/network', '/customers', '/sessions', '/payments', '/incidents', '/field-operations', '/network-commands', '/audit', '/ipam', '/radius', '/fiber', '/automation'].every((route) => operatorWorkspaceRoutes.includes(route))],
   ['dashboard health recommendation fails closed on partial telemetry', dashboard.includes('hasOperationalSignals') && dashboard.includes('data.network?.offline !== undefined && data.network?.degraded !== undefined')],
   ['welcome status dot follows API connection state', dashboard.includes("operator-welcome-live-dot ${connection === 'online'")],
+  ['dashboard actions do not duplicate the global Ctrl/Cmd+K palette', dashboard.includes('Dashboard actions') && !dashboard.includes("event.key.toLowerCase() === 'k'")],
   ['snapshot export preserves browser download lifecycle', dashboard.includes('window.setTimeout(() => URL.revokeObjectURL(url), 1000)')],
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
