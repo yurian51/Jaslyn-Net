@@ -162,6 +162,21 @@ export class AuthService {
     return { revokedCount: result.rowCount ?? 0, currentSessionPreserved: true };
   }
 
+  async getCurrentUser(user: NonNullable<AuthenticatedRequest['user']>) {
+    const result = await this.db.query(
+      `SELECT u.id, u.email, u.full_name AS "fullName", u.role,
+              t.id AS "tenantId", t.name AS "tenantName", t.slug AS "tenantSlug",
+              t.timezone, t.currency
+       FROM users u
+       JOIN tenants t ON t.id = u.tenant_id
+       WHERE u.id = $1 AND u.tenant_id = $2 AND u.is_active = true
+       LIMIT 1`,
+      [user.id, user.tenantId],
+    );
+    if (!result.rowCount) throw new UnauthorizedException('Active user profile not found');
+    return { user: result.rows[0] };
+  }
+
   private async hashPassword(password: string) { const salt = randomBytes(16); const derived = (await scrypt(password, salt, PASSWORD_KEY_LENGTH)) as Buffer; return `scrypt$${salt.toString('base64url')}$${derived.toString('base64url')}`; }
 
   private async verifyPassword(password: string, stored: string) {
