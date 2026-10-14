@@ -648,7 +648,7 @@ export default function NetworkPage() {
                 <p>This schedules the selected product type for the configured Meraki network in Dashboard. It is not proof the devices have completed the upgrade. Other product schedules are preserved.</p>
                 <label>Target version<select value={merakiTarget} onChange={(event) => setMerakiTarget(event.target.value)}><option value="">Choose a compatible version</option>{merakiLive.availableVersions.map((version) => <option key={version.id} value={version.id}>{version.shortName || version.firmware || version.id}{version.releaseType ? ' · '+version.releaseType : ''}</option>)}</select></label>
                 <label>Schedule at<input type="datetime-local" value={merakiScheduledAt} onChange={(event) => setMerakiScheduledAt(event.target.value)} /></label>
-                <label>Network timezone<input value={merakiTimezone} onChange={(event) => setMerakiTimezone(event.target.value)} /></label>
+                <label>Meraki network timezone<input value={merakiTimezone} readOnly aria-readonly="true" /></label><p className="network-firmware-note">Schedule time is converted to an absolute timestamp; the existing Dashboard timezone is preserved and cannot be changed here.</p>
                 <button type="button" className="network-button primary" onClick={() => void scheduleMerakiFirmware()} disabled={firmwareBusy || !merakiTarget || !merakiScheduledAt || !merakiTimezone}>Confirm and schedule</button>
                 {merakiScheduleResult ? <p role="status">Scheduled {merakiScheduleResult.targetVersion} for {formatDate(merakiScheduleResult.scheduledAt)}. Confirmed by Meraki Dashboard; completion still requires post-upgrade verification.</p> : null}
               </div>
