@@ -72,15 +72,11 @@ export default function DashboardPage() {
   useEffect(() => { setWelcomeNow(new Date()); }, []);
 
   useEffect(() => {
-    const onShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setCommandOpen((open) => !open);
-      }
+    const onEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setCommandOpen(false);
     };
-    window.addEventListener('keydown', onShortcut);
-    return () => window.removeEventListener('keydown', onShortcut);
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
   }, []);
 
   const exportOperationalSnapshot = useCallback(() => {
@@ -269,13 +265,13 @@ export default function DashboardPage() {
               )}
               {!OPERATOR_WORKSPACES.some((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())) && !('export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data) && <div className="operator-command-empty">No matching commands. Try “network”, “payments” or “export”.</div>}
             </div>
-            <div className="operator-command-footer"><span>Jaslyn Net operator workspace</span><span><kbd>Ctrl</kbd> + <kbd>K</kbd> to toggle</span></div>
+            <div className="operator-command-footer"><span>Jaslyn Net operator workspace</span><span><kbd>ESC</kbd> to close</span></div>
           </section>
         </div>
       )}
       <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
         <div className="operator-launchpad-heading">
-          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger"><kbd>Ctrl K</kbd> Quick open</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger">Dashboard actions</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
           <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
         </div>
         <label className="operator-launchpad-search">
