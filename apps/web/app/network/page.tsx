@@ -494,6 +494,7 @@ export default function NetworkPage() {
                 <th>Management</th>
                 <th>Last seen</th>
                 <th>Status</th>
+                <th>Firmware</th>
                 <th>Asset QR</th>
               </tr>
             </thead>
@@ -510,6 +511,9 @@ export default function NetworkPage() {
                     <span className={`network-status ${(router.status ?? 'UNKNOWN').toLowerCase()}`}><i />{router.status ?? 'UNKNOWN'}</span>
                     {router.syncError ? <small className="network-sync-error">{router.syncError}</small> : null}
                   </td>
+                  <td>{router.managementProtocol === 'MIKROTIK_REST' && /mikrotik/i.test(router.vendor ?? '')
+                    ? <button type="button" className="network-button secondary network-qr-button" onClick={() => openFirmware(router)}>Firmware</button>
+                    : <span className="network-firmware-unavailable">Not enabled</span>}</td>
                   <td><button type="button" className="network-button secondary network-qr-button" onClick={() => setQrRouter(router)}>QR / Print</button></td>
                 </tr>
               ))}
