@@ -219,6 +219,11 @@ export default function NetworkPage() {
       return;
     }
 
+    if (form.managementProtocol === 'MERAKI_DASHBOARD_API' && (!form.apiKey.trim() || !form.networkId.trim() || !form.productType.trim())) {
+      setError('Cisco Meraki registration requires a Dashboard API key, network ID and product type.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
