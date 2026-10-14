@@ -47,6 +47,19 @@ describe('NetworkDeviceAdapterRegistry', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body)).params.slice(1, 3)).toEqual(['session', 'destroy']);
   });
 
+  it('destroys the OpenWrt ubus session even when telemetry polling fails', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { ubus_rpc_session: 'sid-fail' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [6, {}] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, {}] }), { status: 200 }));
+    const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
+
+    await expect(registry.readClients({ routerId: 'r13', protocol: 'OPENWRT_UBUS', endpoint: 'https://1.1.1.1', credentials: { username: 'root', password: 'secret' } }))
+      .rejects.toThrow('OpenWrt ubus call iwinfo.devices failed');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).params.slice(1, 3)).toEqual(['session', 'destroy']);
+  });
+
   it('normalizes generic controller JSON for supported non-native adapters', async () => {
     const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ clients: [{ username: 'dave', ip: '10.0.0.5', mac: 'DD', rxBytes: '9007199254740992', txBytes: '42' }] }), { status: 200 }));
