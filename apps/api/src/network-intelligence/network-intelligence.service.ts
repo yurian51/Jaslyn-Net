@@ -88,7 +88,8 @@ export class NetworkIntelligenceService {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      const next = await client.query('SELECT COALESCE(MAX(version_number),0)+1 AS n FROM device_config_versions WHERE tenant_id=$1 AND router_id=$2 FOR UPDATE', [tenantId, routerId]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))', [tenantId, routerId]);
+      const next = await client.query('SELECT COALESCE(MAX(version_number),0)+1 AS n FROM device_config_versions WHERE tenant_id=$1 AND router_id=$2', [tenantId, routerId]);
       const saved = await client.query(`INSERT INTO device_config_versions(tenant_id,router_id,version_number,encrypted_payload,payload_sha256,encryption_key_id,source,change_summary,created_by)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,version_number AS "versionNumber",payload_sha256 AS "payloadSha256",source,created_at AS "createdAt"`,
         [tenantId,routerId,Number(next.rows[0].n),encrypted.payload,hash,encrypted.keyId,source,body.changeSummary?.slice(0,500)??null,actorId]);
