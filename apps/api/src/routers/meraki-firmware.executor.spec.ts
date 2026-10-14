@@ -38,7 +38,7 @@ describe('MerakiFirmwareExecutor', () => {
     const executor = new MerakiFirmwareExecutor();
     await expect(executor.scheduleUpgrade(credentials, {
       targetVersion: 'v2', scheduledAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-      timezone: 'Africa/Dar_es_Salaam', approved: false as true,
+      timezone: 'Africa/Dar_es_Salaam', approved: false as any,
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
