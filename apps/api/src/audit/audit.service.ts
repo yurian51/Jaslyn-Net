@@ -22,8 +22,8 @@ function sanitizeMetadata(value: unknown, depth = 0): unknown {
   if (depth > MAX_METADATA_DEPTH) return '[TRUNCATED]';
   if (typeof value === 'string') {
     const redacted = value
-      .replace(/\\b(Bearer)\\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]')
-      .replace(/([?&](?:token|access_token|refresh_token|api_key|password|secret)=)[^&\\s]*/gi, '$1[REDACTED]');
+      .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]')
+      .replace(/([?&](?:token|access_token|refresh_token|api_key|password|secret)=)[^&\s]*/gi, '$1[REDACTED]');
     return redacted.length > MAX_METADATA_STRING_LENGTH ? `${redacted.slice(0, MAX_METADATA_STRING_LENGTH)}…` : redacted;
   }
   if (value === null || typeof value === 'number' || typeof value === 'boolean') return value;
