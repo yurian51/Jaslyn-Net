@@ -17,6 +17,7 @@ export default function CustomerPortalPage(){
  const [mode,setMode]=useState<'login'|'activate'>('login'),[token,setToken]=useState(''),[data,setData]=useState<PortalData|null>(null);
  const [tenantSlug,setTenantSlug]=useState(''),[username,setUsername]=useState(''),[password,setPassword]=useState(''),[invite,setInvite]=useState('');
  const [support,setSupport]=useState(emptySupport),[purchaseId,setPurchaseId]=useState(''),[provider,setProvider]=useState('UPESIPAY');
+ const [renewal,setRenewal]=useState({savedPurchaseId:'',nextRunAt:'',status:'ACTIVE'});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[notice,setNotice]=useState<Notice|null>(null);
  const headers=(t:string)=>({Authorization:'Bearer '+t,'Content-Type':'application/json'});
  const load=useCallback(async(t:string)=>{setLoading(true);try{const d=await apiFetch<PortalData>('/customer-portal/me',{headers:{Authorization:'Bearer '+t}});setData(d);setToken(t);sessionStorage.setItem('jaslyn.customerPortalToken',t);setNotice(null);}catch(e){sessionStorage.removeItem('jaslyn.customerPortalToken');setData(null);setToken('');setNotice({kind:'error',text:e instanceof ApiError?e.message:e instanceof Error?e.message:'Imeshindikana kupakia akaunti.'});}finally{setLoading(false);}},[]);
