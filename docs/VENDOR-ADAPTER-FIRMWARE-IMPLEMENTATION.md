@@ -99,3 +99,18 @@ The existing production-readiness and enterprise capability documents report rou
 4. Implement approval-gated, durable update jobs and independent post-upgrade verification.
 5. Wire UI, audit, notifications, monitoring and deployment controls end-to-end.
 6. Run CI and hardware lab gates; publish a capability-by-capability evidence matrix.
+
+## Implementation progress on this branch
+
+- The runtime adapter registry now declares functional scope (ENFORCEMENT_AND_TELEMETRY, TELEMETRY_ONLY, or GENERIC_TELEMETRY) and explicitly flags every entry as requiring live-device validation. This is not a claim that all adapters are fully operational.
+- Added tenant-scoped firmware inventory persistence in apps/api/migrations/202610140001_network_firmware_inventory.sql.
+- Added GET /routers/:id/firmware and POST /routers/:id/firmware/observation. The observation route is restricted to owner/admin/agent roles, checks router ownership by tenant, validates inputs, and writes an audit event.
+- Unverified latest-release metadata deliberately remains UNKNOWN; a caller-supplied URL/version cannot mark firmware current or authorize an update.
+- Added unit coverage for scope metadata, unknown firmware status, invalid release URLs, tenant isolation, and empty inventory.
+
+## Remaining release blockers
+
+- No vendor-specific firmware download/install executor has been enabled. This repository currently lacks a verified firmware-update transport and authoritative model/revision release feed for every listed vendor. The implementation must not pretend a status-recording API is an updater.
+- CI run results on this branch currently fail before useful job-step logs are available; inspect GitHub Actions after runner availability returns.
+- No live device, vendor credentials, hardware/model inventory, or maintenance-window approval was supplied, so firmware compatibility and upgrade/recovery cannot be verified against physical devices.
+- Do not promote adapters to fully verified or perform production firmware upgrades until these gates pass.
