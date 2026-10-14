@@ -244,13 +244,13 @@ export class NetworkFirmwareUpgradeService {
       maintenanceWindowValid: this.validWindow(input.maintenanceWindowStart, input.maintenanceWindowEnd),
       artifactDigestProvided: typeof input.artifactSha256 === 'string' && /^[a-f0-9]{64}$/i.test(input.artifactSha256),
     };
-    const blockers = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
-    blockers.push('encryptedPreUpgradeBackupAndExplicitApprovalRequired');
     const isMikroTik = protocol === 'MIKROTIK_REST' && /mikrotik/i.test(String(router.vendor ?? ''));
     if (isMikroTik) {
       checks.hardwareRevisionKnown = Boolean(router.model && (inventory?.installedVersion ?? router.osVersion));
       checks.artifactDigestProvided = true; // RouterOS installs through MikroTik's own signed update channel, not a caller-supplied image URL.
     }
+    const blockers = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
+    blockers.push('encryptedPreUpgradeBackupAndExplicitApprovalRequired');
     const preview = {
       safeToExecute: false,
       checks,
