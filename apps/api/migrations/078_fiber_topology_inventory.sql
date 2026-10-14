@@ -1,4 +1,7 @@
-CREATE UNIQUE INDEX IF NOT EXISTS routers_tenant_id_id_unique_for_fiber\n  ON routers (tenant_id, id);\n\nCREATE TABLE IF NOT EXISTS fiber_network_assets (
+CREATE UNIQUE INDEX IF NOT EXISTS routers_tenant_id_id_unique_for_fiber
+  ON routers (tenant_id, id);
+
+CREATE TABLE IF NOT EXISTS fiber_network_assets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   asset_type text NOT NULL CHECK (asset_type IN ('OLT','ONU','CABINET','SPLITTER','FIBER_ROUTE','DROP_CABLE','POLE','PATCH_PANEL')),
@@ -22,8 +25,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS routers_tenant_id_id_unique_for_fiber\n  ON ro
   CONSTRAINT fiber_assets_tenant_code_unique UNIQUE (tenant_id, asset_code),
   CONSTRAINT fiber_assets_parent_tenant_fk FOREIGN KEY (tenant_id, parent_asset_id)
     REFERENCES fiber_network_assets(tenant_id, id) ON DELETE RESTRICT,
-  CONSTRAINT fiber_assets_router_fk FOREIGN KEY (router_id)
-    REFERENCES routers(id) ON DELETE RESTRICT,
+  CONSTRAINT fiber_assets_router_tenant_fk FOREIGN KEY (tenant_id, router_id)
+    REFERENCES routers(tenant_id, id) ON DELETE RESTRICT,
   CONSTRAINT fiber_assets_id_tenant_unique UNIQUE (tenant_id, id)
 );
 
