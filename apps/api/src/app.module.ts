@@ -49,11 +49,10 @@ import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-he
     HealthModule, FinanceModule, IncidentsModule, NotificationsModule, CommunicationModule, OverviewModule,
     CustomersModule, BillingModule, PackagesModule, PurchasesModule, PaymentsModule, PromotionsModule,
     RoutersModule, SessionsModule, SalesModule, VouchersModule, UpesiPayModule,
-feat/operator-welcome-dashboard
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule,
-
-    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule, SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule, SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule, WorkflowsModule, CaptivePortalModule, FiberTopologyModule, NetworkAutoHealingModule,
- main
+    TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule,
+    SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule,
+    SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule,
+    WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule,
   ],
 })
 export class AppModule implements NestModule {
