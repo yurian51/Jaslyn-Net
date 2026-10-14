@@ -133,6 +133,58 @@ export class MerakiFirmwareExecutor {
     };
   }
 
+  async verifyUpgrade(credentials: MerakiFirmwareCredentials, input: { targetVersion: string; scheduledAt: string }) {
+    this.validateCredentials(credentials);
+    if (typeof input.targetVersion !== 'string' || !input.targetVersion.trim() || input.targetVersion.length > 160) {
+      throw new BadRequestException('targetVersion is required for firmware completion verification');
+    }
+    const scheduledAt = new Date(input.scheduledAt);
+    if (!Number.isFinite(scheduledAt.getTime())) throw new BadRequestException('scheduledAt must be a valid timestamp');
+
+    const live = await this.inspect(credentials);
+    const installed = live.currentVersion?.id;
+    if (installed === input.targetVersion) {
+      return {
+        status: 'COMPLETED',
+        networkId: credentials.networkId,
+        productType: credentials.productType,
+        targetVersion: input.targetVersion,
+        installedVersion: installed,
+        verifiedAt: new Date().toISOString(),
+        evidence: 'Live Meraki Dashboard currentVersion matches the requested firmware version',
+      };
+    }
+
+    const scheduledTarget = this.isRecord(live.nextUpgrade) && this.isRecord(live.nextUpgrade.toVersion)
+      ? live.nextUpgrade.toVersion.id : undefined;
+    const now = Date.now();
+    const dueAt = scheduledAt.getTime();
+    let status: 'SCHEDULED' | 'PENDING_VERIFICATION' | 'NEEDS_ATTENTION';
+    if (scheduledTarget === input.targetVersion && dueAt > now) {
+      status = 'SCHEDULED';
+    } else if (dueAt <= now && now - dueAt <= 24 * 60 * 60_000) {
+      status = 'PENDING_VERIFICATION';
+    } else {
+      status = 'NEEDS_ATTENTION';
+    }
+    return {
+      status,
+      networkId: credentials.networkId,
+      productType: credentials.productType,
+      targetVersion: input.targetVersion,
+      installedVersion: installed ?? null,
+      scheduledTarget: typeof scheduledTarget === 'string' ? scheduledTarget : null,
+      scheduledAt: typeof live.nextUpgrade === 'object' && live.nextUpgrade !== null && 'time' in live.nextUpgrade
+        ? (live.nextUpgrade as { time?: unknown }).time : null,
+      verifiedAt: new Date().toISOString(),
+      evidence: status === 'SCHEDULED'
+        ? 'Live Dashboard still reports the requested nextUpgrade target'
+        : status === 'PENDING_VERIFICATION'
+          ? 'Scheduled time has passed but live currentVersion does not yet match; completion is not confirmed'
+          : 'Live firmware state does not confirm the requested target; inspect Dashboard and device events',
+    };
+  }
+
   private async request(credentials: MerakiFirmwareCredentials, method: 'GET' | 'PUT', path: string, body?: unknown): Promise<Record<string, unknown>> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
