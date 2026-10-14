@@ -70,18 +70,23 @@ export class NetworkDeviceAdapterRegistry {
     const session = await this.ubusCall(base, 'session', 'login', { username, password, timeout: 300 });
     const sid = this.isRecord(session) ? this.stringValue(session, ['ubus_rpc_session']) : undefined;
     if (!sid) throw new ServiceUnavailableException('OpenWrt ubus login did not return a session');
-    const devices = await this.ubusCall(base, 'iwinfo', 'devices', {}, sid);
-    const names = this.extractDeviceNames(devices);
-    const clients: NormalizedWifiClient[] = [];
-    for (const device of names) {
-      const payload = await this.ubusCall(base, 'iwinfo', 'assoclist', { device }, sid);
-      for (const row of this.extractAssocRecords(payload)) {
-        const mac = this.stringValue(row, ['mac', 'mac-address', 'macaddr']);
-        if (!mac) continue;
-        clients.push({ macAddress: mac, address: this.stringValue(row, ['ip', 'ipAddress', 'address']), bytesIn: this.counter(row, ['rx_bytes', 'rxBytes', 'bytesIn']), bytesOut: this.counter(row, ['tx_bytes', 'txBytes', 'bytesOut']) });
+    try {
+      const devices = await this.ubusCall(base, 'iwinfo', 'devices', {}, sid);
+      const names = this.extractDeviceNames(devices);
+      const clients: NormalizedWifiClient[] = [];
+      for (const device of names) {
+        const payload = await this.ubusCall(base, 'iwinfo', 'assoclist', { device }, sid);
+        for (const row of this.extractAssocRecords(payload)) {
+          const mac = this.stringValue(row, ['mac', 'mac-address', 'macaddr']);
+          if (!mac) continue;
+          clients.push({ macAddress: mac, address: this.stringValue(row, ['ip', 'ipAddress', 'address']), bytesIn: this.counter(row, ['rx_bytes', 'rxBytes', 'bytesIn']), bytesOut: this.counter(row, ['tx_bytes', 'txBytes', 'bytesOut']) });
+        }
       }
+      return clients;
+    } finally {
+      // Do not leave an authenticated ubus session alive after success or failure.
+      await this.ubusCall(base, 'session', 'destroy', {}, sid).catch(() => undefined);
     }
-    return clients;
   }
 
   private async ubusCall(endpoint: string, object: string, method: string, args: Record<string, unknown>, sid?: string): Promise<unknown> {
