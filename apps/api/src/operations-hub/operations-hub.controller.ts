@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -22,6 +22,18 @@ export class OperationsHubController {
   workspaces(@Req() r: AuthenticatedRequest) { return this.hub.listWorkspaces(r.user!.tenantId,r.user!.id); }
   @Post('workspaces') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   saveWorkspace(@Req() r: AuthenticatedRequest,@Body() b: unknown) { return this.hub.saveWorkspace(r.user!.tenantId,r.user!.id,b); }
+
+  @Patch('runbooks/:id/activate') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
+  activateRunbook(@Req() r: AuthenticatedRequest,@Param('id') id: string) { return this.hub.activateRunbook(r.user!.tenantId,r.user!.id,id); }
+  @Get('runbook-executions') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
+  runbookExecutions(@Req() r: AuthenticatedRequest) { return this.hub.listRunbookExecutions(r.user!.tenantId); }
+  @Post('runbook-executions/:id/review') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
+  reviewRunbookExecution(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.reviewRunbookExecution(r.user!.tenantId,r.user!.id,id,b); }
+  @Get('change-reviews/:id/evidence') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
+  changeEvidence(@Req() r: AuthenticatedRequest,@Param('id') id: string) { return this.hub.listChangeEvidence(r.user!.tenantId,id); }
+  @Post('change-reviews/:id/evidence') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  addChangeEvidence(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Body() b: unknown) { return this.hub.addChangeEvidence(r.user!.tenantId,r.user!.id,id,b); }
+
   @Get('runbooks') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   runbooks(@Req() r: AuthenticatedRequest) { return this.hub.listRunbooks(r.user!.tenantId); }
   @Post('runbooks') @Roles('OWNER','ADMIN') @Permissions('automation.manage')
