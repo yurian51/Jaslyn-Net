@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, ServiceUnavailableException } from '@nestjs/common';
 
 export interface MerakiFirmwareCredentials {
   apiKey: string;
@@ -142,7 +142,7 @@ export class MerakiFirmwareExecutor {
       if (!this.isRecord(json)) throw new ServiceUnavailableException('Meraki Dashboard returned an invalid JSON object');
       return json;
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof ServiceUnavailableException) throw error;
+      if (error instanceof HttpException) throw error;
       throw new ServiceUnavailableException('Unable to reach Meraki Dashboard API; no automatic retry was attempted');
     } finally {
       clearTimeout(timeout);
