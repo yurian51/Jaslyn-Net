@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS fiber_network_assets (
   model text,
   serial_number text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(metadata) = 'object'),
-  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
-  updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_by uuid,
+  updated_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT fiber_assets_latitude_range CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
@@ -27,7 +27,11 @@ CREATE TABLE IF NOT EXISTS fiber_network_assets (
     REFERENCES fiber_network_assets(tenant_id, id) ON DELETE RESTRICT,
   CONSTRAINT fiber_assets_router_tenant_fk FOREIGN KEY (tenant_id, router_id)
     REFERENCES routers(tenant_id, id) ON DELETE RESTRICT,
-  CONSTRAINT fiber_assets_id_tenant_unique UNIQUE (tenant_id, id)
+  CONSTRAINT fiber_assets_id_tenant_unique UNIQUE (tenant_id, id),
+  CONSTRAINT fiber_assets_created_by_tenant_fk FOREIGN KEY (tenant_id, created_by)
+    REFERENCES users(tenant_id, id) ON DELETE SET NULL (created_by),
+  CONSTRAINT fiber_assets_updated_by_tenant_fk FOREIGN KEY (tenant_id, updated_by)
+    REFERENCES users(tenant_id, id) ON DELETE SET NULL (updated_by)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS fiber_assets_tenant_code_casefold_idx
