@@ -69,6 +69,8 @@ export default function DashboardPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [welcomeNow, setWelcomeNow] = useState<Date | null>(null);
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfile['user'] | null>(null);
+  const [operatorProfileLoaded, setOperatorProfileLoaded] = useState(false);
+  const [returningAfterLongAbsence, setReturningAfterLongAbsence] = useState(false);
   const [quickFind, setQuickFind] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
@@ -81,9 +83,25 @@ export default function DashboardPage() {
     let cancelled = false;
     void apiFetch<OperatorProfile>('/auth/me', { headers: { Authorization: 'Bearer ' + token } })
       .then((profile) => { if (!cancelled) setOperatorProfile(profile.user ?? null); })
-      .catch(() => { if (!cancelled) setOperatorProfile(null); });
+      .catch(() => { if (!cancelled) setOperatorProfile(null); })
+      .finally(() => { if (!cancelled) setOperatorProfileLoaded(true); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!operatorProfileLoaded) return;
+    const identity = operatorProfile?.username?.trim() || operatorProfile?.userName?.trim() || operatorProfile?.email?.trim() || operatorProfile?.fullName?.trim() || 'default';
+    const visitKey = `jaslyn-net:last-visit:${identity.toLowerCase()}`;
+    const now = Date.now();
+    try {
+      const previousVisit = Number(window.localStorage.getItem(visitKey));
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      setReturningAfterLongAbsence(Number.isFinite(previousVisit) && previousVisit > 0 && now - previousVisit >= thirtyDays);
+      window.localStorage.setItem(visitKey, String(now));
+    } catch {
+      setReturningAfterLongAbsence(false);
+    }
+  }, [operatorProfile, operatorProfileLoaded]);
 
   useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
@@ -219,7 +237,7 @@ export default function DashboardPage() {
   const locations = data?.locations ?? [];
   const tenantName = operatorProfile?.tenantName ?? data?.tenant?.name ?? 'Jaslyn Net';
   const greetingHour = welcomeNow?.getHours();
-  const greeting = greetingHour == null ? 'Welcome' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = returningAfterLongAbsence ? 'Welcome back' : greetingHour == null ? 'Welcome' : greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
   const operatorFullName = operatorProfile?.fullName?.trim() || '';
   const operatorUsername = operatorProfile?.username?.trim() || operatorProfile?.userName?.trim() || '';
   const operatorEmail = operatorProfile?.email?.trim() || '';
