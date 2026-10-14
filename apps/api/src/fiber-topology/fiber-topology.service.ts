@@ -67,7 +67,7 @@ export class FiberTopologyService {
        parent_asset_id AS "parentAssetId",router_id AS "routerId",vendor,model,serial_number AS "serialNumber",metadata,created_at AS "createdAt",updated_at AS "updatedAt"`,
       [tenantId,id,input.name?.trim()??null,input.status??null,lat,lon,parent,router,
        input.vendor!==undefined,input.vendor??null,input.model!==undefined,input.model??null,
-       input.serialNumber!==undefined,input.serialNumber??null,input.metadata===undefined?null:JSON.stringify(input.metadata),actorId],
+       input.serialNumber!==undefined,input.serialNumber??null,input.metadata==null?null:JSON.stringify(input.metadata),actorId],
     );
     const asset=result.rows[0];
     await this.audit.record(tenantId,'FIBER_ASSET_UPDATED','fiber_network_asset',id,{changedFields:Object.keys(input)},context);
