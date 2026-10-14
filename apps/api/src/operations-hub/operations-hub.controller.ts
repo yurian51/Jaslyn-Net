@@ -14,6 +14,8 @@ export class OperationsHubController {
   artifacts(@Req() r: AuthenticatedRequest) { return this.hub.listArtifacts(r.user!.tenantId,r.user!.id); }
   @Post('artifacts') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
   createArtifact(@Req() r: AuthenticatedRequest,@Body() b: unknown) { return this.hub.createArtifact(r.user!.tenantId,r.user!.id,b); }
+  @Post('artifacts/:id/restore/:version') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
+  restoreArtifactVersion(@Req() r: AuthenticatedRequest,@Param('id') id: string,@Param('version') version: string) { return this.hub.restoreArtifactVersion(r.user!.tenantId,r.user!.id,id,Number(version)); }
   @Get('artifacts/:id/versions') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('automation.read')
   artifactHistory(@Req() r: AuthenticatedRequest,@Param('id') id: string) { return this.hub.artifactHistory(r.user!.tenantId,r.user!.id,id); }
   @Post('artifacts/:id/versions') @Roles('OWNER','ADMIN','AGENT') @Permissions('automation.manage')
