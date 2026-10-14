@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS fiber_network_assets (
   CONSTRAINT fiber_assets_tenant_code_unique UNIQUE (tenant_id, asset_code),
   CONSTRAINT fiber_assets_parent_tenant_fk FOREIGN KEY (tenant_id, parent_asset_id)
     REFERENCES fiber_network_assets(tenant_id, id) ON DELETE RESTRICT,
-  CONSTRAINT fiber_assets_router_tenant_fk FOREIGN KEY (tenant_id, router_id)
-    REFERENCES routers(tenant_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fiber_assets_router_fk FOREIGN KEY (router_id)
+    REFERENCES routers(id) ON DELETE RESTRICT,
   CONSTRAINT fiber_assets_id_tenant_unique UNIQUE (tenant_id, id)
 );
 
