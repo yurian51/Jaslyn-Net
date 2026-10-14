@@ -6,7 +6,6 @@ import { stripOuterTransactionWrapper } from './migration-sql';
 
 const MIGRATION_LOCK_KEY = 7_421_931;
 
-
 function buildConnectionString(env: NodeJS.ProcessEnv): string {
   const direct = env.DATABASE_URL?.trim();
   if (direct) return direct;
