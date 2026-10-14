@@ -245,7 +245,7 @@ export default function DashboardPage() {
         <div className="operator-welcome-copy">
           <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN NET · NETWORK OPERATIONS <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
           <h2 id="operator-welcome-title">{greeting}, {operatorDisplayName}!</h2>
-          {(operatorFullName || operatorUsername || operatorEmail) && <p className="operator-welcome-identity">{operatorFullName && <span>{operatorFullName}</span>}{operatorUsername && <span>@{operatorUsername.replace(/^@/, '')}</span>}{operatorEmail && <span>{operatorEmail}</span>}</p>}
+          {(operatorFullName || operatorUsername || operatorEmail) && <p style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', margin: '6px 0 0', fontSize: 12, color: '#64748b' }}>{operatorFullName && <span>{operatorFullName}</span>}{operatorUsername && <span>@{operatorUsername.replace(/^@/, '')}</span>}{operatorEmail && <span>{operatorEmail}</span>}</p>}
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
             <a href="/network">Open network <span aria-hidden="true">↗</span></a>
