@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS network_topology_nodes (
   node_type text NOT NULL CHECK (node_type IN ('ROUTER','SWITCH','OLT','ACCESS_POINT','SITE','LINK','SERVER')),
   resource_id uuid, name text NOT NULL, status text NOT NULL DEFAULT 'UNKNOWN' CHECK (status IN ('UP','DEGRADED','DOWN','UNKNOWN')),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb, observed_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id,id),
   UNIQUE (tenant_id,node_type,resource_id)
 );
 CREATE INDEX IF NOT EXISTS network_topology_nodes_tenant_status_idx ON network_topology_nodes(tenant_id,status,node_type);
