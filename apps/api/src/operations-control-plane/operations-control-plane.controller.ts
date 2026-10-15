@@ -19,6 +19,10 @@ export class OperationsControlPlaneController {
   addEdge(@Req() r:AuthenticatedRequest,@Body() d:CreateTopologyEdgeDto){return this.service.addEdge(r.user!.tenantId,r.user!.id,d);}
   @Get('topology/nodes/:id/impact') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
   impact(@Req() r:AuthenticatedRequest,@Param('id') id:string){return this.service.affected(r.user!.tenantId,id);}
+  @Get('root-cause') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
+  rootCause(@Req() r:AuthenticatedRequest){return this.service.rootCause(r.user!.tenantId);}
+  @Get('sla/summary') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('sla.read')
+  slaSummary(@Req() r:AuthenticatedRequest){return this.service.slaSummary(r.user!.tenantId);}
   @Get('control-records') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('field.read')
   list(@Req() r:AuthenticatedRequest,@Query('type') type?:string,@Query('status') status?:string){return this.service.listRecords(r.user!.tenantId,type,status);}
   @Post('control-records') @Roles('OWNER','ADMIN','AGENT') @Permissions('field.write')
