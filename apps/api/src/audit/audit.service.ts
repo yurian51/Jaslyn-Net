@@ -43,10 +43,12 @@ export class AuditService {
     resourceId?: string,
     metadata: Record<string, unknown> = {},
     context: AuditContext = {},
+    executor?: { query: Pool['query'] },
   ) {
+    const db = executor ?? this.db;
     const safeMetadata = sanitizeMetadata(metadata) as Record<string, unknown>;
     const correlationId = context.correlationId ?? getCorrelationId() ?? context.requestId ?? null;
-    const result = await this.db.query(
+    const result = await db.query(
       `INSERT INTO audit_logs
         (tenant_id, actor_user_id, action, resource_type, resource_id, request_id, correlation_id, ip_address, user_agent, metadata)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
