@@ -85,6 +85,29 @@ export class OperationsControlPlaneService {
     } catch(e) { await client.query('ROLLBACK').catch(()=>undefined); throw e; }
     finally { client.release(); }
   }
+
+  async rootCause(tenantId:string) {
+    const r=await this.db.query(`WITH RECURSIVE upstream(node_id,depth,path) AS (
+      SELECT e.source_node_id,1,ARRAY[e.target_node_id,e.source_node_id] FROM network_topology_edges e
+      WHERE e.tenant_id=$1 AND e.target_node_id IN (SELECT id FROM network_topology_nodes WHERE tenant_id=$1 AND status IN ('DOWN','DEGRADED'))
+      UNION ALL SELECT e.source_node_id,u.depth+1,u.path||e.source_node_id FROM network_topology_edges e JOIN upstream u ON e.target_node_id=u.node_id
+      WHERE e.tenant_id=$1 AND u.depth<20 AND NOT e.source_node_id=ANY(u.path))
+      SELECT n.id,n.node_type AS "nodeType",n.name,n.status,COUNT(DISTINCT u.depth)::int AS "dependencyDepth",
+      (CASE WHEN n.status='DOWN' THEN 100 WHEN n.status='DEGRADED' THEN 65 ELSE 10 END) AS "evidenceScore"
+      FROM upstream u JOIN network_topology_nodes n ON n.tenant_id=$1 AND n.id=u.node_id
+      GROUP BY n.id,n.node_type,n.name,n.status ORDER BY "evidenceScore" DESC,"dependencyDepth" ASC LIMIT 100`,[tenantId]);
+    const alarms=await this.db.query(`SELECT id,title,priority,status,resource_type AS "resourceType",resource_id AS "resourceId",created_at AS "createdAt"
+      FROM operations_control_records WHERE tenant_id=$1 AND record_type IN ('SECURITY_EVENT','SLA_EVENT','TICKET') AND status NOT IN ('RESOLVED','CLOSED')
+      ORDER BY CASE priority WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END,created_at DESC LIMIT 100`,[tenantId]);
+    return {method:'topology dependency correlation; candidate ranking only, not causal proof',candidates:r.rows,openSignals:alarms.rows,generatedAt:new Date().toISOString()};
+  }
+  async slaSummary(tenantId:string) {
+    const r=await this.db.query(`SELECT status,priority,COUNT(*)::int AS count,MIN(created_at) AS "oldestAt",
+      COUNT(*) FILTER(WHERE due_at IS NOT NULL AND due_at<now() AND status NOT IN ('RESOLVED','CLOSED'))::int AS "overdue"
+      FROM operations_control_records WHERE tenant_id=$1 AND record_type IN ('SLA_EVENT','TICKET') GROUP BY status,priority ORDER BY status,priority`,[tenantId]);
+    return {data:r.rows,generatedAt:new Date().toISOString(),note:'Record-based operational SLA queue summary; availability percentages require verified monitoring samples and exclusions.'};
+  }
+
   async events(tenantId:string,id:string) {
     const exists=await this.db.query('SELECT id FROM operations_control_records WHERE tenant_id=$1 AND id=$2',[tenantId,id]);
     if(!exists.rowCount) throw new NotFoundException('Operations record not found in this tenant');
