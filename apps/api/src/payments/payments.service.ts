@@ -93,7 +93,7 @@ export class PaymentsService {
         const existing = await this.db.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase", idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-          if (existing.rows[0].purchaseId !== input.purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
+          if (existing.rows[0].samePurchase !== true) throw new ConflictException('Idempotency key is already bound to another purchase');
           return { ...existing.rows[0], reused: true };
         }
       }
