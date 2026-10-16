@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CreateControlRecordDto, CreateTopologyEdgeDto, UpdateControlRecordDto, UpsertTopologyNodeDto } from './operations-control-plane.dto';
+import { CreateSignatureEvidenceDto, LinkSignatureEvidenceDto } from './signature-evidence.dto';
 
 @Injectable()
 export class OperationsControlPlaneService {
@@ -34,7 +35,18 @@ export class OperationsControlPlaneService {
     const byId=new Map(nodes.rows.map(n=>[n.id,n]));
     const impacts=edges.rows.map(e=>({...e,source:byId.get(e.sourceNodeId)?.name??null,target:byId.get(e.targetNodeId)?.name??null}));
     const down=nodes.rows.filter(n=>n.status==='DOWN'||n.status==='DEGRADED');
-    return {data:{nodes:nodes.rows,edges:impacts,summary:{nodes:nodes.rowCount,edges:edges.rowCount,down:down.length,degraded:down.filter(n=>n.status==='DEGRADED').length},source:'tenant-scoped topology records; not inferred as live unless updated by an adapter',generatedAt:new Date().toISOString()}};
+    const staleThresholdSeconds=300;
+    const freshness=await this.db.query(`SELECT
+      COUNT(*) FILTER (WHERE observed_at IS NULL)::int AS "neverObserved",
+      COUNT(*) FILTER (WHERE observed_at IS NOT NULL AND observed_at < now() - ($2::int * interval '1 second'))::int AS "staleObservations",
+      MAX(observed_at) AS "latestObservationAt"
+      FROM network_topology_nodes WHERE tenant_id=$1`,[tenantId,staleThresholdSeconds]);
+    return {data:{nodes:nodes.rows,edges:impacts,summary:{
+      nodes:nodes.rowCount,edges:edges.rowCount,down:down.filter(n=>n.status==='DOWN').length,
+      degraded:down.filter(n=>n.status==='DEGRADED').length,
+      neverObserved:freshness.rows[0].neverObserved,staleObservations:freshness.rows[0].staleObservations,
+      latestObservationAt:freshness.rows[0].latestObservationAt,staleThresholdSeconds
+    },source:'tenant-scoped topology records; status and freshness are only as reliable as adapter observations',generatedAt:new Date().toISOString()}};
   }
   async affected(tenantId:string,nodeId:string) {
     const exists=await this.db.query('SELECT id,name,status FROM network_topology_nodes WHERE tenant_id=$1 AND id=$2',[tenantId,nodeId]);
@@ -65,6 +77,8 @@ export class OperationsControlPlaneService {
   async listRecords(tenantId:string,type?:string,status?:string) {
     const allowed=['CONFIG_SNAPSHOT','CHANGE_PLAN','TICKET','RUNBOOK','INTEGRATION','ASSET','MAINTENANCE','SECURITY_EVENT','BACKUP_DRILL','COMMUNICATION','REVENUE_FINDING','SLA_EVENT','FIELD_WORK_ORDER'];
     if(type&&!allowed.includes(type)) throw new BadRequestException('Unsupported operations record type');
+    const allowedStatuses=['OPEN','IN_PROGRESS','RESOLVED','CLOSED','BLOCKED','APPROVAL_REQUIRED'];
+    if(status&&!allowedStatuses.includes(status)) throw new BadRequestException('Unsupported operations record status');
     const r=await this.db.query(`SELECT id,record_type AS "recordType",title,description,status,priority,resource_type AS "resourceType",resource_id AS "resourceId",customer_id AS "customerId",due_at AS "dueAt",payload,created_at AS "createdAt",updated_at AS "updatedAt"
       FROM operations_control_records WHERE tenant_id=$1 AND ($2::text IS NULL OR record_type=$2) AND ($3::text IS NULL OR status=$3) ORDER BY priority DESC,created_at DESC LIMIT 1000`,[tenantId,type??null,status??null]);
     return {data:r.rows,count:r.rowCount};
@@ -92,7 +106,7 @@ export class OperationsControlPlaneService {
       WHERE e.tenant_id=$1 AND e.target_node_id IN (SELECT id FROM network_topology_nodes WHERE tenant_id=$1 AND status IN ('DOWN','DEGRADED'))
       UNION ALL SELECT e.source_node_id,u.depth+1,u.path||e.source_node_id FROM network_topology_edges e JOIN upstream u ON e.target_node_id=u.node_id
       WHERE e.tenant_id=$1 AND u.depth<20 AND NOT e.source_node_id=ANY(u.path))
-      SELECT n.id,n.node_type AS "nodeType",n.name,n.status,COUNT(DISTINCT u.depth)::int AS "dependencyDepth",
+      SELECT n.id,n.node_type AS "nodeType",n.name,n.status,MIN(u.depth)::int AS "dependencyDepth",
       (CASE WHEN n.status='DOWN' THEN 100 WHEN n.status='DEGRADED' THEN 65 ELSE 10 END) AS "evidenceScore"
       FROM upstream u JOIN network_topology_nodes n ON n.tenant_id=$1 AND n.id=u.node_id
       GROUP BY n.id,n.node_type,n.name,n.status ORDER BY "evidenceScore" DESC,"dependencyDepth" ASC LIMIT 100`,[tenantId]);
@@ -106,6 +120,108 @@ export class OperationsControlPlaneService {
       COUNT(*) FILTER(WHERE due_at IS NOT NULL AND due_at<now() AND status NOT IN ('RESOLVED','CLOSED'))::int AS "overdue"
       FROM operations_control_records WHERE tenant_id=$1 AND record_type IN ('SLA_EVENT','TICKET') GROUP BY status,priority ORDER BY status,priority`,[tenantId]);
     return {data:r.rows,generatedAt:new Date().toISOString(),note:'Record-based operational SLA queue summary; availability percentages require verified monitoring samples and exclusions.'};
+  }
+
+
+  async createEvidence(tenantId:string, actorId:string, d:CreateSignatureEvidenceDto) {
+    try {
+      const r=await this.db.query(`INSERT INTO signature_evidence
+        (tenant_id,evidence_type,subject_type,subject_id,source_type,source_ref,observed_at,confidence,payload,idempotency_key,created_by)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)
+        RETURNING id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",
+          source_type AS "sourceType",source_ref AS "sourceRef",observed_at AS "observedAt",
+          recorded_at AS "recordedAt",confidence,payload,idempotency_key AS "idempotencyKey"`,
+        [tenantId,d.evidenceType,d.subjectType,d.subjectId,d.sourceType,d.sourceRef??null,d.observedAt,d.confidence??null,JSON.stringify(d.payload??{}),d.idempotencyKey??null,actorId]);
+      await this.audit.record(tenantId,'SIGNATURE_EVIDENCE_RECORDED','signature_evidence',r.rows[0].id,
+        {evidenceType:d.evidenceType,subjectType:d.subjectType,sourceType:d.sourceType},{userId:actorId});
+      return r.rows[0];
+    } catch(e:unknown) {
+      if((e as {code?:string})?.code==='23505') throw new ConflictException('Evidence idempotency key already exists');
+      throw e;
+    }
+  }
+
+  async listEvidence(tenantId:string, subjectType?:string, subjectId?:string, evidenceType?:string) {
+    if(Boolean(subjectType)!==Boolean(subjectId)) throw new BadRequestException('subjectType and subjectId must be supplied together');
+    const r=await this.db.query(`SELECT id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",
+      source_type AS "sourceType",source_ref AS "sourceRef",observed_at AS "observedAt",recorded_at AS "recordedAt",
+      confidence,payload,created_by AS "createdBy",
+      (observed_at < now() - interval '5 minutes') AS "olderThanFiveMinutes"
+      FROM signature_evidence WHERE tenant_id=$1
+      AND ($2::text IS NULL OR subject_type=$2) AND ($3::text IS NULL OR subject_id=$3)
+      AND ($4::text IS NULL OR evidence_type=$4)
+      ORDER BY observed_at DESC,id DESC LIMIT 500`,[tenantId,subjectType??null,subjectId??null,evidenceType??null]);
+    return {data:r.rows,count:r.rowCount,limit:500,generatedAt:new Date().toISOString(),
+      note:'Evidence freshness is based on observed_at; source attribution does not independently verify the source claim.'};
+  }
+
+  async linkEvidence(tenantId:string, actorId:string, d:LinkSignatureEvidenceDto) {
+    if(d.fromEvidenceId===d.toEvidenceId) throw new BadRequestException('Evidence cannot link to itself');
+    const r=await this.db.query(`INSERT INTO signature_evidence_links(tenant_id,from_evidence_id,to_evidence_id,relation,created_by)
+      SELECT $1,a.id,b.id,$4,$5 FROM signature_evidence a JOIN signature_evidence b ON b.tenant_id=a.tenant_id
+      WHERE a.tenant_id=$1 AND a.id=$2 AND b.id=$3
+      ON CONFLICT(tenant_id,from_evidence_id,to_evidence_id,relation) DO UPDATE SET relation=EXCLUDED.relation
+      RETURNING id,from_evidence_id AS "fromEvidenceId",to_evidence_id AS "toEvidenceId",relation,created_at AS "createdAt"`,
+      [tenantId,d.fromEvidenceId,d.toEvidenceId,d.relation,actorId]);
+    if(!r.rowCount) throw new NotFoundException('Both evidence records must exist in this tenant');
+    await this.audit.record(tenantId,'SIGNATURE_EVIDENCE_LINKED','signature_evidence_link',r.rows[0].id,
+      {relation:d.relation,fromEvidenceId:d.fromEvidenceId,toEvidenceId:d.toEvidenceId},{userId:actorId});
+    return r.rows[0];
+  }
+
+
+  async evidenceTrace(tenantId:string, subjectType:string, subjectId:string) {
+    const roots=await this.db.query(`SELECT id FROM signature_evidence
+      WHERE tenant_id=$1 AND subject_type=$2 AND subject_id=$3 ORDER BY observed_at DESC LIMIT 500`,[tenantId,subjectType,subjectId]);
+    if(!roots.rowCount) return {subject:{subjectType,subjectId},evidence:[],links:[],summary:{evidenceCount:0,linkCount:0,unlinkedEvidenceCount:0},generatedAt:new Date().toISOString(),note:'No evidence records were found for this subject; absence of evidence is not proof that an event did not occur.'};
+    const graph=await this.db.query(`WITH RECURSIVE walk(evidence_id,depth,path) AS (
+      SELECT r.id,0,ARRAY[r.id] FROM signature_evidence r WHERE r.tenant_id=$1 AND r.id=ANY($2::uuid[])
+      UNION ALL
+      SELECT edge.next_id,w.depth+1,w.path||edge.next_id
+      FROM walk w
+      JOIN LATERAL (
+        SELECT CASE WHEN l.from_evidence_id=w.evidence_id THEN l.to_evidence_id ELSE l.from_evidence_id END AS next_id
+        FROM signature_evidence_links l
+        WHERE l.tenant_id=$1 AND (l.from_evidence_id=w.evidence_id OR l.to_evidence_id=w.evidence_id)
+      ) edge ON true
+      WHERE w.depth<12 AND NOT edge.next_id=ANY(w.path)
+    ), reachable AS (
+      SELECT evidence_id,MIN(depth)::int AS depth FROM walk GROUP BY evidence_id
+    )
+    SELECT e.id,e.evidence_type AS "evidenceType",e.subject_type AS "subjectType",e.subject_id AS "subjectId",
+      e.source_type AS "sourceType",e.source_ref AS "sourceRef",e.observed_at AS "observedAt",
+      e.recorded_at AS "recordedAt",e.confidence,e.payload,reachable.depth
+    FROM reachable JOIN signature_evidence e ON e.tenant_id=$1 AND e.id=reachable.evidence_id
+    ORDER BY reachable.depth,e.observed_at DESC LIMIT 2000`,[tenantId,subjectType,subjectId,roots.rows.map((x:{id:string})=>x.id)]);
+    const ids=graph.rows.map((x:{id:string})=>x.id);
+    const links=ids.length?await this.db.query(`SELECT id,from_evidence_id AS "fromEvidenceId",to_evidence_id AS "toEvidenceId",relation,created_at AS "createdAt"
+      FROM signature_evidence_links WHERE tenant_id=$1 AND from_evidence_id=ANY($2::uuid[]) AND to_evidence_id=ANY($2::uuid[]) ORDER BY created_at LIMIT 5000`,[tenantId,ids]):{rows:[],rowCount:0};
+    const linked=new Set<string>();
+    for(const l of links.rows){linked.add(l.fromEvidenceId);linked.add(l.toEvidenceId);}
+    return {subject:{subjectType,subjectId},evidence:graph.rows,links:links.rows,
+      summary:{evidenceCount:graph.rowCount,linkCount:links.rowCount,unlinkedEvidenceCount:graph.rows.filter((e:{id:string})=>!linked.has(e.id)).length,
+        depthLimit:12,truncated:graph.rowCount>=2000||links.rowCount>=5000},
+      generatedAt:new Date().toISOString(),
+      note:'Only explicitly recorded, tenant-scoped evidence and links are shown. Unlinked evidence is surfaced rather than silently inferred.'};
+  }
+
+  async evidenceLineage(tenantId:string, evidenceId:string) {
+    const exists=await this.db.query('SELECT id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",source_type AS "sourceType",observed_at AS "observedAt" FROM signature_evidence WHERE tenant_id=$1 AND id=$2',[tenantId,evidenceId]);
+    if(!exists.rowCount) throw new NotFoundException('Evidence record not found in this tenant');
+    const r=await this.db.query(`WITH RECURSIVE lineage(id,from_id,to_id,relation,depth,path) AS (
+      SELECT l.id,l.from_evidence_id,l.to_evidence_id,l.relation,1,ARRAY[l.from_evidence_id,l.to_evidence_id]
+      FROM signature_evidence_links l WHERE l.tenant_id=$1 AND (l.from_evidence_id=$2 OR l.to_evidence_id=$2)
+      UNION ALL
+      SELECT l.id,l.from_evidence_id,l.to_evidence_id,l.relation,x.depth+1,x.path||l.to_evidence_id
+      FROM signature_evidence_links l JOIN lineage x ON l.from_evidence_id=x.to_id
+      WHERE l.tenant_id=$1 AND x.depth<12 AND NOT l.to_evidence_id=ANY(x.path))
+      SELECT DISTINCT x.id,x.from_id AS "fromEvidenceId",x.to_id AS "toEvidenceId",x.relation,x.depth,
+        a.evidence_type AS "fromType",a.subject_type AS "fromSubjectType",a.subject_id AS "fromSubjectId",
+        b.evidence_type AS "toType",b.subject_type AS "toSubjectType",b.subject_id AS "toSubjectId"
+      FROM lineage x JOIN signature_evidence a ON a.tenant_id=$1 AND a.id=x.from_id
+      JOIN signature_evidence b ON b.tenant_id=$1 AND b.id=x.to_id ORDER BY x.depth LIMIT 500`,[tenantId,evidenceId]);
+    return {root:exists.rows[0],links:r.rows,depthLimit:12,generatedAt:new Date().toISOString(),
+      note:'Lineage shows explicitly recorded links only; it does not infer missing relationships.'};
   }
 
   async events(tenantId:string,id:string) {
