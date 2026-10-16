@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { SignJWT } from 'jose';
+import { LoginThrottleService } from './login-throttle.service';
 import { PG_POOL } from '../database/database.module';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthenticatedRequest } from './auth.guard';
@@ -22,7 +23,7 @@ interface TenantTokenRecord { id: string; name: string; slug: string; status: st
 
 @Injectable()
 export class AuthService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly config: ConfigService, private readonly audit: AuditService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly config: ConfigService, private readonly audit: AuditService, private readonly throttle?: LoginThrottleService) {}
 
   async register(input: RegisterDto, context: { ip?: string; userAgent?: string } = {}) {
     if (input.acceptTerms !== true || input.acceptPrivacy !== true) {
@@ -92,6 +93,7 @@ export class AuthService {
   }
 
   async login(input: LoginDto, context: { ip?: string; userAgent?: string } = {}) {
+    await this.throttle?.assertAllowed(input.email, context.ip);
     const result = await this.db.query<UserTokenRecord & { is_active: boolean; password_hash: string; tenant_name: string; tenant_slug: string; tenant_status: string; currency: string; timezone: string }>(
       `SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.is_active, u.password_hash,
               t.name AS tenant_name, t.slug AS tenant_slug, t.status AS tenant_status, t.currency, t.timezone
@@ -99,8 +101,10 @@ export class AuthService {
        WHERE lower(u.email) = lower($1) LIMIT 1`, [input.email.trim()],
     );
     const user = result.rows[0];
-    if (!user || !user.is_active || user.tenant_status === 'SUSPENDED' || user.tenant_status === 'ARCHIVED') throw new UnauthorizedException('Invalid credentials');
-    if (!(await this.verifyPassword(input.password, user.password_hash))) throw new UnauthorizedException('Invalid credentials');
+    const reject = async (): Promise<never> => { await this.throttle?.recordFailure(input.email, context.ip); throw new UnauthorizedException('Invalid credentials'); };
+    if (!user || !user.is_active || user.tenant_status === 'SUSPENDED' || user.tenant_status === 'ARCHIVED') return reject();
+    if (!(await this.verifyPassword(input.password, user.password_hash))) return reject();
+    await this.throttle?.recordSuccess(input.email, context.ip);
     return this.issueTokens(user, { id: user.tenant_id, name: user.tenant_name, slug: user.tenant_slug, status: user.tenant_status, currency: user.currency, timezone: user.timezone }, context);
   }
 

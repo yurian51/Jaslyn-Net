@@ -48,7 +48,9 @@ jobs:
               if (name ~ /^[0-9]+[a-z]?_/) {
                 split(name, parts, "_")
                 prefix=parts[1]
-                if (seen[prefix]++) {
+                # Prefixes <= 077 contain historical duplicates that are already applied (the migration
+                # version is the full filename, so they are harmless). Enforce uniqueness for all new ones.
+                if (prefix + 0 > 77 && seen[prefix]++) {
                   printf "Duplicate migration prefix %s: %s\n", prefix, name > "/dev/stderr"
                   failed=1
                 }
