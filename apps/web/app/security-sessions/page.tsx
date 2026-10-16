@@ -123,7 +123,11 @@ export default function SecuritySessionsPage() {
 
   function exportCsv() {
     const columns: Array<keyof SessionRecord> = ['id', 'userAgent', 'ipAddress', 'createdAt', 'lastSeenAt', 'expiresAt', 'revokedAt', 'isCurrent', 'isActive'];
-    const escapeCell = (value: unknown) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+    const escapeCell = (value: unknown) => {
+      const raw = String(value ?? '');
+      const safe = /^[=+@\\-\\t\\r]/.test(raw) ? "'" + raw : raw;
+      return '"' + safe.replace(/"/g, '""') + '"';
+    };
     const csv = [columns.join(','), ...filteredSessions.map((session) => columns.map((key) => escapeCell(session[key])).join(','))].join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
@@ -138,7 +142,7 @@ export default function SecuritySessionsPage() {
   function displayIp(ip?: string | null) {
     if (!ip) return 'IP address unavailable';
     if (showFullIp) return ip;
-    const ipv4 = ip.match(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)\\d{1,3}$/);
+    const ipv4 = ip.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}$/);
     if (ipv4) return ipv4[1] + '•••';
     if (ip.includes(':')) return ip.split(':').slice(0, 3).join(':') + ':•••';
     return ip.length > 8 ? ip.slice(0, 4) + '•••' : '•••';
