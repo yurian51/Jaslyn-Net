@@ -34,7 +34,18 @@ export class OperationsControlPlaneService {
     const byId=new Map(nodes.rows.map(n=>[n.id,n]));
     const impacts=edges.rows.map(e=>({...e,source:byId.get(e.sourceNodeId)?.name??null,target:byId.get(e.targetNodeId)?.name??null}));
     const down=nodes.rows.filter(n=>n.status==='DOWN'||n.status==='DEGRADED');
-    return {data:{nodes:nodes.rows,edges:impacts,summary:{nodes:nodes.rowCount,edges:edges.rowCount,down:down.length,degraded:down.filter(n=>n.status==='DEGRADED').length},source:'tenant-scoped topology records; not inferred as live unless updated by an adapter',generatedAt:new Date().toISOString()}};
+    const staleThresholdSeconds=300;
+    const freshness=await this.db.query(`SELECT
+      COUNT(*) FILTER (WHERE observed_at IS NULL)::int AS "neverObserved",
+      COUNT(*) FILTER (WHERE observed_at IS NOT NULL AND observed_at < now() - ($2::int * interval '1 second'))::int AS "staleObservations",
+      MAX(observed_at) AS "latestObservationAt"
+      FROM network_topology_nodes WHERE tenant_id=$1`,[tenantId,staleThresholdSeconds]);
+    return {data:{nodes:nodes.rows,edges:impacts,summary:{
+      nodes:nodes.rowCount,edges:edges.rowCount,down:down.filter(n=>n.status==='DOWN').length,
+      degraded:down.filter(n=>n.status==='DEGRADED').length,
+      neverObserved:freshness.rows[0].neverObserved,staleObservations:freshness.rows[0].staleObservations,
+      latestObservationAt:freshness.rows[0].latestObservationAt,staleThresholdSeconds
+    },source:'tenant-scoped topology records; status and freshness are only as reliable as adapter observations',generatedAt:new Date().toISOString()}};
   }
   async affected(tenantId:string,nodeId:string) {
     const exists=await this.db.query('SELECT id,name,status FROM network_topology_nodes WHERE tenant_id=$1 AND id=$2',[tenantId,nodeId]);
