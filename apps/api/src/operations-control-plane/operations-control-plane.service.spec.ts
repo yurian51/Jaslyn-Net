@@ -46,4 +46,26 @@ describe('OperationsControlPlaneService', () => {
     })).rejects.toBeInstanceOf(NotFoundException);
     expect(db.query.mock.calls[0][1][0]).toBe('tenant-a');
   });
+
+  it('reports topology observation freshness separately from device status', async () => {
+    const db = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [{ neverObserved: 2, staleObservations: 3, latestObservationAt: '2026-10-16T05:00:00Z' }], rowCount: 1 }),
+    };
+    const service = new OperationsControlPlaneService(db as never, { record: jest.fn() } as never);
+
+    const result = await service.topology('tenant-a');
+
+    expect(db.query).toHaveBeenCalledTimes(3);
+    expect(db.query.mock.calls[2][1]).toEqual(['tenant-a', 300]);
+    expect(result.data.summary).toMatchObject({
+      nodes: 0,
+      edges: 0,
+      neverObserved: 2,
+      staleObservations: 3,
+      staleThresholdSeconds: 300,
+    });
+  });
 });
