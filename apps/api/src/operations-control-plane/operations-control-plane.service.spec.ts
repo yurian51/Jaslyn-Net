@@ -68,4 +68,45 @@ describe('OperationsControlPlaneService', () => {
       staleThresholdSeconds: 300,
     });
   });
+
+  it('records signature evidence with tenant and source attribution', async () => {
+    const row = { id: 'evidence-1', evidenceType: 'PAYMENT_CONFIRMED', subjectType: 'SUBSCRIBER', subjectId: 'subscriber-1', sourceType: 'PAYMENT_PROVIDER' };
+    const db = { query: jest.fn().mockResolvedValue({ rows: [row], rowCount: 1 }) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const service = new OperationsControlPlaneService(db as never, audit as never);
+
+    await expect(service.createEvidence('tenant-a', 'actor-1', {
+      evidenceType: 'PAYMENT_CONFIRMED',
+      subjectType: 'SUBSCRIBER',
+      subjectId: 'subscriber-1',
+      sourceType: 'PAYMENT_PROVIDER',
+      observedAt: '2026-10-16T05:00:00Z',
+      confidence: 0.95,
+      payload: { transactionId: 'txn-1' },
+      idempotencyKey: 'payment-evidence-0001',
+    })).resolves.toEqual(row);
+    expect(db.query.mock.calls[0][1][0]).toBe('tenant-a');
+    expect(db.query.mock.calls[0][1][4]).toBe('PAYMENT_PROVIDER');
+    expect(audit.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects evidence links whose endpoints are not both in the tenant', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
+    const service = new OperationsControlPlaneService(db as never, { record: jest.fn() } as never);
+
+    await expect(service.linkEvidence('tenant-a', 'actor-1', {
+      fromEvidenceId: '11111111-1111-4111-8111-111111111111',
+      toEvidenceId: '22222222-2222-4222-8222-222222222222',
+      relation: 'SUPPORTS',
+    })).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.query.mock.calls[0][1][0]).toBe('tenant-a');
+  });
+
+  it('requires subject type and id filters to be supplied together', async () => {
+    const db = { query: jest.fn() };
+    const service = new OperationsControlPlaneService(db as never, { record: jest.fn() } as never);
+
+    await expect(service.listEvidence('tenant-a', 'SUBSCRIBER')).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
 });
