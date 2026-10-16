@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CreateControlRecordDto, CreateTopologyEdgeDto, UpdateControlRecordDto, UpsertTopologyNodeDto } from './operations-control-plane.dto';
+import { CreateSignatureEvidenceDto, LinkSignatureEvidenceDto } from './signature-evidence.dto';
 
 @Injectable()
 export class OperationsControlPlaneService {
@@ -119,6 +120,72 @@ export class OperationsControlPlaneService {
       COUNT(*) FILTER(WHERE due_at IS NOT NULL AND due_at<now() AND status NOT IN ('RESOLVED','CLOSED'))::int AS "overdue"
       FROM operations_control_records WHERE tenant_id=$1 AND record_type IN ('SLA_EVENT','TICKET') GROUP BY status,priority ORDER BY status,priority`,[tenantId]);
     return {data:r.rows,generatedAt:new Date().toISOString(),note:'Record-based operational SLA queue summary; availability percentages require verified monitoring samples and exclusions.'};
+  }
+
+
+  async createEvidence(tenantId:string, actorId:string, d:CreateSignatureEvidenceDto) {
+    try {
+      const r=await this.db.query(`INSERT INTO signature_evidence
+        (tenant_id,evidence_type,subject_type,subject_id,source_type,source_ref,observed_at,confidence,payload,idempotency_key,created_by)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)
+        RETURNING id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",
+          source_type AS "sourceType",source_ref AS "sourceRef",observed_at AS "observedAt",
+          recorded_at AS "recordedAt",confidence,payload,idempotency_key AS "idempotencyKey"`,
+        [tenantId,d.evidenceType,d.subjectType,d.subjectId,d.sourceType,d.sourceRef??null,d.observedAt,d.confidence??null,JSON.stringify(d.payload??{}),d.idempotencyKey??null,actorId]);
+      await this.audit.record(tenantId,'SIGNATURE_EVIDENCE_RECORDED','signature_evidence',r.rows[0].id,
+        {evidenceType:d.evidenceType,subjectType:d.subjectType,sourceType:d.sourceType},{userId:actorId});
+      return r.rows[0];
+    } catch(e:unknown) {
+      if((e as {code?:string})?.code==='23505') throw new ConflictException('Evidence idempotency key already exists');
+      throw e;
+    }
+  }
+
+  async listEvidence(tenantId:string, subjectType?:string, subjectId?:string, evidenceType?:string) {
+    if(Boolean(subjectType)!==Boolean(subjectId)) throw new BadRequestException('subjectType and subjectId must be supplied together');
+    const r=await this.db.query(`SELECT id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",
+      source_type AS "sourceType",source_ref AS "sourceRef",observed_at AS "observedAt",recorded_at AS "recordedAt",
+      confidence,payload,created_by AS "createdBy",
+      (observed_at < now() - interval '5 minutes') AS "olderThanFiveMinutes"
+      FROM signature_evidence WHERE tenant_id=$1
+      AND ($2::text IS NULL OR subject_type=$2) AND ($3::text IS NULL OR subject_id=$3)
+      AND ($4::text IS NULL OR evidence_type=$4)
+      ORDER BY observed_at DESC,id DESC LIMIT 500`,[tenantId,subjectType??null,subjectId??null,evidenceType??null]);
+    return {data:r.rows,count:r.rowCount,limit:500,generatedAt:new Date().toISOString(),
+      note:'Evidence freshness is based on observed_at; source attribution does not independently verify the source claim.'};
+  }
+
+  async linkEvidence(tenantId:string, actorId:string, d:LinkSignatureEvidenceDto) {
+    if(d.fromEvidenceId===d.toEvidenceId) throw new BadRequestException('Evidence cannot link to itself');
+    const r=await this.db.query(`INSERT INTO signature_evidence_links(tenant_id,from_evidence_id,to_evidence_id,relation,created_by)
+      SELECT $1,a.id,b.id,$4,$5 FROM signature_evidence a JOIN signature_evidence b ON b.tenant_id=a.tenant_id
+      WHERE a.tenant_id=$1 AND a.id=$2 AND b.id=$3
+      ON CONFLICT(tenant_id,from_evidence_id,to_evidence_id,relation) DO UPDATE SET relation=EXCLUDED.relation
+      RETURNING id,from_evidence_id AS "fromEvidenceId",to_evidence_id AS "toEvidenceId",relation,created_at AS "createdAt"`,
+      [tenantId,d.fromEvidenceId,d.toEvidenceId,d.relation,actorId]);
+    if(!r.rowCount) throw new NotFoundException('Both evidence records must exist in this tenant');
+    await this.audit.record(tenantId,'SIGNATURE_EVIDENCE_LINKED','signature_evidence_link',r.rows[0].id,
+      {relation:d.relation,fromEvidenceId:d.fromEvidenceId,toEvidenceId:d.toEvidenceId},{userId:actorId});
+    return r.rows[0];
+  }
+
+  async evidenceLineage(tenantId:string, evidenceId:string) {
+    const exists=await this.db.query('SELECT id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",source_type AS "sourceType",observed_at AS "observedAt" FROM signature_evidence WHERE tenant_id=$1 AND id=$2',[tenantId,evidenceId]);
+    if(!exists.rowCount) throw new NotFoundException('Evidence record not found in this tenant');
+    const r=await this.db.query(`WITH RECURSIVE lineage(id,from_id,to_id,relation,depth,path) AS (
+      SELECT l.id,l.from_evidence_id,l.to_evidence_id,l.relation,1,ARRAY[l.from_evidence_id,l.to_evidence_id]
+      FROM signature_evidence_links l WHERE l.tenant_id=$1 AND (l.from_evidence_id=$2 OR l.to_evidence_id=$2)
+      UNION ALL
+      SELECT l.id,l.from_evidence_id,l.to_evidence_id,l.relation,x.depth+1,x.path||l.to_evidence_id
+      FROM signature_evidence_links l JOIN lineage x ON l.from_evidence_id=x.to_id
+      WHERE l.tenant_id=$1 AND x.depth<12 AND NOT l.to_evidence_id=ANY(x.path))
+      SELECT DISTINCT x.id,x.from_id AS "fromEvidenceId",x.to_id AS "toEvidenceId",x.relation,x.depth,
+        a.evidence_type AS "fromType",a.subject_type AS "fromSubjectType",a.subject_id AS "fromSubjectId",
+        b.evidence_type AS "toType",b.subject_type AS "toSubjectType",b.subject_id AS "toSubjectId"
+      FROM lineage x JOIN signature_evidence a ON a.tenant_id=$1 AND a.id=x.from_id
+      JOIN signature_evidence b ON b.tenant_id=$1 AND b.id=x.to_id ORDER BY x.depth LIMIT 500`,[tenantId,evidenceId]);
+    return {root:exists.rows[0],links:r.rows,depthLimit:12,generatedAt:new Date().toISOString(),
+      note:'Lineage shows explicitly recorded links only; it does not infer missing relationships.'};
   }
 
   async events(tenantId:string,id:string) {
