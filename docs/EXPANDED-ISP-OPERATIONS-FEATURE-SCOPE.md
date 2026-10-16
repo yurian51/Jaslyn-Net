@@ -88,3 +88,8 @@ This section records code-backed progress; it does not replace the acceptance cr
 - `358f95a` — test topology freshness reporting.
 
 **Release gate:** do not mark these slices as passing until the API typecheck/build, unit tests, migration execution on PostgreSQL, authenticated API tests, and CI run for the tested commit are confirmed.
+
+
+## Signature-feature execution tracker
+
+The 118 signature concepts (18 differentiators + 100 additional concepts) are tracked separately in [Jaslyn Net 118 Feature Execution Tracker](JASLYN-NET-118-FEATURE-EXECUTION-TRACKER.md). The first shared implementation slice now includes a tenant-scoped evidence registry and explicit evidence-link lineage API. This is a reusable foundation only; no one of the 118 features is marked end-to-end complete without feature-specific verification.
