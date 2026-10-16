@@ -199,8 +199,8 @@ export class OperationsControlPlaneService {
     const linked=new Set<string>();
     for(const l of links.rows){linked.add(l.fromEvidenceId);linked.add(l.toEvidenceId);}
     return {subject:{subjectType,subjectId},evidence:graph.rows,links:links.rows,
-      summary:{evidenceCount:graph.rowCount,linkCount:links.rowCount,unlinkedEvidenceCount:graph.rows.filter((e:{id:string})=>!linked.has(e.id)).length,
-        depthLimit:12,truncated:graph.rowCount>=2000||links.rowCount>=5000},
+      summary:{evidenceCount:graph.rows.length,linkCount:links.rows.length,unlinkedEvidenceCount:graph.rows.filter((e:{id:string})=>!linked.has(e.id)).length,
+        depthLimit:12,truncated:graph.rows.length>=2000||links.rows.length>=5000},
       generatedAt:new Date().toISOString(),
       note:'Only explicitly recorded, tenant-scoped evidence and links are shown. Unlinked evidence is surfaced rather than silently inferred.'};
   }
