@@ -65,6 +65,8 @@ export class OperationsControlPlaneService {
   async listRecords(tenantId:string,type?:string,status?:string) {
     const allowed=['CONFIG_SNAPSHOT','CHANGE_PLAN','TICKET','RUNBOOK','INTEGRATION','ASSET','MAINTENANCE','SECURITY_EVENT','BACKUP_DRILL','COMMUNICATION','REVENUE_FINDING','SLA_EVENT','FIELD_WORK_ORDER'];
     if(type&&!allowed.includes(type)) throw new BadRequestException('Unsupported operations record type');
+    const allowedStatuses=['OPEN','IN_PROGRESS','RESOLVED','CLOSED','BLOCKED','APPROVAL_REQUIRED'];
+    if(status&&!allowedStatuses.includes(status)) throw new BadRequestException('Unsupported operations record status');
     const r=await this.db.query(`SELECT id,record_type AS "recordType",title,description,status,priority,resource_type AS "resourceType",resource_id AS "resourceId",customer_id AS "customerId",due_at AS "dueAt",payload,created_at AS "createdAt",updated_at AS "updatedAt"
       FROM operations_control_records WHERE tenant_id=$1 AND ($2::text IS NULL OR record_type=$2) AND ($3::text IS NULL OR status=$3) ORDER BY priority DESC,created_at DESC LIMIT 1000`,[tenantId,type??null,status??null]);
     return {data:r.rows,count:r.rowCount};
@@ -92,7 +94,7 @@ export class OperationsControlPlaneService {
       WHERE e.tenant_id=$1 AND e.target_node_id IN (SELECT id FROM network_topology_nodes WHERE tenant_id=$1 AND status IN ('DOWN','DEGRADED'))
       UNION ALL SELECT e.source_node_id,u.depth+1,u.path||e.source_node_id FROM network_topology_edges e JOIN upstream u ON e.target_node_id=u.node_id
       WHERE e.tenant_id=$1 AND u.depth<20 AND NOT e.source_node_id=ANY(u.path))
-      SELECT n.id,n.node_type AS "nodeType",n.name,n.status,COUNT(DISTINCT u.depth)::int AS "dependencyDepth",
+      SELECT n.id,n.node_type AS "nodeType",n.name,n.status,MIN(u.depth)::int AS "dependencyDepth",
       (CASE WHEN n.status='DOWN' THEN 100 WHEN n.status='DEGRADED' THEN 65 ELSE 10 END) AS "evidenceScore"
       FROM upstream u JOIN network_topology_nodes n ON n.tenant_id=$1 AND n.id=u.node_id
       GROUP BY n.id,n.node_type,n.name,n.status ORDER BY "evidenceScore" DESC,"dependencyDepth" ASC LIMIT 100`,[tenantId]);
