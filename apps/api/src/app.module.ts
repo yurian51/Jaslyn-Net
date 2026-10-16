@@ -42,6 +42,7 @@ import { CaptivePortalModule } from './captive-portal/captive-portal.module';
 import { OperationsHubModule } from './operations-hub/operations-hub.module';
 import { FiberTopologyModule } from './fiber-topology/fiber-topology.module';
 import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-healing.module';
+import { OperationsControlPlaneModule } from './operations-control-plane/operations-control-plane.module';
 
 @Module({
   imports: [
@@ -52,7 +53,7 @@ import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-he
     TrafficModule, IspOperationsModule, IpamModule, RadiusModule, CustomerCommerceModule, CustomerPortalModule,
     SubscriptionsModule, SecurityPostureModule, SyntheticMonitoringModule, RevenueAssuranceModule,
     SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule,
-    WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule,
+    WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule, OperationsControlPlaneModule,
   ],
 })
 export class AppModule implements NestModule {
