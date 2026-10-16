@@ -66,6 +66,9 @@ export default function NotificationsPage() {
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [channelFilter, setChannelFilter] = useState('ALL');
+  const [sortOrder, setSortOrder] = useState<'NEWEST' | 'OLDEST'>('NEWEST');
   const [smsProvider, setSmsProvider] = useState<SmsProviderStatus | null>(null);
   const [smsStatusError, setSmsStatusError] = useState<string | null>(null);
   const [smsSettings, setSmsSettings] = useState<SmsProviderSettings | null>(null);
@@ -270,13 +273,36 @@ export default function NotificationsPage() {
     }
   }
 
+  const availableChannels = useMemo(() => Array.from(new Set(rows.map((row) => row.channel))).sort(), [rows]);
   const filteredRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return rows;
-    return rows.filter((row) =>
-      `${row.eventType} ${row.channel} ${row.recipient} ${row.status} ${row.id}`.toLowerCase().includes(normalized),
-    );
-  }, [query, rows]);
+    return rows.filter((row) => {
+      const matchesQuery = !normalized || `${row.eventType} ${row.channel} ${row.recipient} ${row.status} ${row.id} ${row.category ?? ''}`.toLowerCase().includes(normalized);
+      return matchesQuery && (statusFilter === 'ALL' || row.status === statusFilter)
+        && (channelFilter === 'ALL' || row.channel === channelFilter);
+    }).sort((a, b) => {
+      const delta = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return sortOrder === 'NEWEST' ? delta : -delta;
+    });
+  }, [query, rows, statusFilter, channelFilter, sortOrder]);
+
+  function exportNotificationsCsv() {
+    const columns: Array<keyof Notification> = ['id', 'eventType', 'channel', 'category', 'recipient', 'status', 'attempts', 'lastError', 'createdAt', 'updatedAt', 'sentAt', 'availableAt', 'providerMessageId'];
+    const escapeCell = (value: unknown) => {
+      const raw = String(value ?? '');
+      const safe = /^[=+@\\-\\t\\r]/.test(raw) ? "'" + raw : raw;
+      return '"' + safe.replace(/"/g, '""') + '"';
+    };
+    const csv = [columns.join(','), ...filteredRows.map((row) => columns.map((key) => escapeCell(row[key])).join(','))].join('\\r\\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'jaslyn-net-notifications-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   const statCards = [
     { key: 'PENDING', value: stats.PENDING, icon: 'clock' as const, label: 'Waiting to send', tone: 'pending' },
@@ -495,11 +521,34 @@ export default function NotificationsPage() {
             <h2>Recent notifications</h2>
             <p>Tenant-scoped event deliveries, recipients and delivery errors.</p>
           </div>
-          <label className="notifications-search">
-            <Icon name="search" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notifications" aria-label="Search notifications" />
-            {query ? <button type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button> : null}
+          <div className="notifications-table-actions">
+            <label className="notifications-search">
+              <Icon name="search" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notifications" aria-label="Search notifications" />
+              {query ? <button type="button" onClick={() => setQuery('')} aria-label="Clear search">×</button> : null}
+            </label>
+            <button type="button" className="notifications-action secondary" onClick={exportNotificationsCsv} disabled={!filteredRows.length || loading}>Export CSV</button>
+          </div>
+        </div>
+        <div className="notifications-filter-row" aria-label="Notification filters">
+          <label>Status
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="ALL">All statuses</option>
+              <option value="PENDING">Pending</option><option value="PROCESSING">Processing</option><option value="SENT">Sent</option><option value="FAILED">Failed</option><option value="CANCELED">Canceled</option>
+            </select>
           </label>
+          <label>Channel
+            <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)}>
+              <option value="ALL">All channels</option>
+              {availableChannels.map((channel) => <option key={channel} value={channel}>{channel}</option>)}
+            </select>
+          </label>
+          <label>Sort
+            <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}>
+              <option value="NEWEST">Newest first</option><option value="OLDEST">Oldest first</option>
+            </select>
+          </label>
+          <span className="notifications-filter-count">{filteredRows.length} of {rows.length} notifications</span>
         </div>
 
         <div className="notifications-table-wrap">
