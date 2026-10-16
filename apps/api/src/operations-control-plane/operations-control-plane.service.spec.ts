@@ -109,4 +109,31 @@ describe('OperationsControlPlaneService', () => {
     await expect(service.listEvidence('tenant-a', 'SUBSCRIBER')).rejects.toBeInstanceOf(BadRequestException);
     expect(db.query).not.toHaveBeenCalled();
   });
+
+  it('returns an explicit empty trace instead of inferring missing evidence', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
+    const service = new OperationsControlPlaneService(db as never, { record: jest.fn() } as never);
+
+    const result = await service.evidenceTrace('tenant-a', 'SUBSCRIBER', 'subscriber-1');
+
+    expect(result.summary).toMatchObject({ evidenceCount: 0, linkCount: 0, unlinkedEvidenceCount: 0 });
+    expect(result.note).toContain('absence of evidence is not proof');
+    expect(db.query.mock.calls[0][1]).toEqual(['tenant-a', 'SUBSCRIBER', 'subscriber-1']);
+  });
+
+  it('walks explicit evidence links only within the selected tenant', async () => {
+    const db = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ id: 'evidence-1' }], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [{ id: 'evidence-1', subjectId: 'subscriber-1' }], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [{ fromEvidenceId: 'evidence-1', toEvidenceId: 'evidence-2' }], rowCount: 1 }),
+    };
+    const service = new OperationsControlPlaneService(db as never, { record: jest.fn() } as never);
+
+    const result = await service.evidenceTrace('tenant-a', 'SUBSCRIBER', 'subscriber-1');
+
+    expect(db.query.mock.calls[1][1]).toEqual(['tenant-a', ['evidence-1']]);
+    expect(db.query.mock.calls[2][1]).toEqual(['tenant-a', ['evidence-1']]);
+    expect(result.summary).toMatchObject({ evidenceCount: 1, linkCount: 1, unlinkedEvidenceCount: 0 });
+  });
 });
