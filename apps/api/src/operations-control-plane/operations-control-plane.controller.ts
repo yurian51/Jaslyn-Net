@@ -25,6 +25,11 @@ export class OperationsControlPlaneController {
   linkEvidence(@Req() r:AuthenticatedRequest,@Body() d:LinkSignatureEvidenceDto) {
     return this.service.linkEvidence(r.user!.tenantId,r.user!.id,d);
   }
+
+  @Get('evidence/trace/:subjectType/:subjectId') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
+  evidenceTrace(@Req() r:AuthenticatedRequest,@Param('subjectType') subjectType:string,@Param('subjectId') subjectId:string) {
+    return this.service.evidenceTrace(r.user!.tenantId,subjectType,subjectId);
+  }
   @Get('evidence/:id/lineage') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
   evidenceLineage(@Req() r:AuthenticatedRequest,@Param('id') id:string) {
     return this.service.evidenceLineage(r.user!.tenantId,id);
