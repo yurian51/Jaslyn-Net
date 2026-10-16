@@ -68,3 +68,23 @@
 
 ## Status convention
 Every feature must be marked `pass`, `fail`, `blocked`, or `not-run`, with owner, evidence, timestamp and tested commit. Do not label a feature end-to-end complete from documentation, a screen, a successful deploy, or compile-only checks.
+
+## Implementation progress — 2026-10-16
+
+This section records code-backed progress; it does not replace the acceptance criteria above.
+
+| Slice | Current status | Evidence / remaining gate |
+|---|---|---|
+| Tenant-scoped topology graph API | not-run | Existing operations control-plane endpoints and migration are present; integration against PostgreSQL and API auth tests are still required. |
+| Topology observation freshness | not-run | `GET /operations/topology` now reports never-observed nodes, observations older than the documented 300-second threshold, and latest observation timestamp. Unit test added; CI result not yet available. |
+| Root-cause candidate ranking | not-run | Corrected dependency depth to use nearest upstream depth instead of counting distinct depths. Result explicitly remains candidate ranking, not causal proof. Unit test added; integration evidence pending. |
+| Operations-record query validation | not-run | Unsupported status filters now fail with a 400 instead of silently returning an empty result. Unit test added; CI result pending. |
+| Cross-tenant topology edge protection | not-run | Existing insert selects both endpoints under the same tenant; negative unit test added. PostgreSQL integration test pending. |
+
+**Latest implementation commits on `feat/screenshot-derived-wifi-e2e`:**
+- `4efb473` — correct root-cause depth and validate record status filters.
+- `f08d361` — add control-plane unit tests for ranking, filter validation and tenant boundary.
+- `71b9926` — add topology observation freshness summary.
+- `358f95a` — test topology freshness reporting.
+
+**Release gate:** do not mark these slices as passing until the API typecheck/build, unit tests, migration execution on PostgreSQL, authenticated API tests, and CI run for the tested commit are confirmed.
