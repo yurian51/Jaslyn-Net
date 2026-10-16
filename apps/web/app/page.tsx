@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import LandingNav from './landing-nav';
+import SiteFooter from './site-footer';
 
 const capabilities = [
   { n: '01', title: 'Sell access', copy: 'Publish Wi-Fi packages, issue vouchers, manage subscriptions and keep customer purchases together.', tags: 'Packages · Vouchers · Billing' },
@@ -122,7 +123,7 @@ export default function Home() {
         <div><small>JASLYN NET</small><h2>Make your operation<br />easier to understand.</h2><p>Explore the platform, see how the pieces connect, and decide whether it fits your operation.</p></div>
         <div className="jn2-cta-actions"><Link href="/register" className="jn2-primary">Get started <Arrow /></Link><Link href="/faq" className="jn2-cta-link">Read common questions <Arrow /></Link></div>
       </section>
-      <footer className="jn2-footer"><Link href="/" className="jn2-footer-brand"><span className="jn2-mark">J</span> JASLYN NET</Link><div><Link href="/platform">Platform</Link><Link href="/architecture">How it works</Link><Link href="/operations">Operations</Link><Link href="/integrations">Integrations</Link><Link href="/product">Features</Link><Link href="/faq">FAQ</Link><Link href="/legal">Legal</Link></div><small>Connectivity operations, connected.</small></footer>
+      <SiteFooter />
     </main>
   );
 }
