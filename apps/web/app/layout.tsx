@@ -11,6 +11,7 @@ import './console-system-ui.css';
 import './plan-catalogue.css';
 import './dashboard/platform-subscription/platform-subscription.css';
 import './landing.css';
+import './landing-redesign.css';
 import './site-footer.css';
 import './marketing-pages.css';
 import './premium.css';
