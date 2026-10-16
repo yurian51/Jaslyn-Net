@@ -290,7 +290,7 @@ export default function NotificationsPage() {
     const columns: Array<keyof Notification> = ['id', 'eventType', 'channel', 'category', 'recipient', 'status', 'attempts', 'lastError', 'createdAt', 'updatedAt', 'sentAt', 'availableAt', 'providerMessageId'];
     const escapeCell = (value: unknown) => {
       const raw = String(value ?? '');
-      const safe = /^[=+@\\-\\t\\r]/.test(raw) ? "'" + raw : raw;
+      const safe = /^[\u0009\u000d=+\-@]/.test(raw) ? "'" + raw : raw;
       return '"' + safe.replace(/"/g, '""') + '"';
     };
     const csv = [columns.join(','), ...filteredRows.map((row) => columns.map((key) => escapeCell(row[key])).join(','))].join('\\r\\n');
