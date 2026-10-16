@@ -26,17 +26,43 @@ function Arrow() {
 
 function NetworkPreview() {
   return (
-    <div className="lp-visual" aria-label="Illustrative Jaslyn Net interface preview">
-      <div className="lp-visual-top"><div className="lp-window-dots"><i /><i /><i /></div><span>JASLYN NET / OPERATIONS OVERVIEW</span><b>CONCEPT PREVIEW</b></div>
-      <div className="lp-visual-body">
-        <aside className="lp-preview-sidebar"><div className="lp-preview-brand"><span>J</span><b>JASLYN <em>NET</em></b></div><small>WORKSPACE</small><div className="is-active">◫ &nbsp; Overview</div><div>◎ &nbsp; Subscribers</div><div>▤ &nbsp; Packages & billing</div><div>⌁ &nbsp; Network</div><div>↔ &nbsp; Payments</div><div>◷ &nbsp; Activity & audit</div><div className="lp-sidebar-foot"><span /> Illustrative data only</div></aside>
-        <div className="lp-preview-main">
-          <div className="lp-preview-title"><div><small>OPERATOR WORKSPACE</small><h3>See the whole workflow.</h3><p>A connected view of the work behind reliable access.</p></div><span>DEMO</span></div>
-          <div className="lp-preview-metrics"><div><small>SUBSCRIBERS</small><b>Customer records</b><span>Profiles · Service status</span></div><div><small>COMMERCE</small><b>Billing & payments</b><span>Orders · Reconciliation</span></div><div><small>CONNECTIVITY</small><b>Network operations</b><span>Routers · Sessions</span></div></div>
-          <div className="lp-preview-flow"><div className="lp-flow-head"><div><small>CONNECTED JOURNEY</small><b>From purchase to access</b></div><span>EXAMPLE WORKFLOW</span></div><div className="lp-flow-nodes">{steps.map((step, i) => <div key={step.n} className="lp-flow-node"><i>{step.n}</i><b>{step.title}</b><small>{i === 0 ? 'Subscriber' : i === 1 ? 'Offer' : i === 2 ? 'Verified event' : 'Policy-based'}</small></div>)}</div></div>
-          <div className="lp-preview-foot"><span><i /> Clear operational context</span><span>Not a live system status</span></div>
+    <div className="lp-visual lp-topology-visual" aria-label="Illustrative Jaslyn Net network topology and operations preview">
+      <div className="lp-visual-top"><div className="lp-window-dots"><i /><i /><i /></div><span>JASLYN NET / NETWORK INTELLIGENCE</span><b>ILLUSTRATIVE VIEW</b></div>
+      <div className="lp-topology-shell">
+        <div className="lp-topology-rail">
+          <div className="lp-topology-mark">J<span>·</span></div>
+          <span className="active">⌘</span><span>⌁</span><span>◎</span><span>⇄</span><span>◷</span>
+          <div className="lp-topology-avatar">JN</div>
+        </div>
+        <div className="lp-topology-main">
+          <div className="lp-topology-header"><div><small>NETWORK CONTROL PLANE <span> / CONCEPT</span></small><h3>One view. Connected decisions.</h3></div><span className="lp-topology-filter">ALL SITES <b>⌄</b></span></div>
+          <div className="lp-topology-summary">
+            <div><span>NETWORK SITES</span><b>Multi-site view</b><small>Sites · uplinks · edge devices</small></div>
+            <div><span>SERVICE DELIVERY</span><b>Customer to access</b><small>Plans · AAA · policy</small></div>
+            <div><span>OPERATIONS</span><b>Events with context</b><small>Changes · incidents · audit</small></div>
+          </div>
+          <div className="lp-topology-map">
+            <div className="lp-map-title"><div><small>ILLUSTRATIVE TOPOLOGY</small><b>How the pieces relate</b></div><span><i /> Conceptual connections</span></div>
+            <svg className="lp-network-svg" viewBox="0 0 620 245" role="img" aria-label="Conceptual network map connecting internet, core, sites, access points and subscribers">
+              <defs><linearGradient id="lpLine" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#91a7ff"/><stop offset="100%" stopColor="#8ee7db"/></linearGradient></defs>
+              <g fill="none" stroke="url(#lpLine)" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="4 5">
+                <path d="M310 43 V82"/><path d="M310 112 L155 151"/><path d="M310 112 L465 151"/><path d="M155 181 L70 213"/><path d="M155 181 L220 213"/><path d="M465 181 L400 213"/><path d="M465 181 L550 213"/>
+              </g>
+              <g fill="#fff" stroke="#d6e0ef" strokeWidth="1.2">
+                <rect x="250" y="9" width="120" height="34" rx="8"/><rect x="244" y="82" width="132" height="32" rx="8"/><rect x="92" y="151" width="126" height="30" rx="8"/><rect x="402" y="151" width="126" height="30" rx="8"/>
+                <rect x="24" y="213" width="92" height="25" rx="6"/><rect x="174" y="213" width="92" height="25" rx="6"/><rect x="354" y="213" width="92" height="25" rx="6"/><rect x="504" y="213" width="92" height="25" rx="6"/>
+              </g>
+              <g fill="#243b5a" fontSize="10" fontWeight="700" textAnchor="middle">
+                <text x="310" y="30">Internet / upstream</text><text x="310" y="102">Core &amp; policy</text><text x="155" y="169">Site / region A</text><text x="465" y="169">Site / region B</text>
+                <text x="70" y="229">Access point</text><text x="220" y="229">Subscribers</text><text x="400" y="229">Router / CPE</text><text x="550" y="229">Subscribers</text>
+              </g>
+              <g fill="#4e6cff" stroke="#fff" strokeWidth="2"><circle cx="310" cy="60" r="4"/><circle cx="310" cy="130" r="4"/><circle cx="155" cy="195" r="4"/><circle cx="465" cy="195" r="4"/></g>
+            </svg>
+          </div>
+          <div className="lp-topology-bottom"><span><i /> CUSTOMER</span><span>PAYMENT</span><span>ACCESS POLICY</span><span>NETWORK</span><b>Trace the relationship →</b></div>
         </div>
       </div>
+      <div className="lp-topology-disclaimer"><span>CONCEPTUAL PRODUCT PREVIEW</span><span>No live telemetry or customer data shown</span></div>
     </div>
   );
 }
