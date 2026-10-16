@@ -34,7 +34,8 @@ export class OperationsControlPlaneController {
   evidenceLineage(@Req() r:AuthenticatedRequest,@Param('id') id:string) {
     return this.service.evidenceLineage(r.user!.tenantId,id);
   }
-\n    @Get('topology') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
+
+  @Get('topology') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
   topology(@Req() r:AuthenticatedRequest){return this.service.topology(r.user!.tenantId);}
   @Post('topology/nodes') @Roles('OWNER','ADMIN','AGENT') @Permissions('network.experience.ingest')
   upsertNode(@Req() r:AuthenticatedRequest,@Body() d:UpsertTopologyNodeDto){return this.service.upsertNode(r.user!.tenantId,r.user!.id,d);}
