@@ -5,13 +5,31 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { CreateControlRecordDto, CreateTopologyEdgeDto, UpdateControlRecordDto, UpsertTopologyNodeDto } from './operations-control-plane.dto';
+import { CreateSignatureEvidenceDto, LinkSignatureEvidenceDto } from './signature-evidence.dto';
 import { OperationsControlPlaneService } from './operations-control-plane.service';
 
 @Controller('operations')
 @UseGuards(AuthGuard,RolesGuard,PermissionsGuard)
 export class OperationsControlPlaneController {
   constructor(private readonly service:OperationsControlPlaneService){}
-  @Get('topology') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
+
+  @Get('evidence') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
+  listEvidence(@Req() r:AuthenticatedRequest,@Query('subjectType') subjectType?:string,@Query('subjectId') subjectId?:string,@Query('evidenceType') evidenceType?:string) {
+    return this.service.listEvidence(r.user!.tenantId,subjectType,subjectId,evidenceType);
+  }
+  @Post('evidence') @Roles('OWNER','ADMIN','AGENT') @Permissions('network.experience.ingest')
+  createEvidence(@Req() r:AuthenticatedRequest,@Body() d:CreateSignatureEvidenceDto) {
+    return this.service.createEvidence(r.user!.tenantId,r.user!.id,d);
+  }
+  @Post('evidence/links') @Roles('OWNER','ADMIN','AGENT') @Permissions('network.experience.ingest')
+  linkEvidence(@Req() r:AuthenticatedRequest,@Body() d:LinkSignatureEvidenceDto) {
+    return this.service.linkEvidence(r.user!.tenantId,r.user!.id,d);
+  }
+  @Get('evidence/:id/lineage') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
+  evidenceLineage(@Req() r:AuthenticatedRequest,@Param('id') id:string) {
+    return this.service.evidenceLineage(r.user!.tenantId,id);
+  }
+\n    @Get('topology') @Roles('OWNER','ADMIN','AGENT','READ_ONLY') @Permissions('network.experience.read')
   topology(@Req() r:AuthenticatedRequest){return this.service.topology(r.user!.tenantId);}
   @Post('topology/nodes') @Roles('OWNER','ADMIN','AGENT') @Permissions('network.experience.ingest')
   upsertNode(@Req() r:AuthenticatedRequest,@Body() d:UpsertTopologyNodeDto){return this.service.upsertNode(r.user!.tenantId,r.user!.id,d);}
