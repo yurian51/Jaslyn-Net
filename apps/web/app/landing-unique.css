@@ -1,0 +1,70 @@
+/* Distinctive Jaslyn Net identity: topology-first hero, precise lime signal, responsive network map. */
+.lp-page{--lp-signal:#c7f36b;--lp-electric:#6b86ff}
+.lp-hero{background:#07101e}
+.lp-hero:before{background:radial-gradient(ellipse at 84% 35%,rgba(65,91,230,.25),transparent 36%),radial-gradient(ellipse at 68% 72%,rgba(135,190,105,.09),transparent 35%),linear-gradient(115deg,#07101e 0%,#0b1930 60%,#101d32 100%)}
+.lp-hero:after{opacity:.08;background-size:44px 44px;mask-image:linear-gradient(90deg,transparent,#000 36%,#000)}
+.lp-kicker>span{background:var(--lp-signal);box-shadow:0 0 0 5px #c7f36b20}
+.lp-hero h1 em{color:var(--lp-signal)}
+.lp-button-primary{background:var(--lp-signal);color:#101b2c;box-shadow:0 10px 32px #c7f36b22}
+.lp-button-primary:hover{background:#d8ff8b}
+.lp-topology-visual{border:1px solid #35465f;border-radius:15px;background:#f4f7fc;box-shadow:0 40px 110px #0006;transform:perspective(1400px) rotateY(-1.5deg)}
+.lp-topology-visual .lp-visual-top{background:#0d1b2f;border-bottom-color:#273b57;color:#a5b7d0}
+.lp-topology-visual .lp-window-dots i{background:#536883}
+.lp-topology-visual .lp-visual-top>b{border-color:#3b506d;background:#142640;color:#c7f36b}
+.lp-topology-shell{display:grid;grid-template-columns:48px minmax(0,1fr);min-height:340px}
+.lp-topology-rail{display:flex;align-items:center;flex-direction:column;gap:13px;padding:14px 0;background:#0d1b2f;border-right:1px solid #233650}
+.lp-topology-mark{display:grid;place-items:center;width:27px;height:27px;margin-bottom:9px;border-radius:8px;background:var(--lp-signal);color:#102039;font-weight:900;font-size:18px}
+.lp-topology-mark span{color:#4567ef}
+.lp-topology-rail>span{display:grid;place-items:center;width:29px;height:29px;border-radius:8px;color:#8ea3c0;font-size:15px}
+.lp-topology-rail>span.active{background:#263c5a;color:#c7f36b;box-shadow:inset 2px 0 var(--lp-signal)}
+.lp-topology-avatar{display:grid;place-items:center;width:27px;height:27px;margin-top:auto;border:1px solid #405571;border-radius:50%;color:#e1eafa;font-size:8px;font-weight:800}
+.lp-topology-main{min-width:0;padding:19px;background:#f4f7fc}
+.lp-topology-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.lp-topology-header small{color:#63758d;font-size:7px;font-weight:850;letter-spacing:.13em}
+.lp-topology-header small span{color:#4b68ec}
+.lp-topology-header h3{margin:7px 0 0;color:#142640;font-size:clamp(13px,1.35vw,18px);letter-spacing:-.045em}
+.lp-topology-filter{padding:7px 9px;border:1px solid #dbe3ef;border-radius:6px;background:#fff;color:#536780;font-size:7px;font-weight:800;white-space:nowrap}
+.lp-topology-filter b{margin-left:9px;color:#4567ef}
+.lp-topology-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:15px}
+.lp-topology-summary>div{min-width:0;padding:10px;border:1px solid #e0e7f0;border-radius:7px;background:#fff}
+.lp-topology-summary span{display:block;color:#8492a5;font-size:6px;font-weight:850;letter-spacing:.1em}
+.lp-topology-summary b{display:block;margin-top:7px;color:#233955;font-size:9px}
+.lp-topology-summary small{display:block;margin-top:4px;color:#8593a7;font-size:7px;line-height:1.4}
+.lp-topology-map{margin-top:9px;padding:11px 10px 5px;border:1px solid #dfe7f1;border-radius:8px;background:#fff}
+.lp-map-title{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.lp-map-title small{display:block;color:#7e8da2;font-size:6px;font-weight:850;letter-spacing:.12em}
+.lp-map-title b{display:block;margin-top:4px;color:#1c3150;font-size:9px}
+.lp-map-title>span{display:flex;align-items:center;gap:5px;color:#718299;font-size:6px}
+.lp-map-title>span i{width:5px;height:5px;border-radius:50%;background:#a7d85a}
+.lp-network-svg{display:block;width:100%;height:auto;max-height:185px;margin-top:2px;overflow:visible}
+.lp-topology-bottom{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:9px}
+.lp-topology-bottom span{padding:5px 6px;border:1px solid #e0e7f0;border-radius:4px;background:#fff;color:#6d7e94;font-size:6px;font-weight:850;letter-spacing:.05em}
+.lp-topology-bottom span:first-child{display:flex;align-items:center;gap:5px}
+.lp-topology-bottom span:first-child i{width:5px;height:5px;border-radius:50%;background:#a8d958}
+.lp-topology-bottom b{margin-left:auto;color:#405fe0;font-size:7px}
+.lp-topology-disclaimer{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid #dfe6f0;background:#edf2f9;color:#75859a;font-size:7px;letter-spacing:.04em}
+.lp-topology-disclaimer span:first-child{font-weight:850;color:#536987;letter-spacing:.08em}
+.lp-hero-bottom{border-top-color:#26364c}
+.lp-hero-bottom b{position:relative}
+.lp-hero-bottom b:before{content:"";display:inline-block;width:5px;height:5px;margin:0 8px 1px 0;border-radius:50%;background:var(--lp-signal)}
+.lp-feature-card:hover .lp-feature-top>i{background:#eaf6d7;color:#4a6922}
+.lp-section-label{letter-spacing:.16em}
+@media(max-width:980px){.lp-topology-shell{grid-template-columns:40px minmax(0,1fr)}.lp-topology-main{padding:14px}.lp-topology-summary>div{padding:8px}.lp-topology-summary b{font-size:8px}.lp-topology-summary small{font-size:6px}}
+@media(max-width:680px){.lp-topology-visual{transform:none}.lp-topology-shell{grid-template-columns:32px minmax(0,1fr);min-height:0}.lp-topology-rail{gap:9px;padding:10px 0}.lp-topology-rail>span{width:24px;height:24px;font-size:12px}.lp-topology-mark{width:23px;height:23px;font-size:15px}.lp-topology-main{padding:10px 8px}.lp-topology-summary{gap:4px}.lp-topology-summary>div{padding:7px 5px}.lp-topology-summary span{font-size:5px}.lp-topology-summary b{font-size:7px;line-height:1.3}.lp-topology-summary small{font-size:5px}.lp-topology-map{padding:8px 5px 3px}.lp-map-title>span{font-size:5px}.lp-network-svg{min-height:110px}.lp-topology-bottom{gap:4px}.lp-topology-bottom span{font-size:5px;padding:4px}.lp-topology-bottom b{font-size:6px}.lp-topology-disclaimer{font-size:6px;padding:8px;flex-wrap:wrap}.lp-topology-header h3{font-size:12px}.lp-topology-header small{font-size:6px}.lp-topology-filter{font-size:6px;padding:6px}}
+@media(prefers-reduced-motion:reduce){.lp-button,.lp-feature-card{transition:none}}
+
+
+/* Clear, price-honest adoption path */
+.lp-pricing{padding:clamp(70px,8vw,110px) 0;background:#f5f7fb;border-block:1px solid #e5ebf4}
+.lp-pricing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.lp-pricing-grid article{display:flex;flex-direction:column;min-height:330px;padding:25px 23px;border:1px solid #dfe7f1;border-radius:11px;background:#fff}
+.lp-pricing-grid article.lp-pricing-featured{border-color:#a8bcf7;box-shadow:0 18px 45px #1b37600d}
+.lp-plan-label{color:#5e75db;font-size:9px;font-weight:850;letter-spacing:.12em}
+.lp-pricing-grid h3{margin:18px 0 8px;color:#182d49;font-size:23px;letter-spacing:-.04em}
+.lp-pricing-grid article>p{margin:0;color:#6b7b91;font-size:12px;line-height:1.75}
+.lp-pricing-grid ul{display:grid;gap:10px;margin:20px 0 25px;padding-left:18px;color:#5d6f86;font-size:11px;line-height:1.6}
+.lp-plan-link{display:inline-flex;align-items:center;gap:10px;margin-top:auto;color:#365ee4;font-size:11px;font-weight:800}
+.lp-plan-link svg{width:16px;height:16px}
+.lp-pricing-grid .lp-button{margin-top:auto;align-self:flex-start}
+.lp-pricing-note{margin:18px 0 0;color:#78879a;font-size:10px;line-height:1.7}
+@media(max-width:760px){.lp-pricing{padding-block:62px}.lp-pricing-grid{grid-template-columns:1fr;gap:10px}.lp-pricing-grid article{min-height:0;padding:21px}.lp-pricing-grid h3{margin-top:12px}}
