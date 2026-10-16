@@ -175,7 +175,7 @@ export class OperationsControlPlaneService {
       WHERE tenant_id=$1 AND subject_type=$2 AND subject_id=$3 ORDER BY observed_at DESC LIMIT 500`,[tenantId,subjectType,subjectId]);
     if(!roots.rowCount) return {subject:{subjectType,subjectId},evidence:[],links:[],summary:{evidenceCount:0,linkCount:0,unlinkedEvidenceCount:0},generatedAt:new Date().toISOString(),note:'No evidence records were found for this subject; absence of evidence is not proof that an event did not occur.'};
     const graph=await this.db.query(`WITH RECURSIVE walk(evidence_id,depth,path) AS (
-      SELECT r.id,0,ARRAY[r.id] FROM signature_evidence r WHERE r.tenant_id=$1 AND r.id=ANY($4::uuid[])
+      SELECT r.id,0,ARRAY[r.id] FROM signature_evidence r WHERE r.tenant_id=$1 AND r.id=ANY($2::uuid[])
       UNION ALL
       SELECT edge.next_id,w.depth+1,w.path||edge.next_id
       FROM walk w
