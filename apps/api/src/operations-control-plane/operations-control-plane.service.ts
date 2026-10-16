@@ -169,6 +169,42 @@ export class OperationsControlPlaneService {
     return r.rows[0];
   }
 
+
+  async evidenceTrace(tenantId:string, subjectType:string, subjectId:string) {
+    const roots=await this.db.query(`SELECT id FROM signature_evidence
+      WHERE tenant_id=$1 AND subject_type=$2 AND subject_id=$3 ORDER BY observed_at DESC LIMIT 500`,[tenantId,subjectType,subjectId]);
+    if(!roots.rowCount) return {subject:{subjectType,subjectId},evidence:[],links:[],summary:{evidenceCount:0,linkCount:0,unlinkedEvidenceCount:0},generatedAt:new Date().toISOString(),note:'No evidence records were found for this subject; absence of evidence is not proof that an event did not occur.'};
+    const graph=await this.db.query(`WITH RECURSIVE walk(evidence_id,depth,path) AS (
+      SELECT r.id,0,ARRAY[r.id] FROM signature_evidence r WHERE r.tenant_id=$1 AND r.id=ANY($4::uuid[])
+      UNION ALL
+      SELECT edge.next_id,w.depth+1,w.path||edge.next_id
+      FROM walk w
+      JOIN LATERAL (
+        SELECT CASE WHEN l.from_evidence_id=w.evidence_id THEN l.to_evidence_id ELSE l.from_evidence_id END AS next_id
+        FROM signature_evidence_links l
+        WHERE l.tenant_id=$1 AND (l.from_evidence_id=w.evidence_id OR l.to_evidence_id=w.evidence_id)
+      ) edge ON true
+      WHERE w.depth<12 AND NOT edge.next_id=ANY(w.path)
+    ), reachable AS (
+      SELECT evidence_id,MIN(depth)::int AS depth FROM walk GROUP BY evidence_id
+    )
+    SELECT e.id,e.evidence_type AS "evidenceType",e.subject_type AS "subjectType",e.subject_id AS "subjectId",
+      e.source_type AS "sourceType",e.source_ref AS "sourceRef",e.observed_at AS "observedAt",
+      e.recorded_at AS "recordedAt",e.confidence,e.payload,reachable.depth
+    FROM reachable JOIN signature_evidence e ON e.tenant_id=$1 AND e.id=reachable.evidence_id
+    ORDER BY reachable.depth,e.observed_at DESC LIMIT 2000`,[tenantId,subjectType,subjectId,roots.rows.map((x:{id:string})=>x.id)]);
+    const ids=graph.rows.map((x:{id:string})=>x.id);
+    const links=ids.length?await this.db.query(`SELECT id,from_evidence_id AS "fromEvidenceId",to_evidence_id AS "toEvidenceId",relation,created_at AS "createdAt"
+      FROM signature_evidence_links WHERE tenant_id=$1 AND from_evidence_id=ANY($2::uuid[]) AND to_evidence_id=ANY($2::uuid[]) ORDER BY created_at LIMIT 5000`,[tenantId,ids]):{rows:[],rowCount:0};
+    const linked=new Set<string>();
+    for(const l of links.rows){linked.add(l.fromEvidenceId);linked.add(l.toEvidenceId);}
+    return {subject:{subjectType,subjectId},evidence:graph.rows,links:links.rows,
+      summary:{evidenceCount:graph.rowCount,linkCount:links.rowCount,unlinkedEvidenceCount:graph.rows.filter((e:{id:string})=>!linked.has(e.id)).length,
+        depthLimit:12,truncated:graph.rowCount>=2000||links.rowCount>=5000},
+      generatedAt:new Date().toISOString(),
+      note:'Only explicitly recorded, tenant-scoped evidence and links are shown. Unlinked evidence is surfaced rather than silently inferred.'};
+  }
+
   async evidenceLineage(tenantId:string, evidenceId:string) {
     const exists=await this.db.query('SELECT id,evidence_type AS "evidenceType",subject_type AS "subjectType",subject_id AS "subjectId",source_type AS "sourceType",observed_at AS "observedAt" FROM signature_evidence WHERE tenant_id=$1 AND id=$2',[tenantId,evidenceId]);
     if(!exists.rowCount) throw new NotFoundException('Evidence record not found in this tenant');
