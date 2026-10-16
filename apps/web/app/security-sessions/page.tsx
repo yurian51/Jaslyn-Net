@@ -125,7 +125,7 @@ export default function SecuritySessionsPage() {
     const columns: Array<keyof SessionRecord> = ['id', 'userAgent', 'ipAddress', 'createdAt', 'lastSeenAt', 'expiresAt', 'revokedAt', 'isCurrent', 'isActive'];
     const escapeCell = (value: unknown) => {
       const raw = String(value ?? '');
-      const safe = /^[=+@\\-\\t\\r]/.test(raw) ? "'" + raw : raw;
+      const safe = /^[\u0009\u000d=+\-@]/.test(raw) ? "'" + raw : raw;
       return '"' + safe.replace(/"/g, '""') + '"';
     };
     const csv = [columns.join(','), ...filteredSessions.map((session) => columns.map((key) => escapeCell(session[key])).join(','))].join('\r\n');
