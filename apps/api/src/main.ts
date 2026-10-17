@@ -21,6 +21,11 @@ async function bootstrap() {
     throw new Error('CORS_ORIGIN must be explicitly configured in production');
   }
 
+  // Behind a reverse proxy (Render) request.ip is the proxy unless told how many hops to trust. Default 0 = trust
+  // none (prevents X-Forwarded-For spoofing); set TRUST_PROXY_HOPS=1 when exactly one proxy fronts the API.
+  const proxyHops = Number(config.get<string>('TRUST_PROXY_HOPS', '0'));
+  if (Number.isInteger(proxyHops) && proxyHops > 0) app.getHttpAdapter().getInstance().set('trust proxy', proxyHops);
+
   app.enableShutdownHooks();
   app.setGlobalPrefix('api/v1');
   app.enableCors({

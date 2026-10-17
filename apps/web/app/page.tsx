@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import LandingPage from './landing/landing-page';
 import { COPY } from './landing/copy';
@@ -11,3 +12,59 @@ export const metadata: Metadata = {
 export default function Home() {
   return <LandingPage lang="en" />;
 }
+=======
+import Link from 'next/link';
+import LandingNav from './landing-nav';
+import SiteFooter from './site-footer';
+
+const vendors = ['MikroTik','TP-Link Omada','Ubiquiti UniFi','Cambium','Ruijie','Cudy','Ruckus','Cisco','Aruba','FreeRADIUS'];
+const features = [
+  ['₮','Mobile-money payment workflows','Connect payment providers through configured integrations and track payment status.','/payments'],
+  ['▤','Flexible internet packages','Organise hourly, daily, weekly and monthly offers for your service model.','/packages'],
+  ['⌁','Voucher and access management','Create and manage prepaid access workflows with clearer customer records.','/product'],
+  ['◉','Subscriber operations','Bring subscriber profiles, service status and access activity into one workspace.','/subscribers'],
+  ['⌘','Network and device visibility','Organise sites, network equipment, incidents and operational context.','/operations'],
+  ['⛓','Vendor and AAA integrations','Review adapter paths and requirements for your hardware and firmware.','/integrations'],
+  ['▥','Reports and reconciliation','Review recorded transactions and operational reports where data sources are connected.','/reports'],
+  ['◇','Roles, security and audit','Keep access permissions and important operator actions accountable.','/architecture'],
+];
+const steps = [
+  ['01','Create your workspace','Set up your organisation and the services you intend to operate.'],
+  ['02','Connect your network','Choose the appropriate router, controller or RADIUS integration path.'],
+  ['03','Configure packages and payments','Set up offers, vouchers and the payment integrations available to you.'],
+  ['04','Operate from one place','Use connected customer, payment and network information to guide daily work.'],
+];
+const plans = [
+  ['Starter','For a first hotspot or a small operation','Core subscriber, package and access workflows','/register'],
+  ['Growth','For expanding operators and multiple sites','More operational visibility and connected workflows','/register'],
+  ['Enterprise','For complex or multi-site networks','Discuss deployment, integrations and operational requirements','/contact'],
+];
+function Arrow(){return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M4 10h11M10 5l5 5-5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+function PortalPreview(){return <div className="up-clone-preview">
+  <div className="up-preview-top"><span><i/><i/><i/></span><b>JASLYN NET <small>OPERATOR WORKSPACE</small></b><label>PREVIEW</label></div>
+  <div className="up-preview-main"><aside><b>J<span>·</span></b><small>MENU</small><em>▦ Overview</em><em>◎ Subscribers</em><em>▤ Packages</em><em>↗ Payments</em><em>⌁ Network</em><em>⚙ Settings</em></aside>
+    <div className="up-preview-content"><div className="up-preview-title"><div><small>YOUR BUSINESS / OVERVIEW</small><h3>Welcome to your workspace</h3><p>Keep your service operations organised.</p></div><span>Concept preview</span></div>
+      <div className="up-preview-stats"><article><small>SUBSCRIBERS</small><b>Customer records</b><span>Profiles and access</span></article><article><small>PAYMENTS</small><b>Transaction flow</b><span>Status and follow-up</span></article><article><small>NETWORK</small><b>Sites and devices</b><span>Equipment and events</span></article></div>
+      <div className="up-preview-card"><small>ACCESS WORKFLOW</small><h4>From package to internet access</h4><div className="up-preview-flow"><b>Customer</b><i>→</i><b>Package</b><i>→</i><b>Payment</b><i>→</i><b>Access</b></div><p>Illustrative interface only — this is not live customer or network data.</p></div>
+      <div className="up-preview-status"><span>● Subscriber management</span><span>Payment workflows</span><span>Network operations</span></div>
+    </div>
+  </div>
+</div>}
+export default function Home(){return <main className="up-clone-page">
+  <LandingNav/>
+  <section className="up-clone-hero"><div className="up-clone-grid"/><div className="up-clone-wrap up-clone-hero-layout">
+    <div className="up-clone-copy"><span className="up-clone-kicker"><i/> WIFI BILLING · SUBSCRIBERS · NETWORK OPERATIONS</span><h1>Turn your network into a business you can <em>manage with confidence.</em></h1><p>Jaslyn Net brings Wi-Fi access, subscriber operations, packages, payment workflows and network integrations into one workspace for hotspot operators, ISPs and managed networks.</p><div className="up-clone-actions"><Link href="/register" className="up-clone-btn up-clone-primary">Get started <Arrow/></Link><Link href="/platform" className="up-clone-btn up-clone-secondary">Explore the platform</Link></div><div className="up-clone-assurance"><b>BUILT FOR DAY-TO-DAY OPERATIONS</b><span>✓ Subscriber workflows</span><span>✓ Package management</span><span>✓ Network integrations</span></div></div>
+    <div className="up-clone-art"><PortalPreview/></div>
+  </div><div className="up-clone-hero-foot"><span>CONNECT YOUR SERVICES. SEE THE BIGGER PICTURE.</span><span>JASLYN NET · YURIAN TECH LTD</span></div></section>
+  <section className="up-clone-vendors"><div className="up-clone-wrap"><div className="up-clone-vendor-head"><small>MADE FOR MIXED-VENDOR NETWORKS</small><h2>Work with the infrastructure you already run.</h2></div><div className="up-clone-vendor-list">{vendors.map(v=><span key={v}>{v}</span>)}</div><p>Compatibility depends on device model, firmware, configuration and the available adapter. Confirm the specific integration path before enabling production actions.</p></div></section>
+  <section className="up-clone-proof"><div className="up-clone-wrap up-clone-proof-grid"><div><small>ONE CONNECTED WORKSPACE</small><h2>Less guesswork. Clearer daily operations.</h2></div><article><b>01</b><h3>Customer context</h3><p>Bring subscriber records and service workflows together.</p></article><article><b>02</b><h3>Payment visibility</h3><p>Follow recorded payment events and reconciliation work.</p></article><article><b>03</b><h3>Network context</h3><p>Organise devices, sites and incident information.</p></article></div></section>
+  <section className="up-clone-wrap up-clone-old"><div><span className="up-clone-label">THE CHALLENGE</span><h2>Manual hotspot operations become harder as you grow.</h2><p>Disconnected tools and scattered records can make everyday work slower.</p></div><div className="up-clone-pain-grid"><article><span>◷</span><h3>Too much repetitive work</h3><p>Switching between tools to configure services and follow up customer issues adds overhead.</p></article><article><span>▧</span><h3>Records spread everywhere</h3><p>Separate voucher, package and payment records make it harder to understand what happened.</p></article><article><span>⌁</span><h3>Issues discovered late</h3><p>Without a shared operational picture, teams may rely on customer reports to spot problems.</p></article></div></section>
+  <section className="up-clone-features"><div className="up-clone-wrap"><div className="up-clone-section-head"><div><span className="up-clone-label">PLATFORM CAPABILITIES</span><h2>The building blocks for running your network business.</h2></div><p>Explore the workflows available in Jaslyn Net. Features that require an external device or provider depend on its integration being configured and verified.</p></div><div className="up-clone-feature-grid">{features.map((f,i)=><article key={f[1]}><div className="up-clone-feature-top"><span>{f[0]}</span><small>0{i+1}</small></div><h3>{f[1]}</h3><p>{f[2]}</p><Link href={f[3]}>Explore capability <Arrow/></Link></article>)}</div></div></section>
+  <section className="up-clone-how"><div className="up-clone-wrap"><div className="up-clone-section-head"><div><span className="up-clone-label">HOW TO GET STARTED</span><h2>Four practical steps to set up your operation.</h2></div><p>Start with your operating model, then connect the services and integrations your environment supports.</p></div><div className="up-clone-steps">{steps.map((s,i)=><article key={s[0]}><b>{s[0]}</b><span>{['◎','⌁','▤','↗'][i]}</span><h3>{s[1]}</h3><p>{s[2]}</p></article>)}</div><div className="up-clone-terminal"><div><i/><i/><i/><span>NETWORK SETUP · CONCEPT</span></div><code><span>$</span> review integration requirements<br/><span>✓</span> select your router or RADIUS path<br/><span>✓</span> configure access and package rules<br/><span>→</span> verify connectivity before production</code><p>Setup steps vary by vendor, model, firmware and network design. This illustration is not an executable router command.</p></div></div></section>
+  <section className="up-clone-pricing"><div className="up-clone-wrap"><div className="up-clone-section-head"><div><span className="up-clone-label">FLEXIBLE FOR YOUR OPERATION</span><h2>A setup that can grow with your network.</h2></div><p>Choose the operating scope that fits your needs. Confirm available plans, limits and commercial terms with the Jaslyn Net team.</p></div><div className="up-clone-plan-grid">{plans.map((p,i)=><article className={i===1?'up-clone-plan-featured':''} key={p[0]}>{i===1&&<small className="up-clone-popular">GROWING OPERATIONS</small>}<h3>{p[0]}</h3><p>{p[1]}</p><div className="up-clone-plan-rule"/><b>{p[2]}</b><Link href={p[3]} className="up-clone-plan-link">{i===2?'Talk to the team':'Get started'} <Arrow/></Link></article>)}</div></div></section>
+  <section className="up-clone-trust"><div className="up-clone-wrap up-clone-trust-layout"><div><span className="up-clone-label">BUILT AROUND OPERATIONAL CLARITY</span><h2>Your network. Your integrations. Your operating decisions.</h2><p>Jaslyn Net is designed to bring important workflows together while keeping integration requirements visible.</p></div><div className="up-clone-trust-points"><article><b>◇</b><div><h3>Clear integration boundaries</h3><p>Device and payment capabilities should be enabled only after the relevant connection is configured and verified.</p></div></article><article><b>⌁</b><div><h3>Network-aware workflows</h3><p>Keep customer, service and device context easier to follow across your operation.</p></div></article><article><b>✓</b><div><h3>Accountable operations</h3><p>Use appropriate access controls and records for operational actions.</p></div></article></div></div></section>
+  <section className="up-clone-faq"><div className="up-clone-wrap up-clone-faq-layout"><div><span className="up-clone-label">COMMON QUESTIONS</span><h2>Know what to expect before you connect.</h2><p>Check integration requirements and deployment scope before production use.</p><Link href="/faq">Read all FAQs <Arrow/></Link></div><div className="up-clone-faq-list"><details><summary>Which routers and vendors are supported?</summary><p>Jaslyn Net documents multiple vendor and AAA integration paths. Exact support depends on adapter availability, device model, firmware and configuration.</p></details><details><summary>Does the dashboard preview show live data?</summary><p>No. The visual in this landing page is illustrative. Live information requires the relevant backend, permissions and device or provider connections.</p></details><details><summary>Can I use vouchers and online payments?</summary><p>Jaslyn Net has package, access and payment workflow surfaces. Confirm the specific voucher and provider integrations available in your deployment.</p></details><details><summary>How do I choose an integration?</summary><p>Start with your device model, firmware, network design and provider documentation, then verify the integration path before enabling production actions.</p></details></div></div></section>
+  <section className="up-clone-final"><div className="up-clone-wrap"><div><span className="up-clone-label">READY TO GET ORGANISED?</span><h2>Bring your subscriber, payment and network workflows into focus.</h2><p>Explore Jaslyn Net and review the setup that fits your operation.</p></div><div><Link href="/register" className="up-clone-btn up-clone-primary">Create a workspace <Arrow/></Link><Link href="/integrations" className="up-clone-text-link">Explore integrations <Arrow/></Link></div></div></section>
+  <SiteFooter/>
+</main>}
+

@@ -11,6 +11,8 @@ import './console-system-ui.css';
 import './plan-catalogue.css';
 import './dashboard/platform-subscription/platform-subscription.css';
 import './landing.css';
+import './landing-redesign.css';
+import './site-footer.css';
 import './marketing-pages.css';
 import './premium.css';
 import './enterprise-presence.css';
@@ -26,6 +28,8 @@ import './isp/isp.css';
 import './purchases/purchases.css';
 import './sales/sales.css';
 import './landing-world-class.css';
+import './landing-unique.css';
+import './jaslyn-upesilipa-inspired.css';
 import ConsoleChrome from './console-chrome';
 
 export const viewport: Viewport = { themeColor: '#101525', colorScheme: 'light' };

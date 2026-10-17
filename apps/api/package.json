@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "jest --runInBand",
     "typecheck": "tsc --noEmit",
-    "benchmark": "pnpm build && node benchmarks/traffic.benchmark.cjs"
+    "benchmark": "pnpm build && node benchmarks/traffic.benchmark.cjs",
+    "migrate:bundle": "pnpm build && node dist/database/bundle-migrations.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
