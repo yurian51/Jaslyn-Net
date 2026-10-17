@@ -1,3 +1,18 @@
+
+import type { Metadata } from 'next';
+import LandingPage from './landing/landing-page';
+import { COPY } from './landing/copy';
+
+export const metadata: Metadata = {
+  title: COPY.en.meta.title,
+  description: COPY.en.meta.description,
+  alternates: { languages: { en: '/', sw: '/sw' } },
+};
+
+export default function Home() {
+  return <LandingPage lang="en" />;
+}
+=======
 import Link from 'next/link';
 import LandingNav from './landing-nav';
 import SiteFooter from './site-footer';
@@ -52,3 +67,4 @@ export default function Home(){return <main className="up-clone-page">
   <section className="up-clone-final"><div className="up-clone-wrap"><div><span className="up-clone-label">READY TO GET ORGANISED?</span><h2>Bring your subscriber, payment and network workflows into focus.</h2><p>Explore Jaslyn Net and review the setup that fits your operation.</p></div><div><Link href="/register" className="up-clone-btn up-clone-primary">Create a workspace <Arrow/></Link><Link href="/integrations" className="up-clone-text-link">Explore integrations <Arrow/></Link></div></div></section>
   <SiteFooter/>
 </main>}
+
