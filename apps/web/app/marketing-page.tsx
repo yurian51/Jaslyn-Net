@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import BrandLogo from './brand-logo';
+import SiteShell from './landing/site-chrome';
 
 type PageKey = 'platform' | 'architecture' | 'operations' | 'integrations' | 'product' | 'faq';
 
@@ -13,12 +13,11 @@ const navItems: Array<[PageKey, string]> = [
 ];
 
 const content: Record<PageKey, {
-  eyebrow: string; title: string; intro: string; plain: string;
+  title: string; intro: string; plain: string;
   sections: Array<{ title: string; copy: string; bullets: string[] }>;
   next: PageKey;
 }> = {
   platform: {
-    eyebrow: 'JASLYN NET / PLATFORM',
     title: 'Run your connectivity business from one workspace.',
     intro: 'JASLYN NET brings customer records, internet packages, payments, network access and support operations into one place.',
     plain: 'In simple terms: register customers, manage the internet service they buy, connect verified payment events to service access, and help your team understand what is happening on the network.',
@@ -30,7 +29,6 @@ const content: Record<PageKey, {
     next: 'architecture',
   },
   architecture: {
-    eyebrow: 'JASLYN NET / HOW IT WORKS',
     title: 'Follow the customer journey from purchase to connection.',
     intro: 'The platform is organised around the real steps required to deliver internet service, rather than treating every tool as a disconnected dashboard.',
     plain: 'A typical workflow is: customer → package or service → payment verification → access entitlement → network session. The exact automation depends on which providers and adapters are configured.',
@@ -42,7 +40,6 @@ const content: Record<PageKey, {
     next: 'operations',
   },
   operations: {
-    eyebrow: 'JASLYN NET / OPERATIONS',
     title: 'Help your team see what needs attention—and why.',
     intro: 'Operational pages bring network context, customer impact and follow-up actions closer together.',
     plain: 'This is where a team checks devices and sessions, investigates incidents, reviews audit events, and coordinates maintenance. Real telemetry depends on the connected device adapters and data feeds.',
@@ -54,7 +51,6 @@ const content: Record<PageKey, {
     next: 'integrations',
   },
   integrations: {
-    eyebrow: 'JASLYN NET / INTEGRATIONS',
     title: 'Connect the network equipment you already use.',
     intro: 'The integration model is built around vendor adapters, controller APIs, gateways and standard AAA workflows.',
     plain: 'Important: seeing a vendor listed does not mean every device model, API operation, or live telemetry path has been verified. Confirm adapter coverage and test against your actual hardware before production cutover.',
@@ -66,7 +62,6 @@ const content: Record<PageKey, {
     next: 'product',
   },
   product: {
-    eyebrow: 'JASLYN NET / FEATURES',
     title: 'Separate tools for separate jobs, connected by one workspace.',
     intro: 'Each feature area has its own route so users can open it directly, bookmark it and return to it without being forced through a long single page.',
     plain: 'Public product pages explain what each area is for. The authenticated console contains the actual workspace data and actions permitted to the signed-in user.',
@@ -78,7 +73,6 @@ const content: Record<PageKey, {
     next: 'faq',
   },
   faq: {
-    eyebrow: 'JASLYN NET / FAQ',
     title: 'Clear answers before you start.',
     intro: 'A quick guide to what the platform does, where to begin and what should be verified before a production rollout.',
     plain: 'JASLYN NET is an operating platform for WiFi providers, ISPs and managed network teams—not a guarantee that every vendor integration or payment provider is enabled by default.',
@@ -94,24 +88,36 @@ const content: Record<PageKey, {
 export default function MarketingPage({ page }: { page: PageKey }) {
   const item = content[page];
   const nextLabel = navItems.find(([key]) => key === item.next)?.[1] ?? 'Next';
+  const nextHref = '/' + item.next;
   return (
-    <main className="jn-detail">
-      <header className="jn-detail-nav">
-        <Link href="/" className="jn-detail-brand" aria-label="JASLYN NET home"><BrandLogo alt="" /><b>JASLYN NET</b></Link>
-        <nav aria-label="Main navigation">{navItems.map(([key, label]) => <Link key={key} href={key === 'product' ? '/product' : key === 'faq' ? '/faq' : '/' + key} aria-current={key === page ? 'page' : undefined}>{label}</Link>)}</nav>
-        <div className="jn-detail-actions"><Link href="/login">Sign in</Link><Link className="jn-detail-cta" href="/register">Get started ↗</Link></div>
-      </header>
-      <section className="jn-detail-hero">
-        <p className="jn-detail-eyebrow">{item.eyebrow}</p>
-        <h1>{item.title}</h1>
-        <p className="jn-detail-intro">{item.intro}</p>
-        <div className="jn-detail-plain"><strong>In plain language</strong><p>{item.plain}</p></div>
-        <div className="jn-detail-hero-actions"><Link href="/register" className="jn-detail-cta">Create a workspace ↗</Link><Link href="/login" className="jn-detail-secondary">Sign in to your workspace</Link></div>
+    <SiteShell current={'/' + page}>
+      <section className="jl-pagehead" aria-labelledby="jl-page-h1">
+        <div className="jl-wrap">
+          <h1 id="jl-page-h1">{item.title}</h1>
+          <p className="jl-lead">{item.intro}</p>
+          <p className="jl-caveat"><strong>In plain language. </strong>{item.plain}</p>
+          <div className="jl-actions">
+            <Link href="/register" className="jl-btn">Create a workspace</Link>
+            <Link href="/login" className="jl-btn jl-btn-ghost">Sign in</Link>
+          </div>
+        </div>
       </section>
-      <section className="jn-detail-sections" aria-label={item.eyebrow}>
-        {item.sections.map((section, index) => <article key={section.title}><span>0{index + 1}</span><div><h2>{section.title}</h2><p>{section.copy}</p><ul>{section.bullets.map(bullet => <li key={bullet}>{bullet}</li>)}</ul></div></article>)}
+      <section className="jl-pagerows" aria-label={item.title}>
+        <div className="jl-wrap">
+          {item.sections.map((section) => (
+            <div className="jl-pagerow" key={section.title}>
+              <div><h2 className="jl-h3x">{section.title}</h2><p>{section.copy}</p></div>
+              <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>
+            </div>
+          ))}
+        </div>
       </section>
-      <footer className="jn-detail-footer"><Link href="/">← Back to home</Link><p>© 2026 JASLYN NET · Connectivity operations platform</p><Link href={item.next === 'product' ? '/product' : '/' + item.next}>Next: {nextLabel} →</Link></footer>
-    </main>
+      <section className="jl-pagenext">
+        <div className="jl-wrap jl-pagenext-in">
+          <Link href="/" className="jl-textlink">Back to home</Link>
+          <Link href={nextHref} className="jl-nextlink">Next: {nextLabel}</Link>
+        </div>
+      </section>
+    </SiteShell>
   );
 }

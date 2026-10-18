@@ -2,10 +2,12 @@ import Link from 'next/link';
 import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/instrument-sans';
 import './landing.css';
+import './pages.css';
+import { SiteFooter } from './site-chrome';
 import LandingHeader from './landing-header';
 import PortalDemo from './portal-demo';
 import { COPY, MOBILE_MONEY, VENDORS, type Lang } from './copy';
-import { CONTACT, PLANS } from './site-config';
+import { PLANS } from './site-config';
 
 export default function LandingPage({ lang }: { lang: Lang }) {
   const t = COPY[lang];
@@ -127,16 +129,7 @@ export default function LandingPage({ lang }: { lang: Lang }) {
         </section>
       </main>
 
-      <footer className="jl-footer">
-        <div className="jl-wrap jl-footer-in">
-          <p><strong>JASLYN NET</strong><br />{t.footer.tagline}</p>
-          <nav aria-label="Footer">{t.footer.links.map(([href, label]) => <Link key={href} href={href}>{label}</Link>)}</nav>
-          {CONTACT && (CONTACT.email || CONTACT.whatsapp) ? (
-            <p className="jl-contact">{CONTACT.email && <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>}{CONTACT.whatsapp && <a href={`https://wa.me/${CONTACT.whatsapp.replace(/\D/g, '')}`}>WhatsApp</a>}</p>
-          ) : null}
-          <small>{t.footer.legal}</small>
-        </div>
-      </footer>
+      <SiteFooter lang={lang} sampleNote />
     </div>
   );
 }
