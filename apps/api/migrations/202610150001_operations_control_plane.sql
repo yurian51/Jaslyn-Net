@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS operations_control_records (
   title text NOT NULL, description text, resource_type text, resource_id uuid, customer_id uuid,
   due_at timestamptz, idempotency_key text, payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_by uuid, updated_by uuid, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id,id),
   UNIQUE (tenant_id,record_type,idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS operations_control_records_tenant_type_status_idx ON operations_control_records(tenant_id,record_type,status,created_at DESC);
