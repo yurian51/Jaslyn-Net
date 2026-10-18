@@ -6,8 +6,9 @@ import './pages.css';
 import { SiteFooter } from './site-chrome';
 import LandingHeader from './landing-header';
 import PortalDemo from './portal-demo';
-import { COPY, MOBILE_MONEY, VENDORS, type Lang } from './copy';
+import { COPY, MOBILE_MONEY, type Lang } from './copy';
 import { PLANS } from './site-config';
+import { PaymentBrandList, VendorLogoWall, paymentLogoMap } from './brand-logos';
 
 export default function LandingPage({ lang }: { lang: Lang }) {
   const t = COPY[lang];
@@ -26,10 +27,10 @@ export default function LandingPage({ lang }: { lang: Lang }) {
               </div>
               <div className="jl-rails">
                 <p>{t.hero.rails}</p>
-                <ul>{MOBILE_MONEY.map((m) => <li key={m}>{m}</li>)}</ul>
+                <PaymentBrandList names={MOBILE_MONEY} />
               </div>
             </div>
-            <PortalDemo t={t.demo} />
+            <PortalDemo t={t.demo} logos={paymentLogoMap(t.demo.methods)} />
           </div>
         </section>
 
@@ -68,7 +69,7 @@ export default function LandingPage({ lang }: { lang: Lang }) {
             </div>
             <div className="jl-hardware-side">
               <h3 className="jl-h3">{t.hardware.vendorsLabel}</h3>
-              <ul className="jl-vendors">{VENDORS.map((v) => <li key={v}>{v}</li>)}</ul>
+              <VendorLogoWall />
               <div className="jl-radius"><h3 className="jl-h3">{t.hardware.radiusLabel}</h3><p>{t.hardware.radiusBody}</p></div>
             </div>
           </div>
@@ -79,7 +80,7 @@ export default function LandingPage({ lang }: { lang: Lang }) {
             <h2 id="jl-pay-h" className="jl-h2">{t.payments.h2}</h2>
             <p className="jl-sub">{t.payments.lead}</p>
             <ol className="jl-flow">{t.payments.flow.map(([h, p]) => <li key={h}><h3>{h}</h3><p>{p}</p></li>)}</ol>
-            <div className="jl-methods"><h3 className="jl-h3">{t.payments.methodsLabel}</h3><ul>{MOBILE_MONEY.map((m) => <li key={m}>{m}</li>)}</ul></div>
+            <div className="jl-methods"><h3 className="jl-h3">{t.payments.methodsLabel}</h3><PaymentBrandList names={MOBILE_MONEY} size="lg" /></div>
             <p className="jl-note">{t.payments.note}</p>
           </div>
         </section>
