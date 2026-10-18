@@ -18,7 +18,6 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState('');
-  const [recoveryHelp, setRecoveryHelp] = useState(false);
 
   useEffect(() => { if (getAccessToken()) router.replace('/dashboard'); }, [router]);
 
@@ -26,7 +25,6 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
     setFieldError('');
-    setRecoveryHelp(false);
     if (!EMAIL_PATTERN.test(email.trim())) {
       setFieldError('Enter a valid email address.');
       return;
@@ -65,7 +63,6 @@ export default function LoginPage() {
             <div className="jl-auth-head"><h2>Sign in</h2><p>Sign in to your Jaslyn Net workspace.</p></div>
             {fieldError && <div className="jl-auth-error" role="alert">{fieldError}</div>}
             {error && <div className="jl-auth-error" role="alert">{error}</div>}
-            {recoveryHelp && <div className="jl-auth-recovery" role="status">Self-service password recovery is not enabled yet. Please contact your workspace administrator to reset your password securely.</div>}
             <label htmlFor="login-email">Email address
               <input id="login-email" type="email" autoComplete="username" inputMode="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="operator@company.com" aria-invalid={Boolean(fieldError && !EMAIL_PATTERN.test(email.trim()))} />
             </label>
@@ -77,7 +74,7 @@ export default function LoginPage() {
             </label>
             <div className="jl-auth-options">
               <label className="jl-remember"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} /> <span>Remember me</span></label>
-              <button className="jl-textbtn" type="button" onClick={() => { setRecoveryHelp(true); setError(''); setFieldError(''); }}>Forgot password?</button>
+              <button className="jl-textbtn" type="button" onClick={() => router.push('/forgot-password')}>Forgot password?</button>
             </div>
             <button className="jl-btn jl-auth-submit" type="submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
             <p className="jl-auth-security"><span>●</span> Sign-in is verified by the Jaslyn Net API. Never share your password.</p>
