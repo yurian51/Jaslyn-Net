@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
-import BrandLogo from '../brand-logo';
+import SiteShell from '../landing/site-chrome';
 
 type RegisterResponse = { accessToken: string; user: { fullName: string; email: string; role: string }; tenant: { name: string } };
 
@@ -69,59 +69,54 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-shell" aria-label="Create Jaslyn Net workspace">
-        <div className="auth-brand-block"><BrandLogo className="auth-brand-logo" alt="JASLYN NET official logo" /></div>
-        <div className="auth-layout">
-          <div className="auth-intro"><span className="auth-kicker">NEW OPERATIONS WORKSPACE</span><h1>Put your network<br />under one control plane.</h1><p>Create a tenant workspace for subscribers, packages, network devices, sessions, billing and operations.</p><div className="auth-capabilities"><span><i /> Tenant-isolated operations</span><span><i /> Network and billing control</span><span><i /> Secure operator identity</span></div></div>
-          <form className="auth-card" onSubmit={submit} noValidate>
-            <div className="auth-card-head"><span>WORKSPACE SETUP</span><h2>Create workspace</h2><p>Your first account becomes the workspace owner.</p></div>
-            {error && <div className="auth-error" role="alert">{error}</div>}
+    <SiteShell mainClass="jl-auth-main"><section className="jl-auth" aria-label="Create Jaslyn Net workspace">
+        <div className="jl-auth-grid">
+          <div className="jl-auth-intro"><h1>Create your workspace.</h1><p>Your first account becomes the workspace owner. Your data is kept separate from every other operator.</p><ul><li>A workspace of your own</li><li>Start with vouchers, add online payments later</li><li>Staff roles and an audit trail</li></ul><p className="jl-auth-alt">Already have an account? <a href="/login">Sign in</a></p></div>
+          <form className="jl-auth-card" onSubmit={submit} noValidate>
+            <div className="jl-auth-head"><h2>Create workspace</h2><p>Tell us about your business and set the owner login.</p></div>
+            {error && <div className="jl-auth-error" role="alert">{error}</div>}
             <label htmlFor="reg-business">Business / network name
               <input id="reg-business" required minLength={2} maxLength={160} value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Example ISP" aria-invalid={!!fieldErrors.businessName} aria-describedby={fieldErrors.businessName ? 'reg-business-error' : undefined} />
             </label>
-            {fieldErrors.businessName && <p className="field-error" id="reg-business-error" role="alert">{fieldErrors.businessName}</p>}
+            {fieldErrors.businessName && <p className="jl-field-error" id="reg-business-error" role="alert">{fieldErrors.businessName}</p>}
 
             <label htmlFor="reg-fullname">Your full name
               <input id="reg-fullname" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Network administrator" aria-invalid={!!fieldErrors.fullName} aria-describedby={fieldErrors.fullName ? 'reg-fullname-error' : undefined} />
             </label>
-            {fieldErrors.fullName && <p className="field-error" id="reg-fullname-error" role="alert">{fieldErrors.fullName}</p>}
+            {fieldErrors.fullName && <p className="jl-field-error" id="reg-fullname-error" role="alert">{fieldErrors.fullName}</p>}
 
             <label htmlFor="reg-email">Email address
               <input id="reg-email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@example.com" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'reg-email-error' : undefined} />
             </label>
-            {fieldErrors.email && <p className="field-error" id="reg-email-error" role="alert">{fieldErrors.email}</p>}
+            {fieldErrors.email && <p className="jl-field-error" id="reg-email-error" role="alert">{fieldErrors.email}</p>}
 
             <label htmlFor="reg-password">Password
-              <div className="auth-password">
-                <input id="reg-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 12 characters" aria-invalid={!!fieldErrors.password} aria-describedby="reg-password-strength" />
+              <div className="jl-auth-password">
+                <input id="reg-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 12 characters" aria-invalid={!!fieldErrors.password} aria-describedby="reg-jl-strength" />
                 <button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
               </div>
             </label>
             {password.length > 0 && (
-              <div className="password-strength" id="reg-password-strength" aria-live="polite">
-                <div className="password-strength-bar"><i className={`strength-${strength.score}`} style={{ width: `${strength.score * 25}%` }} /></div>
+              <div className="jl-strength" id="reg-jl-strength" aria-live="polite">
+                <div className="jl-strength-bar"><i className={`jl-strength-${strength.score}`} style={{ width: `${strength.score * 25}%` }} /></div>
                 <span>{strength.label}</span>
               </div>
             )}
-            {fieldErrors.password && <p className="field-error" role="alert">{fieldErrors.password}</p>}
+            {fieldErrors.password && <p className="jl-field-error" role="alert">{fieldErrors.password}</p>}
 
             <label htmlFor="reg-confirm-password">Confirm password
-              <div className="auth-password">
+              <div className="jl-auth-password">
                 <input id="reg-confirm-password" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" aria-invalid={!!fieldErrors.confirmPassword} aria-describedby={fieldErrors.confirmPassword ? 'reg-confirm-error' : undefined} />
                 <button type="button" onClick={() => setShowConfirmPassword(v => !v)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
               </div>
             </label>
-            {fieldErrors.confirmPassword && <p className="field-error" id="reg-confirm-error" role="alert">{fieldErrors.confirmPassword}</p>}
+            {fieldErrors.confirmPassword && <p className="jl-field-error" id="reg-confirm-error" role="alert">{fieldErrors.confirmPassword}</p>}
 
-            <label className="legal-consent"><input type="checkbox" required checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} /><span>I agree to the <a href="/legal/terms" target="_blank" rel="noreferrer">Terms of Use</a>.</span></label>
-            <label className="legal-consent"><input type="checkbox" required checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} /><span>I acknowledge the <a href="/legal/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>.</span></label>
-            <button className="auth-submit" disabled={busy || !acceptTerms || !acceptPrivacy}>{busy ? 'Creating workspace…' : 'Create Jaslyn Net workspace'}</button>
-            <p className="auth-security"><span>●</span> Your owner account is isolated to the workspace you create.</p>
+            <label className="jl-consent"><input type="checkbox" required checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} /><span>I agree to the <a href="/legal/terms" target="_blank" rel="noreferrer">Terms of Use</a>.</span></label>
+            <label className="jl-consent"><input type="checkbox" required checked={acceptPrivacy} onChange={e => setAcceptPrivacy(e.target.checked)} /><span>I acknowledge the <a href="/legal/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>.</span></label>
+            <button className="jl-btn jl-auth-submit" disabled={busy || !acceptTerms || !acceptPrivacy}>{busy ? 'Creating workspace…' : 'Create Jaslyn Net workspace'}</button>
+            <p className="jl-auth-security"><span>●</span> Your owner account is isolated to the workspace you create.</p>
           </form>
-        </div>
-        <footer className="auth-footer"><span>JASLYN NET</span><span><a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/cookies">Cookies</a> · <a href="/legal">Legal Center</a> · Already have an account? <a href="/login">Sign in</a></span></footer>
-      </section>
-    </main>
+        </div></section></SiteShell>
   );
 }
