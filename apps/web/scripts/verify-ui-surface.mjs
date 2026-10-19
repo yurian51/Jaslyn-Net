@@ -53,6 +53,16 @@ const smsWorker = read('apps/api/src/notifications/notifications.worker.ts');
 const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
 const smsCampaignMigration = read('apps/api/migrations/061_sms_campaigns.sql');
 
+// Shared UI system contracts: keep accessibility and failure states covered by the existing
+// repository verification script without introducing a separate test-runner dependency.
+const uiButton = read('apps/web/app/components/ui/button.tsx');
+const uiFields = read('apps/web/app/components/ui/field.tsx');
+const uiTable = read('apps/web/app/components/ui/data-table.tsx');
+const uiFeedback = read('apps/web/app/components/ui/feedback.tsx');
+const uiExports = read('apps/web/app/components/ui/index.ts');
+const uiStyles = read('apps/web/app/components/ui/ui.css');
+const uiGallery = read('apps/web/app/ui-kit/page.tsx');
+
 const required = [
   ['internal console uses public-site surface and accent tokens', read('apps/web/app/console-chrome.css').includes('--console-bg: #f6f8fb;') && read('apps/web/app/console-chrome.css').includes('--console-blue: #3b6fd1;')],
   ['internal console has keyboard focus and reduced-motion rules', read('apps/web/app/console-chrome.css').includes('.console-chrome-content :is(a, button, [role="button"]):focus-visible') && read('apps/web/app/console-chrome.css').includes('@media (prefers-reduced-motion: reduce)')],

@@ -1,10 +1,14 @@
 import { SignJWT } from 'jose';
+ fix/internal-pages-brand-consistency
 import type { IncomingMessage } from 'node:http';
+
+ main
 import { CommunicationWebSocket } from './communication.websocket';
 
 describe('CommunicationWebSocket session authorization', () => {
   const secret = 'x'.repeat(64);
 
+fix/internal-pages-brand-consistency
   async function accessToken() {
     return new SignJWT({
       sub: 'user-1',
@@ -12,6 +16,17 @@ describe('CommunicationWebSocket session authorization', () => {
       tenantId: 'tenant-1',
       role: 'OWNER',
     })
+
+  async function token(includeSessionId = true) {
+    const claims: Record<string, string> = {
+      sub: 'user-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+    };
+    if (includeSessionId) claims.sid = '11111111-1111-4111-8111-111111111111';
+
+    return new SignJWT(claims)
+ main
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setIssuer('jaslyn-net')
       .setAudience('jaslyn-net-api')

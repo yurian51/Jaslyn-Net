@@ -7,7 +7,7 @@ import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
-type SocketContext = { tenantId: string; userId: string; role: string };
+type SocketContext = { tenantId: string; userId: string; role: string; sessionId: string };
 
 @Injectable()
 export class CommunicationWebSocket implements OnModuleDestroy {
@@ -51,6 +51,9 @@ export class CommunicationWebSocket implements OnModuleDestroy {
         if (now - (this.lastPong.get(client) ?? 0) > 75_000) { client.terminate(); continue; }
         if (client.readyState === WebSocket.OPEN) client.ping();
       }
+      // Existing connections must also stop receiving events after logout or
+      // revocation. One batched lookup avoids an N+1 query per connected socket.
+      void this.closeInactiveSessions();
     }, 30_000);
     this.realtime.subscribe((event) => this.broadcast(event));
   }
