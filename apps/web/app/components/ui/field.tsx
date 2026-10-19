@@ -56,8 +56,8 @@ export function SelectField({ label, hint, error, id, required, className = '', 
         id={controlId}
         className={['jn-input', 'jn-select', error && 'jn-input--error'].filter(Boolean).join(' ')}
         required={required}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={descriptionId}
+        aria-invalid={error ? true : ariaInvalid}
+        aria-describedby={[descriptionId, describedBy].filter(Boolean).join(' ') || undefined}
       >
         {children}
       </select>
@@ -85,8 +85,8 @@ export function TextareaField({ label, hint, error, id, required, className = ''
         id={controlId}
         className={['jn-input', 'jn-textarea', error && 'jn-input--error'].filter(Boolean).join(' ')}
         required={required}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={descriptionId}
+        aria-invalid={error ? true : ariaInvalid}
+        aria-describedby={[descriptionId, describedBy].filter(Boolean).join(' ') || undefined}
       />
       {(hint || error) && (
         <p id={descriptionId} className={error ? 'jn-field__error' : 'jn-field__hint'}>
