@@ -33,6 +33,6 @@ describe('AuthGuard server-side session revocation', () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) } as any;
     const guard = new AuthGuard({ get: jest.fn().mockReturnValue(secret) } as any, db);
 
-    await expect(guard.canActivate(context(`Bearer ${await token()}`) as any)).rejects.toThrow('Invalid or expired access token');
+    await expect(guard.canActivate(context(`Bearer ${await token()}`) as any)).rejects.toThrow('Session has been revoked or expired');
   });
 });

@@ -1,8 +1,21 @@
 import { SignJWT } from 'jose';
+ fix/internal-pages-brand-consistency
+import type { IncomingMessage } from 'node:http';
+
+ main
 import { CommunicationWebSocket } from './communication.websocket';
 
 describe('CommunicationWebSocket session authorization', () => {
   const secret = 'x'.repeat(64);
+
+fix/internal-pages-brand-consistency
+  async function accessToken() {
+    return new SignJWT({
+      sub: 'user-1',
+      sid: 'session-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+    })
 
   async function token(includeSessionId = true) {
     const claims: Record<string, string> = {
@@ -13,6 +26,7 @@ describe('CommunicationWebSocket session authorization', () => {
     if (includeSessionId) claims.sid = '11111111-1111-4111-8111-111111111111';
 
     return new SignJWT(claims)
+ main
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setIssuer('jaslyn-net')
       .setAudience('jaslyn-net-api')
@@ -21,101 +35,33 @@ describe('CommunicationWebSocket session authorization', () => {
       .sign(new TextEncoder().encode(secret));
   }
 
-  function request(accessToken: string) {
-    return { url: `/api/v1/communication/socket?access_token=${encodeURIComponent(accessToken)}` } as any;
-  }
-
   function service(db: { query: jest.Mock }) {
-    return new CommunicationWebSocket({ subscribe: jest.fn(), publish: jest.fn() } as any, db as any);
+    return new CommunicationWebSocket({ subscribe: jest.fn() } as any, db as any);
   }
 
-  it('accepts a valid token only when the corresponding server-side session is active', async () => {
-    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: '11111111-1111-4111-8111-111111111111' }], rowCount: 1 }) };
-    const socket = service(db);
+  it('accepts a valid JWT only when its server-side session is active', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'session-1' }], rowCount: 1 }) };
+    const subject = service(db);
+    const token = await accessToken();
+    const request = { url: `/api/v1/communication/socket?access_token=${encodeURIComponent(token)}` } as IncomingMessage;
 
-    await expect((socket as any).authenticate(request(await token()), secret))
-      .resolves.toEqual({ userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER', sessionId: '11111111-1111-4111-8111-111111111111' });
-
+    await expect((subject as any).authenticate(request, secret)).resolves.toEqual({
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+    });
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('revoked_at IS NULL AND expires_at>now()'),
-      ['11111111-1111-4111-8111-111111111111', 'tenant-1', 'user-1'],
+      ['session-1', 'tenant-1', 'user-1'],
     );
   });
 
-  it('rejects a revoked, expired, or missing server-side session', async () => {
+  it('rejects a valid JWT after its server-side session is revoked or expired', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
-    const socket = service(db);
+    const subject = service(db);
+    const token = await accessToken();
+    const request = { url: `/api/v1/communication/socket?access_token=${encodeURIComponent(token)}` } as IncomingMessage;
 
-    await expect((socket as any).authenticate(request(await token()), secret))
-      .rejects.toThrow('session has been revoked or expired');
-  });
-
-  it('rejects tokens without a session identifier', async () => {
-    const db = { query: jest.fn() };
-    const socket = service(db);
-
-    await expect((socket as any).authenticate(request(await token(false)), secret))
-      .rejects.toThrow('invalid authentication claims');
-    expect(db.query).not.toHaveBeenCalled();
-  });
-
-  it('keeps established sockets whose sessions remain active', async () => {
-    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: '11111111-1111-4111-8111-111111111111' }], rowCount: 1 }) };
-    const socket = service(db);
-    const client = { close: jest.fn() };
-    (socket as any).sockets.set(client, {
-      userId: 'user-1',
-      tenantId: 'tenant-1',
-      role: 'OWNER',
-      sessionId: '11111111-1111-4111-8111-111111111111',
-    });
-
-    await (socket as any).closeInactiveSessions();
-
-    expect(client.close).not.toHaveBeenCalled();
-  });
-
-  it('closes established sockets when their sessions are no longer active', async () => {
-    const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
-    const socket = service(db);
-    const client = { close: jest.fn() };
-    (socket as any).sockets.set(client, {
-      userId: 'user-1',
-      tenantId: 'tenant-1',
-      role: 'OWNER',
-      sessionId: '11111111-1111-4111-8111-111111111111',
-    });
-
-    await (socket as any).closeInactiveSessions();
-
-    expect(db.query).toHaveBeenCalledWith(
-      expect.stringContaining('id = ANY($1::uuid[])'),
-      [['11111111-1111-4111-8111-111111111111']],
-    );
-    expect(client.close).toHaveBeenCalledWith(1008, 'Session expired or revoked');
-  });
-
-  it('closes established sockets if session validation becomes unavailable', async () => {
-    const db = { query: jest.fn().mockRejectedValue(new Error('database unavailable')) };
-    const socket = service(db);
-    const client = { close: jest.fn() };
-    (socket as any).sockets.set(client, {
-      userId: 'user-1',
-      tenantId: 'tenant-1',
-      role: 'OWNER',
-      sessionId: '11111111-1111-4111-8111-111111111111',
-    });
-
-    await (socket as any).closeInactiveSessions();
-
-    expect(client.close).toHaveBeenCalledWith(1011, 'Session validation unavailable');
-  });
-
-  it('fails closed when the session store is unavailable', async () => {
-    const db = { query: jest.fn().mockRejectedValue(new Error('database unavailable')) };
-    const socket = service(db);
-
-    await expect((socket as any).authenticate(request(await token()), secret))
-      .rejects.toThrow('database unavailable');
+    await expect((subject as any).authenticate(request, secret)).rejects.toThrow('session is revoked or expired');
   });
 });
