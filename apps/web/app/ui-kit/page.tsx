@@ -128,7 +128,7 @@ export default function UiKitPage() {
             <CardDescription>Latest changes across your workspace.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="jn-kit__skeletons" aria-label="Loading recent activity">
+            <div className="jn-kit__skeletons" role="status" aria-label="Loading recent activity">
               <Skeleton width="42%" height="14px" />
               <Skeleton width="76%" height="12px" />
               <Skeleton width="58%" height="12px" />
