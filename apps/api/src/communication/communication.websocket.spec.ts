@@ -60,6 +60,23 @@ describe('CommunicationWebSocket session authorization', () => {
   });
 
 
+
+  it('keeps established sockets whose sessions remain active', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'session-1' }], rowCount: 1 }) };
+    const socket = service(db);
+    const client = { close: jest.fn() };
+    (socket as any).sockets.set(client, {
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+      sessionId: 'session-1',
+    });
+
+    await (socket as any).closeInactiveSessions();
+
+    expect(client.close).not.toHaveBeenCalled();
+  });
+
   it('closes established sockets when their sessions are no longer active', async () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
     const socket = service(db);
