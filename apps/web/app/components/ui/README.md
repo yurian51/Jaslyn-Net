@@ -19,7 +19,7 @@ Shared, dependency-free UI primitives for the Next.js App Router frontend.
 ```tsx
 import { Button, Card, CardContent, CardHeader, CardTitle, StatusBadge } from '../components/ui';
 
-export function ServiceSummary() {
+export function ServiceSummary({ onOpenDetails }: { onOpenDetails: () => void }) {
   return (
     <Card>
       <CardHeader>
@@ -27,7 +27,7 @@ export function ServiceSummary() {
       </CardHeader>
       <CardContent>
         <StatusBadge tone="success" dot>Online</StatusBadge>
-        <Button onClick={() => console.log('Open service details')}>View service</Button>
+        <Button onClick={onOpenDetails}>View service</Button>
       </CardContent>
     </Card>
   );
