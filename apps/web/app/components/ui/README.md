@@ -17,7 +17,7 @@ Shared, dependency-free UI primitives for the Next.js App Router frontend.
 ## Example
 
 ```tsx
-import { Button, Card, CardContent, CardHeader, CardTitle, StatusBadge } from '@/app/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, StatusBadge } from '../components/ui';
 
 export function ServiceSummary() {
   return (
