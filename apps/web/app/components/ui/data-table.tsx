@@ -39,7 +39,20 @@ export function DataTable<T>({
   emptyAction,
   className = '',
 }: DataTableProps<T>) {
-  const safeLoadingRows = Math.max(1, Math.min(loadingRows, 10));
+  const requestedLoadingRows = Number.isFinite(loadingRows) ? Math.trunc(loadingRows) : 4;
+  const safeLoadingRows = Math.max(1, Math.min(requestedLoadingRows, 10));
+
+  // A table without columns cannot represent its rows. Fail visibly instead of
+  // rendering an apparently blank table when a feature has a configuration bug.
+  if (columns.length === 0) {
+    return (
+      <EmptyState
+        className={className}
+        title="Table unavailable"
+        description="This table has no columns configured. Refresh the page or contact your workspace administrator."
+      />
+    );
+  }
 
   return (
     <div className={['jn-table-wrap', className].filter(Boolean).join(' ')} aria-busy={isLoading}>
