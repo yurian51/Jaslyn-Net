@@ -51,8 +51,8 @@ export class CommunicationWebSocket implements OnModuleDestroy {
         if (now - (this.lastPong.get(client) ?? 0) > 75_000) { client.terminate(); continue; }
         if (client.readyState === WebSocket.OPEN) client.ping();
       }
-      // Existing connections must also stop receiving events after logout or
-      // revocation. One batched lookup avoids an N+1 query per connected socket.
+      // Revalidate all connected sessions in one query so logout/revocation
+      // takes effect for existing WebSocket connections as well.
       void this.closeInactiveSessions();
     }, 30_000);
     this.realtime.subscribe((event) => this.broadcast(event));
@@ -72,8 +72,7 @@ export class CommunicationWebSocket implements OnModuleDestroy {
       throw new Error('invalid authentication claims');
     }
 
-    // Match HTTP AuthGuard semantics: a valid JWT is not enough after logout
-    // or administrative revocation; the server-side session must still exist.
+    // A valid JWT is not enough after logout or administrative revocation.
     const session = await this.db.query(
       `SELECT id FROM auth_sessions
        WHERE id=$1 AND tenant_id=$2 AND user_id=$3
@@ -83,7 +82,37 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     );
     if (!session.rowCount) throw new Error('session is revoked or expired');
 
-    return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
+    return {
+      userId: payload.sub,
+      tenantId: payload.tenantId,
+      role: payload.role,
+      sessionId: payload.sid,
+    };
+  }
+
+  private async closeInactiveSessions() {
+    const contexts = [...this.sockets.values()];
+    const sessionIds = [...new Set(contexts.map((context) => context.sessionId))];
+    if (!sessionIds.length) return;
+
+    // Do not disconnect users because of a transient database error.
+    const activeSessions = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id = ANY($1)
+         AND revoked_at IS NULL
+         AND expires_at > now()`,
+      [sessionIds],
+    ).catch(() => null);
+    if (!activeSessions) return;
+
+    const activeIds = new Set(activeSessions.rows.map((row: { id: string }) => String(row.id)));
+    for (const [client, context] of this.sockets) {
+      if (!activeIds.has(context.sessionId)) {
+        this.sockets.delete(client);
+        this.lastPong.delete(client);
+        client.close(1008, 'Session expired or revoked');
+      }
+    }
   }
 
   private async broadcast(event: CommunicationEvent) {
