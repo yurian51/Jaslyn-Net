@@ -10,6 +10,7 @@ import {
   CardTitle,
   DataTable,
   EmptyState,
+  ErrorState,
   SelectField,
   Skeleton,
   StatusBadge,
@@ -82,6 +83,18 @@ export default function UiKitPage() {
           <Alert tone="warning" title="Action required">This device has not checked in recently. Verify its connection before provisioning.</Alert>
           <Alert tone="danger" title="Unable to save">The request failed. Check your connection and try again.</Alert>
         </div>
+      </section>
+
+      <section className="jn-kit__section" aria-labelledby="error-state-heading">
+        <div className="jn-kit__section-heading">
+          <h2 id="error-state-heading">Recoverable errors</h2>
+          <p>Explain what failed and provide a genuine recovery action when one is available.</p>
+        </div>
+        <ErrorState
+          title="Unable to load network inventory"
+          description="The inventory service did not respond. Your existing configuration has not been changed."
+          action={<Button variant="secondary" onClick={() => window.location.reload()}>Retry by reloading</Button>}
+        />
       </section>
 
       <section className="jn-kit__section" aria-labelledby="form-heading">
