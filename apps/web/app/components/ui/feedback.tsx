@@ -43,6 +43,34 @@ export function EmptyState({
   );
 }
 
+
+/**
+ * Page or panel-level failure state. Supply a real retry action when recovery is possible;
+ * the component never invents a retry behavior or hides the underlying error message.
+ */
+export function ErrorState({
+  title = 'Something went wrong',
+  description = 'We could not complete this request. Try again, or contact your administrator if the problem continues.',
+  action,
+  className = '',
+}: {
+  title?: string;
+  description: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={['jn-error-state', className].filter(Boolean).join(' ')} role="alert" aria-live="assertive">
+      <span className="jn-error-state__mark" aria-hidden="true">!</span>
+      <div className="jn-error-state__content">
+        <h3>{title}</h3>
+        <p>{description}</p>
+        {action && <div className="jn-error-state__action">{action}</div>}
+      </div>
+    </section>
+  );
+}
+
 export type AlertTone = 'info' | 'success' | 'warning' | 'danger';
 
 export function Alert({
