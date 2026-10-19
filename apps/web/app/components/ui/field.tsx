@@ -14,7 +14,7 @@ export type SelectFieldProps = FieldBaseProps & Omit<SelectHTMLAttributes<HTMLSe
 export type TextareaFieldProps = FieldBaseProps & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id' | 'required'>;
 
 /** Label, control, hint and validation message are wired together for assistive technology. */
-export function TextField({ label, hint, error, id, required, className = '', ...props }: TextFieldProps) {
+export function TextField({ label, hint, error, id, required, className = '', 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }: TextFieldProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const descriptionId = hint || error ? `${controlId}-description` : undefined;
@@ -29,8 +29,8 @@ export function TextField({ label, hint, error, id, required, className = '', ..
         id={controlId}
         className={['jn-input', error && 'jn-input--error'].filter(Boolean).join(' ')}
         required={required}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={descriptionId}
+        aria-invalid={error ? true : ariaInvalid}
+        aria-describedby={[descriptionId, describedBy].filter(Boolean).join(' ') || undefined}
       />
       {(hint || error) && (
         <p id={descriptionId} className={error ? 'jn-field__error' : 'jn-field__hint'}>
@@ -41,7 +41,7 @@ export function TextField({ label, hint, error, id, required, className = '', ..
   );
 }
 
-export function SelectField({ label, hint, error, id, required, className = '', children, ...props }: SelectFieldProps) {
+export function SelectField({ label, hint, error, id, required, className = '', children, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }: SelectFieldProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const descriptionId = hint || error ? `${controlId}-description` : undefined;
@@ -70,7 +70,7 @@ export function SelectField({ label, hint, error, id, required, className = '', 
   );
 }
 
-export function TextareaField({ label, hint, error, id, required, className = '', ...props }: TextareaFieldProps) {
+export function TextareaField({ label, hint, error, id, required, className = '', 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }: TextareaFieldProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const descriptionId = hint || error ? `${controlId}-description` : undefined;
