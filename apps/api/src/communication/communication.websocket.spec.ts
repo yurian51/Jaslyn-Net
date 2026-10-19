@@ -34,7 +34,7 @@ describe('CommunicationWebSocket session authorization', () => {
     const socket = service(db);
 
     await expect((socket as any).authenticate(request(await token()), secret))
-      .resolves.toEqual({ userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER' });
+      .resolves.toEqual({ userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER', sessionId: 'session-1' });
 
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('revoked_at IS NULL AND expires_at>now()'),
@@ -57,6 +57,43 @@ describe('CommunicationWebSocket session authorization', () => {
     await expect((socket as any).authenticate(request(await token(false)), secret))
       .rejects.toThrow('invalid authentication claims');
     expect(db.query).not.toHaveBeenCalled();
+  });
+
+
+  it('closes established sockets when their sessions are no longer active', async () => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
+    const socket = service(db);
+    const client = { close: jest.fn() };
+    (socket as any).sockets.set(client, {
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+      sessionId: 'session-1',
+    });
+
+    await (socket as any).closeInactiveSessions();
+
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('id = ANY($1::uuid[])'),
+      [['session-1']],
+    );
+    expect(client.close).toHaveBeenCalledWith(1008, 'Session expired or revoked');
+  });
+
+  it('closes established sockets if session validation becomes unavailable', async () => {
+    const db = { query: jest.fn().mockRejectedValue(new Error('database unavailable')) };
+    const socket = service(db);
+    const client = { close: jest.fn() };
+    (socket as any).sockets.set(client, {
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+      sessionId: 'session-1',
+    });
+
+    await (socket as any).closeInactiveSessions();
+
+    expect(client.close).toHaveBeenCalledWith(1011, 'Session validation unavailable');
   });
 
   it('fails closed when the session store is unavailable', async () => {
