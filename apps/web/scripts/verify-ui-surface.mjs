@@ -54,6 +54,8 @@ const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
 const smsCampaignMigration = read('apps/api/migrations/061_sms_campaigns.sql');
 
 const required = [
+  ['internal console uses public-site surface and accent tokens', read('apps/web/app/console-chrome.css').includes('--console-bg: #f3f6fa;') && read('apps/web/app/console-chrome.css').includes('--console-blue: #3d6fca;')],
+  ['internal console has keyboard focus and reduced-motion rules', read('apps/web/app/console-chrome.css').includes('.console-chrome-content :is(a, button, [role="button"]):focus-visible') && read('apps/web/app/console-chrome.css').includes('@media (prefers-reduced-motion: reduce)')],
   ['premium.css import', layout.includes("import './premium.css';")],
   ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
   ['LandingNav usage', landing.includes('<LandingNav />')],
