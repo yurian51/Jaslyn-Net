@@ -893,16 +893,16 @@ html[data-jn-reduce-motion="true"] *,html[data-jn-reduce-motion="true"] *::befor
  * page's product preview.
  */
 .console-chrome-frame {
-  --console-bg: #f3f6fa;
+  --console-bg: #f6f8fb;
   --console-surface: #fff;
-  --console-border: #d8e1eb;
-  --console-border-soft: #e8edf3;
-  --console-ink: #17263b;
-  --console-copy: #64748a;
-  --console-muted: #8090a5;
-  --console-navy: #071423;
-  --console-navy-2: #0f2034;
-  --console-blue: #3d6fca;
+  --console-border: #dfe6ee;
+  --console-border-soft: #edf1f5;
+  --console-ink: #0a1728;
+  --console-copy: #718096;
+  --console-muted: #8793a3;
+  --console-navy: #071322;
+  --console-navy-2: #0d1d30;
+  --console-blue: #3b6fd1;
 }
 
 .console-chrome-content {
