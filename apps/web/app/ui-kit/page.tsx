@@ -15,6 +15,7 @@ import {
   Skeleton,
   StatusBadge,
   TextField,
+  TextareaField,
 } from '../components/ui';
 
 export const metadata: Metadata = {
@@ -112,6 +113,7 @@ export default function UiKitPage() {
                 <option value="paused">Paused</option>
                 <option value="suspended">Suspended</option>
               </SelectField>
+              <TextareaField label="Internal notes" placeholder="Add context for the operations team" hint="Keep notes factual and relevant to service delivery." rows={3} />
             </div>
           </CardContent>
         </Card>
