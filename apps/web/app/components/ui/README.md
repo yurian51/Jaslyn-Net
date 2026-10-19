@@ -39,7 +39,7 @@ export function ServiceSummary({ onOpenDetails }: { onOpenDetails: () => void })
 - Native HTML attributes are forwarded where appropriate; component-specific props are typed and documented.
 - Buttons default to `type="button"` to avoid accidental form submissions. Pass `type="submit"` intentionally.
 - `TextField`, `SelectField`, and `TextareaField` require a visible `label`; `error` sets `aria-invalid` and is associated through `aria-describedby`.
-- `DataTable<T>` requires a caption, columns, rows, and a stable `getRowKey`. Column renderers keep domain formatting outside the primitive.
+- `DataTable<T>` requires a caption, columns, rows, a stable `getRowKey`, and unique non-empty column keys. Invalid column configuration fails visibly instead of rendering an ambiguous table. Column renderers keep domain formatting outside the primitive.
 - Loading, empty, and error states belong to the component API so each feature does not reimplement them.
 - `ErrorState` explains the failure and accepts an explicit recovery action; it never assumes a retry mechanism.
 - Use semantic tone and visible text together. Do not communicate status using color alone.
