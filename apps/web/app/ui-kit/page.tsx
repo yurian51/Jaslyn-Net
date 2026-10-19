@@ -93,7 +93,7 @@ export default function UiKitPage() {
         <ErrorState
           title="Unable to load network inventory"
           description="The inventory service did not respond. Your existing configuration has not been changed."
-          action={<Button variant="secondary" onClick={() => window.location.reload()}>Retry by reloading</Button>}
+          action={<a className="jn-button jn-button--secondary jn-button--sm" href="/ui-kit">Reload this page</a>}
         />
       </section>
 
