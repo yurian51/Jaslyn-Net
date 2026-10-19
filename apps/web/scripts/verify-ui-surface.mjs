@@ -59,6 +59,7 @@ const uiButton = read('apps/web/app/components/ui/button.tsx');
 const uiFields = read('apps/web/app/components/ui/field.tsx');
 const uiTable = read('apps/web/app/components/ui/data-table.tsx');
 const uiFeedback = read('apps/web/app/components/ui/feedback.tsx');
+const uiExports = read('apps/web/app/components/ui/index.ts');
 const uiStyles = read('apps/web/app/components/ui/ui.css');
 const uiGallery = read('apps/web/app/ui-kit/page.tsx');
 
@@ -70,6 +71,7 @@ const required = [
   ['data table requires stable row keys and accessible caption', uiTable.includes('getRowKey: (row: T)') && uiTable.includes('<caption className="jn-sr-only">{caption}</caption>')],
   ['data table handles empty columns and non-finite loading counts', uiTable.includes('columns.length === 0') && uiTable.includes('Number.isFinite(loadingRows)')],
   ['feedback components expose live regions and semantic tones', uiFeedback.includes('role={isUrgent ? \'alert\' : \'status\'}') && uiFeedback.includes('aria-live={isUrgent ? \'assertive\' : \'polite\'}')],
+  ['page-level error state exposes an actionable alert and public export', uiFeedback.includes('function ErrorState(') && uiFeedback.includes('role="alert"') && uiFeedback.includes('jn-error-state__action') && uiExports.includes('ErrorState') && uiGallery.includes('<ErrorState')],
   ['shared UI respects reduced motion and responsive tables', uiStyles.includes('@media (prefers-reduced-motion:reduce)') && uiStyles.includes('overflow-x:auto')],
   ['premium.css import', layout.includes("import './premium.css';")],
   ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
