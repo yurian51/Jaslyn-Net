@@ -64,9 +64,22 @@ export class CommunicationWebSocket implements OnModuleDestroy {
       audience: 'jaslyn-net-api',
       algorithms: ['HS256'],
     });
-    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
+    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
+      || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
       throw new Error('invalid authentication claims');
     }
+
+    // Keep WebSocket authorization aligned with HTTP requests: a valid JWT alone
+    // is insufficient after logout, password reset, or explicit session revocation.
+    // Fail closed if the session store is unavailable.
+    const session = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+         AND revoked_at IS NULL AND expires_at>now()`,
+      [payload.sid, payload.tenantId, payload.sub],
+    );
+    if (!session.rowCount) throw new Error('session has been revoked or expired');
+
     return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
   }
 
