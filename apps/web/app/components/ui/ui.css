@@ -12,7 +12,7 @@
   --jn-ui-focus: 0 0 0 3px rgba(49, 99, 208, .22);
 }
 
-.jn-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:40px; border:1px solid transparent; border-radius:8px; padding:0 14px; font:inherit; font-size:14px; font-weight:650; line-height:1.2; cursor:pointer; transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
+.jn-button { text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:40px; border:1px solid transparent; border-radius:8px; padding:0 14px; font:inherit; font-size:14px; font-weight:650; line-height:1.2; cursor:pointer; transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
 .jn-button:disabled { cursor:not-allowed; opacity:.62; }
 .jn-button:focus-visible,.jn-input:focus-visible { outline:none; box-shadow:var(--jn-ui-focus); }
 .jn-button--primary { color:#fff; background:var(--jn-ui-primary); }
