@@ -69,7 +69,7 @@ const required = [
   ['form fields associate labels and validation descriptions', uiFields.includes('htmlFor={controlId}') && uiFields.includes('aria-describedby={[descriptionId, describedBy]') && uiFields.includes('aria-invalid={error ? true : ariaInvalid}')],
   ['form fields preserve caller-provided ARIA descriptions', uiFields.includes("'aria-describedby': describedBy") && uiFields.includes("'aria-invalid': ariaInvalid")],
   ['data table requires stable row keys and accessible caption', uiTable.includes('getRowKey: (row: T)') && uiTable.includes('<caption className="jn-sr-only">{caption}</caption>')],
-  ['data table handles empty columns and non-finite loading counts', uiTable.includes('columns.length === 0') && uiTable.includes('Number.isFinite(loadingRows)')],
+  ['data table handles empty columns, invalid keys and non-finite loading counts', uiTable.includes('columns.length === 0') && uiTable.includes('hasInvalidColumnKeys') && uiTable.includes('new Set(columnKeys).size !== columnKeys.length') && uiTable.includes('Number.isFinite(loadingRows)')],
   ['feedback components expose live regions and semantic tones', uiFeedback.includes('role={isUrgent ? \'alert\' : \'status\'}') && uiFeedback.includes('aria-live={isUrgent ? \'assertive\' : \'polite\'}')],
   ['page-level error state exposes an actionable alert and public export', uiFeedback.includes('function ErrorState(') && uiFeedback.includes('role="alert"') && uiFeedback.includes('jn-error-state__action') && uiExports.includes('ErrorState') && uiGallery.includes('<ErrorState')],
   ['shared UI respects reduced motion and responsive tables', uiStyles.includes('@media (prefers-reduced-motion:reduce)') && uiStyles.includes('overflow-x:auto')],
