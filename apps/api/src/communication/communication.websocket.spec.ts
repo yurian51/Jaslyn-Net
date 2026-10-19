@@ -10,7 +10,7 @@ describe('CommunicationWebSocket session authorization', () => {
       tenantId: 'tenant-1',
       role: 'OWNER',
     };
-    if (includeSessionId) claims.sid = 'session-1';
+    if (includeSessionId) claims.sid = '11111111-1111-4111-8111-111111111111';
 
     return new SignJWT(claims)
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -30,15 +30,15 @@ describe('CommunicationWebSocket session authorization', () => {
   }
 
   it('accepts a valid token only when the corresponding server-side session is active', async () => {
-    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'session-1' }], rowCount: 1 }) };
+    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: '11111111-1111-4111-8111-111111111111' }], rowCount: 1 }) };
     const socket = service(db);
 
     await expect((socket as any).authenticate(request(await token()), secret))
-      .resolves.toEqual({ userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER', sessionId: 'session-1' });
+      .resolves.toEqual({ userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER', sessionId: '11111111-1111-4111-8111-111111111111' });
 
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('revoked_at IS NULL AND expires_at>now()'),
-      ['session-1', 'tenant-1', 'user-1'],
+      ['11111111-1111-4111-8111-111111111111', 'tenant-1', 'user-1'],
     );
   });
 
@@ -59,17 +59,15 @@ describe('CommunicationWebSocket session authorization', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
-
-
   it('keeps established sockets whose sessions remain active', async () => {
-    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'session-1' }], rowCount: 1 }) };
+    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: '11111111-1111-4111-8111-111111111111' }], rowCount: 1 }) };
     const socket = service(db);
     const client = { close: jest.fn() };
     (socket as any).sockets.set(client, {
       userId: 'user-1',
       tenantId: 'tenant-1',
       role: 'OWNER',
-      sessionId: 'session-1',
+      sessionId: '11111111-1111-4111-8111-111111111111',
     });
 
     await (socket as any).closeInactiveSessions();
@@ -85,14 +83,14 @@ describe('CommunicationWebSocket session authorization', () => {
       userId: 'user-1',
       tenantId: 'tenant-1',
       role: 'OWNER',
-      sessionId: 'session-1',
+      sessionId: '11111111-1111-4111-8111-111111111111',
     });
 
     await (socket as any).closeInactiveSessions();
 
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('id = ANY($1::uuid[])'),
-      [['session-1']],
+      [['11111111-1111-4111-8111-111111111111']],
     );
     expect(client.close).toHaveBeenCalledWith(1008, 'Session expired or revoked');
   });
@@ -105,7 +103,7 @@ describe('CommunicationWebSocket session authorization', () => {
       userId: 'user-1',
       tenantId: 'tenant-1',
       role: 'OWNER',
-      sessionId: 'session-1',
+      sessionId: '11111111-1111-4111-8111-111111111111',
     });
 
     await (socket as any).closeInactiveSessions();
