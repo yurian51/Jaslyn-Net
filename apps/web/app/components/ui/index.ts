@@ -6,7 +6,7 @@ export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 export type { CardProps } from './card';
 export { StatusBadge } from './status-badge';
 export type { StatusBadgeProps, StatusTone } from './status-badge';
-export { Alert, EmptyState, Skeleton } from './feedback';
+export { Alert, EmptyState, ErrorState, Skeleton } from './feedback';
 export type { AlertTone } from './feedback';
 export { DataTable } from './data-table';
 export type { DataTableColumn, DataTableProps } from './data-table';
