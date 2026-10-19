@@ -55,7 +55,7 @@ export function ErrorState({
   className = '',
 }: {
   title?: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
   className?: string;
 }) {
