@@ -37,3 +37,18 @@ export class LoginDto {
   @MinLength(1)
   password!: string;
 }
+
+export class PasswordResetRequestDto {
+  @IsEmail()
+  email!: string;
+}
+
+export class PasswordResetConfirmDto {
+  @IsString()
+  @Length(43, 43)
+  token!: string;
+
+  @IsString()
+  @MinLength(12)
+  password!: string;
+}

@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
-import BrandLogo from '../brand-logo';
+import SiteShell from '../landing/site-chrome';
 
 type LoginResponse = { accessToken: string; expiresIn: number; user: { fullName: string; email: string; role: string }; tenant: { name: string; timezone: string; currency: string } };
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -18,7 +18,6 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState('');
-  const [recoveryHelp, setRecoveryHelp] = useState(false);
 
   useEffect(() => { if (getAccessToken()) router.replace('/dashboard'); }, [router]);
 
@@ -26,7 +25,6 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
     setFieldError('');
-    setRecoveryHelp(false);
     if (!EMAIL_PATTERN.test(email.trim())) {
       setFieldError('Enter a valid email address.');
       return;
@@ -53,46 +51,37 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-shell" aria-label="Jaslyn Net sign in">
-        <div className="auth-brand-block"><BrandLogo className="auth-brand-logo" alt="JASLYN NET official logo" /></div>
-        <div className="auth-layout">
-          <div className="auth-intro">
-            <span className="auth-kicker">NETWORK OPERATIONS</span>
-            <h1>Run your network<br />from one control plane.</h1>
-            <p>Subscribers, sessions, devices, billing and network state connected in one operational workspace.</p>
-            <div className="auth-capabilities">
-              <span><i /> Live network state</span>
-              <span><i /> Subscriber &amp; billing control</span>
-              <span><i /> Audited operator actions</span>
-              <span><i /> Protected workspace access</span>
-            </div>
+    <SiteShell mainClass="jl-auth-main">
+      <section className="jl-auth" aria-label="Jaslyn Net sign in">
+        <div className="jl-auth-grid">
+          <div className="jl-auth-intro">
+            <h1>Welcome back.</h1>
+            <p>Sign in to manage your sites, packages and payments.</p>
+            <ul><li>Packages and vouchers</li><li>Payments you can check</li><li>Router and session status</li></ul>
           </div>
-          <form className="auth-card" onSubmit={submit} noValidate>
-            <div className="auth-card-head"><span>SECURE ACCESS</span><h2>Welcome back</h2><p>Sign in to your Jaslyn Net workspace.</p></div>
-            {fieldError && <div className="auth-error" role="alert">{fieldError}</div>}
-            {error && <div className="auth-error" role="alert">{error}</div>}
-            {recoveryHelp && <div className="auth-recovery-help" role="status">Self-service password recovery is not enabled yet. Please contact your workspace administrator to reset your password securely.</div>}
+          <form className="jl-auth-card" onSubmit={submit} noValidate>
+            <div className="jl-auth-head"><h2>Sign in</h2><p>Sign in to your Jaslyn Net workspace.</p></div>
+            {fieldError && <div className="jl-auth-error" role="alert">{fieldError}</div>}
+            {error && <div className="jl-auth-error" role="alert">{error}</div>}
             <label htmlFor="login-email">Email address
               <input id="login-email" type="email" autoComplete="username" inputMode="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="operator@company.com" aria-invalid={Boolean(fieldError && !EMAIL_PATTERN.test(email.trim()))} />
             </label>
             <label htmlFor="login-password">Password
-              <div className="auth-password">
+              <div className="jl-auth-password">
                 <input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" />
                 <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? 'Hide' : 'Show'}</button>
               </div>
             </label>
-            <div className="auth-login-options">
-              <label className="auth-remember"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} /> <span>Remember me</span></label>
-              <button className="auth-text-button" type="button" onClick={() => { setRecoveryHelp(true); setError(''); setFieldError(''); }}>Forgot password?</button>
+            <div className="jl-auth-options">
+              <label className="jl-remember"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} /> <span>Remember me</span></label>
+              <button className="jl-textbtn" type="button" onClick={() => router.push('/forgot-password')}>Forgot password?</button>
             </div>
-            <button className="auth-submit" type="submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
-            <p className="auth-security"><span>●</span> Sign-in is verified by the Jaslyn Net API. Never share your password.</p>
-            <div className="auth-signup">Don’t have an account? <a href="/register">Create a workspace</a></div>
+            <button className="jl-btn jl-auth-submit" type="submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
+            <p className="jl-auth-security"><span>●</span> Sign-in is verified by the Jaslyn Net API. Never share your password.</p>
+            <div className="jl-auth-signup">Don’t have an account? <a href="/register">Create a workspace</a></div>
           </form>
         </div>
-        <footer className="auth-footer"><span>JASLYN NET</span><span><a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/cookies">Cookies</a> · <a href="/legal">Legal Center</a></span></footer>
       </section>
-    </main>
+    </SiteShell>
   );
 }

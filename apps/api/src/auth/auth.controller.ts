@@ -3,7 +3,7 @@ import { AuthGuard, AuthenticatedRequest } from './auth.guard';
 import { Permissions } from './permissions.decorator';
 import { PermissionsGuard } from './permissions.guard';
 import { AuthService } from './auth.service';
-import { LegalAcceptanceDto, LoginDto, RegisterDto } from './auth.dto';
+import { LegalAcceptanceDto, LoginDto, PasswordResetConfirmDto, PasswordResetRequestDto, RegisterDto } from './auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -19,6 +19,16 @@ export class AuthController {
   login(@Body() input: LoginDto, @Req() request: { ip?: string; headers: Record<string, string | string[] | undefined> }) {
     const userAgent = request.headers['user-agent'];
     return this.auth.login(input, { ip: request.ip, userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent });
+  }
+
+  @Post('password-reset/request')
+  requestPasswordReset(@Body() input: PasswordResetRequestDto) {
+    return this.auth.requestPasswordReset(input.email);
+  }
+
+  @Post('password-reset/confirm')
+  resetPassword(@Body() input: PasswordResetConfirmDto) {
+    return this.auth.resetPassword(input.token, input.password);
   }
 
   @Post('legal-acceptance')
