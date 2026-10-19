@@ -64,7 +64,7 @@ const uiStyles = read('apps/web/app/components/ui/ui.css');
 const uiGallery = read('apps/web/app/ui-kit/page.tsx');
 
 const required = [
-  ['shared UI gallery demonstrates core primitives', uiGallery.includes('Shared UI primitives') && uiGallery.includes('<DataTable') && uiGallery.includes('<TextField')],
+  ['shared UI gallery demonstrates core primitives', uiGallery.includes('Shared UI primitives') && uiGallery.includes('<DataTable') && uiGallery.includes('<TextField') && uiGallery.includes('<TextareaField')],
   ['buttons expose native type and loading semantics', uiButton.includes("type = 'button'") && uiButton.includes('aria-busy={isLoading || undefined}') && uiButton.includes('disabled={disabled || isLoading}')],
   ['form fields associate labels and validation descriptions', uiFields.includes('htmlFor={controlId}') && uiFields.includes('aria-describedby={[descriptionId, describedBy]') && uiFields.includes('aria-invalid={error ? true : ariaInvalid}')],
   ['form fields preserve caller-provided ARIA descriptions', uiFields.includes("'aria-describedby': describedBy") && uiFields.includes("'aria-invalid': ariaInvalid")],
