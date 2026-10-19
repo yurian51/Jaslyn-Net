@@ -1,3 +1,5 @@
+'use client';
+
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
