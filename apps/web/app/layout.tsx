@@ -30,6 +30,8 @@ import './sales/sales.css';
 import './landing-world-class.css';
 import './landing-unique.css';
 import './jaslyn-upesilipa-inspired.css';
+import './components/ui/ui.css';
+import './ui-kit/ui-kit.css';
 import ConsoleChrome from './console-chrome';
 
 export const viewport: Viewport = { themeColor: '#101525', colorScheme: 'light' };

@@ -7,7 +7,7 @@ import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
-type SocketContext = { tenantId: string; userId: string; role: string };
+type SocketContext = { tenantId: string; userId: string; role: string; sessionId: string };
 
 @Injectable()
 export class CommunicationWebSocket implements OnModuleDestroy {
@@ -51,6 +51,9 @@ export class CommunicationWebSocket implements OnModuleDestroy {
         if (now - (this.lastPong.get(client) ?? 0) > 75_000) { client.terminate(); continue; }
         if (client.readyState === WebSocket.OPEN) client.ping();
       }
+      // Existing connections must also stop receiving events after logout or
+      // revocation. One batched lookup avoids an N+1 query per connected socket.
+      void this.closeInactiveSessions();
     }, 30_000);
     this.realtime.subscribe((event) => this.broadcast(event));
   }
@@ -64,10 +67,44 @@ export class CommunicationWebSocket implements OnModuleDestroy {
       audience: 'jaslyn-net-api',
       algorithms: ['HS256'],
     });
-    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
+    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
+      || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
       throw new Error('invalid authentication claims');
     }
-    return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
+
+    // Keep WebSocket authorization aligned with HTTP requests: a valid JWT alone
+    // is insufficient after logout, password reset, or explicit session revocation.
+    // Fail closed if the session store is unavailable.
+    const session = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+         AND revoked_at IS NULL AND expires_at>now()`,
+      [payload.sid, payload.tenantId, payload.sub],
+    );
+    if (!session.rowCount) throw new Error('session has been revoked or expired');
+
+    return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role, sessionId: payload.sid };
+  }
+
+  private async closeInactiveSessions() {
+    if (this.sockets.size === 0) return;
+
+    const sessionIds = [...new Set([...this.sockets.values()].map((context) => context.sessionId))];
+    try {
+      const result = await this.db.query<{ id: string }>(
+        `SELECT id FROM auth_sessions
+         WHERE id = ANY($1::uuid[]) AND revoked_at IS NULL AND expires_at > now()`,
+        [sessionIds],
+      );
+      const activeSessionIds = new Set(result.rows.map((row) => row.id));
+      for (const [client, context] of this.sockets) {
+        if (!activeSessionIds.has(context.sessionId)) client.close(1008, 'Session expired or revoked');
+      }
+    } catch {
+      // Session state cannot be established reliably; close sockets rather than
+      // continue delivering tenant data without a current authorization check.
+      for (const client of this.sockets.keys()) client.close(1011, 'Session validation unavailable');
+    }
   }
 
   private async broadcast(event: CommunicationEvent) {
