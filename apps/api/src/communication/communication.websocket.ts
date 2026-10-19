@@ -64,9 +64,22 @@ export class CommunicationWebSocket implements OnModuleDestroy {
       audience: 'jaslyn-net-api',
       algorithms: ['HS256'],
     });
-    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
+    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
+      || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
       throw new Error('invalid authentication claims');
     }
+
+    // Match HTTP AuthGuard semantics: a valid JWT is not enough after logout
+    // or administrative revocation; the server-side session must still exist.
+    const session = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+         AND revoked_at IS NULL AND expires_at>now()
+       LIMIT 1`,
+      [payload.sid, payload.tenantId, payload.sub],
+    );
+    if (!session.rowCount) throw new Error('session is revoked or expired');
+
     return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
   }
 
