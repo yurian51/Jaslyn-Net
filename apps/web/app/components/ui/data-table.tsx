@@ -42,14 +42,22 @@ export function DataTable<T>({
   const requestedLoadingRows = Number.isFinite(loadingRows) ? Math.trunc(loadingRows) : 4;
   const safeLoadingRows = Math.max(1, Math.min(requestedLoadingRows, 10));
 
-  // A table without columns cannot represent its rows. Fail visibly instead of
-  // rendering an apparently blank table when a feature has a configuration bug.
-  if (columns.length === 0) {
+  // Invalid column keys break React reconciliation and can make table output
+  // ambiguous. Fail visibly rather than render a table with unstable headers.
+  const columnKeys = columns.map((column) => column.key.trim());
+  const hasInvalidColumnKeys = columnKeys.some((key) => key.length === 0)
+    || new Set(columnKeys).size !== columnKeys.length;
+
+  if (columns.length === 0 || hasInvalidColumnKeys) {
     return (
       <EmptyState
         className={className}
         title="Table unavailable"
-        description="This table has no columns configured. Refresh the page or contact your workspace administrator."
+        description={
+          columns.length === 0
+            ? "This table has no columns configured. Refresh the page or contact your workspace administrator."
+            : "This table has duplicate or empty column keys. Contact your workspace administrator to correct its configuration."
+        }
       />
     );
   }
