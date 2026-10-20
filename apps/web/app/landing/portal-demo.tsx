@@ -11,7 +11,7 @@ const WAIT_MS = 2200;
 const fmt = (tpl: string, vars: Record<string, string | number>) => tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 
 /** Sample-data walkthrough of the customer portal and the operator's view of the same purchase. Nothing is sent anywhere. */
-export default function PortalDemo({ t }: { t: Copy['demo'] }) {
+export default function PortalDemo({ t, logos = {} }: { t: Copy['demo']; logos?: Record<string, string | null> }) {
   const [step, setStep] = useState<Step>('pick');
   const [pkgIndex, setPkgIndex] = useState(1);
   const [methodIndex, setMethodIndex] = useState(0);
@@ -73,7 +73,7 @@ export default function PortalDemo({ t }: { t: Copy['demo'] }) {
               <div role="radiogroup" aria-label={t.methodTitle} className="jl-choices jl-choices-tight">
                 {t.methods.map((m, i) => (
                   <button key={m} type="button" role="radio" aria-checked={methodIndex === i} className="jl-choice" onClick={() => setMethodIndex(i)}>
-                    <span><b>{m}</b></span>
+                    <span>{logos[m] ? <><img className="jl-choice-logo" src={logos[m] as string} alt="" /><b className="jl-sr">{m}</b></> : <b>{m}</b>}</span>
                   </button>
                 ))}
               </div>

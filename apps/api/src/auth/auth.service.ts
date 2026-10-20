@@ -6,6 +6,7 @@ import { createHash, randomBytes, randomUUID, scrypt as scryptCallback, timingSa
 import { promisify } from 'node:util';
 import { SignJWT } from 'jose';
 import { LoginThrottleService } from './login-throttle.service';
+import { normalizePhone, parseLoginIdentifier } from './login-identifier';
 import { PG_POOL } from '../database/database.module';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthenticatedRequest } from './auth.guard';
@@ -29,6 +30,11 @@ export class AuthService {
     if (input.acceptTerms !== true || input.acceptPrivacy !== true) {
       throw new BadRequestException('Acceptance of the current Terms of Use and Privacy Notice is required');
     }
+    let phone: string | null = null;
+    if (input.phone !== undefined && input.phone.trim() !== '') {
+      phone = normalizePhone(input.phone);
+      if (!phone) throw new BadRequestException('Enter a valid mobile number, for example 0712 345 678');
+    }
     const slug = this.slugify(input.businessName);
     const passwordHash = await this.hashPassword(input.password);
     const client = await this.db.connect();
@@ -39,8 +45,8 @@ export class AuthService {
         [input.businessName.trim(), slug, 'TRIAL'],
       );
       const user = await client.query<UserTokenRecord>(
-        'INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, tenant_id, email, full_name, role',
-        [tenant.rows[0].id, input.email.toLowerCase().trim(), passwordHash, input.fullName.trim(), 'OWNER'],
+        'INSERT INTO users (tenant_id, email, password_hash, full_name, role, phone) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, tenant_id, email, full_name, role',
+        [tenant.rows[0].id, input.email.toLowerCase().trim(), passwordHash, input.fullName.trim(), 'OWNER', phone],
       );
       await client.query(
         `INSERT INTO legal_acceptances (tenant_id, user_id, document_type, document_version, ip_address, user_agent)
@@ -51,7 +57,10 @@ export class AuthService {
       return this.issueTokens(user.rows[0], tenant.rows[0], context);
     } catch (error) {
       await client.query('ROLLBACK');
-      if (isUniqueViolation(error)) throw new ConflictException('Business slug or email already exists');
+      if (isUniqueViolation(error)) {
+        const constraint = (error as { constraint?: string }).constraint ?? '';
+        throw new ConflictException(constraint.includes('phone') ? 'That mobile number is already registered' : 'Business slug or email already exists');
+      }
       throw error;
     } finally { client.release(); }
   }
@@ -93,18 +102,25 @@ export class AuthService {
   }
 
   async login(input: LoginDto, context: { ip?: string; userAgent?: string } = {}) {
-    await this.throttle?.assertAllowed(input.email, context.ip);
-    const result = await this.db.query<UserTokenRecord & { is_active: boolean; password_hash: string; tenant_name: string; tenant_slug: string; tenant_status: string; currency: string; timezone: string }>(
+    const raw = (input.identifier ?? input.email ?? '').trim();
+    if (!raw) throw new BadRequestException('Enter your email address or mobile number');
+    const identifier = parseLoginIdentifier(raw);
+    // Throttle on the normalised identifier so +255712345678, 0712345678 and 712 345 678 share one counter.
+    const throttleKey = identifier?.value ?? raw.toLowerCase();
+    await this.throttle?.assertAllowed(throttleKey, context.ip);
+    // The WHERE clause comes from a fixed list; user input is only ever a bound parameter.
+    const where = identifier?.kind === 'phone' ? 'u.phone = $1' : 'lower(u.email) = lower($1)';
+    const result = identifier ? await this.db.query<UserTokenRecord & { is_active: boolean; password_hash: string; tenant_name: string; tenant_slug: string; tenant_status: string; currency: string; timezone: string }>(
       `SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.is_active, u.password_hash,
               t.name AS tenant_name, t.slug AS tenant_slug, t.status AS tenant_status, t.currency, t.timezone
        FROM users u JOIN tenants t ON t.id = u.tenant_id
-       WHERE lower(u.email) = lower($1) LIMIT 1`, [input.email.trim()],
-    );
+       WHERE ${where} LIMIT 1`, [identifier.value],
+    ) : { rows: [] as never[] };
     const user = result.rows[0];
-    const reject = async (): Promise<never> => { await this.throttle?.recordFailure(input.email, context.ip); throw new UnauthorizedException('Invalid credentials'); };
+    const reject = async (): Promise<never> => { await this.throttle?.recordFailure(throttleKey, context.ip); throw new UnauthorizedException('Invalid credentials'); };
     if (!user || !user.is_active || user.tenant_status === 'SUSPENDED' || user.tenant_status === 'ARCHIVED') return reject();
     if (!(await this.verifyPassword(input.password, user.password_hash))) return reject();
-    await this.throttle?.recordSuccess(input.email, context.ip);
+    await this.throttle?.recordSuccess(throttleKey, context.ip);
     return this.issueTokens(user, { id: user.tenant_id, name: user.tenant_name, slug: user.tenant_slug, status: user.tenant_status, currency: user.currency, timezone: user.timezone }, context);
   }
 

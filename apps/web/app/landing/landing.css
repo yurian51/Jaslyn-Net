@@ -74,8 +74,6 @@
 .jl-hero h1 { font-size: clamp(2.7rem, 6vw, 5rem); line-height: .98; letter-spacing: -.04em; font-weight: 700; max-width: 11ch; }
 .jl-rails { margin-top: 2.4rem; max-width: 46ch; }
 .jl-rails p { margin: 0 0 .6rem; color: var(--muted); font-size: .95rem; }
-.jl-rails ul, .jl-methods ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
-.jl-rails li, .jl-methods li { border: 1px solid var(--line); background: var(--white); border-radius: 999px; padding: .25rem .85rem; font-size: .92rem; font-weight: 500; }
 
 /* ---------- demo ---------- */
 .jl-demo { margin: 0; }
@@ -157,6 +155,7 @@
 /* ---------- hardware / payments ---------- */
 .jl-hardware { background: var(--white); }
 .jl-hardware-side { display: flex; flex-direction: column; gap: 0; }
+.jl-hardware-side .jl-logos { margin-top: .25rem; }
 .jl-vendors { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem 1.6rem; }
 .jl-vendors li { font-family: var(--display); font-weight: 600; font-size: clamp(1.3rem, 2.4vw, 1.9rem); letter-spacing: -.02em; }
 .jl .jl-radius .jl-h3 { margin-top: 2.25rem; }
