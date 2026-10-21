@@ -174,6 +174,7 @@ const required = [
   ['dashboard keyboard focus is visible on primary actions', dashboardCss.includes('.commandbar-primary a:focus-visible') && dashboardCss.includes('.operator-launchpad-item:focus-visible')],
   ['dashboard reduced-motion preference is respected', dashboardCss.includes('@media(prefers-reduced-motion:reduce)') && dashboardCss.includes('.overview-kpi:hover{transform:none}')],
   ['dashboard theme overrides shared console background cascade', dashboardCss.includes('.console-chrome-frame .overview-page{') && dashboardCss.includes('linear-gradient(145deg,#061329 0%,#071a35 52%,#06142b 100%)!important;')],
+  ['dashboard panels override shared white-surface defaults', dashboardCss.includes('.console-chrome-frame .overview-panel,') && dashboardCss.includes('background:linear-gradient(155deg,rgba(12,35,72,.98),rgba(7,25,54,.98))!important;')],
   ['dashboard heading keeps readable contrast inside console shell', dashboardCss.includes('.console-chrome-frame .overview-header h1{color:#f2f7ff!important}')],
 
 ];
