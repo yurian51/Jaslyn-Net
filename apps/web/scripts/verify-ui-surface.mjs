@@ -167,6 +167,15 @@ const required = [
   ['provider-agnostic SMS settings UI', read('apps/web/app/notifications/page.tsx').includes('SMS Gateway Settings') && read('apps/web/app/notifications/page.tsx').includes('/notifications/sms/settings')],
   ['SMS secret handling and host allowlist guidance', read('apps/web/app/notifications/page.tsx').includes('Credentials are write-only') && read('apps/web/app/notifications/page.tsx').includes('SMS_CUSTOM_ALLOWED_HOSTS')],
 
+  // Dashboard visual-reference contract: keep the real operations UI polished without
+  // changing the API-backed data flow or adding a second UI test framework.
+  ['dashboard premium dark palette is scoped to overview page', dashboardCss.includes('.overview-page{') && dashboardCss.includes('--ov-bg:#061329;') && dashboardCss.includes('--ov-blue:#17a9ff;')],
+  ['dashboard KPI cards retain responsive premium surfaces', dashboardCss.includes('.overview-kpi:nth-child(4) .overview-kpi-icon') && dashboardCss.includes('grid-template-columns:repeat(4,minmax(0,1fr))') && dashboardCss.includes('@media(max-width:560px)')],
+  ['dashboard charts and tables have dark-theme contrast tokens', dashboardCss.includes('.overview-chart svg line{stroke:#173b66}') && dashboardCss.includes('.table-wrap th{background:#0b2042;color:#83a5d1')],
+  ['dashboard keyboard focus is visible on primary actions', dashboardCss.includes('.commandbar-primary a:focus-visible') && dashboardCss.includes('.operator-launchpad-item:focus-visible')],
+  ['dashboard responsive overrides preserve small-screen padding', dashboardCss.includes('@media(max-width:820px)') && dashboardCss.includes('.overview-page{padding:14px 9px 28px}'),
+  ['dashboard CSS respects reduced-motion preference', dashboardCss.includes('@media(prefers-reduced-motion:reduce)') && dashboardCss.includes('.overview-kpi:hover{transform:none}')],
+
 ];
 
 const assets = [
