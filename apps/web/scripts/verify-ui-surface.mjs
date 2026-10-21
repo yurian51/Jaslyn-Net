@@ -173,7 +173,7 @@ const required = [
   ['dashboard KPI cards retain responsive premium surfaces', dashboardCss.includes('.overview-kpi:nth-child(4) .overview-kpi-icon') && dashboardCss.includes('grid-template-columns:repeat(4,minmax(0,1fr))') && dashboardCss.includes('@media(max-width:560px)')],
   ['dashboard charts and tables have dark-theme contrast tokens', dashboardCss.includes('.overview-chart svg line{stroke:#173b66}') && dashboardCss.includes('.table-wrap th{background:#0b2042;color:#83a5d1')],
   ['dashboard keyboard focus is visible on primary actions', dashboardCss.includes('.commandbar-primary a:focus-visible') && dashboardCss.includes('.operator-launchpad-item:focus-visible')],
-  ['dashboard responsive overrides preserve small-screen padding', dashboardCss.includes('@media(max-width:820px)') && dashboardCss.includes('.overview-page{padding:14px 9px 28px}'),
+  ['dashboard responsive overrides preserve small-screen padding', dashboardCss.includes('@media(max-width:820px)') && dashboardCss.includes('.overview-page{padding:14px 9px 28px}')],
   ['dashboard CSS respects reduced-motion preference', dashboardCss.includes('@media(prefers-reduced-motion:reduce)') && dashboardCss.includes('.overview-kpi:hover{transform:none}')],
 
 ];
