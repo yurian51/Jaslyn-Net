@@ -167,6 +167,19 @@ const required = [
   ['provider-agnostic SMS settings UI', read('apps/web/app/notifications/page.tsx').includes('SMS Gateway Settings') && read('apps/web/app/notifications/page.tsx').includes('/notifications/sms/settings')],
   ['SMS secret handling and host allowlist guidance', read('apps/web/app/notifications/page.tsx').includes('Credentials are write-only') && read('apps/web/app/notifications/page.tsx').includes('SMS_CUSTOM_ALLOWED_HOSTS')],
 
+  // Dashboard visual-reference and cascade contracts.
+  ['dashboard premium dark palette remains scoped to the overview', dashboardCss.includes('.overview-page{') && dashboardCss.includes('--ov-bg:#061329;') && dashboardCss.includes('--ov-blue:#17a9ff;')],
+  ['dashboard KPI cards retain responsive premium surfaces', dashboardCss.includes('.overview-kpi:nth-child(4) .overview-kpi-icon') && dashboardCss.includes('@media(max-width:560px)')],
+  ['dashboard chart and table contrast rules exist', dashboardCss.includes('.overview-chart svg line{stroke:#173b66}') && dashboardCss.includes('.table-wrap th{background:#0b2042;color:#83a5d1')],
+  ['dashboard keyboard focus is visible on primary actions', dashboardCss.includes('.commandbar-primary a:focus-visible') && dashboardCss.includes('.operator-launchpad-item:focus-visible')],
+  ['dashboard reduced-motion preference is respected', dashboardCss.includes('@media(prefers-reduced-motion:reduce)') && dashboardCss.includes('.overview-kpi:hover{transform:none}')],
+  ['dashboard theme overrides shared console background cascade', dashboardCss.includes('.console-chrome-frame .overview-page{') && dashboardCss.includes('linear-gradient(145deg,#061329 0%,#071a35 52%,#06142b 100%)!important;')],
+  ['dashboard panels override shared white-surface defaults', dashboardCss.includes('.console-chrome-frame .overview-panel,') && dashboardCss.includes('background:linear-gradient(155deg,rgba(12,35,72,.98),rgba(7,25,54,.98))!important;')],
+  ['dashboard heading keeps readable contrast inside console shell', dashboardCss.includes('.console-chrome-frame .overview-header h1{color:#f2f7ff!important}')],
+  ['dashboard tablet spacing wins over shared console padding', dashboardCss.includes('@media(max-width:820px){\n  .console-chrome-frame .overview-page{padding:18px 13px 36px!important}')],
+  ['dashboard phone spacing wins over shared console padding', dashboardCss.includes('@media(max-width:560px){\n  .console-chrome-frame .overview-page{padding:14px 9px 28px!important}')],
+  ['dashboard theme is rendered inside the shared console shell', layout.includes('ConsoleChrome>{children}</ConsoleChrome>') && dashboardCss.includes('.console-chrome-frame .overview-page{')],
+
 ];
 
 const assets = [
