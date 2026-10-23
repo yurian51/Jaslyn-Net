@@ -4,7 +4,7 @@ import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { createHash, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { SignJWT } from 'jose';
+import { signAccessToken } from './jwt';
 import { LoginThrottleService } from './login-throttle.service';
 import { normalizePhone, parseLoginIdentifier } from './login-identifier';
 import { PG_POOL } from '../database/database.module';
