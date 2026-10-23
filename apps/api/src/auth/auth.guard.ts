@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jwtVerify } from 'jose';
+import { verifyAccessToken } from './jwt';
 import type { Request } from 'express';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -18,9 +18,6 @@ export type AuthenticatedRequest = Request & {
   };
 };
 
-const ISSUER = 'jaslyn-net';
-const AUDIENCE = 'jaslyn-net-api';
-
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private readonly config: ConfigService, @Inject(PG_POOL) private readonly db: Pool) {}
@@ -36,12 +33,7 @@ export class AuthGuard implements CanActivate {
 
     let payload;
     try {
-      const verified = await jwtVerify(token, new TextEncoder().encode(secret), {
-        issuer: ISSUER,
-        audience: AUDIENCE,
-        algorithms: ['HS256'],
-      });
-      payload = verified.payload;
+      payload = verifyAccessToken(token, secret);
     } catch {
       throw new UnauthorizedException('Invalid or expired access token');
     }
