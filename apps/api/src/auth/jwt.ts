@@ -40,7 +40,7 @@ export function signAccessToken(claims: {
   return input + '.' + signature(input, secret).toString('base64url');
 }
 
-export function verifyAccessToken(token: string, secret: string, nowSeconds = Math.floor(Date.now() / 1000)): JwtClaims {
+export function verifyAccessToken(token: string, secret: string, nowSeconds = Math.floor(Date.now() / 1000), audience = JWT_AUDIENCE): JwtClaims {
   if (typeof token !== 'string' || token.length > 16_384) throw new Error('Malformed JWT');
   const parts = token.split('.');
   if (parts.length !== 3 || parts.some((part) => !part)) throw new Error('Malformed JWT');
@@ -55,7 +55,7 @@ export function verifyAccessToken(token: string, secret: string, nowSeconds = Ma
   }
 
   const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Partial<JwtClaims>;
-  if (payload.iss !== JWT_ISSUER || payload.aud !== JWT_AUDIENCE) throw new Error('Invalid JWT issuer or audience');
+  if (payload.iss !== JWT_ISSUER || payload.aud !== audience) throw new Error('Invalid JWT issuer or audience');
   if (!Number.isSafeInteger(payload.exp) || (payload.exp as number) <= nowSeconds) throw new Error('Expired JWT');
   if (!Number.isSafeInteger(payload.iat) || (payload.iat as number) > nowSeconds + 60) throw new Error('Invalid JWT issued-at time');
   if (typeof payload.sub !== 'string' || !payload.sub
