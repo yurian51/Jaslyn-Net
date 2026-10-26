@@ -40,6 +40,15 @@ export function signAccessToken(claims: {
   return input + '.' + signature(input, secret).toString('base64url');
 }
 
+export function signAudienceToken(claims: Record<string, unknown> & { sub: string; sid: string; tenantId: string; role: string }, secret: string, audience: string, expiresInSeconds: number, nowSeconds = Math.floor(Date.now() / 1000)): string {
+  if (!secret || secret.length < 32) throw new Error('JWT secret must contain at least 32 characters');
+  if (!audience || !Number.isSafeInteger(expiresInSeconds) || expiresInSeconds < 1) throw new Error('Invalid JWT audience or expiry');
+  const header = encode({ alg: 'HS256', typ: 'JWT' });
+  const payload = encode({ ...claims, iss: JWT_ISSUER, aud: audience, jti: claims.sid, iat: nowSeconds, exp: nowSeconds + expiresInSeconds });
+  const input = header + '.' + payload;
+  return input + '.' + signature(input, secret).toString('base64url');
+}
+
 export function verifyAccessToken(token: string, secret: string, nowSeconds = Math.floor(Date.now() / 1000), audience = JWT_AUDIENCE): JwtClaims {
   if (typeof token !== 'string' || token.length > 16_384) throw new Error('Malformed JWT');
   const parts = token.split('.');
