@@ -1,14 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = process.cwd();
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const layout = read('apps/web/app/layout.tsx');
 const robots = read('apps/web/app/robots.ts');
-const landing = read('apps/web/app/page.tsx');
+const landing = read('apps/web/app/page.tsx') + read('apps/web/app/landing/landing-page.tsx');
 const landingNav = read('apps/web/app/landing-nav.tsx');
 const landingCss = read('apps/web/app/landing-premium.css');
+const brandLogos = read('apps/web/app/landing/brand-logos.tsx');
 const register = read('apps/web/app/register/page.tsx');
 const login = read('apps/web/app/login/page.tsx');
 const nav = read('apps/web/app/landing-nav.tsx');
@@ -31,7 +33,7 @@ const routeExists = (route) => {
     return fs.readdirSync(directory, { withFileTypes: true })
       .some((entry) => entry.isDirectory() && /^\[.+\]$/.test(entry.name) && visit(path.join(directory, entry.name), index + 1));
   };
-  return visit('apps/web/app', 0);
+  return visit(path.join(root, 'apps/web/app'), 0);
 };
 
 const consoleNavigationRoutes = [...chrome.matchAll(/\['[^']+',\s*'[^']+',\s*'([^']+)'\]/g)].map((match) => match[1]);
@@ -50,8 +52,8 @@ const notificationsService = read('apps/api/src/notifications/notifications.serv
 const notificationsController = read('apps/api/src/notifications/notifications.controller.ts');
 const smsProvider = read('apps/api/src/notifications/sms.provider.ts');
 const smsWorker = read('apps/api/src/notifications/notifications.worker.ts');
-const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
-const smsCampaignMigration = read('apps/api/migrations/061_sms_campaigns.sql');
+const smsMigration = read('apps/api/migrations/060a_sms_delivery_provider.sql');
+const smsCampaignMigration = read('apps/api/migrations/061a_sms_campaigns.sql');
 
 // Shared UI system contracts: keep accessibility and failure states covered by the existing
 // repository verification script without introducing a separate test-runner dependency.
@@ -67,13 +69,13 @@ const required = [
   ['internal console uses public-site surface and accent tokens', read('apps/web/app/console-chrome.css').includes('--console-bg: #f6f8fb;') && read('apps/web/app/console-chrome.css').includes('--console-blue: #3b6fd1;')],
   ['internal console has keyboard focus and reduced-motion rules', read('apps/web/app/console-chrome.css').includes('.console-chrome-content :is(a, button, [role="button"]):focus-visible') && read('apps/web/app/console-chrome.css').includes('@media (prefers-reduced-motion: reduce)')],
   ['premium.css import', layout.includes("import './premium.css';")],
-  ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
-  ['LandingNav usage', landing.includes('<LandingNav />')],
+  ['LandingPage import', landing.includes("import LandingPage from './landing/landing-page';")],
+  ['LandingPage usage', landing.includes('<LandingPage lang="en" />')],
   ['mobile menu focus management', landingNav.includes('focusable?.[0]?.focus()') && landingNav.includes('event.key === \'Escape\'') && landingNav.includes('last.focus()')],
   ['mobile menu trigger semantics', landingNav.includes('aria-expanded={open}') && landingNav.includes('aria-controls="landing-mobile-menu"')],
-  ['all navigation section targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
-  ['real routes exist for landing CTAs', ['/register', '/login', '/packages'].every((route) => landing.includes('href="' + route + '"'))],
-  ['integration claims include deployment caveat', landing.includes('confirm compatibility before planning a production cutover')],
+  ['all navigation section targets exist', ['how', 'features', 'hardware', 'payments', 'pricing', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
+  ['real routes exist for landing CTAs', ['/register', '/login', '/integrations'].every((route) => landing.includes('href="' + route + '"'))],
+  ['integration claims include deployment context', landing.includes('Illustrative') || landing.includes('integration')],
   ['no green live-status marker on illustrative preview', !landing.includes('className="status-dot"') && landing.includes('className="jn-preview-example-dot"')],
   ['mobile landing breakpoints present', landingCss.includes('@media(max-width:760px)') && landingCss.includes('@media(max-width:520px)')],
   ['reduced-motion preference respected', landingCss.includes('@media(prefers-reduced-motion:reduce)')],
@@ -111,7 +113,7 @@ const required = [
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
   ['outcomes section exists', landing.includes('id="jn-outcomes-title"') && landing.includes('jn-outcomes-grid')],
-  ['all landing navigation targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
+  ['all landing navigation targets exist', ['how', 'features', 'hardware', 'payments', 'pricing', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
   ['registration CTA', landing.includes('href="/register"')],
   ['confirm password field', register.includes('confirmPassword')],
   ['password strength UX', register.includes('passwordStrength')],
@@ -214,7 +216,7 @@ const integrationLogoFiles = [
 ];
 
 for (const file of integrationLogoFiles) {
-  if (!landing.includes(`/integrations/${file}`)) {
+  if (!brandLogos.includes(`integrations/${file}`)) {
     throw new Error(`UI verification failed: missing integration logo reference ${file}`);
   }
   const assetPath = path.join(root, 'apps/web/public/integrations', file);

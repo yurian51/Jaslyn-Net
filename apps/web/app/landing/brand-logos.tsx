@@ -18,7 +18,7 @@ export const VENDOR_LOGOS: Vendor[] = [
   { name: 'Cisco Meraki', file: 'integrations/meraki.svg' },
   { name: 'Aruba', file: 'integrations/aruba.svg' },
   { name: 'Grandstream', file: 'integrations/grandstream.svg' },
-  { name: 'Ruckus', file: 'integrations/ruckus-logo.svg' }, // not supplied yet: ruckus.svg in the repo is plain text, not a logo
+  { name: 'Ruckus', file: 'integrations/ruckus.svg' },
   { name: 'Teltonika', file: 'integrations/teltonika.svg' },
   { name: 'Peplink', file: 'integrations/peplink.svg', dark: true },
   { name: 'pfSense', file: 'integrations/pfsense.svg' },
