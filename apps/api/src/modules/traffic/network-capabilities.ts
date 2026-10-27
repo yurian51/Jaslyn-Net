@@ -19,6 +19,7 @@ export interface NetworkVendorCapability {
   protocols: string[];
   integrationModes: IntegrationMode[];
   deviceFamilies: string[];
+  supportedModelPatterns?: string[];
   capabilities: NetworkCapability[];
   notes: string;
 }
@@ -29,6 +30,7 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     protocols: ['MIKROTIK_REST', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'radius'],
     deviceFamilies: ['RouterOS routers', 'CHR', 'Cloud Hosted Router', 'HotSpot gateways'],
+    supportedModelPatterns: ['all RouterOS models', 'hAP', 'RB', 'CCR', 'CRS', 'cAP', 'wAP', 'LHG', 'SXT', 'Audience', 'Knot', 'CHR'],
     capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'captive_portal', 'voucher', 'radius_aaa', 'bandwidth_enforcement', 'disconnect_client', 'device_inventory', 'health_monitoring', 'qos'],
     notes: 'Native RouterOS REST plus RADIUS path. RouterOS User Manager can provide centralized AAA.',
   },
@@ -37,6 +39,7 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     protocols: ['UNIFI_NETWORK_API', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'radius'],
     deviceFamilies: ['UniFi Access Points', 'Cloud Gateways', 'Switches', 'UniFi Network Application'],
+    supportedModelPatterns: ['all UniFi Network devices', 'UAP', 'U6', 'U7', 'UCG', 'UDM', 'UXG', 'USG', 'USW', 'UNVR', 'UCK', 'UX'],
     capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'captive_portal', 'voucher', 'radius_aaa', 'bandwidth_enforcement', 'disconnect_client', 'device_inventory', 'health_monitoring', 'qos', 'cloud_controller'],
     notes: 'Official Network API exposes connected clients and guest authorization, including time, data and rate limits.',
   },
@@ -141,4 +144,14 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
 export function getNetworkVendorCapability(vendor: string): NetworkVendorCapability | undefined {
   const normalized = vendor.trim().toLowerCase();
   return WORLDWIDE_NETWORK_CAPABILITIES.find((item) => item.vendor.toLowerCase() === normalized);
+}
+
+export function isNetworkModelSupported(vendor: string, model?: string): boolean {
+  if (!model?.trim()) return true;
+  const capability = getNetworkVendorCapability(vendor);
+  if (!capability?.supportedModelPatterns?.length) return true;
+  const normalizedModel = model.trim().toLowerCase();
+  return capability.supportedModelPatterns.some((pattern) =>
+    pattern.toLowerCase().startsWith('all ') || normalizedModel.includes(pattern.toLowerCase()),
+  );
 }
