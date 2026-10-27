@@ -28,7 +28,10 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
   app.setGlobalPrefix('api/v1', {
-    exclude: [{ path: '/', method: RequestMethod.GET }],
+    exclude: [
+      { path: '', method: RequestMethod.GET },
+      { path: '/', method: RequestMethod.GET },
+    ],
   });
   app.enableCors({
     origin: allowAnyOrigin ? true : configuredOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
