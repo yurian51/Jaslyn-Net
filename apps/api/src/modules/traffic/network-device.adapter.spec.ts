@@ -75,9 +75,9 @@ describe('NetworkDeviceAdapterRegistry', () => {
 
   it('blocks loopback, link-local and credential-bearing endpoints', async () => {
     const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
-    await expect(registry.readClients({ routerId: 'r8', protocol: 'GENERIC_HTTP', endpoint: 'https://127.0.0.1/internal' })).rejects.toThrow('restricted address');
-    await expect(registry.readClients({ routerId: 'r9', protocol: 'GENERIC_HTTP', endpoint: 'https://169.254.169.254/latest' })).rejects.toThrow('restricted address');
-    await expect(registry.readClients({ routerId: 'r10', protocol: 'GENERIC_HTTP', endpoint: 'https://user:password@1.1.1.1/api' })).rejects.toThrow('embedded credentials');
+    await expect(registry.readClients({ routerId: 'r8', protocol: 'GENERIC_HTTP', endpoint: 'https://127.0.0.1/internal', credentials: { apiKey: 'test' } })).rejects.toThrow('restricted address');
+    await expect(registry.readClients({ routerId: 'r9', protocol: 'GENERIC_HTTP', endpoint: 'https://169.254.169.254/latest', credentials: { apiKey: 'test' } })).rejects.toThrow('restricted address');
+    await expect(registry.readClients({ routerId: 'r10', protocol: 'GENERIC_HTTP', endpoint: 'https://user:password@1.1.1.1/api', credentials: { apiKey: 'test' } })).rejects.toThrow('embedded credentials');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
