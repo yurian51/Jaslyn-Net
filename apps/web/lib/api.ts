@@ -9,7 +9,7 @@ function withApiPrefix(url: string) {
 
 export const API_URL = configuredApiUrl
   ? withApiPrefix(configuredApiUrl)
-  : (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
+  : (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '/api/v1');
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
