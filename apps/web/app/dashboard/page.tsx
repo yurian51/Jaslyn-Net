@@ -104,11 +104,19 @@ export default function DashboardPage() {
   }, [operatorProfile, operatorProfileLoaded]);
 
   useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCommandOpen(false);
+    const onKeyboardShortcut = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandQuery('');
+        setCommandOpen(true);
+      }
     };
-    window.addEventListener('keydown', onEscape);
-    return () => window.removeEventListener('keydown', onEscape);
+    window.addEventListener('keydown', onKeyboardShortcut);
+    return () => window.removeEventListener('keydown', onKeyboardShortcut);
   }, []);
 
   const exportOperationalSnapshot = useCallback(() => {
@@ -308,7 +316,7 @@ export default function DashboardPage() {
       )}
       <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
         <div className="operator-launchpad-heading">
-          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger">Dashboard actions</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger" title="Open dashboard actions (Ctrl or Command + K)">Dashboard actions <kbd>⌘K</kbd></button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
           <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
         </div>
         <label className="operator-launchpad-search">
