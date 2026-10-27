@@ -37,6 +37,7 @@ const duration = (value?: string) => {
 };
 
 const OPERATOR_WORKSPACES = [
+  { label: 'UpesiLipa workspace', detail: 'Sites, packages, customers, vouchers and sales', href: '/upesilipa', terms: 'upesilipa wifi hotspot packages vouchers sales reports branding' },
   { label: 'Network & devices', detail: 'Routers, links and topology', href: '/network', terms: 'router device topology links' },
   { label: 'Customers', detail: 'Subscriber accounts and profiles', href: '/customers', terms: 'subscriber client account' },
   { label: 'Live sessions', detail: 'Connected users and activity', href: '/sessions', terms: 'online radius active users' },
