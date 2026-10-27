@@ -21,6 +21,10 @@ export interface WanRoutingAdapterCapabilities {
  */
 export const WAN_ROUTING_CAPABILITIES: Readonly<Record<NetworkManagementProtocol, readonly WanRoutingCapability[]>> = {
   MIKROTIK_REST: ['wan_telemetry', 'gateway_health', 'failover', 'route_read', 'route_write'],
+  CISCO_NETCONF_RESTCONF: ['wan_telemetry', 'gateway_health', 'route_read'],
+  CISCO_IOS_XE_API: ['wan_telemetry', 'gateway_health', 'route_read'],
+  HUAWEI_NETCONF_RESTCONF: ['wan_telemetry', 'gateway_health', 'route_read'],
+  HUAWEI_IMASTER_NCE_API: ['wan_telemetry', 'gateway_health', 'route_read'],
   UNIFI_NETWORK_API: ['wan_telemetry', 'gateway_health', 'failover', 'route_read'],
   OMADA_CONTROLLER_API: ['wan_telemetry', 'gateway_health', 'failover', 'route_read'],
   CAMBIUM_CNMAESTRO: ['wan_telemetry', 'gateway_health', 'route_read'],
