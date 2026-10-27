@@ -44,6 +44,10 @@ export class RoutersService {
     if (normalized.includes('dell') || normalized.includes('powerswitch')) return 'DELL_OS10_NETCONF';
     if (normalized.includes('netgear')) return 'NETGEAR_INSIGHT_API';
     if (normalized.includes('zyxel') || normalized.includes('nebula')) return 'ZYXEL_NEBULA_API';
+    if (normalized.includes('cloudcampus')) return 'HUAWEI_CLOUDCAMPUS_API';
+    if (normalized.includes('extreme') || normalized.includes('cloud iq')) return 'EXTREME_CLOUD_IQ_API';
+    if (normalized.includes('ruckus') || normalized.includes('smartzone')) return 'RUCKUS_SMARTZONE_API';
+    if (normalized.includes('watchguard') || normalized.includes('firebox')) return 'WATCHGUARD_FIREBOX_API';
     if (normalized.includes('aruba')) return normalized.includes('central') ? 'ARUBA_CENTRAL_API' : 'ARUBA_AOS_CX_NETCONF';
     if (normalized.includes('omada') || normalized.includes('tp-link') || normalized.includes('tplink')) return normalized.includes('local') ? 'OMADA_LOCAL_CONTROLLER_API' : 'OMADA_CONTROLLER_API';
     if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';

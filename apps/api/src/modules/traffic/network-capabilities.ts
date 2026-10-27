@@ -82,6 +82,18 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     vendor: 'Zyxel', protocols: ['ZYXEL_NEBULA_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['Nebula gateways', 'Nebula switches', 'Nebula access points'], supportedModelPatterns: ['all Nebula models', 'USG FLEX', 'ATP', 'GS', 'XS', 'NWA', 'WAX', 'SCR'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'Zyxel Nebula cloud-managed families require live controller validation.'
   },
   {
+    vendor: 'Huawei CloudCampus', protocols: ['HUAWEI_CLOUDCAMPUS_API', 'HUAWEI_NETCONF_RESTCONF', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['CloudCampus controllers', 'CloudEngine campus switches', 'AirEngine APs', 'AR gateways'], supportedModelPatterns: ['all CloudCampus models', 'iMaster', 'S12700', 'S6730', 'S5735', 'CE6850', 'AirEngine', 'AR'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'CloudCampus controller and campus-device coverage requires live controller validation.'
+  },
+  {
+    vendor: 'Extreme Networks', protocols: ['EXTREME_CLOUD_IQ_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['ExtremeCloud IQ', 'ExtremeXOS switches', 'Universal access points'], supportedModelPatterns: ['all ExtremeCloud IQ models', 'X440', 'X465', 'X590', 'X695', 'X870', 'VSP', 'AP305C', 'AP410C', 'AP505i'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'ExtremeCloud IQ and ExtremeXOS devices require tenant/controller validation.'
+  },
+  {
+    vendor: 'Ruckus Networks', protocols: ['RUCKUS_SMARTZONE_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['Ruckus AP', 'SmartZone', 'Virtual SmartZone', 'Cloud-managed WLAN'], supportedModelPatterns: ['all Ruckus WLAN models', 'R550', 'R650', 'R750', 'R770', 'T350', 'ICX7150', 'ICX7450', 'SmartZone'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'Ruckus controller APIs require live SmartZone or cloud validation.'
+  },
+  {
+    vendor: 'WatchGuard', protocols: ['WATCHGUARD_FIREBOX_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['Firebox appliances', 'WatchGuard Cloud', 'Secure Wi-Fi'], supportedModelPatterns: ['all Firebox models', 'T20', 'T40', 'T80', 'M290', 'M390', 'M590', 'M690', 'Firebox Cloud'], capabilities: ['telemetry', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'Firebox management and WatchGuard Cloud telemetry require live account validation.'
+  },
+  {
     vendor: 'Huawei',
     protocols: ['HUAWEI_NETCONF_RESTCONF', 'HUAWEI iMaster NCE API', 'SNMP', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'snmp', 'radius'],

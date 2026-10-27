@@ -5,6 +5,10 @@ import { useMemo, useState } from 'react';
 import './releases.css';
 
 const releases = [
+  { version: '2026.10.14', date: 'October 2026', title: 'WatchGuard Firebox model support', detail: 'WatchGuard support covers Firebox appliances and WatchGuard Cloud readiness with secure management and live validation.', tags: ['WatchGuard', 'Firebox'], featured: true },
+  { version: '2026.10.13', date: 'October 2026', title: 'Ruckus SmartZone model support', detail: 'Ruckus support covers SmartZone, Virtual SmartZone, ICX switching and current WLAN model families.', tags: ['Ruckus', 'SmartZone'], featured: true },
+  { version: '2026.10.12', date: 'October 2026', title: 'ExtremeCloud IQ model support', detail: 'Extreme support covers Cloud IQ, ExtremeXOS switching and universal access points with controller-aware readiness.', tags: ['Extreme', 'Cloud IQ'], featured: true },
+  { version: '2026.10.11', date: 'October 2026', title: 'Huawei CloudCampus model support', detail: 'Huawei CloudCampus support covers campus controllers, CloudEngine switching, AirEngine WLAN and AR gateways.', tags: ['Huawei', 'CloudCampus'], featured: true },
   { version: '2026.10.10', date: 'October 2026', title: 'Zyxel Nebula model support', detail: 'Zyxel support covers Nebula gateways, switches and access points with cloud-controller discovery and model-aware readiness checks.', tags: ['Zyxel', 'Nebula'], featured: true },
   { version: '2026.10.9', date: 'October 2026', title: 'Netgear Insight model support', detail: 'Netgear Insight-managed switches, access points and gateways now have vendor-aware onboarding and telemetry readiness.', tags: ['Netgear', 'Insight'], featured: true },
   { version: '2026.10.8', date: 'October 2026', title: 'Dell PowerSwitch model support', detail: 'Dell OS10 and OS9 PowerSwitch families are now represented with NETCONF, telemetry and model compatibility metadata.', tags: ['Dell', 'PowerSwitch'], featured: true },

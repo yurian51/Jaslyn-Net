@@ -81,6 +81,10 @@ export class NetworkAdapterRegistry {
     { protocol: 'DELL_OS10_NETCONF', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
     { protocol: 'NETGEAR_INSIGHT_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
     { protocol: 'ZYXEL_NEBULA_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
+    { protocol: 'HUAWEI_CLOUDCAMPUS_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
+    { protocol: 'EXTREME_CLOUD_IQ_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
+    { protocol: 'RUCKUS_SMARTZONE_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
+    { protocol: 'WATCHGUARD_FIREBOX_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
     {
       protocol: 'ARUBA_CENTRAL_API',
       lifecycle: 'NATIVE',
