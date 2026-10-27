@@ -78,6 +78,18 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'Juniper support covers Junos NETCONF for routing and switching plus Mist API for cloud-managed WLAN and Marvis operations.',
   },
   {
+    vendor: 'Fortinet', protocols: ['FORTINET_FORTIGATE_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['FortiGate firewalls', 'FortiSwitch', 'FortiAP'], supportedModelPatterns: ['all FortiOS models', 'FG', 'FGR', 'FortiGate', 'FortiSwitch', 'FortiAP'], capabilities: ['telemetry', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'FortiGate and Fortinet secure networking devices require live validation against the target FortiOS/API version.'
+  },
+  {
+    vendor: 'Dell Networking', protocols: ['DELL_OS10_NETCONF', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['PowerSwitch OS10', 'PowerSwitch OS9', 'N-series switches'], supportedModelPatterns: ['all Dell PowerSwitch models', 'S41', 'S52', 'S60', 'N15', 'Z9', 'OS10', 'OS9'], capabilities: ['telemetry', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'Dell PowerSwitch support targets OS10/OS9 NETCONF and standard telemetry.'
+  },
+  {
+    vendor: 'Netgear', protocols: ['NETGEAR_INSIGHT_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['Insight switches', 'Insight access points', 'Insight gateways'], supportedModelPatterns: ['all Netgear Insight models', 'GC', 'GS', 'MS', 'WAX', 'WAC', 'BR'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring'], notes: 'Netgear Insight cloud-managed device support requires controller/account validation.'
+  },
+  {
+    vendor: 'Zyxel', protocols: ['ZYXEL_NEBULA_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['Nebula gateways', 'Nebula switches', 'Nebula access points'], supportedModelPatterns: ['all Nebula models', 'USG FLEX', 'ATP', 'GS', 'XS', 'NWA', 'WAX', 'SCR'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'Zyxel Nebula cloud-managed families require live controller validation.'
+  },
+  {
     vendor: 'Huawei',
     protocols: ['HUAWEI_NETCONF_RESTCONF', 'HUAWEI iMaster NCE API', 'SNMP', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'snmp', 'radius'],

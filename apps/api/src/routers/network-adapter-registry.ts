@@ -77,6 +77,10 @@ export class NetworkAdapterRegistry {
       liveDeviceValidationRequired: true,
       capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'],
     },
+    { protocol: 'FORTINET_FORTIGATE_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
+    { protocol: 'DELL_OS10_NETCONF', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
+    { protocol: 'NETGEAR_INSIGHT_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
+    { protocol: 'ZYXEL_NEBULA_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
     {
       protocol: 'ARUBA_CENTRAL_API',
       lifecycle: 'NATIVE',

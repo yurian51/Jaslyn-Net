@@ -5,6 +5,10 @@ import { useMemo, useState } from 'react';
 import './releases.css';
 
 const releases = [
+  { version: '2026.10.10', date: 'October 2026', title: 'Zyxel Nebula model support', detail: 'Zyxel support covers Nebula gateways, switches and access points with cloud-controller discovery and model-aware readiness checks.', tags: ['Zyxel', 'Nebula'], featured: true },
+  { version: '2026.10.9', date: 'October 2026', title: 'Netgear Insight model support', detail: 'Netgear Insight-managed switches, access points and gateways now have vendor-aware onboarding and telemetry readiness.', tags: ['Netgear', 'Insight'], featured: true },
+  { version: '2026.10.8', date: 'October 2026', title: 'Dell PowerSwitch model support', detail: 'Dell OS10 and OS9 PowerSwitch families are now represented with NETCONF, telemetry and model compatibility metadata.', tags: ['Dell', 'PowerSwitch'], featured: true },
+  { version: '2026.10.7', date: 'October 2026', title: 'Fortinet FortiGate model support', detail: 'FortiGate, FortiSwitch and FortiAP families now have secure API onboarding, telemetry capabilities and live validation requirements.', tags: ['Fortinet', 'FortiGate'], featured: true },
   { version: '2026.10.6', date: 'October 2026', title: 'Juniper Junos and Mist model support', detail: 'Juniper support now covers Junos routers, EX and QFX switching, SRX security, MX edge platforms and Mist-managed WLAN through NETCONF and controller-aware discovery.', tags: ['Juniper', 'Junos', 'Mist'], featured: true },
   { version: '2026.10.5', date: 'October 2026', title: 'TP-Link Omada model support', detail: 'Omada support now covers cloud and local controllers, gateways, switches and access points across ER, SG, EAP, OC and SDN-managed device families.', tags: ['TP-Link', 'Omada', 'SDN'], featured: true },
   { version: '2026.10.4', date: 'October 2026', title: 'Aruba Central and AOS-CX model support', detail: 'Aruba support now covers Central-managed gateways and WLAN, Instant On families, CX switching and AOS-CX devices through controller API and NETCONF discovery.', tags: ['Aruba', 'Central', 'AOS-CX'], featured: true },

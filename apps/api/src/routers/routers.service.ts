@@ -40,6 +40,10 @@ export class RoutersService {
     if (normalized.includes('cisco')) return 'CISCO_NETCONF_RESTCONF';
     if (normalized.includes('huawei')) return 'HUAWEI_NETCONF_RESTCONF';
     if (normalized.includes('juniper') || normalized.includes('junos')) return normalized.includes('mist') ? 'JUNIPER_MIST_API' : 'JUNIPER_JUNOS_NETCONF';
+    if (normalized.includes('fortinet') || normalized.includes('fortigate')) return 'FORTINET_FORTIGATE_API';
+    if (normalized.includes('dell') || normalized.includes('powerswitch')) return 'DELL_OS10_NETCONF';
+    if (normalized.includes('netgear')) return 'NETGEAR_INSIGHT_API';
+    if (normalized.includes('zyxel') || normalized.includes('nebula')) return 'ZYXEL_NEBULA_API';
     if (normalized.includes('aruba')) return normalized.includes('central') ? 'ARUBA_CENTRAL_API' : 'ARUBA_AOS_CX_NETCONF';
     if (normalized.includes('omada') || normalized.includes('tp-link') || normalized.includes('tplink')) return normalized.includes('local') ? 'OMADA_LOCAL_CONTROLLER_API' : 'OMADA_CONTROLLER_API';
     if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';
