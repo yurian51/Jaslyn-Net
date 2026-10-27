@@ -4,6 +4,7 @@ import Link from 'next/link';
 import './releases.css';
 
 const releases = [
+  { version: '2026.10.4', date: 'October 2026', title: 'Aruba Central and AOS-CX model support', detail: 'Aruba support now covers Central-managed gateways and WLAN, Instant On families, CX switching and AOS-CX devices through controller API and NETCONF discovery.', tags: ['Aruba', 'Central', 'AOS-CX'], featured: true },
   { version: '2026.10.3', date: 'October 2026', title: 'Huawei VRP and AirEngine model support', detail: 'Huawei support now covers VRP routers, AR and NE platforms, CloudEngine and S-series switching, AC controllers and AirEngine WLAN through NETCONF/RESTCONF and controller-aware discovery.', tags: ['Huawei', 'VRP', 'AirEngine'], featured: true },
   { version: '2026.10.2', date: 'October 2026', title: 'Cisco IOS and IOS-XE model support', detail: 'Cisco support now covers IOS and IOS-XE routers, ISR, ASR, CSR, Catalyst switching, C9800 wireless controllers and NCS platforms through vendor-aware capability discovery.', tags: ['Cisco', 'IOS-XE', 'Network'], featured: true },
   { version: '2026.10.1', date: 'October 2026', title: 'Ubiquiti UniFi network support', detail: 'UniFi Network API support is now available for vendor-aware onboarding, controller connectivity, capability discovery and audited network operations.', tags: ['Ubiquiti', 'UniFi', 'Network'] },

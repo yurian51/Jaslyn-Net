@@ -39,6 +39,7 @@ export class RoutersService {
     if (normalized.includes('ubiquiti') || normalized.includes('unifi')) return 'UNIFI_NETWORK_API';
     if (normalized.includes('cisco')) return 'CISCO_NETCONF_RESTCONF';
     if (normalized.includes('huawei')) return 'HUAWEI_NETCONF_RESTCONF';
+    if (normalized.includes('aruba')) return normalized.includes('central') ? 'ARUBA_CENTRAL_API' : 'ARUBA_AOS_CX_NETCONF';
     if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';
     if (normalized.includes('cambium')) return 'CAMBIUM_CNMAESTRO';
     if (normalized.includes('meraki')) return 'MERAKI_DASHBOARD_API';
