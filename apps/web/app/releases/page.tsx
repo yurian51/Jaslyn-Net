@@ -45,9 +45,10 @@ export default function ReleasesPage() {
     </section>
     <section className="release-controls" aria-label="Filter releases">
       <label className="release-search"><span className="sr-only">Search releases</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search releases" /></label>
-      <div className="release-filters" role="group" aria-label="Release tags">{tags.map((tag) => <button type="button" className={activeTag === tag ? 'is-active' : ''} key={tag} onClick={() => setActiveTag(tag)}>{tag}</button>)}</div>
+      <div className="release-filters" role="group" aria-label="Release tags">{tags.map((tag) => <button type="button" className={activeTag === tag ? 'is-active' : ''} aria-pressed={activeTag === tag} key={tag} onClick={() => setActiveTag(tag)}>{tag}</button>)}</div>
     </section>
     <section className="releases-list" aria-label="Latest releases">
+      <p className="release-result-count" aria-live="polite">Showing {visibleReleases.length} of {releases.length} releases</p>
       {visibleReleases.length ? visibleReleases.map((release) => <article className={`release-card${release.featured ? ' release-card-featured' : ''}`} key={release.version}>
         <div className="release-meta"><strong>{release.version}</strong><span>{release.date}</span>{release.featured && <span className="release-status">Latest</span>}</div>
         <div><h2>{release.title}</h2><p>{release.detail}</p><div className="release-tags">{release.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
