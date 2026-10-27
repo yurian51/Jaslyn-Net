@@ -35,6 +35,10 @@ export default function ReleasesPage() {
       <div><Link className="releases-back" href="/upesilipa">← UpesiLipa workspace</Link><span className="releases-kicker">JASLYN NET · LATEST RELEASES</span><h1>Product updates, in one place.</h1><p>Track the capabilities added to Jaslyn Net as UpesiLipa evolves from a billing tool into a complete WiFi business operating system.</p></div>
       <Link className="releases-action" href="/dashboard">Open dashboard ↗</Link>
     </header>
+    <section className="release-overview" aria-label="Release overview">
+      <div><span className="release-overline">OPERATIONS CHANGELOG</span><strong>{releases.length} shipped updates</strong><span>Multi-vendor network coverage, controller readiness and operator tooling.</span></div>
+      <div className="release-overview-metrics"><span><b>{new Set(releases.flatMap((release) => release.tags)).size}</b> domains</span><span><b>{releases.filter((release) => release.featured).length}</b> latest</span></div>
+    </section>
     <section className="release-controls" aria-label="Filter releases">
       <label className="release-search"><span className="sr-only">Search releases</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search releases" /></label>
       <div className="release-filters" role="group" aria-label="Release tags">{tags.map((tag) => <button type="button" className={activeTag === tag ? 'is-active' : ''} key={tag} onClick={() => setActiveTag(tag)}>{tag}</button>)}</div>

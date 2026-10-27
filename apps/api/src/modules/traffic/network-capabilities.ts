@@ -44,14 +44,6 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'Official Network API exposes connected clients and guest authorization, including time, data and rate limits.',
   },
   {
-    vendor: 'TP-Link Omada',
-    protocols: ['OMADA_CONTROLLER_API', 'RADIUS_NAS'],
-    integrationModes: ['native_api', 'radius'],
-    deviceFamilies: ['Omada Access Points', 'Omada Gateways', 'Omada Switches', 'OC/Software/Cloud Controller'],
-    capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'captive_portal', 'voucher', 'radius_aaa', 'bandwidth_enforcement', 'disconnect_client', 'device_inventory', 'health_monitoring', 'qos', 'cloud_controller'],
-    notes: 'Omada Controller Open API supports REST services and OAuth client credentials.',
-  },
-  {
     vendor: 'Cambium Networks',
     protocols: ['CAMBIUM_CNMAESTRO', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'radius'],
