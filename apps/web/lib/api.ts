@@ -31,6 +31,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   try {
     response = await fetch(`${API_URL}${normalizedPath}`, {
       ...init,
+      mode: 'cors',
+      credentials: 'include',
       signal,
       headers: { Accept: 'application/json', 'x-request-id': requestId, ...init.headers },
     });
