@@ -69,6 +69,15 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'Omada Cloud and Software/Hardware Controller integrations cover controller-managed gateways, switches and access points.',
   },
   {
+    vendor: 'Juniper Networks',
+    protocols: ['JUNIPER_JUNOS_NETCONF', 'JUNIPER_MIST_API', 'SNMP', 'RADIUS_NAS'],
+    integrationModes: ['native_api', 'snmp', 'radius'],
+    deviceFamilies: ['Junos routers', 'EX switches', 'QFX switches', 'SRX firewalls', 'MX routers', 'Mist-managed WLAN'],
+    supportedModelPatterns: ['all Junos models', 'MX', 'SRX', 'EX', 'QFX', 'PTX', 'ACX', 'vSRX', 'Mist', 'AP', 'Marvis'],
+    capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'],
+    notes: 'Juniper support covers Junos NETCONF for routing and switching plus Mist API for cloud-managed WLAN and Marvis operations.',
+  },
+  {
     vendor: 'Huawei',
     protocols: ['HUAWEI_NETCONF_RESTCONF', 'HUAWEI iMaster NCE API', 'SNMP', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'snmp', 'radius'],

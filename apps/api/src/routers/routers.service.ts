@@ -39,6 +39,7 @@ export class RoutersService {
     if (normalized.includes('ubiquiti') || normalized.includes('unifi')) return 'UNIFI_NETWORK_API';
     if (normalized.includes('cisco')) return 'CISCO_NETCONF_RESTCONF';
     if (normalized.includes('huawei')) return 'HUAWEI_NETCONF_RESTCONF';
+    if (normalized.includes('juniper') || normalized.includes('junos')) return normalized.includes('mist') ? 'JUNIPER_MIST_API' : 'JUNIPER_JUNOS_NETCONF';
     if (normalized.includes('aruba')) return normalized.includes('central') ? 'ARUBA_CENTRAL_API' : 'ARUBA_AOS_CX_NETCONF';
     if (normalized.includes('omada') || normalized.includes('tp-link') || normalized.includes('tplink')) return normalized.includes('local') ? 'OMADA_LOCAL_CONTROLLER_API' : 'OMADA_CONTROLLER_API';
     if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';

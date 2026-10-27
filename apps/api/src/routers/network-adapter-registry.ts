@@ -64,6 +64,20 @@ export class NetworkAdapterRegistry {
       capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'],
     },
     {
+      protocol: 'JUNIPER_JUNOS_NETCONF',
+      lifecycle: 'NATIVE',
+      supportScope: 'TELEMETRY_ONLY',
+      liveDeviceValidationRequired: true,
+      capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'],
+    },
+    {
+      protocol: 'JUNIPER_MIST_API',
+      lifecycle: 'NATIVE',
+      supportScope: 'TELEMETRY_ONLY',
+      liveDeviceValidationRequired: true,
+      capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'],
+    },
+    {
       protocol: 'ARUBA_CENTRAL_API',
       lifecycle: 'NATIVE',
       supportScope: 'TELEMETRY_ONLY',

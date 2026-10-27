@@ -25,6 +25,8 @@ export const WAN_ROUTING_CAPABILITIES: Readonly<Record<NetworkManagementProtocol
   CISCO_IOS_XE_API: ['wan_telemetry', 'gateway_health', 'route_read'],
   HUAWEI_NETCONF_RESTCONF: ['wan_telemetry', 'gateway_health', 'route_read'],
   HUAWEI_IMASTER_NCE_API: ['wan_telemetry', 'gateway_health', 'route_read'],
+  JUNIPER_JUNOS_NETCONF: ['wan_telemetry', 'gateway_health', 'route_read'],
+  JUNIPER_MIST_API: ['wan_telemetry', 'gateway_health', 'route_read'],
   ARUBA_CENTRAL_API: ['wan_telemetry', 'gateway_health', 'route_read'],
   ARUBA_AOS_CX_NETCONF: ['wan_telemetry', 'gateway_health', 'route_read'],
   UNIFI_NETWORK_API: ['wan_telemetry', 'gateway_health', 'failover', 'route_read'],
