@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [quickFind, setQuickFind] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
 
   useEffect(() => { setWelcomeNow(new Date()); }, []);
 
@@ -251,6 +252,11 @@ export default function DashboardPage() {
   const operatorEmail = operatorProfile?.email?.trim() || '';
   const operatorDisplayName = operatorFullName ? operatorFullName.split(/\s+/)[0] : operatorUsername || operatorEmail.split('@')[0] || 'Operator';
   const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
+  const filteredCommandWorkspaces = useMemo(() => OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())), [commandQuery]);
+  useEffect(() => {
+    setSelectedCommandIndex((current) => Math.min(current, Math.max(filteredCommandWorkspaces.length - 1, 0)));
+  }, [filteredCommandWorkspaces.length]);
+
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
     : network.offline > 0
@@ -297,13 +303,13 @@ export default function DashboardPage() {
           <section className="operator-command-dialog" role="dialog" aria-modal="true" aria-labelledby="operator-command-title">
             <div className="operator-command-search-row">
               <span aria-hidden="true">⌕</span>
-              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search workspaces and actions…" aria-label="Search operator commands" />
+              <input autoFocus value={commandQuery} onChange={(event) => { setCommandQuery(event.target.value); setSelectedCommandIndex(0); }} onKeyDown={(event) => { if (event.nativeEvent.isComposing || event.keyCode === 229) return; if (event.key === 'ArrowDown') { event.preventDefault(); setSelectedCommandIndex((current) => Math.min(current + 1, Math.max(filteredCommandWorkspaces.length - 1, 0))); } if (event.key === 'ArrowUp') { event.preventDefault(); setSelectedCommandIndex((current) => Math.max(current - 1, 0)); } if (event.key === 'Enter' && filteredCommandWorkspaces[selectedCommandIndex]) { event.preventDefault(); window.location.href = filteredCommandWorkspaces[selectedCommandIndex].href; } }} placeholder="Search workspaces and actions…" aria-label="Search operator commands" aria-activedescendant={filteredCommandWorkspaces[selectedCommandIndex] ? `command-${selectedCommandIndex}` : undefined} />
               <kbd>ESC</kbd>
             </div>
             <div className="operator-command-section-label" id="operator-command-title">QUICK ACTIONS</div>
             <div className="operator-command-results">
-              {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).map((item) => (
-                <a key={item.href} href={item.href} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
+              {filteredCommandWorkspaces.map((item, index) => (
+                <a id={`command-${index}`} className={index === selectedCommandIndex ? 'is-selected' : ''} key={item.href} href={item.href} onMouseEnter={() => setSelectedCommandIndex(index)} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
               ))}
               {'export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data && (
                 <button type="button" onClick={() => { exportOperationalSnapshot(); setCommandOpen(false); }}><span className="operator-command-result-icon" aria-hidden="true">↓</span><span><strong>Export operational snapshot</strong><small>Download the latest authenticated overview as JSON</small></span><kbd>EXPORT</kbd></button>
