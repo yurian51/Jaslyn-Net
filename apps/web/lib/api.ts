@@ -1,3 +1,5 @@
+import { clearAccessToken, getAccessToken } from './auth';
+
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '');
 export const API_URL = configuredApiUrl || (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
 
@@ -29,10 +31,18 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   let response: Response;
   try {
+    const accessToken = getAccessToken();
+    const headers = new Headers(init.headers);
+    headers.set('Accept', 'application/json');
+    headers.set('x-request-id', requestId);
+    if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`);
+
     response = await fetch(`${API_URL}${normalizedPath}`, {
       ...init,
+      mode: 'cors',
+      credentials: 'include',
       signal,
-      headers: { Accept: 'application/json', 'x-request-id': requestId, ...init.headers },
+      headers,
     });
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'TimeoutError') throw new ApiError('The API request timed out. Please retry the operation.', 408, requestId);
@@ -47,8 +57,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       && !window.location.pathname.startsWith('/login')
       && !window.location.pathname.startsWith('/register')
       && !window.location.pathname.startsWith('/customer-portal')) {
-      window.localStorage.removeItem('jaslyn.accessToken');
-      window.localStorage.removeItem('nexora.accessToken');
+      clearAccessToken();
       window.location.replace('/login');
     }
     throw new ApiError(extractApiError(payload) ?? `Request failed with status ${response.status}`, response.status, responseRequestId);
