@@ -1,7 +1,15 @@
 import { clearAccessToken, getAccessToken } from './auth';
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '');
-export const API_URL = configuredApiUrl || (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
+
+function withApiPrefix(url: string) {
+  if (!url) return url;
+  return /\/api\/v1$/i.test(url) ? url : `${url}/api/v1`;
+}
+
+export const API_URL = configuredApiUrl
+  ? withApiPrefix(configuredApiUrl)
+  : (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
