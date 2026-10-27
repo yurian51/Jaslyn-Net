@@ -24,6 +24,12 @@ const modules = [
   { title: 'Finance & audit', detail: 'Move from raw activity to operational and finance decisions.', href: '/finance', icon: '▦', group: 'Control centre' },
   { title: 'Automation', detail: 'Build repeatable actions for routine network operations.', href: '/automation', icon: '↻', group: 'Control centre' },
   { title: 'Integrations', detail: 'Connect payment, communication and network services.', href: '/integrations', icon: '⊕', group: 'Control centre' },
+  { title: 'Payment gateways', detail: 'Prepare mobile-money and payment provider connections for direct collections.', href: '/platform-integrations', icon: '₿', group: 'Control centre' },
+  { title: 'Branding & portal themes', detail: 'Shape your logo, colors, support details and customer-facing portal style.', href: '/captive-portal/manage', icon: '✧', group: 'Customer experience' },
+  { title: 'Plans & subscription', detail: 'Review workspace plan limits, billing status and upgrade options.', href: '/dashboard/platform-subscription', icon: '▣', group: 'Control centre' },
+  { title: 'Hardware & RADIUS', detail: 'Use MikroTik, Omada, UniFi, Cambium and standards-based RADIUS hardware.', href: '/architecture', icon: '⌂', group: 'Network operations' },
+  { title: 'Support & help', detail: 'Find setup guidance, frequently asked questions and operator support paths.', href: '/faq', icon: '?', group: 'Customer experience' },
+  { title: 'Latest releases', detail: 'Follow new Jaslyn Net and UpesiLipa capabilities as they ship.', href: '/releases', icon: '↗', group: 'Control centre' },
   { title: 'Team & settings', detail: 'Control access, billing, integrations and workspace policy.', href: '/settings', icon: '◫', group: 'Control centre' },
 ];
 
