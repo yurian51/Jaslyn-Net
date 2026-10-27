@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import './releases.css';
 
 const releases = [
@@ -15,13 +16,25 @@ const releases = [
 ];
 
 export default function ReleasesPage() {
+  const [query, setQuery] = useState('');
+  const [activeTag, setActiveTag] = useState('All');
+  const tags = ['All', ...Array.from(new Set(releases.flatMap((release) => release.tags)))];
+  const visibleReleases = useMemo(() => releases.filter((release) => {
+    const haystack = `${release.title} ${release.detail} ${release.tags.join(' ')}`.toLowerCase();
+    return haystack.includes(query.trim().toLowerCase()) && (activeTag === 'All' || release.tags.includes(activeTag));
+  }), [activeTag, query]);
+
   return <main className="releases-page">
     <header className="releases-header">
       <div><Link className="releases-back" href="/upesilipa">← UpesiLipa workspace</Link><span className="releases-kicker">JASLYN NET · LATEST RELEASES</span><h1>Product updates, in one place.</h1><p>Track the capabilities added to Jaslyn Net as UpesiLipa evolves from a billing tool into a complete WiFi business operating system.</p></div>
       <Link className="releases-action" href="/dashboard">Open dashboard ↗</Link>
     </header>
+    <section className="release-controls" aria-label="Filter releases">
+      <label className="release-search"><span className="sr-only">Search releases</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search releases" /></label>
+      <div className="release-filters" role="group" aria-label="Release tags">{tags.map((tag) => <button type="button" className={activeTag === tag ? 'is-active' : ''} key={tag} onClick={() => setActiveTag(tag)}>{tag}</button>)}</div>
+    </section>
     <section className="releases-list" aria-label="Latest releases">
-      {releases.map((release) => <article className={`release-card${release.featured ? ' release-card-featured' : ''}`} key={release.version}>
+      {visibleReleases.map((release) => <article className={`release-card${release.featured ? ' release-card-featured' : ''}`} key={release.version}>
         <div className="release-meta"><strong>{release.version}</strong><span>{release.date}</span>{release.featured && <span className="release-status">Latest</span>}</div>
         <div><h2>{release.title}</h2><p>{release.detail}</p><div className="release-tags">{release.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
       </article>)}

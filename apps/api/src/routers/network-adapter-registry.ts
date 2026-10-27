@@ -28,7 +28,6 @@ export class NetworkAdapterRegistry {
     },
     { protocol: 'OMADA_CONTROLLER_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'RUIJIE_REYEE_CLOUD_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
-    { protocol: 'ARUBA_CENTRAL_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'CAMBIUM_CNMAESTRO', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'GRANDSTREAM_GWN_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'RUCKUS_SMARTZONE_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
@@ -104,4 +103,9 @@ export class NetworkAdapterRegistry {
   get(protocol: string) { return this.registrations.find((item) => item.protocol === protocol.trim().toUpperCase()); }
   isImplemented(protocol: string) { return this.get(protocol)?.lifecycle !== undefined && this.get(protocol)?.lifecycle !== 'CATALOG_ONLY'; }
   supports(protocol: string, capability: string) { return this.get(protocol)?.capabilities.includes(capability) ?? false; }
+  readiness(protocol: string) {
+    const registration = this.get(protocol);
+    if (!registration) return { status: 'unsupported' as const, liveDeviceValidationRequired: true, capabilities: [] as readonly string[] };
+    return { status: registration.liveDeviceValidationRequired ? 'validation_required' as const : 'ready' as const, liveDeviceValidationRequired: registration.liveDeviceValidationRequired, capabilities: registration.capabilities };
+  }
 }
