@@ -109,4 +109,16 @@ export class NetworkAdapterRegistry {
     if (!registration) return { status: 'unsupported' as const, liveDeviceValidationRequired: true, capabilities: [] as readonly string[] };
     return { status: registration.liveDeviceValidationRequired ? 'validation_required' as const : 'ready' as const, liveDeviceValidationRequired: registration.liveDeviceValidationRequired, capabilities: registration.capabilities };
   }
+
+  validateEndpoint(protocol: string, endpoint: string) {
+    const readiness = this.readiness(protocol);
+    if (readiness.status === 'unsupported') return { ...readiness, endpointValid: false, reason: 'Protocol is not registered.' };
+    try {
+      const url = new URL(endpoint);
+      const endpointValid = url.protocol === 'https:' && !url.username && !url.password && !url.hash;
+      return { ...readiness, endpointValid, reason: endpointValid ? undefined : 'Use an HTTPS endpoint without embedded credentials or fragments.' };
+    } catch {
+      return { ...readiness, endpointValid: false, reason: 'Endpoint must be a valid HTTPS URL.' };
+    }
+  }
 }

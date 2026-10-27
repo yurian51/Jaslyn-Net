@@ -35,10 +35,10 @@ export default function ReleasesPage() {
       <div className="release-filters" role="group" aria-label="Release tags">{tags.map((tag) => <button type="button" className={activeTag === tag ? 'is-active' : ''} key={tag} onClick={() => setActiveTag(tag)}>{tag}</button>)}</div>
     </section>
     <section className="releases-list" aria-label="Latest releases">
-      {visibleReleases.map((release) => <article className={`release-card${release.featured ? ' release-card-featured' : ''}`} key={release.version}>
+      {visibleReleases.length ? visibleReleases.map((release) => <article className={`release-card${release.featured ? ' release-card-featured' : ''}`} key={release.version}>
         <div className="release-meta"><strong>{release.version}</strong><span>{release.date}</span>{release.featured && <span className="release-status">Latest</span>}</div>
         <div><h2>{release.title}</h2><p>{release.detail}</p><div className="release-tags">{release.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
-      </article>)}
+      </article>) : <div className="release-empty"><strong>No releases match this filter.</strong><span>Try another tag or clear your search.</span><button type="button" onClick={() => { setQuery(''); setActiveTag('All'); }}>Clear filters</button></div>}
     </section>
     <footer className="releases-footer"><span>More updates will appear here as features ship.</span><Link href="/upesilipa">View all capabilities →</Link></footer>
   </main>;

@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
+import { isNetworkModelSupported } from '../modules/traffic/network-capabilities';
 
 export interface FirmwareObservationInput {
   installedVersion: string;
@@ -61,9 +62,12 @@ export class NetworkFirmwareInventoryService {
     // Caller-supplied release metadata is stored as a lead only, never trusted as authoritative.
     // Do not infer CURRENT or UPDATE_AVAILABLE until a vendor source has been independently verified.
     const status = 'UNKNOWN';
-    const statusReason = latestVersion
+    const modelSupportWarning = router.model && !isNetworkModelSupported(router.vendor ?? '', router.model)
+      ? 'Model is outside the known compatibility catalog; live validation is required.'
+      : null;
+    const statusReason = modelSupportWarning ?? (latestVersion
       ? 'Release metadata was supplied but has not been independently verified against an authoritative vendor source.'
-      : 'Installed firmware was observed; no verified compatible vendor release is available.';
+      : 'Installed firmware was observed; no verified compatible vendor release is available.');
 
     const result = await this.db.query(
       `INSERT INTO network_firmware_inventory

@@ -139,10 +139,10 @@
   width:6px;height:6px;border-radius:50%;background:#6f88ad;
 }
 
-.error-banner{
+.dashboard-freshness{margin:0 0 16px;color:#56708f;font-size:12px}.error-banner{
   margin:13px 0 0!important;
   border-radius:8px!important;
-}
+}.error-banner button{margin-left:12px;border:1px solid #b8cbe0;border-radius:7px;background:#fff;color:#205b98;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer}.error-banner button:hover{background:#eef6ff}
 
 .overview-kpis{
   display:grid;

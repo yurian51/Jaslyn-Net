@@ -379,7 +379,8 @@ export default function DashboardPage() {
         </button>
       </nav>
 
-      {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
+      {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}<button type="button" onClick={() => void load()} disabled={loading}>Retry now</button></div>}
+      {!error && lastUpdatedAt && <p className="dashboard-freshness" aria-live="polite">Live tenant snapshot verified at {lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Values are not inferred.</p>}
 
       <section className="overview-kpis" aria-label="Network and business KPIs">
         <article className="overview-kpi">
