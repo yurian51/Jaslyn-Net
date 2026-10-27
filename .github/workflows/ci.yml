@@ -145,7 +145,7 @@ jobs:
         image: postgres:18
         env:
           POSTGRES_USER: jaslyn
-          POSTGRES_PASSWORD: jaslyn_test_password
+          POSTGRES_PASSWORD: ${{ github.run_id }}
           POSTGRES_DB: jaslyn_test
         ports:
           - 5432:5432
@@ -163,7 +163,7 @@ jobs:
           sudo apt-get install -y postgresql-client
       - name: Fresh install all migrations
         env:
-          PGPASSWORD: jaslyn_test_password
+          PGPASSWORD: ${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -178,7 +178,7 @@ jobs:
           psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --set=ON_ERROR_STOP=1 --command="SELECT count(*) > 0 AS fresh_install_has_tables FROM information_schema.tables WHERE table_schema='public';" | grep -q t
       - name: Upgrade baseline and test restore-based rollback
         env:
-          PGPASSWORD: jaslyn_test_password
+          PGPASSWORD: ${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
