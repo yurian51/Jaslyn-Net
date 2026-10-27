@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 
 @Controller()
 export class RootController {
-  @Get(['', '/'])
+  @Get('/')
   getStatus() {
     return {
       status: 'ok',

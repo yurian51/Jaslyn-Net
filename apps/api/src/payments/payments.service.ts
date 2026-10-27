@@ -210,6 +210,7 @@ export class PaymentsService {
   async webhook(tenantId: string, input: PaymentWebhookDto, rawBody: Buffer, signature?: string) {
     const provider = input.provider.trim().toLowerCase();
     const providerEventId = input.providerEventId.trim();
+    const normalizedStatus = input.status === 'SUCCESS' ? 'PAID' : input.status;
     let correlationId = getCorrelationId() ?? null;
     if (!correlationId && input.paymentId) {
       const payment = await this.db.query<{ correlationId: string | null }>(`SELECT correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2`, [tenantId, input.paymentId]);
@@ -241,7 +242,7 @@ export class PaymentsService {
          DO NOTHING
          RETURNING id`,
         [tenantId, provider, providerEventId, input.eventType.trim(), {
-          status: input.status,
+          status: normalizedStatus,
           paymentId: input.paymentId ?? null,
           purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,
@@ -304,7 +305,7 @@ export class PaymentsService {
           provider,
           providerEventId,
           eventType: input.eventType.trim(),
-          status: input.status,
+          status: normalizedStatus,
           paymentId: input.paymentId ?? null,
           purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,
