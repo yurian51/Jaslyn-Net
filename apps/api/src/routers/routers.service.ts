@@ -40,6 +40,7 @@ export class RoutersService {
     if (normalized.includes('cisco')) return 'CISCO_NETCONF_RESTCONF';
     if (normalized.includes('huawei')) return 'HUAWEI_NETCONF_RESTCONF';
     if (normalized.includes('aruba')) return normalized.includes('central') ? 'ARUBA_CENTRAL_API' : 'ARUBA_AOS_CX_NETCONF';
+    if (normalized.includes('omada') || normalized.includes('tp-link') || normalized.includes('tplink')) return normalized.includes('local') ? 'OMADA_LOCAL_CONTROLLER_API' : 'OMADA_CONTROLLER_API';
     if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';
     if (normalized.includes('cambium')) return 'CAMBIUM_CNMAESTRO';
     if (normalized.includes('meraki')) return 'MERAKI_DASHBOARD_API';

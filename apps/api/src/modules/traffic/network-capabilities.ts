@@ -60,6 +60,15 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'cnMaestro REST API uses OAuth 2.0 client credentials and exposes sessions, Wi-Fi, statistics and device APIs.',
   },
   {
+    vendor: 'TP-Link Omada',
+    protocols: ['OMADA_CONTROLLER_API', 'OMADA_LOCAL_CONTROLLER_API', 'SNMP', 'RADIUS_NAS'],
+    integrationModes: ['native_api', 'snmp', 'radius'],
+    deviceFamilies: ['Omada SDN controllers', 'Gateways', 'JetStream switches', 'Omada access points'],
+    supportedModelPatterns: ['all Omada models', 'ER', 'ER7206', 'ER605', 'ER8411', 'SG', 'SX', 'EAP', 'EAP6', 'EAP7', 'OC', 'OC200', 'OC300'],
+    capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'],
+    notes: 'Omada Cloud and Software/Hardware Controller integrations cover controller-managed gateways, switches and access points.',
+  },
+  {
     vendor: 'Huawei',
     protocols: ['HUAWEI_NETCONF_RESTCONF', 'HUAWEI iMaster NCE API', 'SNMP', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'snmp', 'radius'],
