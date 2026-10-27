@@ -60,6 +60,15 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'cnMaestro REST API uses OAuth 2.0 client credentials and exposes sessions, Wi-Fi, statistics and device APIs.',
   },
   {
+    vendor: 'Huawei',
+    protocols: ['HUAWEI_NETCONF_RESTCONF', 'HUAWEI iMaster NCE API', 'SNMP', 'RADIUS_NAS'],
+    integrationModes: ['native_api', 'snmp', 'radius'],
+    deviceFamilies: ['Huawei VRP routers', 'NE routers', 'AR routers', 'CloudEngine switches', 'S series switches', 'AC wireless controllers', 'AirEngine WLAN'],
+    supportedModelPatterns: ['all VRP models', 'AR', 'NE', 'NetEngine', 'CloudEngine', 'CE', 'S57', 'S67', 'S17', 'AC', 'AirEngine', 'USG'],
+    capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'bandwidth_enforcement', 'disconnect_client', 'device_inventory', 'health_monitoring', 'qos'],
+    notes: 'Huawei VRP devices use NETCONF/RESTCONF, iMaster NCE where available, SNMP and RADIUS for interoperable enterprise operations.',
+  },
+  {
     vendor: 'Cisco',
     protocols: ['CISCO_NETCONF_RESTCONF', 'CISCO_IOS_XE_API', 'SNMP', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'snmp', 'radius'],
