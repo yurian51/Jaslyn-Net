@@ -60,6 +60,15 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'cnMaestro REST API uses OAuth 2.0 client credentials and exposes sessions, Wi-Fi, statistics and device APIs.',
   },
   {
+    vendor: 'Cisco',
+    protocols: ['CISCO_NETCONF_RESTCONF', 'CISCO_IOS_XE_API', 'SNMP', 'RADIUS_NAS'],
+    integrationModes: ['native_api', 'snmp', 'radius'],
+    deviceFamilies: ['Cisco IOS routers', 'Cisco IOS-XE routers', 'Catalyst switches', 'ISR', 'ASR', 'Cisco Wireless LAN Controller'],
+    supportedModelPatterns: ['all IOS/IOS-XE models', 'ISR', 'ASR', 'CSR', 'Catalyst', 'C9300', 'C9200', 'C9500', 'C9400', 'C2960', 'C9800', 'NCS'],
+    capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'bandwidth_enforcement', 'disconnect_client', 'device_inventory', 'health_monitoring', 'qos'],
+    notes: 'Cisco IOS and IOS-XE support uses NETCONF/RESTCONF or the IOS-XE API, with SNMP and RADIUS as interoperable fallbacks.',
+  },
+  {
     vendor: 'Cisco Meraki',
     protocols: ['MERAKI_DASHBOARD_API', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'radius'],
@@ -143,7 +152,8 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
 
 export function getNetworkVendorCapability(vendor: string): NetworkVendorCapability | undefined {
   const normalized = vendor.trim().toLowerCase();
-  return WORLDWIDE_NETWORK_CAPABILITIES.find((item) => item.vendor.toLowerCase() === normalized);
+  return WORLDWIDE_NETWORK_CAPABILITIES.find((item) => item.vendor.toLowerCase() === normalized)
+    ?? (normalized === 'cisco ios' || normalized === 'cisco ios-xe' ? WORLDWIDE_NETWORK_CAPABILITIES.find((item) => item.vendor === 'Cisco') : undefined);
 }
 
 export function isNetworkModelSupported(vendor: string, model?: string): boolean {
