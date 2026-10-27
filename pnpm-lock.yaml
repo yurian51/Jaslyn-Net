@@ -206,6 +206,9 @@ importers:
         specifier: ^8.18.3
         version: 8.22.0
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.5
+        version: 9.39.5
       '@nestjs/cli':
         specifier: ^11.0.11
         version: 11.0.24(@types/node@24.19.2)(postcss@8.5.23)(uglify-js@3.19.3)
