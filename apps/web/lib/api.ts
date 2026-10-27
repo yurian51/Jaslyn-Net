@@ -7,9 +7,11 @@ function withApiPrefix(url: string) {
   return /\/api\/v1$/i.test(url) ? url : `${url}/api/v1`;
 }
 
-export const API_URL = configuredApiUrl
-  ? withApiPrefix(configuredApiUrl)
-  : (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
+const defaultApiUrl = process.env.NODE_ENV === 'development'
+  ? 'http://localhost:4000/api/v1'
+  : 'https://jaslyn-net-api-18o7.onrender.com/api/v1';
+
+export const API_URL = withApiPrefix(configuredApiUrl || defaultApiUrl);
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
