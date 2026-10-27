@@ -85,9 +85,9 @@ describe('NetworkFirmwareUpgradeService', () => {
     mikrotik.inspect.mockResolvedValueOnce({ identity: { model: 'hAP ax3', architecture: 'arm64', version: '7.16.2', factoryFirmware: '7.10' }, update: { status: 'New version is available', installedVersion: '7.16.2', latestVersion: '7.17.1', channel: 'stable', mode: 'https', checkCertificate: 'yes' } });
     const result = await service.verifyAfterUpgrade('t1', 'r1', 'job1');
     expect(result.status).toBe('RECOVERY_REQUIRED');
-    expect(db.query.mock.calls[4][0]).toContain("'RECOVERY_REQUIRED'");
-    expect(db.query.mock.calls[4][1][3]).toBe('RECOVERY_REQUIRED');
-    expect(db.query.mock.calls[4][0]).toContain('status IN');
+    expect(db.query.mock.calls[3][0]).toContain('RECOVERY_REQUIRED');
+    expect(db.query.mock.calls[3][1][3]).toBe('RECOVERY_REQUIRED');
+    expect(db.query.mock.calls[3][0]).toContain('status IN');
   });
   it('rejects invalid or credential-bearing release URLs before database access', async () => {
     await expect(service.preview('t1', 'r1', { ...request(), releaseSourceUrl: 'http://example.com/fw' }))
@@ -116,7 +116,7 @@ describe('NetworkFirmwareUpgradeService', () => {
         installedVersion: '7.16.2', hardwareRevision: 'r3', releaseSourceVerified: true,
         releaseSourceUrl: 'https://mikrotik.com/download', latestVersion: '7.17.1', inventoryStatus: 'UPDATE_AVAILABLE',
       }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [{ id: 'job1', status: 'BLOCKED', preview: { safeToExecute: false } }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'job1', status: 'BLOCKED', preview: { safeToExecute: false, blockers: ['encryptedPreUpgradeBackupAndExplicitApprovalRequired'] } }], rowCount: 1 })
       .mockResolvedValueOnce({ rowCount: 1 });
 
     const result = await service.preview('t1', 'r1', request(), { userId: 'u1' });
