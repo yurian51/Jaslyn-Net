@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
@@ -532,7 +532,8 @@ export default function NetworkPage() {
             </thead>
             <tbody>
               {filteredRouters.map((router) => (
-                <tr key={router.id} onDoubleClick={() => setExpanded(expanded === router.id ? null : router.id)}>
+                <Fragment key={router.id}>
+                <tr onDoubleClick={() => setExpanded(expanded === router.id ? null : router.id)}>
                   <td><button className="network-device-trigger" onClick={() => setExpanded(expanded === router.id ? null : router.id)} aria-expanded={expanded === router.id}><strong>{router.name}</strong><small>{router.id}</small></button></td>
                   <td>{router.vendor ?? 'Unknown'}{router.model ? ` · ${router.model}` : ''}</td>
                   <td>{router.ipAddress ?? '—'}</td>
@@ -561,6 +562,7 @@ export default function NetworkPage() {
                   <div className="network-device-history"><span>RECENT INCIDENTS</span>{(operational[router.id]?.recentIncidents ?? []).slice(0,5).map((incident) => <small key={incident.id}>{incident.severity} · {incident.title}</small>)}{!operational[router.id]?.recentIncidents?.length && <small>No linked incident records.</small>}</div>
                   <div className="network-telemetry-note">{operational[router.id]?.telemetry.source === 'NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL' ? 'CPU, memory, interfaces, bandwidth, latency, packet loss and uptime are not persisted by the current telemetry model. Jaslyn Net does not invent them.' : 'Telemetry reported by the configured source.'}</div>
                 </div></td></tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

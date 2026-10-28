@@ -61,7 +61,6 @@ export default function SessionsPage() {
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -122,7 +121,6 @@ export default function SessionsPage() {
             {visibleSessions.map((item) => <tr key={item.id}><td>{item.username ?? item.customerId ?? '—'}</td><td>{item.ipAddress ?? '—'}</td><td>{item.macAddress ?? '—'}</td><td>{formatDate(item.startedAt)}</td><td>{formatBytes(item.bytesTotal)}</td><td><span className={`status ${item.status.toLowerCase()}`}><i/>{item.status}</span></td></tr>)}
           </tbody></table>{!loading && !visibleSessions.length && <div className="empty-state">{!loaded ? 'Session data is unavailable; an empty result cannot be confirmed.' : sessions.length ? 'No sessions match this search and status filter.' : 'No sessions matched the selected status filter.'}</div>}{loading && <div className="empty-state">Loading tenant session data…</div>}</div>
         </section>
-        <style jsx>{`.session-search{display:flex;align-items:center;gap:10px;padding:0 18px 14px;flex-wrap:wrap}.session-search label{font-size:9px;font-weight:750;color:#69768a}.session-search input{height:35px;min-width:min(360px,100%);border:1px solid #dfe4eb;border-radius:7px;padding:0 10px;background:#fff;font:inherit}@media(max-width:620px){.session-search{align-items:stretch;flex-direction:column}.session-search input{width:100%;min-width:0;box-sizing:border-box}}`}</style>
         <footer className="footer"><span>JASLYN NET · Session Operations</span><span>Data loaded from authenticated tenant API</span></footer>
       </section>
       <style jsx>{`
