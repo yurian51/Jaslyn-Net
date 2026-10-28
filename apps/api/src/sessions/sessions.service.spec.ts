@@ -41,9 +41,10 @@ describe('SessionsService', () => {
   });
 
   it('lists only sessions belonging to the tenant', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 's1', status: 'ACTIVE' }], rowCount: 1 });
+    query.mockResolvedValueOnce({ rows: [{ id: 's1', status: 'ACTIVE', durationSeconds: 120, authenticationState: 'ACCEPT', accountingState: 'REPORTED', macAddress: 'AA:BB:CC:DD:EE:FF' }], rowCount: 1 });
     const result = await service.list('tenant-a', 'ACTIVE', 50);
     expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({ durationSeconds: 120, authenticationState: 'ACCEPT', accountingState: 'REPORTED', macAddress: 'AA:BB:CC:DD:EE:FF' });
     expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE tenant_id=$1'), ['tenant-a', 'ACTIVE', 50]);
   });
 

@@ -67,6 +67,8 @@ const percent = (value: number, total: number) => {
 
 export default function DashboardPage() {
   const [data, setData] = useState<Overview | null>(null);
+  const [nocData, setNocData] = useState<CommandCenter | null>(null);
+  const [nocError, setNocError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
@@ -167,14 +169,20 @@ export default function DashboardPage() {
 
     setLoading(true);
     try {
-      const next = await apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } });
+      const [next, commandCenter] = await Promise.all([
+        apiFetch<Overview>('/overview', { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch<CommandCenter>('/overview/command-center', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
       setData(next);
+      setNocData(commandCenter);
+      setNocError(null);
       setError(null);
       setConnection('online');
       setLastUpdatedAt(new Date());
     } catch (cause: unknown) {
       const message = cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load dashboard telemetry.';
       setError(message);
+      if (!nocData) setNocError(message);
       setConnection(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'degraded');
       // Preserve the last verified snapshot instead of replacing real telemetry with zeros.
     } finally {
@@ -382,6 +390,64 @@ export default function DashboardPage() {
       </nav>
 
       {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
+      <section className="noc-command-center" aria-label="NOC command center">
+        <div className="noc-head">
+          <div><div className="panel-kicker">NOC COMMAND CENTER</div><h2>Operational state</h2><p>Only persisted tenant state and reported telemetry are shown.</p></div>
+          <span className={`noc-health noc-${(nocData?.systemHealth.status ?? 'DEGRADED').toLowerCase()}`}><i />{nocData?.systemHealth.status ?? (nocError ? 'DEGRADED' : 'LOADING')}</span>
+        </div>
+        {nocError && <div className="noc-degraded" role="alert"><strong>NOC telemetry degraded.</strong> {nocError}</div>}
+        <div className="noc-health-grid">
+          <a href="/incidents"><b>{nocData?.systemHealth.activeIncidents ?? '—'}</b><span>Active incidents</span></a>
+          <a href="/network"><b>{nocData?.systemHealth.devices.unreachable ?? '—'}</b><span>Unreachable devices</span></a>
+          <a href="/sessions"><b>{nocData?.systemHealth.activeSessions ?? '—'}</b><span>Active sessions</span></a>
+          <a href="/radius"><b>{nocData?.systemHealth.authenticationFailures24h ?? '—'}</b><span>Auth failures · 24h</span></a>
+          <a href="/payments"><b>{nocData?.systemHealth.paymentFailures24h ?? '—'}</b><span>Payment failures · 24h</span></a>
+          <a href="/network-commands"><b>{nocData?.systemHealth.commandQueue.pending ?? '—'}</b><span>Commands queued</span></a>
+        </div>
+        <div className="noc-grid">
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>DEVICE FLEET</span><h3>Reachability</h3></div><a href="/network">Open network →</a></div>
+            <div className="noc-list">
+              {(nocData?.devices ?? []).slice(0,8).map((device) => <div className="noc-row" key={device.id}><span><i className={`noc-dot ${device.status.toLowerCase()}`} /><strong>{device.name}</strong><small>{device.vendor ?? 'Unknown vendor'} · {device.ipAddress ?? 'No IP'}</small></span><b>{device.status}</b><em>{device.activeSessions} sessions</em></div>)}
+              {!nocData?.devices.length && <div className="noc-empty">{nocError ? 'Device telemetry unavailable.' : 'No persisted devices returned.'}</div>}
+            </div>
+          </article>
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>ACTIVE INCIDENTS</span><h3>Operator queue</h3></div><a href="/incidents">Open incidents →</a></div>
+            <div className="noc-list">
+              {(nocData?.incidents ?? []).slice(0,6).map((incident) => <a className="noc-row" href={`/incidents?q=${encodeURIComponent(incident.id)}`} key={incident.id}><span><i className={`noc-dot ${incident.severity.toLowerCase()}`} /><strong>{incident.title}</strong><small>{incident.category} · {incident.affectedDevices} devices · {incident.affectedSubscribers} subscribers</small></span><b>{incident.severity}</b></a>)}
+              {!nocData?.incidents.length && <div className="noc-empty">{nocError ? 'Incident telemetry unavailable.' : 'No active incidents.'}</div>}
+            </div>
+          </article>
+        </div>
+        <div className="noc-grid">
+          <article className="noc-panel wide">
+            <div className="noc-panel-head"><div><span>SESSION CONTROL</span><h3>Current connections</h3></div><a href="/sessions">Open sessions →</a></div>
+            <div className="noc-table-wrap"><table><thead><tr><th>SUBSCRIBER</th><th>DEVICE</th><th>IP</th><th>AUTH</th><th>ACCOUNTING</th><th>STATE</th></tr></thead><tbody>
+              {(nocData?.sessions ?? []).slice(0,8).map((session) => <tr key={session.id}><td><strong>{session.subscriber}</strong><small>{session.username ?? '—'}</small></td><td>{session.device}</td><td>{session.ip ?? '—'}</td><td>{session.authenticationState}</td><td>{session.accountingState}</td><td><span className="noc-status">{session.status}</span></td></tr>)}
+              {!nocData?.sessions.length && <tr><td colSpan={6}><div className="noc-empty">{nocError ? 'Session telemetry unavailable.' : 'No active session records.'}</div></td></tr>}
+            </tbody></table></div>
+          </article>
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>COMMAND FABRIC</span><h3>Execution queue</h3></div><a href="/network-commands">Open commands →</a></div>
+            <div className="noc-list">
+              {(nocData?.commands ?? []).slice(0,7).map((command) => <a className="noc-row" href={`/network-commands?q=${encodeURIComponent(command.id)}`} key={command.id}><span><strong>{command.commandType}</strong><small>{command.actor} · {command.provider ?? 'provider pending'}</small></span><b>{command.status}</b></a>)}
+              {!nocData?.commands.length && <div className="noc-empty">{nocError ? 'Command telemetry unavailable.' : 'No persisted command records.'}</div>}
+            </div>
+          </article>
+        </div>
+        <div className="noc-grid">
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>PROVIDER HEALTH</span><h3>Failed commands · 24h</h3></div></div>
+            <div className="noc-provider-list">{(nocData?.systemHealth.providerFailures24h ?? []).map((item) => <div key={item.provider}><span>{item.provider}</span><b>{item.failures}</b></div>)}{!nocData?.systemHealth.providerFailures24h.length && <div className="noc-empty">No provider failures recorded in the last 24 hours.</div>}</div>
+          </article>
+          <article className="noc-panel">
+            <div className="noc-panel-head"><div><span>CRITICAL EVENTS</span><h3>Recent high-severity events</h3></div></div>
+            <div className="noc-list">{(nocData?.recentCriticalEvents ?? []).slice(0,6).map((event) => <div className="noc-row" key={event.id}><span><strong>{event.title}</strong><small>{event.category} · {new Date(event.occurredAt).toLocaleString()}</small></span><b>{event.severity}</b></div>)}{!nocData?.recentCriticalEvents.length && <div className="noc-empty">No critical incident records returned.</div>}</div>
+          </article>
+        </div>
+        <div className="noc-telemetry-note">Device CPU, memory, interfaces, bandwidth, latency, packet loss and uptime are intentionally shown only when a telemetry source persists them. The current schema does not report those values, so Jaslyn Net does not manufacture them.</div>
+      </section>
 
       <section className="overview-kpis" aria-label="Network and business KPIs">
         <article className="overview-kpi">

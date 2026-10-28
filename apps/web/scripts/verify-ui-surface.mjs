@@ -17,6 +17,8 @@ const nav = read('apps/web/app/landing-nav.tsx');
 const chrome = read('apps/web/app/console-chrome.tsx');
 const dashboard = read('apps/web/app/dashboard/page.tsx');
 const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
+const network = read('apps/web/app/network/page.tsx');
+const sessions = read('apps/web/app/sessions/page.tsx');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
@@ -142,6 +144,14 @@ const required = [
   ['snapshot export preserves browser download lifecycle', dashboard.includes('window.setTimeout(() => URL.revokeObjectURL(url), 1000)')],
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
+  ['NOC command center', dashboard.includes('noc-command-center') && dashboard.includes('/overview/command-center') && dashboard.includes('NOC COMMAND CENTER')],
+  ['NOC real state guardrails', dashboard.includes('current schema does not report those values') && dashboard.includes('does not manufacture them')],
+  ['incident assignment/audit', read('apps/web/app/incidents/page.tsx').includes('/assign') && read('apps/web/app/incidents/page.tsx').includes('/audit-trail')],
+  ['command evidence controls', read('apps/web/app/network-commands/page.tsx').includes('Risk level') && read('apps/web/app/network-commands/page.tsx').includes('Authorization') && read('apps/web/app/network-commands/page.tsx').includes('Confirmation')],
+  ['device operational detail', network.includes('/overview/command-center') && network.includes('RECENT COMMANDS') && network.includes('RECENT INCIDENTS')],
+  ['session disconnect action', sessions.includes('/sessions/\\${id}/end') && sessions.includes('Disconnect session')],
+  ['session evidence state', sessions.includes('authenticationState') && sessions.includes('accountingState') && sessions.includes('durationSeconds')],
+  ['incident impact state', read('apps/web/app/incidents/page.tsx').includes('tenantName') && read('apps/web/app/incidents/page.tsx').includes('affectedDevices') && read('apps/web/app/incidents/page.tsx').includes('resolvedAt')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
   ['SMS provider fails closed until explicitly enabled and configured', smsProvider.includes("SMS_ENABLED') === 'true'") && smsProvider.includes('!status.configured') && smsProvider.includes('BEEM_SECRET_KEY')],
   ['SMS outbox is tenant-scoped and idempotent', notificationsService.includes('ON CONFLICT (tenant_id,dedupe_key)') && notificationsService.includes('WHERE tenant_id = $1') && notificationsService.includes('claimSms')],

@@ -18,10 +18,10 @@ export class CommunicationCommandService {
     private readonly fabric: CommandFabricService = new CommandFabricService(db, audit, networkCommands),
   ) {}
 
-  async execute(actor: Actor, command: string, confirm = false) {
+  async execute(actor: Actor, command: string, confirm = false, requestIdOverride?: string) {
     const normalized = command.trim().replace(/\s+/g,' ');
     if (!normalized || normalized.length > 500) throw new BadRequestException('Command is required');
-    const requestId = randomUUID();
+    const requestId = requestIdOverride ?? randomUUID();
 
     // Authorization is decided by the shared command authorizer (also used by the automation engine).
     const decision = this.fabric.authorize(actor, normalized, confirm);

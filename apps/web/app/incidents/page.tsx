@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { getAccessToken } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 
 type Incident = {
   id: string;
+  tenantId: string;
+  tenantName: string;
   category: string;
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
   status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
@@ -15,7 +18,9 @@ type Incident = {
   rootResourceId?: string;
   startedAt: string;
   lastSeenAt: string;
+  resolvedAt?: string;
   affectedResources: number;
+  affectedDevices: number;
   affectedCustomers: number;
   affectedSessions: number;
   estimatedRevenue: string | number;
@@ -28,11 +33,35 @@ type Incident = {
 type IncidentResponse = { data: Incident[]; count: number };
 type IncidentOwner = { id:string; fullName:string; email:string; role:string };
 const money = (value: string | number) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmt = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(); };
+const fmt = (value?: string) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+};
+
+function downloadCsv(rows: Incident[]) {
+  const keys: Array<keyof Incident> = ['id', 'severity', 'status', 'category', 'title', 'rootResourceType', 'rootResourceId', 'affectedResources', 'affectedCustomers', 'affectedSessions', 'estimatedRevenue', 'startedAt', 'lastSeenAt'];
+  const csv = [keys, ...rows.map((row) => keys.map((key) => JSON.stringify(row[key] ?? '')))]
+    .map((row) => row.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'jaslyn-incidents.csv';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function IncidentsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const [data, setData] = useState<IncidentResponse | null>(null);
-  const [status, setStatus] = useState<'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | ''>('');
+  const [status, setStatus] = useState<IncidentStatus>((params.get('status') as IncidentStatus) || '');
+  const [query, setQuery] = useState(params.get('q') || '');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -42,7 +71,8 @@ export default function IncidentsPage() {
   const load = useCallback(async () => {
     const token = getAccessToken();
     if (!token) { setError('Authentication required.'); setLoading(false); return; }
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const query = status ? `?status=${status}` : '';
       setData(await apiFetch<IncidentResponse>(`/incidents${query}`, { headers: { Authorization: `Bearer ${token}` } }));
@@ -56,7 +86,8 @@ export default function IncidentsPage() {
   async function action(id: string, kind: 'acknowledge' | 'resolve') {
     const token = getAccessToken();
     if (!token) return;
-    setBusy(id); setError(null);
+    setBusy(id);
+    setError(null);
     try {
       await apiFetch(`/incidents/${id}/${kind}`, {
         method: 'POST',
@@ -64,8 +95,11 @@ export default function IncidentsPage() {
         ...(kind === 'resolve' ? { body: JSON.stringify({ resolution: 'Resolved by operator from Incident Center' }) } : {}),
       });
       await load();
-    } catch (cause: unknown) { setError(cause instanceof Error ? cause.message : 'Incident action failed.'); }
-    finally { setBusy(null); }
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'Incident action failed.');
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function assignOwner(id:string) {
