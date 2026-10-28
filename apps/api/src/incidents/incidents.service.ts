@@ -289,6 +289,18 @@ export class IncidentsService {
     return {from:from.toISOString(),to:to.toISOString(),summary:summary.rows[0],breakdown:breakdown.rows,recent:recent.rows};
   }
 
+  async assign(tenantId: string, incidentId: string, assigneeUserId: string | null, context: AuditContext = {}) {
+    return this.assignOwner(tenantId, incidentId, { ownerUserId: assigneeUserId }, context);
+  }
+
+  async auditTrail(tenantId: string, incidentId: string) {
+    const result = await this.db.query(
+      `SELECT id,event_type AS "eventType",actor_user_id AS "actorUserId",from_status AS "fromStatus",to_status AS "toStatus",note,metadata,created_at AS "createdAt" FROM incident_events WHERE tenant_id=$1 AND incident_id=$2 ORDER BY created_at ASC,id ASC`,
+      [tenantId, incidentId],
+    );
+    return { data: result.rows, count: result.rowCount ?? 0 };
+  }
+
   async assignOwner(tenantId: string, incidentId: string, input: AssignIncidentOwnerDto, context: AuditContext = {}) {
     const ownerId = input.ownerUserId ?? null;
     if (ownerId) {

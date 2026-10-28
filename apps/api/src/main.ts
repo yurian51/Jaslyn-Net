@@ -17,7 +17,7 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-async function bootstrap() {
+export async function createApp() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     logger: new StructuredLogger(),
@@ -72,11 +72,15 @@ async function bootstrap() {
   }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new RequestObservabilityInterceptor());
-  await app.listen(port, '0.0.0.0');
   app.get(CommunicationWebSocket).attach(app.getHttpServer(), jwtSecret);
+  return { app, port };
 }
 
-bootstrap().catch((error: unknown) => {
-  console.error('Fatal error during API bootstrap', error);
-  process.exit(1);
-});
+if (!process.env.VERCEL) {
+  createApp()
+    .then(({ app, port }) => app.listen(port, '0.0.0.0'))
+    .catch((error: unknown) => {
+      console.error('Fatal error during API bootstrap', error);
+      process.exit(1);
+    });
+}

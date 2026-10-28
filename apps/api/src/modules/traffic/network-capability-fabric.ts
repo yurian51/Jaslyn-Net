@@ -221,7 +221,7 @@ export class MikroTikCapabilityAdapter implements NetworkCapabilityAdapter {
         return { provider: this.provider, capability, command, status: verified ? 'VERIFIED' : 'FAILED', confirmed: verified, data: verification as T,
           ...(verified ? {} : { error: { code: 'PROVIDER_EXECUTION_UNCONFIRMED' as const, message: 'MikroTik provider did not confirm the requested bandwidth state', retryable: false, provider: this.provider, operation: command } }) };
       }
-      return new StaticUnsupportedAdapter(this.provider).execute<T>(capability, command, input, context);
+      return new StaticUnsupportedAdapter(this.provider).execute<C, T>(capability, command, input, context);
     } catch (error) {
       const normalized = normalizeProviderError(error, this.provider, command);
       return { provider: this.provider, capability, command, status: 'FAILED', confirmed: false,
@@ -239,7 +239,7 @@ export class OpenWrtCapabilityAdapter implements NetworkCapabilityAdapter {
   }
   async execute<C extends NetworkCapability, T = unknown>(capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     try {
-      if (!['HOTSPOT.SESSIONS','HOTSPOT.USERS'].includes(capability)) return new StaticUnsupportedAdapter(this.provider).execute<T>(capability, command, input, context);
+      if (!['HOTSPOT.SESSIONS','HOTSPOT.USERS'].includes(capability)) return new StaticUnsupportedAdapter(this.provider).execute<C, T>(capability, command, input, context);
       const connection = { routerId: context.routerId ?? 'unknown', protocol: 'OPENWRT_UBUS' as const, endpoint: (input as { endpoint?: string }).endpoint, credentials: context.credentials };
       const data = await this.devices.readClients(connection) as HotspotSession[];
       return { provider: this.provider, capability, command, status: 'VERIFIED', confirmed: true, data: data as T };
@@ -260,7 +260,7 @@ export class FreeRadiusCapabilityAdapter implements NetworkCapabilityAdapter {
   }
   async execute<C extends NetworkCapability, T = unknown>(capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     try {
-      if (capability !== 'SESSION.DISCONNECT') return new StaticUnsupportedAdapter(this.provider).execute<T>(capability, command, input, context);
+      if (capability !== 'SESSION.DISCONNECT') return new StaticUnsupportedAdapter(this.provider).execute<C, T>(capability, command, input, context);
       const data = await this.radius.disconnectSession(context.tenantId, input as never);
       const confirmed = data.accepted === true;
       return { provider: this.provider, capability, command, status: confirmed ? 'VERIFIED' : 'FAILED', confirmed, data: data as T,
@@ -320,6 +320,6 @@ export class NetworkCapabilityRegistry {
       const error = new TypedProviderError('UNAUTHORIZED', `Permission ${schema.permission} is required for ${command}`, false, provider, command);
       return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
     }
-    return this.adapters.get(provider)!.execute<C, T>(capability, command, input, context);
+    return this.adapters.get(provider)!.execute<T>(capability, command, input, context);
   }
 }
