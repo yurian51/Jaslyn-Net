@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { jwtVerify } from 'jose';
+import { verifyAccessToken } from '../auth/jwt';
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { CommunicationRealtime, CommunicationEvent } from './communication.realtime';
@@ -62,11 +62,7 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     const url = new URL(request.url || '/', 'http://jaslyn.local');
     const token = url.searchParams.get('access_token')?.trim();
     if (!token) throw new Error('access_token is required');
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
-      issuer: 'jaslyn-net',
-      audience: 'jaslyn-net-api',
-      algorithms: ['HS256'],
-    });
+    const payload = verifyAccessToken(token, secret);
     if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
       || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
       throw new Error('invalid authentication claims');

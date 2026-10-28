@@ -103,6 +103,27 @@
   .jl .legal-acceptance button { margin-left: 0; }
 }
 
+/* Auth refresh: calm, high-trust workspace onboarding. */
+.jl-auth-main { background: linear-gradient(135deg, #f7fafc 0%, #eef5ff 52%, #f8fbff 100%); }
+.jl-auth { padding-block: clamp(3.5rem, 8vw, 7rem); }
+.jl-auth-grid { align-items: center; gap: clamp(2.5rem, 8vw, 7rem); }
+.jl-auth-intro { position: relative; }
+.jl-auth-intro::before { content: 'JASLYN NET'; display: inline-block; margin-bottom: 1.25rem; color: var(--lagoon-d); font-size: .72rem; font-weight: 800; letter-spacing: .18em; }
+.jl-auth-intro h1 { max-width: 10ch; font-size: clamp(3rem, 6vw, 5rem); letter-spacing: -.065em; }
+.jl-auth-intro > p { max-width: 34ch; font-size: 1.15rem; color: var(--ink-2); }
+.jl-auth-intro li { padding: .8rem 1rem .8rem 2.5rem; border: 1px solid rgba(220,230,240,.9); border-radius: 12px; background: rgba(255,255,255,.64); }
+.jl-auth-intro li::before { left: 1rem; top: 1.25rem; width: .65rem; height: .65rem; border-radius: 50%; background: var(--lagoon); box-shadow: 0 0 0 4px rgba(23,105,224,.12); }
+.jl-auth-card { gap: 1.15rem; border-color: rgba(203,217,232,.95); border-radius: 22px; padding: clamp(1.5rem, 4vw, 2.4rem); box-shadow: 0 30px 70px -35px rgba(16,36,63,.42); }
+.jl-auth-head h2 { font-size: 2rem; letter-spacing: -.05em; }
+.jl-auth-card input:not([type='checkbox']) { min-height: 50px; border-radius: 11px; background: #f9fbfd; }
+.jl-auth-card input:not([type='checkbox']):focus { border-color: var(--lagoon); box-shadow: 0 0 0 4px rgba(23,105,224,.13); }
+.jl-auth-submit { min-height: 52px; border-radius: 11px; background: var(--lagoon); }
+.jl-auth-submit:hover { background: var(--lagoon-d); }
+.jl-tabs { border-color: var(--line); background: #f2f6fa; }
+.jl-tabs button[aria-selected='true'] { color: var(--lagoon-d); }
+.jl-auth-security { padding-top: .4rem; }
+@media (max-width: 900px) { .jl-auth-intro li { max-width: 34rem; } }
+
 /* login-specific controls */
 .jl-auth-options { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .jl-auth-card label.jl-remember { flex-direction: row; align-items: center; gap: .55rem; font-weight: 400; font-size: .95rem; color: var(--muted); }

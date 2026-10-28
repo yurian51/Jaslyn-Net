@@ -43,6 +43,7 @@ import { OperationsHubModule } from './operations-hub/operations-hub.module';
 import { FiberTopologyModule } from './fiber-topology/fiber-topology.module';
 import { NetworkAutoHealingModule } from './network-auto-healing/network-auto-healing.module';
 import { OperationsControlPlaneModule } from './operations-control-plane/operations-control-plane.module';
+import { RootController } from './root.controller';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { OperationsControlPlaneModule } from './operations-control-plane/operati
     SecretsVaultModule, AccessControlModule, ProcurementModule, OperationsIntelligenceModule, AutomationModule,
     WorkflowsModule, CaptivePortalModule, OperationsHubModule, FiberTopologyModule, NetworkAutoHealingModule, OperationsControlPlaneModule,
   ],
+  controllers: [RootController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) { consumer.apply(RequestIdMiddleware).forRoutes('*'); }

@@ -40,6 +40,7 @@ const duration = (value?: string) => {
 };
 
 const OPERATOR_WORKSPACES = [
+  { label: 'UpesiLipa workspace', detail: 'Sites, packages, customers, vouchers and sales', href: '/upesilipa', terms: 'upesilipa wifi hotspot packages vouchers sales reports branding' },
   { label: 'Network & devices', detail: 'Routers, links and topology', href: '/network', terms: 'router device topology links' },
   { label: 'Customers', detail: 'Subscriber accounts and profiles', href: '/customers', terms: 'subscriber client account' },
   { label: 'Live sessions', detail: 'Connected users and activity', href: '/sessions', terms: 'online radius active users' },
@@ -77,6 +78,7 @@ export default function DashboardPage() {
   const [quickFind, setQuickFind] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
 
   useEffect(() => { setWelcomeNow(new Date()); }, []);
 
@@ -107,11 +109,19 @@ export default function DashboardPage() {
   }, [operatorProfile, operatorProfileLoaded]);
 
   useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCommandOpen(false);
+    const onKeyboardShortcut = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandQuery('');
+        setCommandOpen(true);
+      }
     };
-    window.addEventListener('keydown', onEscape);
-    return () => window.removeEventListener('keydown', onEscape);
+    window.addEventListener('keydown', onKeyboardShortcut);
+    return () => window.removeEventListener('keydown', onKeyboardShortcut);
   }, []);
 
   const exportOperationalSnapshot = useCallback(() => {
@@ -246,6 +256,11 @@ export default function DashboardPage() {
   const operatorEmail = operatorProfile?.email?.trim() || '';
   const operatorDisplayName = operatorFullName ? operatorFullName.split(/\s+/)[0] : operatorUsername || operatorEmail.split('@')[0] || 'Operator';
   const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
+  const filteredCommandWorkspaces = useMemo(() => OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())), [commandQuery]);
+  useEffect(() => {
+    setSelectedCommandIndex((current) => Math.min(current, Math.max(filteredCommandWorkspaces.length - 1, 0)));
+  }, [filteredCommandWorkspaces.length]);
+
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
     : network.offline > 0
@@ -292,13 +307,13 @@ export default function DashboardPage() {
           <section className="operator-command-dialog" role="dialog" aria-modal="true" aria-labelledby="operator-command-title">
             <div className="operator-command-search-row">
               <span aria-hidden="true">⌕</span>
-              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search workspaces and actions…" aria-label="Search operator commands" />
+              <input autoFocus value={commandQuery} onChange={(event) => { setCommandQuery(event.target.value); setSelectedCommandIndex(0); }} onKeyDown={(event) => { if (event.nativeEvent.isComposing || event.keyCode === 229) return; if (event.key === 'ArrowDown') { event.preventDefault(); setSelectedCommandIndex((current) => Math.min(current + 1, Math.max(filteredCommandWorkspaces.length - 1, 0))); } if (event.key === 'ArrowUp') { event.preventDefault(); setSelectedCommandIndex((current) => Math.max(current - 1, 0)); } if (event.key === 'Enter' && filteredCommandWorkspaces[selectedCommandIndex]) { event.preventDefault(); window.location.href = filteredCommandWorkspaces[selectedCommandIndex].href; } }} placeholder="Search workspaces and actions…" aria-label="Search operator commands" aria-activedescendant={filteredCommandWorkspaces[selectedCommandIndex] ? `command-${selectedCommandIndex}` : undefined} />
               <kbd>ESC</kbd>
             </div>
             <div className="operator-command-section-label" id="operator-command-title">Quick actions</div>
             <div className="operator-command-results">
-              {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).map((item) => (
-                <a key={item.href} href={item.href} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
+              {filteredCommandWorkspaces.map((item, index) => (
+                <a id={`command-${index}`} className={index === selectedCommandIndex ? 'is-selected' : ''} key={item.href} href={item.href} onMouseEnter={() => setSelectedCommandIndex(index)} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
               ))}
               {'export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data && (
                 <button type="button" onClick={() => { exportOperationalSnapshot(); setCommandOpen(false); }}><span className="operator-command-result-icon" aria-hidden="true">↓</span><span><strong>Export operational snapshot</strong><small>Download the latest authenticated overview as JSON</small></span><kbd>EXPORT</kbd></button>
@@ -309,6 +324,30 @@ export default function DashboardPage() {
           </section>
         </div>
       )}
+      <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
+        <div className="operator-launchpad-heading">
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger" title="Open dashboard actions (Ctrl or Command + K)">Dashboard actions <kbd>⌘K</kbd></button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
+        </div>
+        <label className="operator-launchpad-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
+          <input type="search" value={quickFind} onChange={(event) => setQuickFind(event.target.value)} placeholder="Search network, customers, finance…" aria-label="Search operator workspaces" />
+          {quickFind && <button type="button" onClick={() => setQuickFind('')} aria-label="Clear workspace search">Clear</button>}
+        </label>
+        <div className="operator-launchpad-grid" aria-live="polite">
+          {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).map((item) => (
+            <a className="operator-launchpad-item" href={item.href} key={item.href}>
+              <span className="operator-launchpad-icon" aria-hidden="true">{item.label === 'Network & devices' ? '⌘' : item.label === 'Customers' ? '◎' : item.label === 'Live sessions' ? '◉' : item.label === 'Payments' ? '$' : item.label === 'Incident center' ? '!' : item.label === 'Field operations' ? '↗' : item.label === 'Network commands' ? '›_' : '✓'}</span>
+              <span className="operator-launchpad-item-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
+              <span className="operator-launchpad-arrow" aria-hidden="true">↗</span>
+            </a>
+          ))}
+          {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length === 0 && (
+            <div className="operator-launchpad-empty"><strong>No matching workspace</strong><span>Try a different keyword, such as network, payments or customers.</span></div>
+          )}
+        </div>
+        <div className="operator-launchpad-footnote"><span aria-hidden="true">↳</span> Shortcuts open existing Jaslyn Net pages; access permissions still apply.</div>
+      </section>
       <header className="overview-header">
         <div className="overview-heading">
           <h2>Network operations overview</h2>
