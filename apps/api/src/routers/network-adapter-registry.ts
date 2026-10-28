@@ -28,7 +28,7 @@ export class NetworkAdapterRegistry {
     },
     { protocol: 'OMADA_CONTROLLER_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
     { protocol: 'OMADA_LOCAL_CONTROLLER_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
-    { protocol: 'RUIJIE_REYEE_CLOUD_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
+    { protocol: 'RUIJIE_REYEE_CLOUD_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry', 'captive_portal', 'qos'] },
     { protocol: 'CAMBIUM_CNMAESTRO', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'GRANDSTREAM_GWN_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
     { protocol: 'RUCKUS_SMARTZONE_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['client_sessions'] },
