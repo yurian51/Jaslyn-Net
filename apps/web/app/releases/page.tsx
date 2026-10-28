@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import './releases.css';
 
 const releases = [
+  { version: '2026.10.19', date: 'October 2026', title: 'Cambium cnMaestro model support', detail: 'Cambium is now prominently surfaced with cnMaestro-managed cnPilot Wi-Fi, cnWave, ePMP and cnMatrix coverage, including telemetry, client sessions and QoS readiness.', tags: ['Cambium', 'cnMaestro', 'Wi-Fi'], featured: true },
   { version: '2026.10.18', date: 'October 2026', title: 'Ruijie Reyee Cloud model support', detail: 'Ruijie/Reyee Cloud support is now surfaced with AP, gateway and cloud-managed Wi-Fi coverage, including device inventory, client telemetry, captive portal and QoS readiness.', tags: ['Ruijie', 'Reyee', 'Cloud'], featured: true },
   { version: '2026.10.17', date: 'October 2026', title: 'Barracuda CloudGen model support', detail: 'Barracuda support covers CloudGen Firewall, CloudGen WAN and Cloud Control with model-aware telemetry readiness.', tags: ['Barracuda', 'CloudGen'], featured: true },
   { version: '2026.10.16', date: 'October 2026', title: 'SonicWall SonicOS model support', detail: 'SonicWall support covers TZ, NSa and NSsp firewall families with secure API onboarding and live firmware validation.', tags: ['SonicWall', 'SonicOS'], featured: true },

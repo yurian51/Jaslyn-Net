@@ -153,14 +153,6 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     notes: 'Cloud-managed Wi-Fi family with portal/mobile-money deployments common in East African hotspot operations.',
   },
   {
-    vendor: 'Ruckus Networks',
-    protocols: ['RUCKUS_SMARTZONE_API', 'RADIUS_NAS'],
-    integrationModes: ['native_api', 'radius'],
-    deviceFamilies: ['Ruckus AP', 'SmartZone', 'Virtual SmartZone', 'Cloud-managed WLAN'],
-    capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'captive_portal', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos', 'cloud_controller'],
-    notes: 'Enterprise WLAN family; use controller APIs or standard RADIUS for subscriber authentication.',
-  },
-  {
     vendor: 'OpenWrt',
     protocols: ['OPENWRT_UBUS', 'RADIUS_NAS'],
     integrationModes: ['native_api', 'radius'],
