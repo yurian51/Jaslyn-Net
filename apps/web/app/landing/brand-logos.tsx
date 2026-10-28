@@ -1,15 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/**
- * Brand marks are shown as images wherever an official file exists in /public. When a file is missing the
- * component falls back to the name; it never draws or approximates a logo.
- */
+/** Brand marks are rendered only when an official asset exists in /public. */
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
 const exists = (rel: string) => { try { return fs.existsSync(path.join(PUBLIC_DIR, rel)); } catch { return false; } };
 
 interface Vendor { name: string; file: string; /** logo is drawn for a dark background (e.g. white lettering) */ dark?: boolean }
-/** `file` is relative to /public. Entries whose file is missing or is only text render as the name. */
+/** `file` is relative to /public. Missing assets stay out of the rendered wall. */
 export const VENDOR_LOGOS: Vendor[] = [
   { name: 'MikroTik', file: 'integrations/mikrotik.svg' },
   { name: 'UniFi (Ubiquiti)', file: 'integrations/ubiquiti.svg' },
@@ -61,12 +58,10 @@ export function VendorLogoWall() {
   return (
     <ul className="jl-logos" aria-label="Supported router brands">
       {VENDOR_LOGOS.map((v) => {
-        const available = exists(v.file);
+        if (!exists(v.file)) return null;
         return (
-          <li key={v.name} className={['jl-logo-tile', available ? '' : 'jl-logo-missing', v.dark ? 'jl-logo-dark' : ''].filter(Boolean).join(' ')}>
-            {available
-              ? <img src={`/${v.file}`} alt={v.name} title={v.name} loading="lazy" decoding="async" />
-              : <span>{v.name}</span>}
+          <li key={v.name} className={['jl-logo-tile', v.dark ? 'jl-logo-dark' : ''].filter(Boolean).join(' ')}>
+            <img src={`/${v.file}`} alt={v.name} title={v.name} loading="lazy" decoding="async" />
           </li>
         );
       })}
