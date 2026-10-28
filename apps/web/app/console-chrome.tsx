@@ -171,12 +171,6 @@ function OperationsChrome({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  const commandResults = useMemo(() => {
-    const query = commandQuery.trim().toLowerCase();
-    if (!query) return nav.slice(0, 10);
-    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
-  }, [commandQuery]);
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
