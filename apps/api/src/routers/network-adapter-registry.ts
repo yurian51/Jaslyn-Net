@@ -85,6 +85,9 @@ export class NetworkAdapterRegistry {
     { protocol: 'EXTREME_CLOUD_IQ_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
     { protocol: 'RUCKUS_SMARTZONE_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'client_sessions', 'traffic_counters', 'telemetry'] },
     { protocol: 'WATCHGUARD_FIREBOX_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
+    { protocol: 'PALOALTO_PANOS_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
+    { protocol: 'SONICWALL_SONICOS_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
+    { protocol: 'BARRACUDA_CLOUDGEN_API', lifecycle: 'NATIVE', supportScope: 'TELEMETRY_ONLY', liveDeviceValidationRequired: true, capabilities: ['device_inventory', 'health_monitoring', 'traffic_counters', 'telemetry'] },
     {
       protocol: 'ARUBA_CENTRAL_API',
       lifecycle: 'NATIVE',

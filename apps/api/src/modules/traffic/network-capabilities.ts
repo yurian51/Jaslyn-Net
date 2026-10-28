@@ -82,6 +82,15 @@ export const WORLDWIDE_NETWORK_CAPABILITIES: readonly NetworkVendorCapability[] 
     vendor: 'Zyxel', protocols: ['ZYXEL_NEBULA_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['Nebula gateways', 'Nebula switches', 'Nebula access points'], supportedModelPatterns: ['all Nebula models', 'USG FLEX', 'ATP', 'GS', 'XS', 'NWA', 'WAX', 'SCR'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'Zyxel Nebula cloud-managed families require live controller validation.'
   },
   {
+    vendor: 'Palo Alto Networks', protocols: ['PALOALTO_PANOS_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['PA-Series firewalls', 'VM-Series firewalls', 'Panorama', 'Prisma Access'], supportedModelPatterns: ['all PAN-OS models', 'PA-220', 'PA-400', 'PA-800', 'PA-1400', 'PA-3400', 'PA-5400', 'VM-Series', 'Panorama'], capabilities: ['telemetry', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'PAN-OS and Panorama management require live API and tenant validation.'
+  },
+  {
+    vendor: 'SonicWall', protocols: ['SONICWALL_SONICOS_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['TZ firewalls', 'NSa firewalls', 'NSsp firewalls', 'SonicWall cloud management'], supportedModelPatterns: ['all SonicOS models', 'TZ270', 'TZ370', 'TZ470', 'TZ570', 'NSa2700', 'NSa4700', 'NSsp15700'], capabilities: ['telemetry', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'SonicOS API and cloud management support require live firmware validation.'
+  },
+  {
+    vendor: 'Barracuda Networks', protocols: ['BARRACUDA_CLOUDGEN_API', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['CloudGen Firewall', 'CloudGen WAN', 'Barracuda Cloud Control'], supportedModelPatterns: ['all CloudGen models', 'F18', 'F80', 'F93', 'F180', 'F280', 'F380', 'CloudGen Firewall'], capabilities: ['telemetry', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'CloudGen and Cloud Control telemetry require live account and firmware validation.'
+  },
+  {
     vendor: 'Huawei CloudCampus', protocols: ['HUAWEI_CLOUDCAMPUS_API', 'HUAWEI_NETCONF_RESTCONF', 'SNMP', 'RADIUS_NAS'], integrationModes: ['native_api', 'snmp', 'radius'], deviceFamilies: ['CloudCampus controllers', 'CloudEngine campus switches', 'AirEngine APs', 'AR gateways'], supportedModelPatterns: ['all CloudCampus models', 'iMaster', 'S12700', 'S6730', 'S5735', 'CE6850', 'AirEngine', 'AR'], capabilities: ['telemetry', 'client_sessions', 'traffic_counters', 'radius_aaa', 'device_inventory', 'health_monitoring', 'qos'], notes: 'CloudCampus controller and campus-device coverage requires live controller validation.'
   },
   {

@@ -48,6 +48,9 @@ export class RoutersService {
     if (normalized.includes('extreme') || normalized.includes('cloud iq')) return 'EXTREME_CLOUD_IQ_API';
     if (normalized.includes('ruckus') || normalized.includes('smartzone')) return 'RUCKUS_SMARTZONE_API';
     if (normalized.includes('watchguard') || normalized.includes('firebox')) return 'WATCHGUARD_FIREBOX_API';
+    if (normalized.includes('palo alto') || normalized.includes('panos') || normalized.includes('pan-os')) return 'PALOALTO_PANOS_API';
+    if (normalized.includes('sonicwall') || normalized.includes('sonicos') || normalized.includes('sonic os')) return 'SONICWALL_SONICOS_API';
+    if (normalized.includes('barracuda') || normalized.includes('cloudgen')) return 'BARRACUDA_CLOUDGEN_API';
     if (normalized.includes('aruba')) return normalized.includes('central') ? 'ARUBA_CENTRAL_API' : 'ARUBA_AOS_CX_NETCONF';
     if (normalized.includes('omada') || normalized.includes('tp-link') || normalized.includes('tplink')) return normalized.includes('local') ? 'OMADA_LOCAL_CONTROLLER_API' : 'OMADA_CONTROLLER_API';
     if (normalized.includes('tp-link') || normalized.includes('omada')) return 'OMADA_CONTROLLER_API';

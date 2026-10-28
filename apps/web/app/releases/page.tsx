@@ -5,6 +5,9 @@ import { useMemo, useState } from 'react';
 import './releases.css';
 
 const releases = [
+  { version: '2026.10.17', date: 'October 2026', title: 'Barracuda CloudGen model support', detail: 'Barracuda support covers CloudGen Firewall, CloudGen WAN and Cloud Control with model-aware telemetry readiness.', tags: ['Barracuda', 'CloudGen'], featured: true },
+  { version: '2026.10.16', date: 'October 2026', title: 'SonicWall SonicOS model support', detail: 'SonicWall support covers TZ, NSa and NSsp firewall families with secure API onboarding and live firmware validation.', tags: ['SonicWall', 'SonicOS'], featured: true },
+  { version: '2026.10.15', date: 'October 2026', title: 'Palo Alto PAN-OS model support', detail: 'Palo Alto support covers PA-Series, VM-Series, Panorama and Prisma Access readiness through PAN-OS API validation.', tags: ['Palo Alto', 'PAN-OS'], featured: true },
   { version: '2026.10.14', date: 'October 2026', title: 'WatchGuard Firebox model support', detail: 'WatchGuard support covers Firebox appliances and WatchGuard Cloud readiness with secure management and live validation.', tags: ['WatchGuard', 'Firebox'], featured: true },
   { version: '2026.10.13', date: 'October 2026', title: 'Ruckus SmartZone model support', detail: 'Ruckus support covers SmartZone, Virtual SmartZone, ICX switching and current WLAN model families.', tags: ['Ruckus', 'SmartZone'], featured: true },
   { version: '2026.10.12', date: 'October 2026', title: 'ExtremeCloud IQ model support', detail: 'Extreme support covers Cloud IQ, ExtremeXOS switching and universal access points with controller-aware readiness.', tags: ['Extreme', 'Cloud IQ'], featured: true },
