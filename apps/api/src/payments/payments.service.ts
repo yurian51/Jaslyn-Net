@@ -69,9 +69,10 @@ export class PaymentsService {
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
       correlationId ??= purchase.rows[0].correlation_id ?? `payment-intent:${input.purchaseId}`;
       await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency, client);
-      const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
+      const existing = await client.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
+        if (existing.rows[0].samePurchase !== true) throw new ConflictException('Idempotency key is already bound to another purchase');
         await client.query('COMMIT');
         return { id: existing.rows[0].id, status: existing.rows[0].status, provider: existing.rows[0].provider, idempotencyKey: key, reused: true };
       }
@@ -81,17 +82,18 @@ export class PaymentsService {
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       const dbError = error as DatabaseError;
-      if (dbError.code === '23505' && dbError.constraint === 'payments_one_pending_per_purchase_uq') {
-        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status='PENDING' ORDER BY created_at ASC LIMIT 1`, [tenantId, input.purchaseId]);
+      if (dbError.code === '23505' && dbError.constraint === 'payments_one_active_attempt_per_purchase_uq') {
+        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('INITIATED','PENDING','AUTHORIZED') ORDER BY created_at ASC LIMIT 1`, [tenantId, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('A pending payment already exists for another provider');
           return { ...existing.rows[0], reused: true };
         }
       }
       if (dbError.code === '23505') {
-        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
+        const existing = await this.db.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase", idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
+          if (existing.rows[0].samePurchase !== true) throw new ConflictException('Idempotency key is already bound to another purchase');
           return { ...existing.rows[0], reused: true };
         }
       }
@@ -100,13 +102,13 @@ export class PaymentsService {
   }
 
   async recordVerifiedSettlement(client: Pick<PoolClient, 'query'>, tenantId: string, paymentId: string, amount: string | number, currency: string, provider: string) {
-    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string; correlationId: string | null }>(
-      `SELECT status, amount, currency, provider, correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
+    const payment = await client.query<{ status: string; amount: string; currency: string; provider: string; purchaseId: string | null; correlationId: string | null }>(
+      `SELECT status, amount, currency, provider, purchase_id AS "purchaseId", correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE`,
       [tenantId, paymentId],
     );
     const settledPayment = payment.rows[0];
     const correlationId = settledPayment?.correlationId ?? getCorrelationId() ?? `payment:${paymentId}`;
-    if (!settledPayment || settledPayment.status !== 'SUCCESS') throw new ConflictException('Only a successfully persisted payment can be settled');
+    if (!settledPayment || settledPayment.status !== 'PAID') throw new ConflictException('Only a successfully persisted payment can be settled');
     if (settledPayment.provider !== provider) throw new ConflictException('Settlement provider does not match payment provider');
     if (String(settledPayment.amount) !== String(amount) || settledPayment.currency !== currency) throw new ConflictException('Settlement amount or currency does not match payment');
     await client.query(
@@ -115,7 +117,7 @@ export class PaymentsService {
               verified_at=COALESCE(verified_at,now()),
               verification_source=COALESCE(verification_source,'MANUAL_SETTLEMENT'),
               updated_at=now()
-        WHERE tenant_id=$1 AND id=$2 AND status='SUCCESS'`,
+        WHERE tenant_id=$1 AND id=$2 AND status='PAID'`,
       [tenantId, paymentId],
     );
     const cashCode = `CASH:${provider}:${currency}`.slice(0, 64);
@@ -166,6 +168,24 @@ export class PaymentsService {
         [tenantId, transactionId, cashAccount.rows[0]?.id, currency, amount, revenueAccount.rows[0]?.id],
       );
     }
+    // Update canonical invoice balances in the same transaction as verified payment settlement.
+    if (settledPayment.purchaseId) {
+      await client.query(
+        `UPDATE invoices i SET
+           amount_paid=LEAST(i.total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.tenant_id=i.tenant_id AND p.purchase_id=i.purchase_id AND p.status='PAID' AND p.currency=i.currency),0)),
+           status=CASE
+             WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.tenant_id=i.tenant_id AND p.purchase_id=i.purchase_id AND p.status='PAID' AND p.currency=i.currency),0)>=i.total THEN 'PAID'
+             WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.tenant_id=i.tenant_id AND p.purchase_id=i.purchase_id AND p.status='PAID' AND p.currency=i.currency),0)>0 THEN 'PARTIALLY_PAID'
+             ELSE i.status END,
+           updated_at=now()
+         WHERE i.tenant_id=$1 AND i.purchase_id=$2 AND i.status<>'VOID'`,
+        [tenantId,settledPayment.purchaseId],
+      );
+    }
+    await client.query(`INSERT INTO webhook_delivery_outbox(tenant_id,endpoint_id,event_id,event_type,payload)
+      SELECT e.tenant_id,e.id,$2::uuid,'payment.settled',jsonb_build_object('paymentId',$2,'amount',$3,'currency',$4,'provider',$5)
+      FROM tenant_webhook_endpoints e WHERE e.tenant_id=$1 AND e.enabled=true AND 'payment.settled'=ANY(e.event_types)
+      ON CONFLICT(tenant_id,endpoint_id,event_id) DO NOTHING`,[tenantId,paymentId,String(amount),currency,provider]);
     return transactionId;
   }
 
@@ -190,6 +210,7 @@ export class PaymentsService {
   async webhook(tenantId: string, input: PaymentWebhookDto, rawBody: Buffer, signature?: string) {
     const provider = input.provider.trim().toLowerCase();
     const providerEventId = input.providerEventId.trim();
+    const normalizedStatus = input.status === 'SUCCESS' ? 'PAID' : input.status;
     let correlationId = getCorrelationId() ?? null;
     if (!correlationId && input.paymentId) {
       const payment = await this.db.query<{ correlationId: string | null }>(`SELECT correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2`, [tenantId, input.paymentId]);
@@ -203,28 +224,62 @@ export class PaymentsService {
     try {
       await eventClient.query('BEGIN');
 
+      // Never trust a caller-supplied internal payment ID across tenant/provider boundaries.
+      if (input.paymentId) {
+        const payment = await eventClient.query(
+          `SELECT id FROM payments WHERE tenant_id=$1 AND id=$2 AND provider=$3 FOR UPDATE`,
+          [tenantId, input.paymentId, provider],
+        );
+        if (!payment.rowCount) throw new NotFoundException('Payment not found for this tenant and provider');
+      }
+
       const inserted = await eventClient.query(
         `INSERT INTO payment_events
            (tenant_id, payment_id, provider, provider_event_id, event_type, payload, signature_valid, processing_status, correlation_id)
-         VALUES ($1,NULL,$2,$3,$4,$5,true,'RECEIVED',$6)
+         VALUES ($1,$7,$2,$3,$4,$5,true,'RECEIVED',$6)
          ON CONFLICT (tenant_id, provider, provider_event_id)
          WHERE provider_event_id IS NOT NULL
          DO NOTHING
          RETURNING id`,
-        [tenantId, provider, providerEventId, input.eventType.trim(), input.payload ?? {}, correlationId],
+        [tenantId, provider, providerEventId, input.eventType.trim(), {
+          status: normalizedStatus,
+          paymentId: input.paymentId ?? null,
+          purchaseId: input.purchaseId ?? null,
+          providerReference: input.providerReference ?? null,
+          providerPayload: input.payload ?? {},
+        }, correlationId, input.paymentId ?? null],
       );
 
       if (!inserted.rowCount) {
         const existing = await eventClient.query(
-          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId"
+          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId", payload
              FROM payment_events
             WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
             FOR UPDATE`,
           [tenantId, provider, providerEventId],
         );
         if (!existing.rowCount) throw new ConflictException('Payment event could not be resolved after conflict');
-        if (existing.rows[0].eventType !== input.eventType.trim()) {
+        const existingEvent = existing.rows[0] as {
+          eventType: string;
+          processingStatus: string;
+          paymentId: string | null;
+          payload: { status?: string; paymentId?: string | null; purchaseId?: string | null; providerReference?: string | null } | null;
+        };
+        if (existingEvent.eventType !== input.eventType.trim()) {
           throw new ConflictException('Payment event identifier is already bound to a different event type');
+        }
+        // A provider event ID is immutable: retries must carry the same business identity
+        // and settlement facts, not merely the same event type.
+        const prior = existingEvent.payload ?? {};
+        const sameOptional = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
+        if (
+          !sameOptional(existingEvent.paymentId, input.paymentId) ||
+          !sameOptional(prior.status, input.status) ||
+          !sameOptional(prior.paymentId, input.paymentId) ||
+          !sameOptional(prior.purchaseId, input.purchaseId) ||
+          !sameOptional(prior.providerReference, input.providerReference)
+        ) {
+          throw new ConflictException('Payment event identifier is already bound to different payment data');
         }
         await eventClient.query('COMMIT');
         return {
@@ -237,8 +292,9 @@ export class PaymentsService {
       }
 
       const eventId = inserted.rows[0].id as string;
-      await eventClient.query('COMMIT');
-
+      // Persist the durable work item in the same transaction as the webhook event.
+      // Otherwise a queue write failure after COMMIT would strand a RECEIVED event:
+      // provider retries would hit the duplicate path and never enqueue it again.
       await this.domainEvents.enqueue({
         tenantId,
         eventKey: `payment-webhook:${provider}:${providerEventId}`,
@@ -249,11 +305,16 @@ export class PaymentsService {
           provider,
           providerEventId,
           eventType: input.eventType.trim(),
+          status: normalizedStatus,
           paymentId: input.paymentId ?? null,
+          purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,
+          providerPayload: input.payload ?? {},
           targetRoles: ['OWNER', 'ADMIN', 'SUPER_ADMIN', 'BILLING_ADMIN'],
         },
-      });
+      }, eventClient);
+
+      await eventClient.query('COMMIT');
 
       return {
         accepted: true,

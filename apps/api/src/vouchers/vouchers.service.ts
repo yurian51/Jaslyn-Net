@@ -5,10 +5,11 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CreateVoucherBatchDto, RedeemVoucherDto } from './vouchers.dto';
 import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 
 @Injectable()
 export class VouchersService {
-  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly audit: AuditService) {}
+  constructor(@Inject(PG_POOL) private readonly db: Pool, private readonly audit: AuditService, private readonly domainEvents: CommunicationDomainEventsService) {}
 
   private generateCode(format: CreateVoucherBatchDto['codeFormat'] = 'LETTERS_NUMBERS') {
     const alphabet = format === 'NUMBERS' ? '0123456789' : format === 'LETTERS' ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -87,7 +88,13 @@ export class VouchersService {
       if(!voucher.rowCount) throw new NotFoundException('Voucher or customer not found');
       const v=voucher.rows[0];
       if(v.status!=='UNUSED') throw new ConflictException('Voucher is '+v.status);
-      if(v.expires_at&&new Date(v.expires_at).getTime()<=Date.now()){await client.query('UPDATE vouchers SET status=\'EXPIRED\' WHERE tenant_id=$1 AND id=$2',[tenantId,v.id]);throw new ConflictException('Voucher has expired')}
+      if(v.expires_at&&new Date(v.expires_at).getTime()<=Date.now()){
+        await client.query("UPDATE vouchers SET status='EXPIRED' WHERE tenant_id=$1 AND id=$2 AND status='UNUSED'",[tenantId,v.id]);
+        // Commit the terminal state before raising the business error; throwing before
+        // COMMIT would cause the catch block to roll the EXPIRED update back.
+        await client.query('COMMIT');
+        throw new ConflictException('Voucher has expired');
+      }
       if(v.is_free_trial&&v.free_trial_frequency!=='UNLIMITED'){
         const trial= v.free_trial_frequency==='ONCE_PER_PHONE'
           ? await client.query(`SELECT 1 FROM wifi_plan_purchases p JOIN customers c ON c.tenant_id=p.tenant_id AND c.id=p.customer_id WHERE p.tenant_id=$1 AND p.package_id=$2 AND c.phone IS NOT NULL AND c.phone=$3 LIMIT 1`,[tenantId,v.package_id,v.phone])
@@ -111,6 +118,14 @@ export class VouchersService {
         [tenantId,purchase.rows[0].id,input.customerId,input.routerId??null,JSON.stringify(networkPolicy),v.device_limit],
       );
       await client.query('UPDATE vouchers SET status=\'USED\',used_at=now() WHERE tenant_id=$1 AND id=$2',[tenantId,v.id]);
+      await this.domainEvents.enqueue({
+        tenantId,
+        eventKey: `voucher-redeemed:${v.id}`,
+        eventType: 'VOUCHER.REDEEMED',
+        aggregateType: 'voucher',
+        aggregateId: v.id,
+        payload: { voucherId: v.id, customerId: input.customerId, packageId: v.package_id, purchaseId: purchase.rows[0].id, routerId: input.routerId ?? null, endsAt: purchase.rows[0].endsAt, deviceLimit: v.device_limit },
+      }, client);
       await client.query('COMMIT');
       await this.audit.record(tenantId,'VOUCHER_REDEEMED','voucher',v.id,{customerId:input.customerId,packageId:v.package_id,purchaseId:purchase.rows[0].id,routerId:input.routerId??null,deviceLimit:v.device_limit});
       return {redeemed:true,voucherId:v.id,purchaseId:purchase.rows[0].id,startsAt:purchase.rows[0].startsAt,endsAt:purchase.rows[0].endsAt,deviceLimit:v.device_limit};

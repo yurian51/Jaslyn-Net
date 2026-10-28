@@ -67,4 +67,36 @@ describe('FinanceService invoice integrity', () => {
 
     expect(audit.record).not.toHaveBeenCalled();
   });
+
+  it('rejects a refund idempotency-key race bound to another payment', async () => {
+    const client = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM payments WHERE tenant_id=$1 AND id=$2 FOR UPDATE')) {
+          return { rowCount: 1, rows: [{ id: 'payment-requested', amount: '100', currency: 'TZS', status: 'PAID' }] };
+        }
+        if (sql.includes('FROM refunds WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE')) return { rowCount: 0, rows: [] };
+        if (sql.includes('SELECT COALESCE(SUM(amount),0) AS total FROM refunds')) return { rowCount: 1, rows: [{ total: '0' }] };
+        if (sql.includes('INSERT INTO refunds')) {
+          const error = new Error('unique refund idempotency key') as Error & { code: string };
+          error.code = '23505';
+          throw error;
+        }
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const db = {
+      connect: jest.fn().mockResolvedValue(client),
+      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ id: 'refund-1', payment_id: 'payment-other', amount: '10', currency: 'TZS' }] }),
+    };
+    const service = new FinanceService(db as any, { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) } as any);
+
+    await expect(service.requestRefund('tenant-1', {
+      paymentId: 'payment-requested', amount: 10, reason: 'duplicate test', idempotencyKey: 'refund-key-001',
+    })).rejects.toThrow('Refund idempotency key is already bound to another refund');
+
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(client.release).toHaveBeenCalled();
+  });
 });

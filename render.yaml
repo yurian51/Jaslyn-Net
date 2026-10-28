@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@12.7.0 --activate && pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && pnpm --filter @jaslyn-net/api build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/api build
     startCommand: pnpm --filter @jaslyn-net/api migrate && pnpm --filter @jaslyn-net/api start
     healthCheckPath: /api/v1/health/ready
     envVars:
@@ -13,6 +13,10 @@ services:
         value: "24.21.0"
       - key: NODE_ENV
         value: "production"
+      # Render terminates TLS at one proxy hop; without this request.ip is the proxy for every client,
+      # which breaks per-client rate limits (sign-in throttle, portal voucher limiter) and session IP audit.
+      - key: TRUST_PROXY_HOPS
+        value: "1"
       - key: CORS_ORIGIN
         fromService:
           name: jaslyn-net-production
@@ -35,13 +39,13 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@12.7.0 --activate && pnpm install --no-frozen-lockfile --allow-build=@parcel/watcher --allow-build=unrs-resolver && pnpm --filter @jaslyn-net/web build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @jaslyn-net/web build
     startCommand: pnpm --filter @jaslyn-net/web start
     envVars:
       - key: NODE_VERSION
         value: "24.21.0"
       - key: NEXT_PUBLIC_API_URL
-        value: "https://jaslyn-net-api.onrender.com/api/v1"
+        value: "https://jaslyn-net-api-18o7.onrender.com/api/v1"
 
 databases:
   - name: jaslyn-net-db

@@ -788,3 +788,45 @@
 @media(prefers-reduced-motion:reduce){
   .network-button{transition:none}
 }
+
+.network-qr-button{white-space:nowrap}
+.network-qr-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(10,20,35,.62);display:grid;place-items:center;padding:18px;overflow:auto}
+.network-qr-card{position:relative;width:min(100%,430px);background:#fff;border:1px solid #dbe3ed;border-radius:18px;padding:28px;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.2);color:#17273d}
+.network-qr-close{position:absolute;right:12px;top:10px;border:0;background:#f1f5f9;border-radius:9px;width:32px;height:32px;font-size:22px;cursor:pointer;color:#334155}
+.network-qr-kicker{font-size:9px;font-weight:850;letter-spacing:.14em;color:#64748b}
+.network-qr-card h2{font-size:22px;margin:12px 0 4px;overflow-wrap:anywhere}
+.network-qr-card p{font-size:12px;color:#64748b;line-height:1.6;margin:5px 0 12px}
+.network-qr-image{width:min(100%,290px);height:auto;image-rendering:pixelated}
+.network-qr-card code{font-size:10px;overflow-wrap:anywhere;padding:8px;background:#f8fafc;border-radius:7px}
+.network-qr-card .network-qr-note{margin-top:14px;max-width:320px}
+.network-qr-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.network-qr-actions a{text-decoration:none;display:inline-flex;align-items:center}
+@media print{
+  body *{visibility:hidden!important}
+  .network-qr-backdrop,.network-qr-backdrop *{visibility:visible!important}
+  .network-qr-backdrop{position:absolute;inset:0;background:#fff;padding:0;display:block;overflow:visible}
+  .network-qr-card{width:100%;max-width:none;border:0;box-shadow:none;border-radius:0;position:static}
+  .network-qr-close,.network-qr-actions{display:none!important}
+}
+
+.network-firmware-unavailable{font-size:11px;color:#94a3b8;white-space:nowrap}
+.network-firmware-card{position:relative;width:min(100%,720px);max-height:calc(100vh - 36px);overflow:auto;background:#fff;border:1px solid #dbe3ed;border-radius:18px;padding:28px;box-shadow:0 24px 80px rgba(0,0,0,.2);color:#17273d}
+.network-firmware-card h2{font-size:23px;margin:12px 0 4px;overflow-wrap:anywhere}
+.network-firmware-card>p{font-size:12px;color:#64748b;line-height:1.6;margin:6px 0 14px}
+.network-firmware-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.network-firmware-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#e2e8f0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin:16px 0}
+.network-firmware-details>div{display:flex;flex-direction:column;gap:7px;background:#f8fafc;padding:13px;min-width:0}
+.network-firmware-details span,.network-firmware-job-head span{font-size:10px;color:#64748b}
+.network-firmware-details strong{font-size:13px;overflow-wrap:anywhere}
+.network-firmware-plan,.network-firmware-job{border:1px solid #dbe3ed;border-radius:12px;padding:16px;margin-top:14px}
+.network-firmware-plan h3{font-size:15px;margin:0 0 6px}
+.network-firmware-plan p,.network-firmware-job p{font-size:12px;line-height:1.6;color:#64748b}
+.network-firmware-plan label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;margin:12px 0;color:#334155}
+.network-firmware-plan input{border:1px solid #cbd5e1;border-radius:8px;min-height:40px;padding:8px 10px;background:#fff;color:#17273d;font:inherit}
+.network-firmware-job-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.network-firmware-job-head strong{font-size:12px;padding:5px 9px;border-radius:7px;background:#eff6ff;color:#1d4ed8}
+.network-firmware-note{font-size:11px!important;line-height:1.7!important;color:#64748b!important;margin-top:16px!important}
+@media(max-width:560px){
+  .network-firmware-card{padding:20px 14px}
+  .network-firmware-details{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

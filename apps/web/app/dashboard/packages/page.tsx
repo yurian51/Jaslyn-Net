@@ -59,11 +59,11 @@ export default function PackagesPage() {
   return (
     <main className="packages-page">
       <header className="packages-header">
-        <div><div className="packages-eyebrow">JASLYN NET / COMMERCE</div><h1>Package architecture</h1><p>Eight named service tiers connected to the real tenant package catalog. No decorative pricing fiction pretending to be a database.</p></div>
+        <div><div className="packages-eyebrow">JASLYN NET / WIFI SUBSCRIBER PLANS</div><h1>WiFi subscriber packages</h1><p>Configure the internet bundles customers purchase on your hotspot. These are subscriber access packages, separate from your JASLYN NET platform subscription.</p></div>
         <div className="packages-stats"><b>{configured}<span>/ {tiers.length || 8}</span></b><small>tiers configured</small></div>
       </header>
       {error && <div className="packages-error" role="alert">{error}</div>}
-      <section className="tier-grid" aria-label="Jaslyn service tiers">
+      <section className="tier-grid" aria-label="WiFi subscriber access packages">
         {loading
           ? Array.from({ length: 8 }, (_, index) => (
               <article className="tier-card skeleton" key={index}><div /><div /><div /></article>
@@ -74,11 +74,11 @@ export default function PackagesPage() {
                 <h2>{tier.name}</h2><p>{tier.tagline}</p>
                 <div className="tier-price">{money(tier.currency, tier.price)}<small>/ {duration(tier.durationSeconds)}</small></div>
                 <div className="tier-specs">
-                  <span><b>{data(tier.dataLimitBytes)}</b><small>data allowance</small></span>
-                  <span><b>{bits(tier.downloadBps)} / {bits(tier.uploadBps)}</b><small>down / up</small></span>
-                  <span><b>{tier.devicesPerCode}</b><small>devices</small></span>
+                  <span><b>{data(tier.dataLimitBytes)}</b><small>included data</small></span>
+                  <span><b>{bits(tier.downloadBps)} / {bits(tier.uploadBps)}</b><small>download / upload speed</small></span>
+                  <span><b>{tier.devicesPerCode}</b><small>allowed devices</small></span>
                 </div>
-                <div className="tier-flags">{Object.entries(tier.featureFlags).filter(([, enabled]) => enabled).slice(0, 7).map(([key]) => <span key={key}>{key}</span>)}</div>
+                <div className="tier-flags">{Object.entries(tier.featureFlags).filter(([, enabled]) => enabled).slice(0, 7).map(([key]) => <span key={key}>{key.replaceAll(/([A-Z])/g, ' $1').replaceAll(/\b\w/g, c => c.toUpperCase())}</span>)}</div>
                 <footer><span className={tier.configured ? 'state-live' : 'state-missing'}>{tier.configured ? 'Configured' : 'Not configured'}</span>{tier.configured ? <span>{tier.package?.showOnPortal ? 'Portal visible' : 'Hidden from portal'}</span> : <button type="button" onClick={() => void provision(tier.code)} disabled={busy === tier.code}>{busy === tier.code ? 'Provisioning…' : 'Provision tier'}</button>}</footer>
               </article>
             ))}

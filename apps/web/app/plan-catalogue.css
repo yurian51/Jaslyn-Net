@@ -1,0 +1,89 @@
+/* Shared plan-card rules for the two WiFi package management surfaces.
+   Platform subscription pricing is a separate product domain and must not reuse these cards. */
+.packages-console .tier-grid,
+.packages-page .tier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+.packages-console .tier-card,
+.packages-page .tier-card {
+  min-width: 0;
+  min-height: 410px;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid #e0e6ee;
+  border-radius: 14px;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035), 0 8px 24px rgba(15, 23, 42, .04);
+}
+.packages-console .tier-card.featured,
+.packages-page .tier-card.featured {
+  border-color: #244d93;
+  box-shadow: inset 0 3px #244d93, 0 8px 24px rgba(15, 23, 42, .06);
+}
+.packages-console .tier-card h3,
+.packages-page .tier-card h2 {
+  min-height: 2.1em;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+.packages-console .tier-card p,
+.packages-page .tier-card > p {
+  min-height: 3.2em;
+  line-height: 1.5;
+}
+.packages-console .tier-price,
+.packages-page .tier-price {
+  min-height: 54px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.packages-console .capacity,
+.packages-page .tier-specs {
+  min-height: 106px;
+  align-content: start;
+}
+.packages-console .feature-list,
+.packages-page .tier-flags {
+  flex: 1 0 auto;
+  align-content: start;
+}
+.packages-console .tier-actions,
+.packages-page .tier-card footer {
+  margin-top: auto;
+  padding-top: 16px;
+}
+.packages-console .tier-card button,
+.packages-console .tier-card a,
+.packages-page .tier-card button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+.packages-console .tier-actions,
+.packages-page .tier-card footer {
+  flex-wrap: wrap;
+}
+@media (max-width: 1180px) {
+  .packages-console .tier-grid,
+  .packages-page .tier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .packages-console .tier-grid,
+  .packages-page .tier-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .packages-console .tier-card,
+  .packages-page .tier-card { min-height: 0; padding: 18px; }
+  .packages-console .tier-price,
+  .packages-page .tier-price { min-height: 0; }
+  .packages-console .capacity,
+  .packages-page .tier-specs { min-height: 0; }
+}

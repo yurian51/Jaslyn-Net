@@ -16,7 +16,7 @@ JASLYN NET unifies WiFi/ISP billing, customers, locations, routers, HotSpot, vou
 - **Category:** Connectivity & ISP Operating System
 - **Tagline:** Connect. Control. Grow.
 
-JASLYN NET is a standalone connectivity and network operations product. **JASLYN and JASLYN NET are distinct products and JASLYN NET does not embed an AI assistant or AI operating layer.**
+JASLYN NET is a standalone connectivity and network operations product designed to support an evidence-first AI operating layer. AI/NOC capabilities are roadmap intent unless the relevant end-to-end implementation and tests demonstrate they are available. Any AI-assisted operation must remain constrained by tenant scope, RBAC, risk policies, approvals, audit trails and verification.
 
 ## Architecture
 
@@ -38,10 +38,13 @@ JASLYN NET is a standalone connectivity and network operations product. **JASLYN
 - Hotspots, routers, RADIUS and live sessions
 - Payments, transactions and reconciliation
 - Agents and reseller operations
-- Reports, alerts and audit logs
+- Reports, alerts, audit logs and AI agent runs
+- AI agent orchestration, specialist agents, skills, dynamic tool registry and policy-controlled autonomy
+- Evidence-first incident investigation, payment reconciliation and network operations planning
 - Captive portals and integrations
 - Network operations and router connectivity
 - Hybrid adapter registry with explicit executable vs catalogue-only capability state
+- AI operating layer over the universal command fabric, with approval-gated state-changing actions
 - Vendor-neutral RADIUS/AAA fallback for supported NAS/controller environments
 
 ## Security baseline
@@ -60,9 +63,28 @@ This repository is developed as a real production system, not a static demo. Fea
 
 JASLYN NET is one product in the wider JASLYN ecosystem. Other JASLYN products may exist independently, but their capabilities must not be represented as features of JASLYN NET unless they are explicitly implemented in this repository.
 
-
 ## Intellectual property and source control
 
 JASLYN NET is proprietary software of YURIAN TECH LTD. Repository access does not grant a license to copy, redistribute, modify, reverse engineer, or publish the source. Development access is controlled through GitHub permissions, protected branches, CODEOWNERS and security checks.
 
 Production credentials and secrets are never part of the repository. Use environment/deployment secret storage for credentials.
+
+## Product strategy and delivery documents
+
+- [Ten enterprise capabilities — portfolio, integration map and release gates](docs/TEN-ENTERPRISE-CAPABILITIES.md)
+- [Enterprise operations capabilities and verification status](docs/ENTERPRISE-CAPABILITIES-IMPLEMENTATION.md)
+- [Enterprise financial, procurement, MSP and operations feature execution](docs/ENTERPRISE-FEATURES-EXECUTION.md)
+- [PostgreSQL backup, restore drills and disaster-recovery gates](docs/DISASTER-RECOVERY.md)
+- [Public API keys and signed webhook contract](docs/PUBLIC-API-WEBHOOKS.md)
+- [Enterprise platform execution roadmap (cloud/SaaS + self-hosted)](docs/ENTERPRISE-PLATFORM-ROADMAP.md)
+- [Product strategy, 10-competitor benchmark and 90-day roadmap](docs/PRODUCT-STRATEGY-AND-ROADMAP.md)
+- [Workflow automation foundation, benchmark mapping and release gates](docs/WORKFLOW-AUTOMATION-FOUNDATION.md)
+- [Platform subscription vs WiFi subscriber plan UX and ownership rules](docs/PLAN-CATALOGUE-UX-AND-OWNERSHIP.md)
+- [Platform subscription API and UI implementation](docs/PLATFORM-SUBSCRIPTION-IMPLEMENTATION.md)
+- [Landing page quality and conversion update](docs/LANDING-PAGE-QUALITY-UPDATE.md)
+- [Competitive gap audit and prioritized execution backlog](docs/COMPETITIVE-GAP-AUDIT.md)
+- [Production readiness gates and launch blockers](docs/production-readiness.md)
+- [Product architecture and source-of-truth rules](docs/product-architecture.md)
+- [UpesiPay integration boundary and verification notes](docs/UPESIPAY-INTEGRATION.md)
+
+**Capability truth rule:** AI-NOC and other roadmap capabilities must be treated as intended product direction unless an end-to-end implementation and its tests prove the capability exists. Never infer production readiness from README wording alone.

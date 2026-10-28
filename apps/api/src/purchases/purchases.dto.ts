@@ -15,6 +15,12 @@ export class CreatePurchaseDto {
   @IsString()
   @MaxLength(80)
   promoCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(16)
+  @MaxLength(160)
+  idempotencyKey?: string;
 }
 
 export class CreatePurchaseFromTierDto {
@@ -48,6 +54,6 @@ export class ConfirmPurchasePaymentDto {
   idempotencyKey?: string;
 
   @IsOptional()
-  @IsIn(['SUCCESS', 'FAILED'])
-  status?: 'SUCCESS' | 'FAILED';
+  @IsIn(['PAID', 'SUCCESS', 'FAILED'])
+  status?: 'PAID' | 'SUCCESS' | 'FAILED';
 }

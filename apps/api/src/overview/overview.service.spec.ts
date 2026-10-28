@@ -39,6 +39,20 @@ describe('OverviewService', () => {
     expect(overview.network).toEqual({ totalRouters: 4, online: 3, degraded: 1, offline: 0 });
   });
 
+  it('tenant-scopes every relation joined into the live-session overview', async () => {
+    const db = mockDb({ total: '0', online: '0', degraded: '0', offline: '0' });
+    const service = new OverviewService(db);
+
+    await service.getOverview('tenant-1');
+
+    const calls = (db as unknown as { query: { mock: { calls: Array<[string, unknown[]]> } } }).query.mock.calls;
+    const liveSessionsQuery = calls[6][0];
+    expect(liveSessionsQuery).toContain('c.tenant_id = s.tenant_id');
+    expect(liveSessionsQuery).toContain('r.tenant_id = s.tenant_id');
+    expect(liveSessionsQuery).toContain('l.tenant_id = s.tenant_id');
+    expect(calls[6][1]).toEqual(['tenant-1']);
+  });
+
   it('exposes command, session accounting and access truth signals', async () => {
     const db = {
       query: jest.fn()

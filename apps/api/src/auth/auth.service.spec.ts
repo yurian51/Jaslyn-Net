@@ -2,9 +2,10 @@ import { AuthService } from './auth.service';
 
 describe('AuthService legal acceptance', () => {
   function createService() {
-    const db = { connect: jest.fn() } as any;
+    const db = { connect: jest.fn(), query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }) } as any;
     const config = { get: jest.fn().mockReturnValue('x'.repeat(64)) } as any;
-    return { service: new AuthService(db, config), db };
+    const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) } as any;
+    return { service: new AuthService(db, config, audit), db, audit };
   }
 
   it('rejects registration when current terms or privacy notice is not accepted', async () => {
@@ -92,4 +93,37 @@ describe('AuthService legal acceptance', () => {
       ['tenant-1', 'user-1'],
     );
   });
+  it('lists only sessions belonging to the authenticated tenant and user', async () => {
+    const { service, db } = createService();
+    db.query.mockResolvedValue({ rows: [{ id: 'session-1', isCurrent: true }], rowCount: 1 });
+
+    await expect(service.listSessions({
+      id: 'user-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com', sessionId: 'session-1',
+    })).resolves.toEqual({ data: [{ id: 'session-1', isCurrent: true }], count: 1 });
+
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE tenant_id=$1 AND user_id=$2'), ['tenant-1', 'user-1', 'session-1']);
+  });
+
+  it('revokes only a session owned by the current user and records an audit event', async () => {
+    const { service, db, audit } = createService();
+    db.query.mockResolvedValue({ rows: [{ id: 'session-2' }], rowCount: 1 });
+
+    await expect(service.revokeSession({
+      id: 'user-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com', sessionId: 'session-1',
+    }, 'session-2', { ip: '192.0.2.4', requestId: 'req-1' })).resolves.toEqual({ revoked: true, sessionId: 'session-2' });
+
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE tenant_id=$1 AND user_id=$2 AND id=$3 AND revoked_at IS NULL'), ['tenant-1', 'user-1', 'session-2']);
+    expect(audit.record).toHaveBeenCalledWith('tenant-1', 'SESSION_REVOKED', 'auth_session', 'session-2', { reason: 'USER_REQUEST' }, expect.objectContaining({ userId: 'user-1', requestId: 'req-1' }));
+  });
+
+  it('does not report success when a session cannot be revoked', async () => {
+    const { service, db, audit } = createService();
+    db.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    await expect(service.revokeSession({
+      id: 'user-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com', sessionId: 'session-1',
+    }, 'other-tenant-session')).rejects.toThrow('Session was not found or has already been revoked');
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
 });

@@ -59,9 +59,9 @@ export class OverviewService {
                 s.bytes_out,
                 s.status
          FROM sessions s
-         LEFT JOIN customers c ON c.id = s.customer_id
-         LEFT JOIN routers r ON r.id = s.router_id
-         LEFT JOIN locations l ON l.id = r.location_id
+         LEFT JOIN customers c ON c.id = s.customer_id AND c.tenant_id = s.tenant_id
+         LEFT JOIN routers r ON r.id = s.router_id AND r.tenant_id = s.tenant_id
+         LEFT JOIN locations l ON l.id = r.location_id AND l.tenant_id = s.tenant_id
          WHERE s.tenant_id = $1 AND s.status = 'ACTIVE'
          ORDER BY s.started_at DESC
          LIMIT 10`,

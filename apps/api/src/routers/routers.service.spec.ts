@@ -6,15 +6,18 @@ import { RoutersService } from './routers.service';
 
 describe('RoutersService', () => {
   const query = jest.fn();
-  const db = { query } as unknown as Pool;
+  const connect = jest.fn();
+  const db = { query, connect } as unknown as Pool;
   const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+  const incidents = { syncRouterOffline: jest.fn() } as any;
   const config = { get: jest.fn() } as unknown as ConfigService;
   let service: RoutersService;
 
   beforeEach(() => {
     query.mockReset();
     audit.record.mockClear();
-    service = new RoutersService(db, audit, new SecureNetworkCredentials(config));
+    connect.mockReset();
+    service = new RoutersService(db, audit, new SecureNetworkCredentials(config), incidents);
   });
 
   it('lists only routers belonging to the tenant', async () => {
@@ -109,4 +112,52 @@ describe('RoutersService', () => {
       expect.arrayContaining(['UNIFI_NETWORK_API']),
     );
   });
+  it('rotates all tenant router credentials transactionally and writes an audit record', async () => {
+    const oldKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const newKey = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+    const oldCipher = new SecureNetworkCredentials(new ConfigService({ JASLYN_NETWORK_CREDENTIAL_KEY: oldKey }))
+      .encrypt({ username: 'router-admin', password: 'rotate-me' });
+    const clientQuery = jest.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [{ id: 'router-1', management_credentials_encrypted: oldCipher }], rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({});
+    const client = { query: clientQuery, release: jest.fn() };
+    connect.mockResolvedValue(client);
+    service = new RoutersService(
+      db,
+      audit,
+      new SecureNetworkCredentials(new ConfigService({
+        JASLYN_NETWORK_CREDENTIAL_KEYRING: `1:${oldKey},2:${newKey}`,
+        JASLYN_NETWORK_CREDENTIAL_ACTIVE_KEY_ID: '2',
+      })),
+      incidents,
+    );
+
+    await expect(service.rotateCredentials('tenant-a', { userId: 'owner-1' })).resolves.toEqual({
+      rotatedCount: 1, activeKeyId: '2', completed: true,
+    });
+    expect(clientQuery).toHaveBeenNthCalledWith(1, 'BEGIN');
+    expect(clientQuery).toHaveBeenNthCalledWith(3, expect.stringContaining('management_credentials_version=2'), ['tenant-a', 'router-1', expect.stringMatching(/^2\.2\./)]);
+    expect(clientQuery).toHaveBeenNthCalledWith(4, expect.stringContaining('INSERT INTO audit_logs'), expect.arrayContaining(['tenant-a', 'owner-1']));
+    expect(clientQuery).toHaveBeenLastCalledWith('COMMIT');
+    expect(client.release).toHaveBeenCalled();
+  });
+
+  it('rolls back credential rotation when an existing credential cannot be decrypted', async () => {
+    const clientQuery = jest.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [{ id: 'router-1', management_credentials_encrypted: 'broken-ciphertext' }], rowCount: 1 })
+      .mockResolvedValueOnce({});
+    const client = { query: clientQuery, release: jest.fn() };
+    connect.mockResolvedValue(client);
+    const key = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    service = new RoutersService(db, audit, new SecureNetworkCredentials(new ConfigService({ JASLYN_NETWORK_CREDENTIAL_KEY: key })), incidents);
+
+    await expect(service.rotateCredentials('tenant-a', { userId: 'owner-1' })).rejects.toThrow('Unable to decrypt network device credentials');
+    expect(clientQuery).toHaveBeenCalledWith('ROLLBACK');
+    expect(client.release).toHaveBeenCalled();
+  });
+
 });

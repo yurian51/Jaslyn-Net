@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { jwtVerify } from 'jose';
+import { verifyAccessToken } from '../auth/jwt';
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { CommunicationRealtime, CommunicationEvent } from './communication.realtime';
@@ -7,7 +7,7 @@ import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
-type SocketContext = { tenantId: string; userId: string; role: string };
+type SocketContext = { tenantId: string; userId: string; role: string; sessionId: string };
 
 @Injectable()
 export class CommunicationWebSocket implements OnModuleDestroy {
@@ -51,6 +51,9 @@ export class CommunicationWebSocket implements OnModuleDestroy {
         if (now - (this.lastPong.get(client) ?? 0) > 75_000) { client.terminate(); continue; }
         if (client.readyState === WebSocket.OPEN) client.ping();
       }
+      // Revalidate all connected sessions in one query so logout/revocation
+      // takes effect for existing WebSocket connections as well.
+      void this.closeInactiveSessions();
     }, 30_000);
     this.realtime.subscribe((event) => this.broadcast(event));
   }
@@ -59,15 +62,53 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     const url = new URL(request.url || '/', 'http://jaslyn.local');
     const token = url.searchParams.get('access_token')?.trim();
     if (!token) throw new Error('access_token is required');
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
-      issuer: 'jaslyn-net',
-      audience: 'jaslyn-net-api',
-      algorithms: ['HS256'],
-    });
-    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
+    const payload = verifyAccessToken(token, secret);
+    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
+      || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
       throw new Error('invalid authentication claims');
     }
-    return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
+
+    // A valid JWT is not enough after logout or administrative revocation.
+    const session = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+         AND revoked_at IS NULL AND expires_at>now()
+       LIMIT 1`,
+      [payload.sid, payload.tenantId, payload.sub],
+    );
+    if (!session.rowCount) throw new Error('session is revoked or expired');
+
+    return {
+      userId: payload.sub,
+      tenantId: payload.tenantId,
+      role: payload.role,
+      sessionId: payload.sid,
+    };
+  }
+
+  private async closeInactiveSessions() {
+    const contexts = [...this.sockets.values()];
+    const sessionIds = [...new Set(contexts.map((context) => context.sessionId))];
+    if (!sessionIds.length) return;
+
+    // Do not disconnect users because of a transient database error.
+    const activeSessions = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id = ANY($1)
+         AND revoked_at IS NULL
+         AND expires_at > now()`,
+      [sessionIds],
+    ).catch(() => null);
+    if (!activeSessions) return;
+
+    const activeIds = new Set(activeSessions.rows.map((row: { id: string }) => String(row.id)));
+    for (const [client, context] of this.sockets) {
+      if (!activeIds.has(context.sessionId)) {
+        this.sockets.delete(client);
+        this.lastPong.delete(client);
+        client.close(1008, 'Session expired or revoked');
+      }
+    }
   }
 
   private async broadcast(event: CommunicationEvent) {

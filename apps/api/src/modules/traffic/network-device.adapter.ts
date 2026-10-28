@@ -1,17 +1,40 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { NetworkManagementProtocol } from '../../routers/routers.dto';
 import { MikroTikHotspotActiveRecord, MikroTikTrafficEnforcementAdapter } from './mikrotik.adapter';
 import { NetworkCredentials } from '../../common/secure-network-credentials';
+import { OmadaNetworkAdapter } from './omada.adapter';
+import { RuijieReyeeNetworkAdapter } from './ruijie.adapter';
+import { ArubaCentralNetworkAdapter } from './aruba-central.adapter';
+import {
+  CambiumCnMaestroNetworkAdapter,
+  GrandstreamGwnNetworkAdapter,
+  PeplinkInControlNetworkAdapter,
+  PfSenseOpnSenseNetworkAdapter,
+  RuckusSmartZoneNetworkAdapter,
+  TeltonikaRmsNetworkAdapter,
+} from './additional-vendor.adapters';
 
 export interface NetworkDeviceConnection { routerId: string; protocol: NetworkManagementProtocol; endpoint?: string; controllerEndpoint?: string; capabilities?: Record<string, unknown>; credentials?: NetworkCredentials; }
 export interface NormalizedWifiClient { username?: string; address?: string; macAddress?: string; bytesIn: string; bytesOut: string; }
 
 @Injectable()
 export class NetworkDeviceAdapterRegistry {
-  constructor(private readonly config: ConfigService, private readonly mikrotik: MikroTikTrafficEnforcementAdapter) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly mikrotik: MikroTikTrafficEnforcementAdapter,
+    @Optional() private readonly omada?: OmadaNetworkAdapter,
+    @Optional() private readonly ruijie?: RuijieReyeeNetworkAdapter,
+    @Optional() private readonly aruba?: ArubaCentralNetworkAdapter,
+    @Optional() private readonly cambium?: CambiumCnMaestroNetworkAdapter,
+    @Optional() private readonly grandstream?: GrandstreamGwnNetworkAdapter,
+    @Optional() private readonly ruckus?: RuckusSmartZoneNetworkAdapter,
+    @Optional() private readonly teltonika?: TeltonikaRmsNetworkAdapter,
+    @Optional() private readonly peplink?: PeplinkInControlNetworkAdapter,
+    @Optional() private readonly pfsense?: PfSenseOpnSenseNetworkAdapter,
+  ) {}
 
   async readClients(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     switch (connection.protocol) {
@@ -19,18 +42,18 @@ export class NetworkDeviceAdapterRegistry {
         const records = await this.mikrotik.readHotspotActive(connection.endpoint ?? '', connection.credentials);
         return records.map((record: MikroTikHotspotActiveRecord) => ({ username: record.user, address: record.address, macAddress: record['mac-address'], bytesIn: record['bytes-in'] ?? '0', bytesOut: record['bytes-out'] ?? '0' }));
       }
+      case 'OMADA_CONTROLLER_API': if (!this.omada) throw new ServiceUnavailableException('Omada adapter is not registered'); return this.omada.readClients(connection);
+      case 'RUIJIE_REYEE_CLOUD_API': if (!this.ruijie) throw new ServiceUnavailableException('Ruijie adapter is not registered'); return this.ruijie.readClients(connection);
       case 'UNIFI_NETWORK_API': return this.readUniFi(connection);
       case 'MERAKI_DASHBOARD_API': return this.readMeraki(connection);
       case 'OPENWRT_UBUS': return this.readOpenWrt(connection);
-      case 'CAMBIUM_CNMAESTRO':
-      case 'OMADA_CONTROLLER_API':
-      case 'ARUBA_CENTRAL_API':
-      case 'GRANDSTREAM_GWN_API':
-      case 'RUIJIE_REYEE_CLOUD_API':
-      case 'RUCKUS_SMARTZONE_API':
-      case 'TELTONIKA_RMS_API':
-      case 'PEPLINK_INCONTROL_API':
-      case 'PFSENSE_API':
+      case 'ARUBA_CENTRAL_API': if (!this.aruba) throw new ServiceUnavailableException('Aruba Central adapter is not registered'); return this.aruba.readClients(connection);
+      case 'CAMBIUM_CNMAESTRO': if (!this.cambium) throw new ServiceUnavailableException('Cambium cnMaestro adapter is not registered'); return this.cambium.readClients(connection);
+      case 'GRANDSTREAM_GWN_API': if (!this.grandstream) throw new ServiceUnavailableException('Grandstream GWN adapter is not registered'); return this.grandstream.readClients(connection);
+      case 'RUCKUS_SMARTZONE_API': if (!this.ruckus) throw new ServiceUnavailableException('Ruckus SmartZone adapter is not registered'); return this.ruckus.readClients(connection);
+      case 'TELTONIKA_RMS_API': if (!this.teltonika) throw new ServiceUnavailableException('Teltonika RMS adapter is not registered'); return this.teltonika.readClients(connection);
+      case 'PEPLINK_INCONTROL_API': if (!this.peplink) throw new ServiceUnavailableException('Peplink InControl adapter is not registered'); return this.peplink.readClients(connection);
+      case 'PFSENSE_API': if (!this.pfsense) throw new ServiceUnavailableException('pfSense/OPNsense adapter is not registered'); return this.pfsense.readClients(connection);
       case 'GENERIC_HTTP': return this.readGenericHttp(connection);
       case 'SNMP':
       case 'RADIUS_NAS': throw new ServiceUnavailableException(`${connection.protocol} telemetry requires its native transport/accounting adapter; refusing unsafe fallback`);
@@ -47,18 +70,23 @@ export class NetworkDeviceAdapterRegistry {
     const session = await this.ubusCall(base, 'session', 'login', { username, password, timeout: 300 });
     const sid = this.isRecord(session) ? this.stringValue(session, ['ubus_rpc_session']) : undefined;
     if (!sid) throw new ServiceUnavailableException('OpenWrt ubus login did not return a session');
-    const devices = await this.ubusCall(base, 'iwinfo', 'devices', {}, sid);
-    const names = this.extractDeviceNames(devices);
-    const clients: NormalizedWifiClient[] = [];
-    for (const device of names) {
-      const payload = await this.ubusCall(base, 'iwinfo', 'assoclist', { device }, sid);
-      for (const row of this.extractAssocRecords(payload)) {
-        const mac = this.stringValue(row, ['mac', 'mac-address', 'macaddr']);
-        if (!mac) continue;
-        clients.push({ macAddress: mac, address: this.stringValue(row, ['ip', 'ipAddress', 'address']), bytesIn: this.counter(row, ['rx_bytes', 'rxBytes', 'bytesIn']), bytesOut: this.counter(row, ['tx_bytes', 'txBytes', 'bytesOut']) });
+    try {
+      const devices = await this.ubusCall(base, 'iwinfo', 'devices', {}, sid);
+      const names = this.extractDeviceNames(devices);
+      const clients: NormalizedWifiClient[] = [];
+      for (const device of names) {
+        const payload = await this.ubusCall(base, 'iwinfo', 'assoclist', { device }, sid);
+        for (const row of this.extractAssocRecords(payload)) {
+          const mac = this.stringValue(row, ['mac', 'mac-address', 'macaddr']);
+          if (!mac) continue;
+          clients.push({ macAddress: mac, address: this.stringValue(row, ['ip', 'ipAddress', 'address']), bytesIn: this.counter(row, ['rx_bytes', 'rxBytes', 'bytesIn']), bytesOut: this.counter(row, ['tx_bytes', 'txBytes', 'bytesOut']) });
+        }
       }
+      return clients;
+    } finally {
+      // Do not leave an authenticated ubus session alive after success or failure.
+      await this.ubusCall(base, 'session', 'destroy', {}, sid).catch(() => undefined);
     }
-    return clients;
   }
 
   private async ubusCall(endpoint: string, object: string, method: string, args: Record<string, unknown>, sid?: string): Promise<unknown> {
@@ -84,7 +112,7 @@ export class NetworkDeviceAdapterRegistry {
   private async readUniFi(connection: NetworkDeviceConnection): Promise<NormalizedWifiClient[]> {
     const base = connection.controllerEndpoint ?? connection.endpoint;
     if (!base) throw new ServiceUnavailableException(`UniFi API endpoint is not configured for ${connection.routerId}`);
-    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken ?? this.config.get<string>('JASLYN_UNIFI_API_KEY');
+    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken;
     if (!apiKey) throw new ServiceUnavailableException('UniFi API credentials are not configured');
     const root = base.replace(/\/$/, ''); const apiRoot = root.endsWith('/v1') ? root : `${root}/v1`;
     const sites = await this.fetchJson(`${apiRoot}/sites`, { 'X-API-Key': apiKey }); const clients: NormalizedWifiClient[] = [];
@@ -100,7 +128,7 @@ export class NetworkDeviceAdapterRegistry {
     const networkId = this.stringValue(connection.capabilities ?? {}, ['networkId', 'merakiNetworkId']);
     if (!networkId) throw new ServiceUnavailableException(`Meraki networkId is not configured for ${connection.routerId}`);
     const endpoint = (connection.controllerEndpoint ?? connection.endpoint ?? 'https://api.meraki.com/api/v1').replace(/\/$/, '');
-    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken ?? this.config.get<string>('JASLYN_MERAKI_API_KEY');
+    const apiKey = connection.credentials?.apiKey ?? connection.credentials?.accessToken;
     if (!apiKey) throw new ServiceUnavailableException('Meraki API credentials are not configured');
     const payload = await this.fetchJson(`${endpoint}/networks/${encodeURIComponent(networkId)}/clients?timespan=300`, { 'X-Cisco-Meraki-API-Key': apiKey });
     return this.extractRecords(payload, ['data', 'clients']).map((record) => this.normalizeRecord(record));
@@ -114,9 +142,9 @@ export class NetworkDeviceAdapterRegistry {
   }
 
   private genericHeaders(credentials?: NetworkCredentials): Record<string, string> {
-    const token = credentials?.apiKey ?? credentials?.accessToken ?? this.config.get<string>('JASLYN_NETWORK_API_TOKEN');
-    const username = credentials?.username ?? this.config.get<string>('JASLYN_NETWORK_API_USERNAME');
-    const password = credentials?.password ?? this.config.get<string>('JASLYN_NETWORK_API_PASSWORD');
+    const token = credentials?.apiKey ?? credentials?.accessToken;
+    const username = credentials?.username;
+    const password = credentials?.password;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     else if (username && password) headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;

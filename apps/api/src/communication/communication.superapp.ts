@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
@@ -313,7 +313,9 @@ export class CommunicationSuperAppService {
     let payload: { v?: number; tenantId?: string; userId?: string; miniAppId?: string; slug?: string; permissions?: string[]; iat?: number; exp?: number };
     try { payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')); } catch { throw new BadRequestException('Invalid mini app launch payload'); }
     const now = Math.floor(Date.now() / 1000);
-    if (payload.v !== 1 || !payload.tenantId || !payload.userId || !payload.miniAppId || !payload.slug || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.exp <= payload.iat || payload.exp < now || payload.iat > now + 30) throw new ForbiddenException('Mini app launch token is expired or invalid');
+    const issuedAt = payload.iat;
+    const expiresAt = payload.exp;
+    if (payload.v !== 1 || !payload.tenantId || !payload.userId || !payload.miniAppId || !payload.slug || typeof issuedAt !== 'number' || typeof expiresAt !== 'number' || !Number.isInteger(issuedAt) || !Number.isInteger(expiresAt) || expiresAt <= issuedAt || expiresAt < now || issuedAt > now + 30) throw new ForbiddenException('Mini app launch token is expired or invalid');
     if (payload.tenantId !== actor.tenantId || payload.userId !== actor.userId) throw new ForbiddenException('Mini app launch token is not valid for this user');
     if (expectedMiniAppId && payload.miniAppId !== expectedMiniAppId) throw new ForbiddenException('Mini app launch token does not match this mini app');
     const app = await this.db.query(`SELECT m.id,m.slug,m.enabled,i.permissions
@@ -325,7 +327,7 @@ export class CommunicationSuperAppService {
     const tokenPermissions = Array.isArray(payload.permissions) ? payload.permissions : [];
     const permissionSet = new Set(installedPermissions.map((value: unknown) => String(value)));
     if (tokenPermissions.some((permission: unknown) => !permissionSet.has(String(permission)))) throw new ForbiddenException('Mini app launch permissions are no longer valid');
-    return { valid:true, tenantId:actor.tenantId, userId:actor.userId, miniAppId:app.rows[0].id, slug:app.rows[0].slug, permissions:tokenPermissions, expiresAt:new Date(payload.exp * 1000).toISOString() };
+    return { valid:true, tenantId:actor.tenantId, userId:actor.userId, miniAppId:app.rows[0].id, slug:app.rows[0].slug, permissions:tokenPermissions, expiresAt:new Date(expiresAt * 1000).toISOString() };
   }
   async processExpired() {
     const client = await this.db.connect();

@@ -1,0 +1,223 @@
+/* JASLYN NET public landing — clean product-led visual system */
+.jn-landing {
+  --jn-ink:#10233d; --jn-muted:#61718a; --jn-blue:#3d66f5; --jn-line:#e0e7f0;
+  background:#fff !important; color:var(--jn-ink) !important; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px; overflow:hidden;
+}
+.jn-landing * { box-sizing:border-box; }
+.jn-landing a { text-decoration:none; }
+.jn-landing .landing-nav { height:76px !important; padding:0 clamp(22px,5.5vw,88px) !important; display:flex; align-items:center; background:rgba(255,255,255,.96) !important; border-bottom:1px solid #e8edf4 !important; box-shadow:none !important; position:relative; z-index:20; }
+.jn-landing .landing-logo { gap:11px !important; color:#122540 !important; font-size:14px !important; letter-spacing:.055em; }
+.jn-landing .landing-logo>span { width:34px !important; height:34px !important; }
+.jn-landing .landing-logo img { width:100%; height:100%; object-fit:contain; }
+.jn-landing .landing-links { gap:clamp(16px,2.2vw,32px) !important; }
+.jn-landing .landing-links a,.jn-landing .landing-signin { color:#4d5f77 !important; font-size:13px !important; font-weight:560; }
+.jn-landing .landing-links a:hover,.jn-landing .landing-signin:hover { color:#355ff1 !important; }
+.jn-landing .landing-cta { background:#355ff1 !important; color:white !important; border-radius:8px !important; min-height:43px !important; padding:0 17px !important; font-size:13px !important; font-weight:650; }
+.jn-landing .landing-menu-toggle { border-radius:8px !important; }
+.jn-landing .jn2-hero { position:relative; display:grid; grid-template-columns:minmax(0,.87fr) minmax(0,1.13fr); gap:clamp(34px,5vw,76px); align-items:center; padding:clamp(64px,7.3vw,108px) clamp(22px,5.5vw,88px) 76px; background:#f5f7fb; isolation:isolate; }
+.jn-landing .jn2-hero-grid { position:absolute; z-index:-1; inset:0; pointer-events:none; opacity:.52; background-image:linear-gradient(#dfe6f1 1px,transparent 1px),linear-gradient(90deg,#dfe6f1 1px,transparent 1px); background-size:48px 48px; mask-image:linear-gradient(90deg,transparent 0%,#000 75%); }
+.jn-landing .jn2-hero-copy { max-width:610px; position:relative; z-index:1; }
+.jn-landing .jn2-eyebrow,.jn-landing .jn2-section-intro>small,.jn-landing .jn2-platform-heading>small,.jn-landing .jn2-integrations-head small,.jn-landing .jn2-cta>div>small { display:flex; align-items:center; gap:10px; color:#536780; font-size:10px; line-height:1.5; letter-spacing:.15em; font-weight:750; }
+.jn-landing .jn2-eyebrow>span { width:8px; height:8px; border-radius:50%; background:#3d66f5; box-shadow:0 0 0 5px #e0e8ff; }
+.jn-landing .jn2-hero h1 { margin:26px 0 22px !important; max-width:660px; color:#10233d !important; font-size:clamp(45px,5.8vw,78px) !important; line-height:.99 !important; letter-spacing:-.067em !important; font-weight:770 !important; }
+.jn-landing .jn2-hero h1 em { color:#3d66f5; font-style:normal; }
+.jn-landing .jn2-lead { max-width:560px; color:#586a82; font-size:clamp(16px,1.35vw,18px); line-height:1.75; margin:0; }
+.jn-landing .jn2-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:31px; }
+.jn-landing .jn2-primary,.jn-landing .jn2-secondary { min-height:51px; display:inline-flex; align-items:center; justify-content:center; gap:14px; border-radius:8px; padding:0 19px; font-size:13px; font-weight:700; transition:transform .18s ease,background .18s ease; }
+.jn-landing .jn2-primary { color:#fff !important; background:#355ff1; box-shadow:0 8px 18px #355ff126; }
+.jn-landing .jn2-primary:hover { background:#244ce0; transform:translateY(-1px); }
+.jn-landing .jn2-secondary { background:#fff; color:#213752 !important; border:1px solid #dce4ef; }
+.jn-landing .jn2-secondary:hover { border-color:#9db2d8; }
+.jn-landing .jn2-primary svg,.jn-landing .jn2-secondary svg,.jn-landing .jn2-textlink svg,.jn-landing .jn2-cap-top svg,.jn-landing .jn2-module>svg,.jn-landing .jn2-cta-link svg { width:18px; height:18px; flex:0 0 auto; }
+.jn-landing .jn2-trustline { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:30px; color:#6a7a90; font-size:11px; }
+.jn-landing .jn2-trustline>span { color:#344c6b; font-size:9px; letter-spacing:.1em; font-weight:750; margin-right:4px; }
+.jn-landing .jn2-trustline>i { width:3px; height:3px; border-radius:50%; background:#a5b1c1; }
+.jn-landing .jn2-hero-visual { min-width:0; position:relative; padding:5px 0 18px; }
+.jn-landing .jn2-product { background:#fff; border:1px solid #d7e0ed; border-radius:13px; overflow:hidden; box-shadow:0 30px 70px #20395b1c,0 5px 15px #20395b0c; transform:perspective(1400px) rotateY(-2deg); }
+.jn-landing .jn2-appbar { min-height:53px; padding:0 17px; display:flex; align-items:center; gap:20px; border-bottom:1px solid #e7ecf4; background:#fff; }
+.jn-landing .jn2-appbrand { display:flex; align-items:center; gap:8px; color:#1d304b; font-size:10px; font-weight:800; letter-spacing:.055em; white-space:nowrap; }
+.jn-landing .jn2-appbrand b { color:#3d66f5; }
+.jn-landing .jn2-mark { display:inline-grid; place-items:center; width:27px; height:27px; border-radius:7px; background:#355ff1; color:white; font-weight:800; font-size:16px; letter-spacing:-.06em; }
+.jn-landing .jn2-workspace { margin-left:auto; color:#6b7a8f; font-size:10px; }
+.jn-landing .jn2-workspace span { display:inline-block; margin-left:8px; padding:4px 6px; border-radius:4px; color:#536a92; background:#edf2fb; font-size:8px; letter-spacing:.06em; font-weight:750; }
+.jn-landing .jn2-avatar { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#e9efff; color:#355ff1; font-size:9px; font-weight:800; }
+.jn-landing .jn2-appbody { display:grid; grid-template-columns:145px minmax(0,1fr); min-height:360px; }
+.jn-landing .jn2-sidebar { padding:20px 10px 12px; display:flex; flex-direction:column; gap:5px; background:#f8faff; border-right:1px solid #e6ecf5; color:#65758d; font-size:10px; }
+.jn-landing .jn2-sidebar>small { padding:0 9px 9px; color:#93a0b2; font-size:8px; letter-spacing:.11em; font-weight:750; }
+.jn-landing .jn2-sidebar>div:not(.jn2-sidebar-bottom) { display:flex; align-items:center; gap:9px; padding:10px 9px; border-radius:6px; }
+.jn-landing .jn2-sidebar>div>span { width:14px; text-align:center; color:#8191a7; font-size:13px; }
+.jn-landing .jn2-sidebar .jn2-side-active { background:#e8eeff; color:#3156d3; font-weight:750; }
+.jn-landing .jn2-sidebar .jn2-side-active>span { color:#3156d3; }
+.jn-landing .jn2-sidebar-bottom { margin-top:auto; border-top:1px solid #e4eaf3; padding:14px 5px 3px; font-size:9px; color:#708098; display:flex; align-items:center; gap:7px; }
+.jn-landing .jn2-green-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#38a987; flex:0 0 auto; }
+.jn-landing .jn2-dashboard { padding:24px 22px 17px; min-width:0; }
+.jn-landing .jn2-dashhead { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.jn-landing .jn2-dashhead small,.jn-landing .jn2-flowtitle small,.jn-landing .jn2-bottomrow small { color:#8290a4; font-size:8px; letter-spacing:.12em; font-weight:800; }
+.jn-landing .jn2-dashhead h3 { margin:7px 0 5px; font-size:clamp(14px,1.4vw,19px); line-height:1.25; letter-spacing:-.035em; color:#1b2e49; }
+.jn-landing .jn2-dashhead p { margin:0; max-width:330px; color:#7b899d; font-size:10px; line-height:1.6; }
+.jn-landing .jn2-demo-pill { flex-shrink:0; border:1px solid #e0e7f0; color:#687a91; border-radius:5px; padding:5px 7px; font-size:7px; letter-spacing:.08em; font-weight:800; }
+.jn-landing .jn2-statrow { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:22px; }
+.jn-landing .jn2-statrow article { min-width:0; border:1px solid #e6ebf3; border-radius:7px; padding:12px 10px; background:linear-gradient(140deg,#fff,#fbfcff); }
+.jn-landing .jn2-statrow small { display:block; color:#8491a4; font-size:7px; font-weight:800; letter-spacing:.08em; }
+.jn-landing .jn2-statrow strong { display:block; margin-top:8px; color:#263c59; font-size:12px; }
+.jn-landing .jn2-statrow span { display:block; margin-top:5px; color:#8190a3; font-size:8px; line-height:1.4; }
+.jn-landing .jn2-flowcard { margin-top:13px; border:1px solid #e5ebf4; border-radius:8px; padding:14px 12px 13px; }
+.jn-landing .jn2-flowtitle { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.jn-landing .jn2-flowtitle h4 { margin:5px 0 0; font-size:12px; color:#203650; letter-spacing:-.02em; }
+.jn-landing .jn2-flowtitle>span { font-size:7px; color:#536a92; background:#edf2fb; padding:5px 6px; border-radius:4px; font-weight:800; }
+.jn-landing .jn2-flowsteps { display:grid; grid-template-columns:minmax(0,1fr) 15px minmax(0,1fr) 15px minmax(0,1fr) 15px minmax(0,1fr); align-items:center; gap:3px; margin-top:14px; }
+.jn-landing .jn2-flowsteps>div { display:flex; min-width:0; flex-direction:column; padding:9px 7px; background:#f7f9fd; border:1px solid #e6ecf4; border-radius:6px; }
+.jn-landing .jn2-flowsteps>div>i { color:#3d66f5; font-size:8px; font-style:normal; font-weight:800; }
+.jn-landing .jn2-flowsteps b { margin-top:6px; color:#2c405c; font-size:9px; }
+.jn-landing .jn2-flowsteps small { margin-top:4px; color:#7c8ba0; font-size:7px; line-height:1.3; }
+.jn-landing .jn2-flowsteps>svg { width:15px; height:15px; color:#9aa8ba; }
+.jn-landing .jn2-bottomrow { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:13px; border:1px solid #e5ebf4; border-radius:8px; padding:11px 12px; }
+.jn-landing .jn2-bottomrow b,.jn-landing .jn2-bottomrow span { display:block; }
+.jn-landing .jn2-bottomrow b { margin-top:4px; color:#2a405b; font-size:10px; }
+.jn-landing .jn2-bottomrow span { margin-top:3px; color:#8290a3; font-size:8px; }
+.jn-landing .jn2-miniicon { width:27px; height:27px; display:grid; place-items:center; color:#355ff1; background:#edf2ff; border-radius:7px; }
+.jn-landing .jn2-visual-caption { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:8px; margin-top:13px; color:#718198; font-size:9px; }
+.jn-landing .jn2-visual-caption>span:last-of-type { color:#a1adbd; }
+.jn-landing .jn2-audience { padding:25px clamp(22px,5.5vw,88px); border-bottom:1px solid #e8edf4; background:#fff; }
+.jn-landing .jn2-audience>div { max-width:1320px; margin:auto; display:flex; align-items:center; justify-content:space-between; gap:20px 30px; }
+.jn-landing .jn2-audience small { color:#7d8ba0; font-size:9px; letter-spacing:.12em; font-weight:800; }
+.jn-landing .jn2-audience-items { display:flex; flex-wrap:wrap; gap:12px 30px; color:#344a66; font-size:12px; font-weight:650; }
+.jn-landing .jn2-section { max-width:1440px; margin:0 auto; padding:clamp(70px,8vw,116px) clamp(22px,5.5vw,88px); }
+.jn-landing .jn2-workflow { display:grid; grid-template-columns:.7fr 1.3fr; gap:clamp(35px,7vw,105px); align-items:start; }
+.jn-landing .jn2-section-intro h2,.jn-landing .jn2-platform-heading h2,.jn-landing .jn2-integrations-head h2,.jn-landing .jn2-cta h2 { margin:18px 0 18px; color:#122640; font-size:clamp(35px,4vw,54px); line-height:1.06; letter-spacing:-.055em; font-weight:760; }
+.jn-landing .jn2-section-intro p,.jn-landing .jn2-platform-heading p,.jn-landing .jn2-integrations-head p,.jn-landing .jn2-cta p { color:#66778d; font-size:15px; line-height:1.8; margin:0; max-width:480px; }
+.jn-landing .jn2-capabilities { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.jn-landing .jn2-capabilities article { min-height:255px; padding:20px 17px; border:1px solid #e1e8f1; border-radius:10px; background:#fff; display:flex; flex-direction:column; }
+.jn-landing .jn2-cap-top { display:flex; align-items:center; justify-content:space-between; color:#3d66f5; }
+.jn-landing .jn2-cap-top>span { font-size:10px; font-weight:800; letter-spacing:.08em; }
+.jn-landing .jn2-cap-top svg { width:17px; height:17px; }
+.jn-landing .jn2-capabilities h3 { margin:30px 0 10px; color:#172c47; font-size:20px; letter-spacing:-.04em; }
+.jn-landing .jn2-capabilities p { color:#697990; font-size:12px; line-height:1.75; margin:0; }
+.jn-landing .jn2-capabilities article>small { margin-top:auto; padding-top:20px; color:#8090a4; font-size:9px; line-height:1.6; }
+.jn-landing .jn2-platform { background:#f5f7fb; border-top:1px solid #e9eef5; border-bottom:1px solid #e9eef5; }
+.jn-landing .jn2-platform-inner { display:grid; grid-template-columns:.8fr 1.2fr; gap:clamp(38px,7vw,100px); align-items:start; }
+.jn-landing .jn2-platform-heading h2 em { color:#3d66f5; font-style:normal; }
+.jn-landing .jn2-textlink { display:inline-flex; align-items:center; gap:10px; margin-top:26px; color:#355ff1; font-size:12px; font-weight:750; }
+.jn-landing .jn2-modules { border-top:1px solid #dce4ef; }
+.jn-landing .jn2-module { display:grid; grid-template-columns:34px minmax(0,1fr) 20px; gap:12px; align-items:center; padding:17px 2px; border-bottom:1px solid #dce4ef; color:#172e4b; }
+.jn-landing .jn2-module>span { color:#8a9ab0; font-size:10px; font-weight:750; }
+.jn-landing .jn2-module b,.jn-landing .jn2-module small { display:block; }
+.jn-landing .jn2-module b { font-size:13px; font-weight:720; }
+.jn-landing .jn2-module small { margin-top:5px; color:#6b7c92; font-size:11px; line-height:1.5; }
+.jn-landing .jn2-module>svg { color:#8493a8; width:17px; }
+.jn-landing .jn2-module:hover b,.jn-landing .jn2-module:hover>svg { color:#355ff1; }
+.jn-landing .jn2-integrations { padding-top:clamp(65px,7vw,95px); padding-bottom:clamp(65px,7vw,95px); }
+.jn-landing .jn2-integrations-head { display:grid; grid-template-columns:1fr .7fr; gap:40px; align-items:end; }
+.jn-landing .jn2-integrations-head h2 { margin-bottom:0; }
+.jn-landing .jn2-integrations-head p { font-size:13px; }
+.jn-landing .jn2-vendor-list { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin:37px 0 0; border-top:1px solid #e0e7f0; border-left:1px solid #e0e7f0; }
+.jn-landing .jn2-vendor-list>span { min-height:63px; display:flex; align-items:center; gap:12px; padding:13px 15px; border-right:1px solid #e0e7f0; border-bottom:1px solid #e0e7f0; color:#344a66; font-size:12px; font-weight:650; }
+.jn-landing .jn2-vendor-list i { color:#9aa8bb; font-size:9px; font-style:normal; font-weight:750; }
+.jn-landing .jn2-cta { display:flex; align-items:center; justify-content:space-between; gap:35px; padding:clamp(55px,6.5vw,88px) clamp(22px,5.5vw,88px); background:#112540; color:#fff; }
+.jn-landing .jn2-cta>div { max-width:670px; }
+.jn-landing .jn2-cta>div>small { color:#9eb3d5; }
+.jn-landing .jn2-cta h2 { color:#fff; margin:15px 0 14px; }
+.jn-landing .jn2-cta p { color:#c0ccdc; }
+.jn-landing .jn2-cta-actions { display:flex; flex-direction:column; align-items:flex-start; gap:16px; flex-shrink:0; }
+.jn-landing .jn2-cta-actions .jn2-primary { background:#7ea0ff; color:#0e213a !important; box-shadow:none; }
+.jn-landing .jn2-cta-link { display:inline-flex; align-items:center; gap:8px; color:#d8e2f0; font-size:12px; font-weight:650; }
+.jn-landing .jn2-footer { display:grid; grid-template-columns:auto 1fr auto; gap:25px; align-items:center; padding:24px clamp(22px,5.5vw,88px); background:#0c1d33; color:#d3ddeb; }
+.jn-landing .jn2-footer-brand { display:flex; align-items:center; gap:9px; color:white; font-size:11px; font-weight:800; letter-spacing:.06em; white-space:nowrap; }
+.jn-landing .jn2-footer-brand .jn2-mark { width:24px; height:24px; font-size:13px; }
+.jn-landing .jn2-footer>div { display:flex; flex-wrap:wrap; justify-content:center; gap:12px 22px; }
+.jn-landing .jn2-footer>div a { color:#bac8da; font-size:11px; }
+.jn-landing .jn2-footer>div a:hover { color:white; }
+.jn-landing .jn2-footer>small { color:#8fa2bc; font-size:10px; text-align:right; }
+.jn-landing :focus-visible { outline:3px solid #7ea0ff !important; outline-offset:3px !important; }
+@media (max-width:1100px) {
+ .jn-landing .jn2-hero { grid-template-columns:1fr; gap:40px; }
+ .jn-landing .jn2-hero-copy { max-width:780px; }
+ .jn-landing .jn2-hero-visual { max-width:850px; width:100%; margin:0 auto; }
+ .jn-landing .jn2-workflow { grid-template-columns:1fr; gap:35px; }
+ .jn-landing .jn2-platform-inner { grid-template-columns:1fr; gap:38px; }
+ .jn-landing .jn2-audience>div { align-items:flex-start; flex-direction:column; }
+ .jn-landing .jn2-capabilities article { min-height:220px; }
+}
+@media (max-width:760px) {
+ .jn-landing .landing-nav { height:66px !important; padding-inline:18px !important; }
+ .jn-landing .landing-links { display:none !important; }
+ .jn-landing .landing-signin { display:none !important; }
+ .jn-landing .landing-cta { min-height:40px !important; padding-inline:12px !important; font-size:12px !important; }
+ .jn-landing .jn2-hero { padding:53px 19px 47px; gap:32px; }
+ .jn-landing .jn2-hero h1 { font-size:clamp(43px,11vw,63px) !important; letter-spacing:-.065em !important; margin-top:23px !important; }
+ .jn-landing .jn2-lead { font-size:15px; line-height:1.75; }
+ .jn-landing .jn2-actions { align-items:stretch; flex-direction:column; margin-top:25px; }
+ .jn-landing .jn2-primary,.jn-landing .jn2-secondary { width:100%; min-height:50px; }
+ .jn-landing .jn2-trustline { gap:8px; font-size:10px; line-height:1.8; }
+ .jn-landing .jn2-trustline>span { width:100%; }
+ .jn-landing .jn2-product { transform:none; border-radius:9px; }
+ .jn-landing .jn2-appbar { min-height:45px; padding:0 10px; gap:7px; }
+ .jn-landing .jn2-appbrand { font-size:8px; gap:5px; }
+ .jn-landing .jn2-appbrand .jn2-mark { width:22px; height:22px; font-size:13px; }
+ .jn-landing .jn2-workspace { font-size:8px; }
+ .jn-landing .jn2-workspace span { display:none; }
+ .jn-landing .jn2-avatar { width:23px; height:23px; }
+ .jn-landing .jn2-appbody { grid-template-columns:75px minmax(0,1fr); min-height:300px; }
+ .jn-landing .jn2-sidebar { padding:13px 5px 8px; font-size:8px; gap:3px; }
+ .jn-landing .jn2-sidebar>small { font-size:6px; padding:0 3px 6px; letter-spacing:.05em; }
+ .jn-landing .jn2-sidebar>div:not(.jn2-sidebar-bottom) { flex-direction:column; align-items:flex-start; gap:3px; padding:7px 5px; }
+ .jn-landing .jn2-sidebar>div>span { font-size:11px; }
+ .jn-landing .jn2-sidebar-bottom { font-size:0; padding:10px 4px 3px; }
+ .jn-landing .jn2-sidebar-bottom .jn2-green-dot { width:6px; height:6px; }
+ .jn-landing .jn2-dashboard { padding:13px 9px 10px; }
+ .jn-landing .jn2-dashhead h3 { font-size:12px; }
+ .jn-landing .jn2-dashhead p { font-size:8px; }
+ .jn-landing .jn2-demo-pill { display:none; }
+ .jn-landing .jn2-statrow { gap:4px; margin-top:13px; }
+ .jn-landing .jn2-statrow article { padding:8px 5px; }
+ .jn-landing .jn2-statrow small { font-size:6px; letter-spacing:.02em; }
+ .jn-landing .jn2-statrow strong { font-size:9px; margin-top:6px; }
+ .jn-landing .jn2-statrow span { font-size:7px; }
+ .jn-landing .jn2-flowcard { padding:10px 7px; margin-top:8px; }
+ .jn-landing .jn2-flowtitle h4 { font-size:10px; }
+ .jn-landing .jn2-flowsteps { grid-template-columns:minmax(0,1fr) 9px minmax(0,1fr); gap:4px; }
+ .jn-landing .jn2-flowsteps>div { padding:7px 5px; }
+ .jn-landing .jn2-flowsteps>div:nth-of-type(3) { grid-column:1; }
+ .jn-landing .jn2-flowsteps>div:nth-of-type(4) { grid-column:3; }
+ .jn-landing .jn2-flowsteps>svg:nth-of-type(2) { grid-column:2; grid-row:2; transform:rotate(90deg); }
+ .jn-landing .jn2-flowsteps>svg:nth-of-type(3) { display:none; }
+ .jn-landing .jn2-flowsteps b { font-size:8px; }
+ .jn-landing .jn2-flowsteps small { font-size:6px; }
+ .jn-landing .jn2-bottomrow { padding:8px; margin-top:8px; }
+ .jn-landing .jn2-bottomrow b { font-size:8px; }
+ .jn-landing .jn2-bottomrow span { font-size:7px; }
+ .jn-landing .jn2-visual-caption { font-size:8px; text-align:center; }
+ .jn-landing .jn2-audience { padding:22px 19px; }
+ .jn-landing .jn2-audience-items { gap:12px 17px; font-size:11px; }
+ .jn-landing .jn2-section { padding:65px 19px; }
+ .jn-landing .jn2-section-intro h2,.jn-landing .jn2-platform-heading h2,.jn-landing .jn2-integrations-head h2,.jn-landing .jn2-cta h2 { font-size:37px; }
+ .jn-landing .jn2-capabilities { grid-template-columns:1fr; gap:10px; }
+ .jn-landing .jn2-capabilities article { min-height:0; padding:18px; }
+ .jn-landing .jn2-capabilities h3 { margin-top:22px; }
+ .jn-landing .jn2-capabilities article>small { padding-top:15px; }
+ .jn-landing .jn2-integrations-head { grid-template-columns:1fr; gap:15px; }
+ .jn-landing .jn2-vendor-list { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:25px; }
+ .jn-landing .jn2-vendor-list>span { min-height:55px; padding:10px 8px; gap:7px; font-size:10px; }
+ .jn-landing .jn2-cta { padding:55px 19px; flex-direction:column; align-items:flex-start; gap:28px; }
+ .jn-landing .jn2-cta-actions { width:100%; }
+ .jn-landing .jn2-cta-actions .jn2-primary { width:100%; }
+ .jn-landing .jn2-footer { grid-template-columns:1fr; gap:20px; padding:25px 19px; }
+ .jn-landing .jn2-footer>div { justify-content:flex-start; gap:12px 18px; }
+ .jn-landing .jn2-footer>small { text-align:left; }
+}
+@media (prefers-reduced-motion:reduce) { .jn-landing *, .jn-landing *::before, .jn-landing *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
+
+
+/* Pricing pathways: real links, no fabricated subscription prices or testimonials. */
+.jn-landing .jn2-price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:38px; }
+.jn-landing .jn2-price-grid article { display:flex; flex-direction:column; align-items:flex-start; min-width:0; padding:27px 24px; border:1px solid #dfe6f0; border-radius:12px; background:#fff; box-shadow:0 12px 35px #20395b08; }
+.jn-landing .jn2-price-grid article>small { color:#657995; font-size:9px; font-weight:800; letter-spacing:.13em; }
+.jn-landing .jn2-price-grid h3 { margin:15px 0 9px; color:#152b47; font-size:25px; letter-spacing:-.04em; }
+.jn-landing .jn2-price-grid p { margin:0; color:#66778d; font-size:13px; line-height:1.7; }
+.jn-landing .jn2-price-grid ul { display:grid; gap:11px; margin:23px 0 26px; padding:0; list-style:none; color:#3d526d; font-size:12px; line-height:1.5; }
+.jn-landing .jn2-price-grid li:before { content:"✓"; color:#355ff1; font-weight:800; margin-right:9px; }
+.jn-landing .jn2-price-grid .jn2-primary,.jn-landing .jn2-price-grid .jn2-secondary { margin-top:auto; width:100%; }
+.jn-landing .jn2-price-grid .jn2-price-featured { border-color:#8da6ff; box-shadow:0 15px 38px #355ff11c; background:linear-gradient(160deg,#f7f9ff,#fff 62%); }
+.jn-landing .jn2-pricing-note { margin:16px 0 0; color:#7a899d; font-size:11px; line-height:1.6; }
+@media (max-width:900px) { .jn-landing .jn2-price-grid { grid-template-columns:1fr; max-width:600px; } .jn-landing .jn2-price-grid article { padding:23px; } }

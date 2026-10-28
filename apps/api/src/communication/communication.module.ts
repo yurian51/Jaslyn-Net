@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { TrafficModule } from '../modules/traffic/traffic.module';
+import { CommandsModule } from '../commands/commands.module';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationAiService } from './communication.ai';
 import { CommunicationBotService } from './communication.bot';
@@ -16,7 +17,7 @@ import { CommunicationDomainBridge } from './communication.domain-bridge';
 import { NetworkAiToolsService } from './network-ai-tools';
 
 @Module({
-  imports: [AuditModule, TrafficModule],
+  imports: [AuditModule, TrafficModule, CommandsModule],
   controllers: [CommunicationController],
   providers: [
     CommunicationService,

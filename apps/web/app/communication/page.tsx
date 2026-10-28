@@ -175,6 +175,8 @@ export default function CommunicationPage(){
       <div className="commandBar"><input value={command} onChange={e=>setCommand(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void runCommand()}}} placeholder="Ask Jaslyn or run /status, /router status <name>…" /><button className="commandBtn" disabled={commandBusy||!command.trim()} onClick={()=>void runCommand()}>{commandBusy?'Checking…':'Run'}</button></div>
       {commandResult&&<div className="commandResult" role="status">{commandResult}</div>}{commandPreview&&<div className="commandPreview"><strong>Confirmation required</strong><div style={{marginTop:5}}>{commandPreview.warning||'This operation changes service state.'}</div><div className="commandPreviewActions"><button className="confirmBtn" onClick={()=>void runCommand(true)} disabled={commandBusy}>Confirm execution</button><button className="cancelBtn" onClick={cancelCommandPreview}>Cancel</button></div></div>}
       <div className="composer"><textarea value={draft} onChange={e=>onDraftChange(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void send()}}} placeholder="Write a message…" /><button className="send" disabled={sending||!draft.trim()} onClick={()=>void send()}>{sending?'Sending…':'Send'}</button></div>
-    </>}</section>
+    </>}
+    </>}
+    </section>
   </main>;
 }

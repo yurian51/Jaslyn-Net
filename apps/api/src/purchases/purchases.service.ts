@@ -6,6 +6,7 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { compileNetworkPolicy } from '../modules/traffic/network-policy.compiler';
 import { ConfirmPurchasePaymentDto, CreatePurchaseDto, CreatePurchaseFromTierDto } from './purchases.dto';
 import { getCorrelationId } from '../common/correlation-context';
+import { CommunicationDomainEventsService } from '../communication/communication.domain-events';
 
 @Injectable()
 export class PurchasesService {
@@ -13,6 +14,7 @@ export class PurchasesService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly payments: PaymentsService,
     private readonly promotions: PromotionsService,
+    private readonly domainEvents: CommunicationDomainEventsService,
   ) {}
 
   async list(tenantId: string, customerId?: string) {
@@ -58,9 +60,26 @@ export class PurchasesService {
 
   async create(tenantId: string, input: CreatePurchaseDto) {
     const client = await this.db.connect();
-    const correlationId = getCorrelationId() ?? `purchase:${input.customerId}:${input.packageId}`;
+    const correlationId = input.idempotencyKey ? `customer-portal:${tenantId}:${input.customerId}:${input.idempotencyKey}` : getCorrelationId() ?? `purchase:${input.customerId}:${input.packageId}`;
     try {
       await client.query('BEGIN');
+      if (input.idempotencyKey) {
+        const existing = await client.query(
+          `SELECT id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId",
+             price, currency, discount_amount AS "discountAmount", promo_code_id AS "promoCodeId",
+             status, created_at AS "createdAt", updated_at AS "updatedAt"
+           FROM wifi_plan_purchases WHERE tenant_id=$1 AND correlation_id=$2 FOR UPDATE`,
+          [tenantId, correlationId],
+        );
+        if (existing.rowCount) {
+          const row = existing.rows[0];
+          if (row.customerId !== input.customerId || row.packageId !== input.packageId || (row.routerId ?? null) !== (input.routerId ?? null)) {
+            throw new ConflictException('Purchase idempotency key is already bound to a different request');
+          }
+          await client.query('COMMIT');
+          return row;
+        }
+      }
       const packageResult = await client.query(
         `SELECT id, name, price, currency, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id = $1 AND id = $2 AND is_active = true FOR UPDATE`,
         [tenantId, input.packageId],
@@ -90,11 +109,29 @@ export class PurchasesService {
         `INSERT INTO wifi_plan_purchases
           (tenant_id, customer_id, package_id, router_id, price, currency, discount_amount, promo_code_id, status, correlation_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'PENDING_PAYMENT',$9)
+         ON CONFLICT DO NOTHING
          RETURNING id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId",
                    price, currency, discount_amount AS "discountAmount", promo_code_id AS "promoCodeId",
                    status, created_at AS "createdAt", updated_at AS "updatedAt"`,
         [tenantId, input.customerId, input.packageId, input.routerId ?? null, payableAmount, plan.currency, discountAmount, promotion?.promoId ?? null, correlationId],
       );
+      if (!result.rowCount && input.idempotencyKey) {
+        const existing = await client.query(
+          `SELECT id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId",
+             price, currency, discount_amount AS "discountAmount", promo_code_id AS "promoCodeId",
+             status, created_at AS "createdAt", updated_at AS "updatedAt"
+           FROM wifi_plan_purchases WHERE tenant_id=$1 AND correlation_id=$2 FOR UPDATE`,
+          [tenantId, correlationId],
+        );
+        if (!existing.rowCount) throw new ConflictException('Purchase idempotency conflict could not be resolved');
+        const row = existing.rows[0];
+        if (row.customerId !== input.customerId || row.packageId !== input.packageId || (row.routerId ?? null) !== (input.routerId ?? null)) {
+          throw new ConflictException('Purchase idempotency key is already bound to a different request');
+        }
+        await client.query('COMMIT');
+        return row;
+      }
+      if (!result.rowCount) throw new ConflictException('Purchase could not be created');
       await client.query('COMMIT');
       return result.rows[0];
     } catch (error) {
@@ -145,7 +182,7 @@ export class PurchasesService {
       throw new ConflictException('External payment providers must be verified through their provider webhook');
     }
     const providerReference = input.providerReference.trim();
-    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'SUCCESS';
+    const requestedStatus = input.status === 'FAILED' ? 'FAILED' : 'PAID';
     let correlationId = getCorrelationId() ?? null;
     try {
       await client.query('BEGIN');
@@ -174,7 +211,12 @@ export class PurchasesService {
         const existing = existingByKey.rows[0];
         if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
         if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-        if (existing.status === 'SUCCESS') {
+        if (existing.status === 'PAID') {
+          // An idempotency key must not silently accept a changed manual receipt
+          // reference after payment has already been recorded.
+          if (existing.providerReference && existing.providerReference !== providerReference) {
+            throw new ConflictException('Idempotency key is already bound to another provider reference');
+          }
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
@@ -191,7 +233,7 @@ export class PurchasesService {
         }
 
         await client.query(
-          `UPDATE payments SET provider_reference=$2, status='SUCCESS', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
+          `UPDATE payments SET provider_reference=$2, status='PAID', correlation_id=COALESCE(correlation_id,$4), updated_at=now() WHERE tenant_id=$1 AND id=$3`,
           [tenantId, providerReference, existing.id, correlationId],
         );
         await this.payments.recordVerifiedSettlement(client, tenantId, existing.id, current.price, current.currency, provider);
@@ -211,6 +253,7 @@ export class PurchasesService {
         });
         await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
         await this.recordPromoRedemption(client, tenantId, current, correlationId!);
+        await this.domainEvents.enqueue({ tenantId, eventKey: `purchase-paid:${purchaseId}`, eventType: 'PAYMENT.SETTLED', aggregateType: 'wifi_plan_purchase', aggregateId: purchaseId, payload: { purchaseId, paymentId: existing.id, customerId: current.customer_id, packageId: current.package_id, routerId: current.router_id ?? null, amount: current.price, currency: current.currency, provider } }, client);
         await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
         await client.query('COMMIT');
         return { purchase: await this.get(tenantId, purchaseId), paymentId: existing.id };
@@ -233,7 +276,7 @@ export class PurchasesService {
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
-        await client.query(`UPDATE payments SET provider_reference=$2, status='SUCCESS', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
+        await client.query(`UPDATE payments SET provider_reference=$2, status='PAID', idempotency_key=$3, correlation_id=COALESCE(correlation_id,$5), updated_at=now() WHERE tenant_id=$1 AND id=$4`, [tenantId, providerReference, key, paymentId, correlationId]);
         await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       } else {
         const payment = await client.query(
@@ -246,6 +289,10 @@ export class PurchasesService {
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
+        // A newly created manual payment is already PAID; post its settlement
+        // through the same idempotent ledger/invoice path as an existing intent.
+        // Keep this inside the purchase transaction so failures roll back both.
+        await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       }
 
       const packageResult = await client.query(`SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`, [tenantId, current.package_id]);
@@ -261,6 +308,7 @@ export class PurchasesService {
       });
       await client.query(`UPDATE wifi_plan_purchases SET status='PAID', starts_at=now(), ends_at=now() + ($3::bigint * interval '1 second'), updated_at=now() WHERE tenant_id=$1 AND id=$2`, [tenantId, purchaseId, plan.duration_seconds]);
       await this.recordPromoRedemption(client, tenantId, current, correlationId!);
+      await this.domainEvents.enqueue({ tenantId, eventKey: `purchase-paid:${purchaseId}`, eventType: 'PAYMENT.SETTLED', aggregateType: 'wifi_plan_purchase', aggregateId: purchaseId, payload: { purchaseId, paymentId, customerId: current.customer_id, packageId: current.package_id, routerId: current.router_id ?? null, amount: current.price, currency: current.currency, provider } }, client);
       await client.query(`INSERT INTO access_grants (tenant_id, purchase_id, customer_id, router_id, status, starts_at, ends_at, network_policy, correlation_id) SELECT tenant_id, id, customer_id, router_id, 'ACTIVE', starts_at, ends_at, $3::jsonb, correlation_id FROM wifi_plan_purchases WHERE tenant_id=$1 AND id=$2 ON CONFLICT (purchase_id) DO UPDATE SET status='ACTIVE', starts_at=EXCLUDED.starts_at, ends_at=EXCLUDED.ends_at, network_policy=EXCLUDED.network_policy, updated_at=now()`, [tenantId, purchaseId, JSON.stringify(networkPolicy)]);
       await client.query('COMMIT');
       return { purchase: await this.get(tenantId, purchaseId), paymentId };

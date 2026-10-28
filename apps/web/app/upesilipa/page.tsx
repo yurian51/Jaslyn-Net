@@ -1,113 +1,85 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { apiFetch } from '../../lib/api';
+import { useCallback, useEffect, useState } from 'react';
+import { ApiError, apiFetch } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 import './upesilipa.css';
 
-type Dashboard = {
-  data: {
-    locations: { count: number };
-    routers: { total: number; online: number; degraded: number };
-    activeSessions: number;
-    todaySales: { amount: string; count: number };
-    vouchers: { total: number; unused: number; used: number; expired: number };
-  };
-};
+type Metric = { label: string; value: string; detail: string; href: string; tone: string };
+type Overview = { kpis?: { activeCustomers?: number; monthlyRevenue?: number; onlineSessions?: number }; network?: { totalRouters?: number; online?: number }; tenant?: { currency?: string } };
+type CountResponse = { pagination?: { total?: number }; data?: unknown[] };
 
-type Capability = { hardware: Array<{ vendor: string; mode: string; protocol: string }>; gateways: string[] };
-type HealthOverview = { summary: { sites: number; healthy: number; degraded: number; offline: number; noDevices: number }; sites: Array<{ locationId: string; locationName: string; routers: number; online: number; offline: number; degraded: number; health: string }> };
+const modules = [
+  { title: 'Sites & routers', detail: 'Connect access points, monitor reachability and manage locations.', href: '/network', icon: '⌁', group: 'Network operations' },
+  { title: 'Router setup', detail: 'Use guided MikroTik, RADIUS and device onboarding workflows.', href: '/access-network', icon: '⌘', group: 'Network operations' },
+  { title: 'Live sessions', detail: 'See connected customers, usage, expiry and active access.', href: '/sessions', icon: '◉', group: 'Network operations' },
+  { title: 'Packages', detail: 'Create time and data plans customers can buy from your portal.', href: '/packages', icon: '◒', group: 'Revenue engine' },
+  { title: 'Customers', detail: 'Manage subscribers, access profiles and account history.', href: '/customers', icon: '◎', group: 'Revenue engine' },
+  { title: 'Vouchers', detail: 'Issue, search and track prepaid WiFi access codes.', href: '/vouchers', icon: '▤', group: 'Revenue engine' },
+  { title: 'Sales & payments', detail: 'Follow payment status, provider readiness and revenue.', href: '/payments', icon: '◌', group: 'Revenue engine' },
+  { title: 'Purchases', detail: 'Review package orders and customer payment activity.', href: '/purchases', icon: '▥', group: 'Revenue engine' },
+  { title: 'Captive portal', detail: 'Publish the branded payment and login experience customers use.', href: '/captive-portal/manage', icon: '✦', group: 'Customer experience' },
+  { title: 'Customer portal', detail: 'Give customers a clear place to access services and support.', href: '/customer-portal', icon: '◈', group: 'Customer experience' },
+  { title: 'Promotions', detail: 'Create offers and campaigns that help fill your network.', href: '/promotions', icon: '＋', group: 'Customer experience' },
+  { title: 'Finance & audit', detail: 'Move from raw activity to operational and finance decisions.', href: '/finance', icon: '▦', group: 'Control centre' },
+  { title: 'Automation', detail: 'Build repeatable actions for routine network operations.', href: '/automation', icon: '↻', group: 'Control centre' },
+  { title: 'Integrations', detail: 'Connect payment, communication and network services.', href: '/integrations', icon: '⊕', group: 'Control centre' },
+  { title: 'Payment gateways', detail: 'Prepare mobile-money and payment provider connections for direct collections.', href: '/platform-integrations', icon: '₿', group: 'Control centre' },
+  { title: 'Branding & portal themes', detail: 'Shape your logo, colors, support details and customer-facing portal style.', href: '/captive-portal/manage', icon: '✧', group: 'Customer experience' },
+  { title: 'Plans & subscription', detail: 'Review workspace plan limits, billing status and upgrade options.', href: '/dashboard/platform-subscription', icon: '▣', group: 'Control centre' },
+  { title: 'Hardware & RADIUS', detail: 'Use MikroTik, Omada, UniFi, Cambium and standards-based RADIUS hardware.', href: '/architecture', icon: '⌂', group: 'Network operations' },
+  { title: 'Support & help', detail: 'Find setup guidance, frequently asked questions and operator support paths.', href: '/faq', icon: '?', group: 'Customer experience' },
+  { title: 'Latest releases', detail: 'Follow new Jaslyn Net and UpesiLipa capabilities as they ship.', href: '/releases', icon: '↗', group: 'Control centre' },
+  { title: 'Team & settings', detail: 'Control access, billing, integrations and workspace policy.', href: '/settings', icon: '◫', group: 'Control centre' },
+];
 
-export default function UpesiLipaPage() {
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [capabilities, setCapabilities] = useState<Capability | null>(null);
-  const [health, setHealth] = useState<HealthOverview | null>(null);
-  const [error, setError] = useState('');
+function number(value: number | undefined) { return new Intl.NumberFormat('en-US').format(value ?? 0); }
+
+const moduleGroups = Array.from(new Set(modules.map((module) => module.group)));
+
+export default function UpesiLipaHub() {
+  const [metrics, setMetrics] = useState<Metric[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) return;
-    setLoading(true);
-    setError('');
+    if (!token) { setError('Authentication required.'); setLoading(false); return; }
+    setLoading(true); setError(null);
+    const headers = { Authorization: `Bearer ${token}` };
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const [d, c, h] = await Promise.all([
-        apiFetch<Dashboard>('/upesilipa/dashboard', { headers }),
-        apiFetch<Capability>('/upesilipa/capabilities', { headers }),
-        apiFetch<HealthOverview>('/upesilipa/health', { headers }),
+      const [overview, customers, vouchers, payments] = await Promise.all([
+        apiFetch<Overview>('/overview', { headers }),
+        apiFetch<CountResponse>('/customers?page=1&limit=1', { headers }),
+        apiFetch<CountResponse>('/vouchers?page=1&limit=1', { headers }),
+        apiFetch<CountResponse>('/payments?page=1&limit=1', { headers }),
       ]);
-      setDashboard(d);
-      setCapabilities(c);
-      setHealth(h);
-    } catch (e: any) {
-      setError(e?.message || 'UpesiLipa operator data could not be loaded.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const currency = overview.tenant?.currency ?? 'TZS';
+      setMetrics([
+        { label: 'Active customers', value: number(overview.kpis?.activeCustomers), detail: 'subscriber accounts', href: '/customers', tone: 'mint' },
+        { label: 'Online now', value: number(overview.kpis?.onlineSessions), detail: 'live sessions', href: '/sessions', tone: 'blue' },
+        { label: 'Network', value: `${number(overview.network?.online)} / ${number(overview.network?.totalRouters)}`, detail: 'routers online', href: '/network', tone: 'violet' },
+        { label: 'Monthly revenue', value: `${currency} ${number(overview.kpis?.monthlyRevenue)}`, detail: 'verified overview total', href: '/payments', tone: 'amber' },
+        { label: 'Customer records', value: number(customers.pagination?.total ?? customers.data?.length), detail: 'from customer API', href: '/customers', tone: 'slate' },
+        { label: 'Voucher records', value: number(vouchers.pagination?.total ?? vouchers.data?.length), detail: 'from voucher API', href: '/vouchers', tone: 'slate' },
+        { label: 'Payment records', value: number(payments.pagination?.total ?? payments.data?.length), detail: 'from payment API', href: '/payments', tone: 'slate' },
+      ]);
+    } catch (cause) {
+      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Unable to load UpesiLipa workspace data.');
+    } finally { setLoading(false); }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
-  const money = (value: string | number) => new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(Number(value || 0));
-
-  return (
-    <main className="upesilipa-page">
-      <header className="upesilipa-head">
-        <div>
-          <span className="upesilipa-kicker">WIFI OPERATOR CONTROL</span>
-          <h1>UpesiLipa Operations</h1>
-          <p>Live hotspot billing, sites, sessions, vouchers and network health using Jaslyn Net's canonical data.</p>
-        </div>
-        <button onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
-      </header>
-
-      {error && <div className="upesilipa-error">{error}</div>}
-
-      <section className="upesilipa-stats">
-        <article><small>Today sales</small><strong>{money(dashboard?.data.todaySales.amount || 0)}</strong><span>{dashboard?.data.todaySales.count || 0} paid purchases</span></article>
-        <article><small>Customers online</small><strong>{dashboard?.data.activeSessions || 0}</strong><span>active sessions</span></article>
-        <article><small>Routers</small><strong>{dashboard?.data.routers.online || 0}/{dashboard?.data.routers.total || 0}</strong><span>{dashboard?.data.routers.degraded || 0} degraded</span></article>
-        <article><small>Sites</small><strong>{dashboard?.data.locations.count || 0}</strong><span>canonical locations</span></article>
-      </section>
-
-      <section className="upesilipa-card wide">
-        <h2>Site health</h2>
-        <div className="upesilipa-list">
-          <span>Healthy <b>{health?.summary.healthy || 0}</b></span>
-          <span>Degraded <b>{health?.summary.degraded || 0}</b></span>
-          <span>Offline <b>{health?.summary.offline || 0}</b></span>
-          <span>No devices <b>{health?.summary.noDevices || 0}</b></span>
-        </div>
-        <div className="upesilipa-health-list">
-          {health?.sites.map(site => <div key={site.locationId}><strong>{site.locationName}</strong><span>{site.health}</span><small>{site.online}/{site.routers} routers online</small></div>)}
-        </div>
-      </section>
-
-      <section className="upesilipa-grid">
-        <article className="upesilipa-card">
-          <h2>Voucher inventory</h2>
-          <div className="upesilipa-list">
-            <span>Unused <b>{dashboard?.data.vouchers.unused || 0}</b></span>
-            <span>Used <b>{dashboard?.data.vouchers.used || 0}</b></span>
-            <span>Expired <b>{dashboard?.data.vouchers.expired || 0}</b></span>
-            <span>Total <b>{dashboard?.data.vouchers.total || 0}</b></span>
-          </div>
-        </article>
-
-        <article className="upesilipa-card">
-          <h2>Payment gateways</h2>
-          <div className="upesilipa-chips">{capabilities?.gateways.map(g => <span key={g}>{g}</span>)}</div>
-          <small>Gateway names are catalogue references. They are not treated as connected until a real provider configuration exists.</small>
-        </article>
-
-        <article className="upesilipa-card wide">
-          <h2>Hardware integration boundary</h2>
-          <div className="upesilipa-hardware">{capabilities?.hardware.map(item => (
-            <div key={item.vendor}><strong>{item.vendor}</strong><span className={item.mode === 'NATIVE' ? 'native' : item.mode === 'RADIUS' ? 'radius' : 'catalog'}>{item.mode}</span><small>{item.protocol}</small></div>
-          ))}</div>
-        </article>
-      </section>
-    </main>
-  );
+  return <main className="upesilipa-page">
+    <header className="upesilipa-hero">
+      <div><span className="upesilipa-kicker">JASLYN NET · UPESILIPA WORKSPACE</span><h1>Run your WiFi business from one calm workspace.</h1><p>Everything operators need to connect routers, sell access, support customers and understand revenue — built on Jaslyn Net&apos;s tenant-scoped APIs.</p></div>
+      <div className="upesilipa-hero-actions"><button type="button" onClick={() => void load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh data'}</button><a href="/captive-portal/manage">Open captive portal</a></div>
+    </header>
+    {error ? <div className="upesilipa-error" role="alert">{error}</div> : null}
+    <section className="upesilipa-metrics" aria-label="Workspace metrics">{metrics.slice(0, 4).map((metric) => <a className={`upesilipa-metric ${metric.tone}`} href={metric.href} key={metric.label}><span>{metric.label}</span><strong>{loading ? '—' : metric.value}</strong><small>{metric.detail}</small></a>)}</section>
+    <section className="upesilipa-section"><div className="upesilipa-section-head"><div><span className="upesilipa-kicker">FEATURE SURFACE</span><h2>Everything UpesiLipa operators need</h2><p>Core selling, network, customer experience and control workflows are available in Jaslyn Net with live tenant-scoped data.</p></div><a href="/dashboard">Back to overview ↗</a></div><div className="upesilipa-groups">{moduleGroups.map((group) => <div className="upesilipa-group" key={group}><div className="upesilipa-group-heading"><span>{group}</span><small>{modules.filter((module) => module.group === group).length} capabilities</small></div><div className="upesilipa-module-grid">{modules.filter((module) => module.group === group).map((module) => <a className="upesilipa-module" href={module.href} key={module.title}><span className="upesilipa-module-icon" aria-hidden="true">{module.icon}</span><span><strong>{module.title}</strong><small>{module.detail}</small></span><span className="upesilipa-arrow" aria-hidden="true">↗</span></a>)}</div></div>)}</div></section>
+    <section className="upesilipa-section upesilipa-secondary"><div className="upesilipa-section-head"><div><span className="upesilipa-kicker">LIVE API COUNTS</span><h2>Operational inventory</h2></div></div><div className="upesilipa-inventory">{metrics.slice(4).map((metric) => <a href={metric.href} key={metric.label}><span>{metric.label}</span><strong>{loading ? '—' : metric.value}</strong><small>{metric.detail}</small></a>)}</div></section>
+    <footer className="upesilipa-footer"><span>JASLYN NET · UpesiLipa workspace</span><span>Live tenant data only</span></footer>
+  </main>;
 }

@@ -14,6 +14,7 @@ describe('SessionsService', () => {
     markVerified: jest.fn(),
     markFailed: jest.fn(),
   } as any;
+  const domainEvents = { enqueue: jest.fn().mockResolvedValue(undefined) } as any;
   const trafficEnforcement = {
     supportsDisconnect: jest.fn(),
     disconnectClient: jest.fn(),
@@ -33,8 +34,10 @@ describe('SessionsService', () => {
     networkCommands.markFailed.mockReset();
     trafficEnforcement.supportsDisconnect.mockReset();
     trafficEnforcement.disconnectClient.mockReset();
+    domainEvents.enqueue.mockReset();
+    domainEvents.enqueue.mockResolvedValue(undefined);
     trafficEnforcement.supportsDisconnect.mockReturnValue(true);
-    service = new SessionsService(db, audit, secureCredentials, networkCommands, trafficEnforcement);
+    service = new SessionsService(db, audit, secureCredentials, networkCommands, trafficEnforcement, domainEvents);
   });
 
   it('lists only sessions belonging to the tenant', async () => {

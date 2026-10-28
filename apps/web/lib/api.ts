@@ -1,5 +1,15 @@
+import { clearAccessToken, getAccessToken } from './auth';
+
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '');
-export const API_URL = configuredApiUrl || (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '');
+
+function withApiPrefix(url: string) {
+  if (!url) return url;
+  return /\/api\/v1$/i.test(url) ? url : `${url}/api/v1`;
+}
+
+export const API_URL = configuredApiUrl
+  ? withApiPrefix(configuredApiUrl)
+  : (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '/api/v1');
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -29,10 +39,18 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   let response: Response;
   try {
+    const accessToken = getAccessToken();
+    const headers = new Headers(init.headers);
+    headers.set('Accept', 'application/json');
+    headers.set('x-request-id', requestId);
+    if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`);
+
     response = await fetch(`${API_URL}${normalizedPath}`, {
       ...init,
+      mode: 'cors',
+      credentials: 'include',
       signal,
-      headers: { Accept: 'application/json', 'x-request-id': requestId, ...init.headers },
+      headers,
     });
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'TimeoutError') throw new ApiError('The API request timed out. Please retry the operation.', 408, requestId);
@@ -43,9 +61,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const responseRequestId = response.headers.get('x-request-id') ?? requestId;
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
-      window.localStorage.removeItem('jaslyn.accessToken');
-      window.localStorage.removeItem('nexora.accessToken');
+    if (response.status === 401 && typeof window !== 'undefined'
+      && !window.location.pathname.startsWith('/login')
+      && !window.location.pathname.startsWith('/register')
+      && !window.location.pathname.startsWith('/customer-portal')) {
+      clearAccessToken();
       window.location.replace('/login');
     }
     throw new ApiError(extractApiError(payload) ?? `Request failed with status ${response.status}`, response.status, responseRequestId);

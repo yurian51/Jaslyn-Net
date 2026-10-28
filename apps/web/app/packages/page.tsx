@@ -169,9 +169,9 @@ export default function PackagesPage() {
     <main className="packages-console">
       <section className="packages-intro">
         <div>
-          <span className="eyebrow">JASLYN NET / COMMERCIAL CONTROL</span>
-          <h1>Plans & Packages</h1>
-          <p>Design, publish and operate connectivity plans from one commercial catalogue. Clear entitlements, transparent limits and a deliberate upgrade path.</p>
+          <span className="eyebrow">JASLYN NET / WIFI SUBSCRIBER PLANS</span>
+          <h1>WiFi Subscriber Packages</h1>
+          <p>Create and publish the internet bundles your WiFi customers buy. Each package shows price, validity, data, speed and device allowance before a customer pays.</p>
         </div>
         <div className="intro-actions">
           <a href="/purchases" className="secondary-action">Open purchases</a>
@@ -184,7 +184,7 @@ export default function PackagesPage() {
 
       <section className="catalogue">
         <div className="section-heading">
-          <div><span className="section-label">JASLYN PLAN CATALOGUE</span><h2>Choose a service level that makes sense</h2><p>Every tier explains what the customer receives, rather than hiding the useful information behind a price tag.</p></div>
+          <div><span className="section-label">WIFI CUSTOMER PLAN OPTIONS</span><h2>Internet packages for your customers</h2><p>These are the WiFi access bundles sold to subscribers—not the monthly subscription you pay for the JASLYN NET platform.</p></div>
           <span className="catalogue-count">{tiers.length} standard tiers</span>
         </div>
 
@@ -198,10 +198,10 @@ export default function PackagesPage() {
               </div>
               <div className="tier-price"><strong>{money(tier.price, tier.currency)}</strong><span>/ {duration(tier.durationSeconds)}</span></div>
               <div className="capacity">
-                <div><span>Data allowance</span><strong>{data(tier.dataLimitBytes)}</strong></div>
+                <div><span>Included data</span><strong>{data(tier.dataLimitBytes)}</strong></div>
                 <div><span>Download</span><strong>{speed(tier.downloadBps)}</strong></div>
                 <div><span>Upload</span><strong>{speed(tier.uploadBps)}</strong></div>
-                <div><span>Devices</span><strong>{tier.devicesPerCode}</strong></div>
+                <div><span>Devices allowed</span><strong>{tier.devicesPerCode}</strong></div>
               </div>
               <div className="feature-list">
                 {Object.entries(tier.featureFlags).filter(([, enabled]) => enabled).slice(0, 6).map(([key]) => <span key={key}>✓ {featureLabel(key)}</span>)}
@@ -220,13 +220,13 @@ export default function PackagesPage() {
       {featured && (
         <section className="explain-panel">
           <div>
-            <span className="section-label">WHY THE TIERS MATTER</span>
-            <h2>Commercial clarity without the small-business-template look.</h2>
-            <p>Jaslyn plans are connected to the same package and entitlement model used by purchases. A plan is not decorative pricing copy: its bandwidth, quota, device allowance and feature flags describe the network policy customers actually receive.</p>
+            <span className="section-label">WHAT YOUR WIFI CUSTOMER BUYS</span>
+            <h2>Show the full value before a subscriber pays.</h2>
+            <p>Price is only one part of an internet bundle. The subscriber should be able to compare validity, data allowance, download/upload speed and allowed devices. The platform subscription for the WiFi operator is a separate commercial product.</p>
           </div>
           <div className="explain-stats">
-            <div><strong>{tiers.filter(t => t.configured).length}</strong><span>configured tiers</span></div>
-            <div><strong>{rows.filter(p => p.isActive).length}</strong><span>active packages</span></div>
+            <div><strong>{tiers.filter(t => t.configured).length}</strong><span>WiFi tiers configured</span></div>
+            <div><strong>{rows.filter(p => p.isActive).length}</strong><span>packages currently active</span></div>
             <div><strong>{featured.name.replace('Jaslyn ', '')}</strong><span>featured tier</span></div>
           </div>
         </section>
