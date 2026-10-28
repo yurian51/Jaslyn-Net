@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
 import BrandLogo from '../brand-logo';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, API_URL } from '../../lib/api';
 import { getAccessToken } from '../../lib/auth';
 
 type AccountData = {
@@ -208,7 +208,7 @@ export default function AccountPage() {
   async function exportData() {
     setBusy(true);
     try {
-      const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')}/account/data-export`, { headers: tokenHeaders() });
+      const response = await fetch(`${API_URL}/account/data-export`, { headers: tokenHeaders(), credentials: 'include' });
       if (!response.ok) throw new Error('Data export failed');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

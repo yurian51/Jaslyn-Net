@@ -7,9 +7,11 @@ function withApiPrefix(url: string) {
   return /\/api\/v1$/i.test(url) ? url : `${url}/api/v1`;
 }
 
-export const API_URL = configuredApiUrl
-  ? withApiPrefix(configuredApiUrl)
-  : (process.env.NODE_ENV === 'development' ? 'http://localhost:4000/api/v1' : '/api/v1');
+const defaultApiUrl = process.env.NODE_ENV === 'development'
+  ? 'http://localhost:4000/api/v1'
+  : '/api/v1';
+
+export const API_URL = withApiPrefix(configuredApiUrl || defaultApiUrl);
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -36,22 +38,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const requestId = createRequestId();
   const signal = init.signal ?? AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS);
+  const accessToken = getAccessToken();
+  const headers = new Headers(init.headers);
+  headers.set('Accept', 'application/json');
+  headers.set('x-request-id', requestId);
+  if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`);
 
   let response: Response;
   try {
-    const accessToken = getAccessToken();
-    const headers = new Headers(init.headers);
-    headers.set('Accept', 'application/json');
-    headers.set('x-request-id', requestId);
-    if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`);
-
-    response = await fetch(`${API_URL}${normalizedPath}`, {
-      ...init,
-      mode: 'cors',
-      credentials: 'include',
-      signal,
-      headers,
-    });
+    response = await fetch(`${API_URL}${normalizedPath}`, { ...init, mode: 'cors', credentials: 'include', signal, headers });
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'TimeoutError') throw new ApiError('The API request timed out. Please retry the operation.', 408, requestId);
     if (error instanceof Error && error.name === 'AbortError') throw new ApiError('The API request was cancelled.', 499, requestId);

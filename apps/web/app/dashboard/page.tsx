@@ -39,6 +39,10 @@ const duration = (value?: string) => {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
 
+const SUPPORTED_VENDORS = [
+  ['MikroTik', 'integrations/mikrotik.svg'], ['Ubiquiti UniFi', 'integrations/ubiquiti.svg'], ['Cambium Networks', 'integrations/cambium-networks.svg'], ['TP-Link Omada', 'integrations/tplink.svg'], ['Juniper Networks', ''], ['Fortinet', ''], ['Dell Networking', ''], ['Netgear', ''], ['Zyxel', ''], ['Palo Alto Networks', ''], ['SonicWall', ''], ['Barracuda Networks', ''], ['Huawei CloudCampus', ''], ['Extreme Networks', ''], ['Ruckus Networks', 'integrations/ruckus.svg'], ['WatchGuard', ''], ['Huawei', ''], ['Cisco', ''], ['Cisco Meraki', 'integrations/meraki.svg'], ['Aruba Networks', 'integrations/aruba.svg'], ['Grandstream', 'integrations/grandstream.svg'], ['Ruijie / Reyee', 'integrations/ruijie-reyee.svg'], ['OpenWrt', 'integrations/openwrt.svg'], ['Teltonika Networks', 'integrations/teltonika.svg'], ['Peplink / InControl', 'integrations/peplink.svg'], ['pfSense / OPNsense', 'integrations/pfsense.svg'], ['FreeRADIUS', 'integrations/freeradius.svg'],
+] as const;
+
 const OPERATOR_WORKSPACES = [
   { label: 'UpesiLipa workspace', detail: 'Sites, packages, customers, vouchers and sales', href: '/upesilipa', terms: 'upesilipa wifi hotspot packages vouchers sales reports branding' },
   { label: 'Network & devices', detail: 'Routers, links and topology', href: '/network', terms: 'router device topology links' },
@@ -389,7 +393,12 @@ export default function DashboardPage() {
         </button>
       </nav>
 
-      {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}</div>}
+      {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}<button type="button" onClick={() => void load()} disabled={loading}>Retry now</button></div>}
+      {!error && lastUpdatedAt && <p className="dashboard-freshness" aria-live="polite">Live tenant snapshot verified at {lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Values are not inferred.</p>}
+      <section className="vendor-coverage-panel" aria-labelledby="vendor-coverage-title">
+        <div className="vendor-coverage-head"><div><div className="panel-kicker">SUPPORTED ECOSYSTEM</div><h2 id="vendor-coverage-title">27 network brands connected</h2><p>Choose a vendor from Network to configure devices, controllers and gateways.</p></div><a href="/network" className="panel-badge">MANAGE VENDORS →</a></div>
+        <div className="vendor-coverage-grid">{SUPPORTED_VENDORS.map(([name, logo]) => <a className="vendor-coverage-card" href="/network" key={name} title={`Configure ${name}`}><span className="vendor-mark">{logo ? <img src={`/${logo}`} alt="" loading="lazy" /> : <span aria-hidden="true">{name.split(/[^A-Za-z0-9]+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join('')}</span>}</span><span>{name}</span><small>Configure</small></a>)}</div>
+      </section>
       <section className="noc-command-center" aria-label="NOC command center">
         <div className="noc-head">
           <div><div className="panel-kicker">NOC COMMAND CENTER</div><h2>Operational state</h2><p>Only persisted tenant state and reported telemetry are shown.</p></div>
@@ -405,47 +414,11 @@ export default function DashboardPage() {
           <a href="/network-commands"><b>{nocData?.systemHealth.commandQueue.pending ?? '—'}</b><span>Commands queued</span></a>
         </div>
         <div className="noc-grid">
-          <article className="noc-panel">
-            <div className="noc-panel-head"><div><span>DEVICE FLEET</span><h3>Reachability</h3></div><a href="/network">Open network →</a></div>
-            <div className="noc-list">
-              {(nocData?.devices ?? []).slice(0,8).map((device) => <div className="noc-row" key={device.id}><span><i className={`noc-dot ${device.status.toLowerCase()}`} /><strong>{device.name}</strong><small>{device.vendor ?? 'Unknown vendor'} · {device.ipAddress ?? 'No IP'}</small></span><b>{device.status}</b><em>{device.activeSessions} sessions</em></div>)}
-              {!nocData?.devices.length && <div className="noc-empty">{nocError ? 'Device telemetry unavailable.' : 'No persisted devices returned.'}</div>}
-            </div>
-          </article>
-          <article className="noc-panel">
-            <div className="noc-panel-head"><div><span>ACTIVE INCIDENTS</span><h3>Operator queue</h3></div><a href="/incidents">Open incidents →</a></div>
-            <div className="noc-list">
-              {(nocData?.incidents ?? []).slice(0,6).map((incident) => <a className="noc-row" href={`/incidents?q=${encodeURIComponent(incident.id)}`} key={incident.id}><span><i className={`noc-dot ${incident.severity.toLowerCase()}`} /><strong>{incident.title}</strong><small>{incident.category} · {incident.affectedDevices} devices · {incident.affectedSubscribers} subscribers</small></span><b>{incident.severity}</b></a>)}
-              {!nocData?.incidents.length && <div className="noc-empty">{nocError ? 'Incident telemetry unavailable.' : 'No active incidents.'}</div>}
-            </div>
-          </article>
+          <article className="noc-panel"><div className="noc-panel-head"><div><span>DEVICE FLEET</span><h3>Reachability</h3></div><a href="/network">Open network →</a></div><div className="noc-list">{(nocData?.devices ?? []).slice(0,8).map((device) => <div className="noc-row" key={device.id}><span><i className={`noc-dot ${device.status.toLowerCase()}`} /><strong>{device.name}</strong><small>{device.vendor ?? 'Unknown vendor'} · {device.ipAddress ?? 'No IP'}</small></span><b>{device.status}</b><em>{device.activeSessions} sessions</em></div>)}{!nocData?.devices.length && <div className="noc-empty">{nocError ? 'Device telemetry unavailable.' : 'No persisted devices returned.'}</div>}</div></article>
+          <article className="noc-panel"><div className="noc-panel-head"><div><span>ACTIVE INCIDENTS</span><h3>Operator queue</h3></div><a href="/incidents">Open incidents →</a></div><div className="noc-list">{(nocData?.incidents ?? []).slice(0,6).map((incident) => <a className="noc-row" href={`/incidents?q=${encodeURIComponent(incident.id)}`} key={incident.id}><span><i className={`noc-dot ${incident.severity.toLowerCase()}`} /><strong>{incident.title}</strong><small>{incident.category} · {incident.affectedDevices} devices · {incident.affectedSubscribers} subscribers</small></span><b>{incident.severity}</b></a>)}{!nocData?.incidents.length && <div className="noc-empty">{nocError ? 'Incident telemetry unavailable.' : 'No active incidents.'}</div>}</div></article>
         </div>
-        <div className="noc-grid">
-          <article className="noc-panel wide">
-            <div className="noc-panel-head"><div><span>SESSION CONTROL</span><h3>Current connections</h3></div><a href="/sessions">Open sessions →</a></div>
-            <div className="noc-table-wrap"><table><thead><tr><th>SUBSCRIBER</th><th>DEVICE</th><th>IP</th><th>AUTH</th><th>ACCOUNTING</th><th>STATE</th></tr></thead><tbody>
-              {(nocData?.sessions ?? []).slice(0,8).map((session) => <tr key={session.id}><td><strong>{session.subscriber}</strong><small>{session.username ?? '—'}</small></td><td>{session.device}</td><td>{session.ip ?? '—'}</td><td>{session.authenticationState}</td><td>{session.accountingState}</td><td><span className="noc-status">{session.status}</span></td></tr>)}
-              {!nocData?.sessions.length && <tr><td colSpan={6}><div className="noc-empty">{nocError ? 'Session telemetry unavailable.' : 'No active session records.'}</div></td></tr>}
-            </tbody></table></div>
-          </article>
-          <article className="noc-panel">
-            <div className="noc-panel-head"><div><span>COMMAND FABRIC</span><h3>Execution queue</h3></div><a href="/network-commands">Open commands →</a></div>
-            <div className="noc-list">
-              {(nocData?.commands ?? []).slice(0,7).map((command) => <a className="noc-row" href={`/network-commands?q=${encodeURIComponent(command.id)}`} key={command.id}><span><strong>{command.commandType}</strong><small>{command.actor} · {command.provider ?? 'provider pending'}</small></span><b>{command.status}</b></a>)}
-              {!nocData?.commands.length && <div className="noc-empty">{nocError ? 'Command telemetry unavailable.' : 'No persisted command records.'}</div>}
-            </div>
-          </article>
-        </div>
-        <div className="noc-grid">
-          <article className="noc-panel">
-            <div className="noc-panel-head"><div><span>PROVIDER HEALTH</span><h3>Failed commands · 24h</h3></div></div>
-            <div className="noc-provider-list">{(nocData?.systemHealth.providerFailures24h ?? []).map((item) => <div key={item.provider}><span>{item.provider}</span><b>{item.failures}</b></div>)}{!nocData?.systemHealth.providerFailures24h.length && <div className="noc-empty">No provider failures recorded in the last 24 hours.</div>}</div>
-          </article>
-          <article className="noc-panel">
-            <div className="noc-panel-head"><div><span>CRITICAL EVENTS</span><h3>Recent high-severity events</h3></div></div>
-            <div className="noc-list">{(nocData?.recentCriticalEvents ?? []).slice(0,6).map((event) => <div className="noc-row" key={event.id}><span><strong>{event.title}</strong><small>{event.category} · {new Date(event.occurredAt).toLocaleString()}</small></span><b>{event.severity}</b></div>)}{!nocData?.recentCriticalEvents.length && <div className="noc-empty">No critical incident records returned.</div>}</div>
-          </article>
-        </div>
+        <div className="noc-grid"><article className="noc-panel wide"><div className="noc-panel-head"><div><span>SESSION CONTROL</span><h3>Current connections</h3></div><a href="/sessions">Open sessions →</a></div><div className="noc-table-wrap"><table><thead><tr><th>SUBSCRIBER</th><th>DEVICE</th><th>IP</th><th>AUTH</th><th>ACCOUNTING</th><th>STATE</th></tr></thead><tbody>{(nocData?.sessions ?? []).slice(0,8).map((session) => <tr key={session.id}><td><strong>{session.subscriber}</strong><small>{session.username ?? '—'}</small></td><td>{session.device}</td><td>{session.ip ?? '—'}</td><td>{session.authenticationState}</td><td>{session.accountingState}</td><td><span className="noc-status">{session.status}</span></td></tr>)}{!nocData?.sessions.length && <tr><td colSpan={6}><div className="noc-empty">{nocError ? 'Session telemetry unavailable.' : 'No active session records.'}</div></td></tr>}</tbody></table></div></article><article className="noc-panel"><div className="noc-panel-head"><div><span>COMMAND FABRIC</span><h3>Execution queue</h3></div><a href="/network-commands">Open commands →</a></div><div className="noc-list">{(nocData?.commands ?? []).slice(0,7).map((command) => <a className="noc-row" href={`/network-commands?q=${encodeURIComponent(command.id)}`} key={command.id}><span><strong>{command.commandType}</strong><small>{command.actor} · {command.provider ?? 'provider pending'}</small></span><b>{command.status}</b></a>)}{!nocData?.commands.length && <div className="noc-empty">{nocError ? 'Command telemetry unavailable.' : 'No persisted command records.'}</div>}</div></article></div>
+        <div className="noc-grid"><article className="noc-panel"><div className="noc-panel-head"><div><span>PROVIDER HEALTH</span><h3>Failed commands · 24h</h3></div></div><div className="noc-provider-list">{(nocData?.systemHealth.providerFailures24h ?? []).map((item) => <div key={item.provider}><span>{item.provider}</span><b>{item.failures}</b></div>)}{!nocData?.systemHealth.providerFailures24h.length && <div className="noc-empty">No provider failures recorded in the last 24 hours.</div>}</div></article><article className="noc-panel"><div className="noc-panel-head"><div><span>CRITICAL EVENTS</span><h3>Recent high-severity events</h3></div></div><div className="noc-list">{(nocData?.recentCriticalEvents ?? []).slice(0,6).map((event) => <div className="noc-row" key={event.id}><span><strong>{event.title}</strong><small>{event.category} · {new Date(event.occurredAt).toLocaleString()}</small></span><b>{event.severity}</b></div>)}{!nocData?.recentCriticalEvents.length && <div className="noc-empty">No critical incident records returned.</div>}</div></article></div>
         <div className="noc-telemetry-note">Device CPU, memory, interfaces, bandwidth, latency, packet loss and uptime are intentionally shown only when a telemetry source persists them. The current schema does not report those values, so Jaslyn Net does not manufacture them.</div>
       </section>
 
