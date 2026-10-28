@@ -36,6 +36,10 @@ const duration = (value?: string) => {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
 
+const SUPPORTED_VENDORS = [
+  ['MikroTik', 'integrations/mikrotik.svg'], ['Ubiquiti UniFi', 'integrations/ubiquiti.svg'], ['Cambium Networks', 'integrations/cambium-networks.svg'], ['TP-Link Omada', 'integrations/tplink.svg'], ['Juniper Networks', ''], ['Fortinet', ''], ['Dell Networking', ''], ['Netgear', ''], ['Zyxel', ''], ['Palo Alto Networks', ''], ['SonicWall', ''], ['Barracuda Networks', ''], ['Huawei CloudCampus', ''], ['Extreme Networks', ''], ['Ruckus Networks', 'integrations/ruckus.svg'], ['WatchGuard', ''], ['Huawei', ''], ['Cisco', ''], ['Cisco Meraki', 'integrations/meraki.svg'], ['Aruba Networks', 'integrations/aruba.svg'], ['Grandstream', 'integrations/grandstream.svg'], ['Ruijie / Reyee', 'integrations/ruijie-reyee.svg'], ['OpenWrt', 'integrations/openwrt.svg'], ['Teltonika Networks', 'integrations/teltonika.svg'], ['Peplink / InControl', 'integrations/peplink.svg'], ['pfSense / OPNsense', 'integrations/pfsense.svg'], ['FreeRADIUS', 'integrations/freeradius.svg'],
+] as const;
+
 const OPERATOR_WORKSPACES = [
   { label: 'UpesiLipa workspace', detail: 'Sites, packages, customers, vouchers and sales', href: '/upesilipa', terms: 'upesilipa wifi hotspot packages vouchers sales reports branding' },
   { label: 'Network & devices', detail: 'Routers, links and topology', href: '/network', terms: 'router device topology links' },
@@ -381,6 +385,11 @@ export default function DashboardPage() {
 
       {error && <div className="error-banner" role="alert"><strong>Dashboard telemetry unavailable.</strong> {error}<button type="button" onClick={() => void load()} disabled={loading}>Retry now</button></div>}
       {!error && lastUpdatedAt && <p className="dashboard-freshness" aria-live="polite">Live tenant snapshot verified at {lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Values are not inferred.</p>}
+
+      <section className="vendor-coverage-panel" aria-labelledby="vendor-coverage-title">
+        <div className="vendor-coverage-head"><div><div className="panel-kicker">SUPPORTED ECOSYSTEM</div><h2 id="vendor-coverage-title">27 network brands connected</h2><p>Choose a vendor from Network to configure devices, controllers and gateways.</p></div><a href="/network" className="panel-badge">MANAGE VENDORS →</a></div>
+        <div className="vendor-coverage-grid">{SUPPORTED_VENDORS.map(([name, logo]) => <a className="vendor-coverage-card" href="/network" key={name} title={`Configure ${name}`}><span className="vendor-mark">{logo ? <img src={`/${logo}`} alt="" loading="lazy" /> : <span aria-hidden="true">{name.split(/[^A-Za-z0-9]+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join('')}</span>}</span><span>{name}</span><small>Configure</small></a>)}</div>
+      </section>
 
       <section className="overview-kpis" aria-label="Network and business KPIs">
         <article className="overview-kpi">
