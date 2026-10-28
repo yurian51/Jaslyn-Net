@@ -532,8 +532,8 @@ export default function NetworkPage() {
             </thead>
             <tbody>
               {filteredRouters.map((router) => (
-                <tr key={router.id}>
-                  <td><strong>{router.name}</strong><small>{router.id}</small></td>
+                <tr key={router.id} onDoubleClick={() => setExpanded(expanded === router.id ? null : router.id)}>
+                  <td><button className="network-device-trigger" onClick={() => setExpanded(expanded === router.id ? null : router.id)} aria-expanded={expanded === router.id}><strong>{router.name}</strong><small>{router.id}</small></button></td>
                   <td>{router.vendor ?? 'Unknown'}{router.model ? ` · ${router.model}` : ''}</td>
                   <td>{router.ipAddress ?? '—'}</td>
                   <td>{Number(router.activeUsers ?? 0)}</td>
@@ -548,6 +548,19 @@ export default function NetworkPage() {
                     : <span className="network-firmware-unavailable">Not enabled</span>}</td>
                   <td><button type="button" className="network-button secondary network-qr-button" onClick={() => setQrRouter(router)}>QR / Print</button></td>
                 </tr>
+                {expanded === router.id && <tr className="network-expanded-row"><td colSpan={7}><div className="network-device-detail">
+                  <div><span>REACHABILITY</span><b>{router.status === 'OFFLINE' ? 'UNREACHABLE' : router.status}</b></div>
+                  <div><span>ACTIVE SESSIONS</span><b>{operational[router.id]?.activeSessions ?? '—'}</b></div>
+                  <div><span>UPTIME</span><b>{operational[router.id]?.telemetry.uptime ?? 'Not reported'}</b></div>
+                  <div><span>CPU</span><b>{operational[router.id]?.telemetry.cpu == null ? 'Not reported' : operational[router.id]?.telemetry.cpu + '%'}</b></div>
+                  <div><span>MEMORY</span><b>{operational[router.id]?.telemetry.memory == null ? 'Not reported' : operational[router.id]?.telemetry.memory + '%'}</b></div>
+                  <div><span>LATENCY / LOSS</span><b>{operational[router.id]?.telemetry.latency == null ? 'Not reported' : operational[router.id]?.telemetry.latency + ' ms'} / {operational[router.id]?.telemetry.packetLoss == null ? 'Not reported' : operational[router.id]?.telemetry.packetLoss + '%'}</b></div>
+                  <div><span>BANDWIDTH</span><b>{operational[router.id]?.telemetry.bandwidth == null ? 'Not reported' : String(operational[router.id]?.telemetry.bandwidth)}</b></div>
+                  <div><span>INTERFACES</span><b>{operational[router.id]?.telemetry.interfaces == null ? 'Not reported' : String(operational[router.id]?.telemetry.interfaces.length)}</b></div>
+                  <div className="network-device-history"><span>RECENT COMMANDS</span>{(operational[router.id]?.recentCommands ?? []).slice(0,5).map((command) => <small key={command.id}>{command.commandType} · {command.status}{command.error ? ' · ' + command.error : ''}</small>)}{!operational[router.id]?.recentCommands?.length && <small>No command records.</small>}</div>
+                  <div className="network-device-history"><span>RECENT INCIDENTS</span>{(operational[router.id]?.recentIncidents ?? []).slice(0,5).map((incident) => <small key={incident.id}>{incident.severity} · {incident.title}</small>)}{!operational[router.id]?.recentIncidents?.length && <small>No linked incident records.</small>}</div>
+                  <div className="network-telemetry-note">{operational[router.id]?.telemetry.source === 'NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL' ? 'CPU, memory, interfaces, bandwidth, latency, packet loss and uptime are not persisted by the current telemetry model. Jaslyn Net does not invent them.' : 'Telemetry reported by the configured source.'}</div>
+                </div></td></tr>
               ))}
             </tbody>
           </table>

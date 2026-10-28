@@ -134,6 +134,50 @@ function OperationsChrome({ children }: { children: ReactNode }) {
   }, [commandQuery]);
 
   useEffect(() => {
+    let cancelled = false;
+    const checkHealth = async () => {
+      try {
+        await apiFetch<{ status: string }>('/health/ready');
+        if (!cancelled) setHealth('ready');
+      } catch {
+        if (!cancelled) setHealth('unavailable');
+      }
+    };
+    void checkHealth();
+    const timer = window.setInterval(checkHealth, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    const update = () => setOperatorOnline(navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = getAccessToken();
+    if (!token) return;
+    apiFetch<{ tenant?: { name?: string } }>('/account', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((result) => {
+      if (!cancelled && result.tenant?.name) setWorkspaceName(result.tenant.name);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const commandResults = useMemo(() => {
+    const query = commandQuery.trim().toLowerCase();
+    if (!query) return nav.slice(0, 10);
+    return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
+  }, [commandQuery]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -246,10 +290,29 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="console-chrome-footer">
-          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Workspace session</b><small>Authenticated operator access</small></span></div><Link className="console-chrome-legal" href="/legal/privacy">Privacy & legal</Link>
+          <div className="console-operator-strip" aria-label="Operator session status">
+            <span className={operatorOnline ? 'operator-presence online' : 'operator-presence offline'} aria-hidden="true" />
+            <span><b>Operator session</b><small>{operatorOnline ? 'Online on this device' : 'Offline on this device'}</small></span>
+          </div>
+          <Link className="console-system-health" href="/network" aria-label={health === 'ready' ? 'System health ready' : health === 'checking' ? 'Checking system health' : 'System health unavailable'}>
+            <i className={`health-dot ${health}`} aria-hidden="true" />
+            <span><b>Control plane</b><small>{health === 'ready' ? 'Ready' : health === 'checking' ? 'Checking…' : 'Unavailable'}</small></span>
+          </Link>
+          <Link className="console-chrome-legal" href="/legal/privacy">Privacy & legal</Link>
           <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong><BrandLogo alt="" /></strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
+      <div className="console-context-bar" aria-label="Current workspace context">
+        <nav className="console-breadcrumbs" aria-label="Breadcrumb">
+          <Link href="/dashboard">Operations</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{nav.find(([, , href]) => isRouteActive(pathname, href))?.[0] ?? 'Workspace'}</span>
+        </nav>
+        <div className="console-context-actions">
+          <Link href="/notifications" className="console-notification-link" aria-label="Open notification center"><NavIcon name="notifications" /><span>Notifications</span></Link>
+          <span className={health === 'ready' ? 'context-health ready' : 'context-health'}><i aria-hidden="true" />{health === 'ready' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Unavailable'}</span>
+        </div>
+      </div>
       <header className="console-mobile-header">
         <Link href="/dashboard" className="console-mobile-brand" aria-label="JASLYN NET overview">
           <span><BrandLogo alt="" /></span>

@@ -15,6 +15,12 @@ class ResolveIncidentDto {
   resolution!: string;
 }
 
+class AssignIncidentDto {
+  @IsOptional()
+  @IsUUID()
+  assigneeUserId?: string | null;
+}
+
 class IncidentListQuery {
   @IsOptional()
   @IsIn(['OPEN', 'ACKNOWLEDGED', 'RESOLVED'])
@@ -142,5 +148,17 @@ export class IncidentsController {
   @Permissions('incident.manage')
   resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: ResolveIncidentDto) {
     return this.incidents.resolve(req.user!.tenantId, id, dto.resolution, { userId: req.user!.id, requestId: req.requestId });
+  }
+
+  @Post(':id/assign')
+  @Roles('OWNER', 'ADMIN', 'AGENT')
+  assign(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: AssignIncidentDto) {
+    return this.incidents.assign(req.user!.tenantId, id, dto.assigneeUserId ?? null, { userId: req.user!.id, requestId: req.requestId });
+  }
+
+  @Get(':id/audit-trail')
+  @Roles('OWNER', 'ADMIN', 'AGENT', 'READ_ONLY')
+  auditTrail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.incidents.auditTrail(req.user!.tenantId, id);
   }
 }

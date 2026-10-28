@@ -104,6 +104,8 @@ jobs:
           grep -q "correlation_id TYPE text" apps/api/migrations/044a_radius_correlation_convergence.sql
           grep -Fq 'DO $$' apps/api/migrations/075_event_driven_automation.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
+          grep -q "assignee_user_id" apps/api/migrations/062_incident_assignment.sql
+          grep -q "incidents_assignee_fk" apps/api/migrations/062_incident_assignment.sql
           grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_events" apps/api/migrations/029_wan_load_balancing.sql
