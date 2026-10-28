@@ -93,3 +93,17 @@
 .auth-brand-logo{
   border:0!important;border-radius:0!important;background:transparent!important;padding:0!important;box-shadow:none!important;
 }
+
+
+/* Modern login form controls */
+.auth-login-options{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
+.auth-card .auth-remember{display:flex;align-items:center;gap:8px;margin:0;color:#5c6a7e;font-size:10px;font-weight:600;cursor:pointer}
+.auth-card .auth-remember input{appearance:auto;display:block;width:15px;height:15px;min-width:15px;margin:0;accent-color:#2458c5;box-shadow:none}
+.auth-text-button{padding:4px 0;color:#285cb8;background:transparent;font-size:9px;font-weight:750}
+.auth-text-button:hover{text-decoration:underline}
+.auth-recovery-help{margin:0 0 12px;padding:11px 12px;color:#4c6078;background:#f1f6ff;border:1px solid #d7e4fb;border-radius:7px;font-size:9px;line-height:1.55}
+.auth-signup{margin-top:17px;padding-top:16px;border-top:1px solid #e7ebf1;text-align:center;color:#7b899b;font-size:10px}
+.auth-signup a{color:#285cb8;font-weight:750;text-decoration:none}
+.auth-signup a:hover{text-decoration:underline}
+.auth-card input[aria-invalid="true"]{border-color:#d6626d;box-shadow:0 0 0 3px rgba(211,63,79,.08)}
+@media(max-width:420px){.auth-login-options{align-items:flex-start}.auth-card .auth-remember{font-size:9px}.auth-text-button{font-size:9px}}

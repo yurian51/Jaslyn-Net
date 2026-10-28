@@ -1,23 +1,16 @@
+-- Corrective: the early-return guards in jaslyn_enforce_tenant_quota() combined a TG_TABLE_NAME test with a
+-- table-specific column (e.g. NEW.revoked_at) in ONE expression. PL/pgSQL plans the whole expression, so any INSERT
+-- into a table without that column (routers, customers, ...) failed with: record "new" has no field "revoked_at".
+-- The guards are now nested so a column is only referenced for the table that owns it. Behaviour is otherwise unchanged.
 BEGIN;
-
-CREATE TABLE IF NOT EXISTS tenant_usage_limits (
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-  metric_key text NOT NULL CHECK (metric_key IN ('inventory_items','suppliers','api_keys','webhook_endpoints')),
-  limit_count bigint NOT NULL CHECK (limit_count>=0),
-  updated_by uuid,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY(tenant_id,metric_key),
-  FOREIGN KEY(tenant_id,updated_by) REFERENCES users(tenant_id,id) ON DELETE RESTRICT
-);
-
 CREATE OR REPLACE FUNCTION jaslyn_enforce_tenant_quota() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   v_metric text; v_cap bigint; v_used bigint; v_sql text;
 BEGIN
-  IF TG_TABLE_NAME='platform_api_keys' AND (NEW.revoked_at IS NOT NULL OR (NEW.expires_at IS NOT NULL AND NEW.expires_at<=now())) THEN RETURN NEW; END IF;
-  IF TG_TABLE_NAME='tenant_webhook_endpoints' AND NEW.enabled=false THEN RETURN NEW; END IF;
-  IF TG_TABLE_NAME='inventory_items' AND NEW.active=false THEN RETURN NEW; END IF;
-  IF TG_TABLE_NAME='suppliers' AND NEW.status<>'ACTIVE' THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='platform_api_keys' THEN IF NEW.revoked_at IS NOT NULL OR (NEW.expires_at IS NOT NULL AND NEW.expires_at<=now()) THEN RETURN NEW; END IF; END IF;
+  IF TG_TABLE_NAME='tenant_webhook_endpoints' THEN IF NEW.enabled=false THEN RETURN NEW; END IF; END IF;
+  IF TG_TABLE_NAME='inventory_items' THEN IF NEW.active=false THEN RETURN NEW; END IF; END IF;
+  IF TG_TABLE_NAME='suppliers' THEN IF NEW.status<>'ACTIVE' THEN RETURN NEW; END IF; END IF;
   IF TG_TABLE_NAME='purchase_orders' THEN RETURN NEW; END IF;
   IF TG_TABLE_NAME='routers' THEN v_metric:='routers';
   ELSIF TG_TABLE_NAME='network_sites' THEN v_metric:='sites';
@@ -70,42 +63,5 @@ BEGIN
   END IF;
   RETURN NEW;
 END; $$;
-
-CREATE OR REPLACE FUNCTION jaslyn_record_tenant_usage() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE v_metric text;
-BEGIN
-  v_metric:=CASE TG_TABLE_NAME
-    WHEN 'routers' THEN 'routers_created'
-    WHEN 'network_sites' THEN 'sites_created'
-    WHEN 'customers' THEN 'customers_created'
-    WHEN 'inventory_items' THEN 'inventory_items_created'
-    WHEN 'suppliers' THEN 'suppliers_created'
-    WHEN 'purchase_orders' THEN 'purchase_orders_created'
-    WHEN 'platform_api_keys' THEN 'api_keys_created'
-    WHEN 'tenant_webhook_endpoints' THEN 'webhook_endpoints_created'
-    ELSE TG_TABLE_NAME||'_created' END;
-  INSERT INTO tenant_usage_counters(tenant_id,metric_key,period_start,usage_count)
-    VALUES(NEW.tenant_id,v_metric,CURRENT_DATE,1)
-    ON CONFLICT(tenant_id,metric_key,period_start) DO UPDATE SET usage_count=tenant_usage_counters.usage_count+1,updated_at=now();
-  RETURN NEW;
-END; $$;
-
-DO $$
-DECLARE t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['routers','network_sites','customers','inventory_items','suppliers','purchase_orders','platform_api_keys','tenant_webhook_endpoints'] LOOP
-    EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_tenant_quota ON %I',t);
-    EXECUTE format('CREATE TRIGGER jaslyn_tenant_quota BEFORE INSERT OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION jaslyn_enforce_tenant_quota()',t);
-    EXECUTE format('DROP TRIGGER IF EXISTS jaslyn_tenant_usage_counter ON %I',t);
-    EXECUTE format('CREATE TRIGGER jaslyn_tenant_usage_counter AFTER INSERT ON %I FOR EACH ROW EXECUTE FUNCTION jaslyn_record_tenant_usage()',t);
-  END LOOP;
-  EXECUTE 'DROP TRIGGER IF EXISTS jaslyn_financial_audit ON tenant_usage_limits';
-  EXECUTE 'CREATE TRIGGER jaslyn_financial_audit AFTER INSERT OR UPDATE OR DELETE ON tenant_usage_limits FOR EACH ROW EXECUTE FUNCTION jaslyn_financial_audit_trigger()';
-END $$;
-
-INSERT INTO permission_catalog(permission_key,description) VALUES
- ('msp.usage.read','Read tenant resource usage, plan caps and historical counters'),
- ('msp.usage.manage','Set tenant-specific resource limits')
-ON CONFLICT(permission_key) DO UPDATE SET description=EXCLUDED.description;
 
 COMMIT;

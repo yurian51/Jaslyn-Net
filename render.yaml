@@ -13,6 +13,10 @@ services:
         value: "24.21.0"
       - key: NODE_ENV
         value: "production"
+      # Render terminates TLS at one proxy hop; without this request.ip is the proxy for every client,
+      # which breaks per-client rate limits (sign-in throttle, portal voucher limiter) and session IP audit.
+      - key: TRUST_PROXY_HOPS
+        value: "1"
       - key: CORS_ORIGIN
         fromService:
           name: jaslyn-net-production

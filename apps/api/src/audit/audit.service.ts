@@ -11,7 +11,7 @@ export type AuditContext = {
   userAgent?: string;
 };
 
-const SENSITIVE_KEY = /(?:password|passwd|passcode|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|credential|authorization|cookie|session[-_]?token|private[-_]?key|encrypted)/i;
+const SENSITIVE_KEY = /(?:password|passwd|passcode|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|credential|user[-_]?name|authorization|cookie|session[-_]?token|private[-_]?key|encrypted)/i;
 const REDACTED = '[REDACTED]';
 const MAX_METADATA_DEPTH = 8;
 const MAX_METADATA_KEYS = 200;
@@ -20,14 +20,23 @@ const MAX_METADATA_STRING_LENGTH = 2000;
 
 function sanitizeMetadata(value: unknown, depth = 0): unknown {
   if (depth > MAX_METADATA_DEPTH) return '[TRUNCATED]';
-  if (typeof value === 'string') return value.length > MAX_METADATA_STRING_LENGTH ? `${value.slice(0, MAX_METADATA_STRING_LENGTH)}…` : value;
+  if (typeof value === 'string') {
+    const redacted = value
+      .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [REDACTED]')
+      .replace(/([?&](?:token|access_token|refresh_token|api_key|password|secret)=)[^&\s]*/gi, '$1[REDACTED]');
+    return redacted.length > MAX_METADATA_STRING_LENGTH ? `${redacted.slice(0, MAX_METADATA_STRING_LENGTH)}…` : redacted;
+  }
   if (value === null || typeof value === 'number' || typeof value === 'boolean') return value;
   if (Array.isArray(value)) return value.slice(0, MAX_METADATA_ARRAY_ITEMS).map((item) => sanitizeMetadata(item, depth + 1));
   if (typeof value !== 'object') return String(value);
 
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>).slice(0, MAX_METADATA_KEYS)) {
-    output[key] = SENSITIVE_KEY.test(key) ? REDACTED : sanitizeMetadata(child, depth + 1);
+    if (SENSITIVE_KEY.test(key) && (child === null || typeof child !== 'object')) {
+      output[key] = REDACTED;
+    } else {
+      output[key] = sanitizeMetadata(child, depth + 1);
+    }
   }
   return output;
 }

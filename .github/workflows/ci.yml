@@ -40,15 +40,17 @@ jobs:
           test "${#migrations[@]}" -gt 0
           for file in "${migrations[@]}"; do test -f "$file"; done
 
-          # Numeric migration prefixes must be unique. This prevents feature branches
-          # from colliding with already-landed migrations.
+          # Numeric migration prefixes (including ordered letter suffixes) must be unique.
+          # Letter suffixes resolve historical collisions while preserving execution order.
           awk -F/ '
             {
               name=$NF
-              if (name ~ /^[0-9]+_/) {
+              if (name ~ /^[0-9]+[a-z]?_/) {
                 split(name, parts, "_")
                 prefix=parts[1]
-                if (seen[prefix]++) {
+                # Prefixes <= 077 contain historical duplicates that are already applied (the migration
+                # version is the full filename, so they are harmless). Enforce uniqueness for all new ones.
+                if (prefix + 0 > 77 && seen[prefix]++) {
                   printf "Duplicate migration prefix %s: %s\n", prefix, name > "/dev/stderr"
                   failed=1
                 }
@@ -62,6 +64,21 @@ jobs:
           test -f apps/api/migrations/075_event_driven_automation.sql
           test -f apps/api/migrations/076_tenant_usage_quotas.sql
           test -f apps/api/migrations/077_financial_audit_head_guard.sql
+          test -f apps/api/migrations/078_fiber_topology_inventory.sql
+          test -f apps/api/migrations/079_network_auto_healing.sql
+          test -f apps/api/migrations/080_customer_self_service_portal.sql
+          test -f apps/api/migrations/081_customer_portal_purchase_idempotency.sql
+          grep -Fq 'FOREIGN KEY (tenant_id, router_id)' apps/api/migrations/078_fiber_topology_inventory.sql
+          grep -Fq 'FOREIGN KEY (tenant_id, created_by)' apps/api/migrations/078_fiber_topology_inventory.sql
+          grep -Fq 'FOREIGN KEY (tenant_id, updated_by)' apps/api/migrations/078_fiber_topology_inventory.sql
+          grep -Fq 'FOREIGN KEY (tenant_id, updated_by)' apps/api/migrations/079_network_auto_healing.sql
+          grep -Fq 'FOREIGN KEY (tenant_id, created_by)' apps/api/migrations/080_customer_self_service_portal.sql
+          grep -Fq 'network_auto_heal_runs' apps/api/migrations/079_network_auto_healing.sql
+          grep -Fq 'customer_portal_sessions' apps/api/migrations/080_customer_self_service_portal.sql
+          grep -Fq 'wifi_plan_purchases_customer_portal_idempotency_idx' apps/api/migrations/081_customer_portal_purchase_idempotency.sql
+          grep -Fq "c.command_type = 'BANDWIDTH_ENFORCEMENT'" apps/api/src/network-auto-healing/network-auto-healing.service.ts
+          grep -Fq 'customerPortal:CustomerPortalRequest' apps/api/src/customer-portal/customer-portal.guard.ts
+          grep -Fq '/^\d+[a-z]?_.+\.sql$/' apps/api/src/database/migrate.ts
           test -f apps/api/migrations/062_session_audit_security_integrity.sql
           test -f apps/api/migrations/063_field_operations_offline_sync.sql
           test -f apps/api/migrations/064_incident_timeline_maintenance_status.sql
@@ -81,10 +98,11 @@ jobs:
           test -f apps/api/migrations/036_ipam.sql
           test -f apps/api/migrations/037_radius_aaa.sql
           test -f apps/api/migrations/043_connectivity_correlation.sql
-          test -f apps/api/migrations/044_radius_correlation_convergence.sql
+          test -f apps/api/migrations/044a_radius_correlation_convergence.sql
           grep -q "correlation_id" apps/api/migrations/043_connectivity_correlation.sql
-          grep -q "ALTER TABLE radius_events" apps/api/migrations/044_radius_correlation_convergence.sql
-          grep -q "correlation_id TYPE text" apps/api/migrations/044_radius_correlation_convergence.sql
+          grep -q "ALTER TABLE radius_events" apps/api/migrations/044a_radius_correlation_convergence.sql
+          grep -q "correlation_id TYPE text" apps/api/migrations/044a_radius_correlation_convergence.sql
+          grep -Fq 'DO $$' apps/api/migrations/075_event_driven_automation.sql
           grep -q "incident_impacts" apps/api/migrations/028_connectivity_incidents.sql
           grep -q "wan_connections" apps/api/migrations/029_wan_load_balancing.sql
           grep -q "load_balance_policies" apps/api/migrations/029_wan_load_balancing.sql
@@ -107,6 +125,10 @@ jobs:
         run: pnpm --filter @jaslyn-net/api test
       - name: Typecheck Web
         run: pnpm --filter @jaslyn-net/web typecheck
+      - name: Verify brand assets
+        run: pnpm --filter @jaslyn-net/web verify:assets
+      - name: Verify UI surface
+        run: pnpm --filter @jaslyn-net/web verify:ui
       - name: Build API
         run: pnpm --filter @jaslyn-net/api build
       - name: Build Web
@@ -123,7 +145,7 @@ jobs:
         image: postgres:18
         env:
           POSTGRES_USER: jaslyn
-          POSTGRES_PASSWORD: jaslyn_test_password
+          POSTGRES_PASSWORD: ${{ github.run_id }}
           POSTGRES_DB: jaslyn_test
         ports:
           - 5432:5432
@@ -141,7 +163,7 @@ jobs:
           sudo apt-get install -y postgresql-client
       - name: Fresh install all migrations
         env:
-          PGPASSWORD: jaslyn_test_password
+          PGPASSWORD: ${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -156,7 +178,7 @@ jobs:
           psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_test --set=ON_ERROR_STOP=1 --command="SELECT count(*) > 0 AS fresh_install_has_tables FROM information_schema.tables WHERE table_schema='public';" | grep -q t
       - name: Upgrade baseline and test restore-based rollback
         env:
-          PGPASSWORD: jaslyn_test_password
+          PGPASSWORD: ${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -167,7 +189,8 @@ jobs:
           for file in "${files[@]}"; do
             name="${file##*/}"
             prefix="${name%%_*}"
-            if [[ "$prefix" =~ ^[0-9]+$ ]] && (( 10#$prefix <= 72 )); then
+            numeric_prefix="${prefix%%[!0-9]*}"
+            if [[ "$numeric_prefix" =~ ^[0-9]+$ ]] && (( 10#$numeric_prefix <= 72 )); then
               echo "::group::Upgrade baseline: $file"
               psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_upgrade --set=ON_ERROR_STOP=1 --file="$file"
               echo "::endgroup::"
@@ -177,7 +200,8 @@ jobs:
           for file in "${files[@]}"; do
             name="${file##*/}"
             prefix="${name%%_*}"
-            if [[ "$prefix" =~ ^[0-9]+$ ]] && (( 10#$prefix > 72 )); then
+            numeric_prefix="${prefix%%[!0-9]*}"
+            if [[ "$numeric_prefix" =~ ^[0-9]+$ ]] && (( 10#$numeric_prefix > 72 )); then
               echo "::group::Apply upgrade: $file"
               psql --host=127.0.0.1 --port=5432 --username=jaslyn --dbname=jaslyn_upgrade --set=ON_ERROR_STOP=1 --file="$file"
               echo "::endgroup::"
