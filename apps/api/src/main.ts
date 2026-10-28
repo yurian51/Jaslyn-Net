@@ -33,9 +33,9 @@ export async function createApp() {
   }
 
   // Fail fast: validate secrets BEFORE the server starts accepting traffic.
-  const jwtSecret = config.get<string>('JWT_SECRET', '').trim();
+  const jwtSecret = config.get<string>('JWT_SECRET', config.get<string>('SUPABASE_JWT_SECRET', '')).trim();
   if (!jwtSecret) {
-    if (isProduction) throw new Error('JWT_SECRET must be configured in production');
+    if (isProduction) throw new Error('JWT_SECRET or SUPABASE_JWT_SECRET must be configured in production');
     console.warn('JWT_SECRET is empty; WebSocket auth is not safe outside local development');
   } else if (jwtSecret.length < 32) {
     console.warn('JWT_SECRET is shorter than 32 characters; use a long random value');
@@ -73,6 +73,7 @@ export async function createApp() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new RequestObservabilityInterceptor());
   app.get(CommunicationWebSocket).attach(app.getHttpServer(), jwtSecret);
+  await app.init();
   return { app, port };
 }
 

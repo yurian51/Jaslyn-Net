@@ -311,7 +311,7 @@ export class NetworkCapabilityRegistry {
 
   async execute<C extends NetworkCapability, T = unknown>(provider: NetworkProvider, capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     const schema = this.schema(provider, capability, command);
-    if (!schema) return new StaticUnsupportedAdapter(provider).execute<T>(capability, command, input, context);
+    if (!schema) return new StaticUnsupportedAdapter(provider).execute<C, T>(capability, command, input, context);
     if (!context.tenantId.trim()) {
       const error = new TypedProviderError('UNAUTHORIZED', 'Tenant scope is required for provider execution', false, provider, command);
       return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
@@ -320,6 +320,6 @@ export class NetworkCapabilityRegistry {
       const error = new TypedProviderError('UNAUTHORIZED', `Permission ${schema.permission} is required for ${command}`, false, provider, command);
       return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
     }
-    return this.adapters.get(provider)!.execute<T>(capability, command, input, context);
+    return this.adapters.get(provider)!.execute<C, T>(capability, command, input, context);
   }
 }
