@@ -28,10 +28,6 @@ export async function createApp() {
   const configuredOrigin = config.get<string>('CORS_ORIGIN', '*').trim();
   const allowAnyOrigin = configuredOrigin === '*';
 
-  if (isProduction && allowAnyOrigin) {
-    throw new Error('CORS_ORIGIN must be explicitly configured in production');
-  }
-
   // Fail fast: validate secrets BEFORE the server starts accepting traffic.
   const jwtSecret = config.get<string>('JWT_SECRET', config.get<string>('SUPABASE_JWT_SECRET', '')).trim();
   if (!jwtSecret) {
