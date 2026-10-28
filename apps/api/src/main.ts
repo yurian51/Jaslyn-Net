@@ -17,7 +17,7 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-async function bootstrap() {
+export async function createApp() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     logger: new StructuredLogger(),
@@ -33,9 +33,9 @@ async function bootstrap() {
   }
 
   // Fail fast: validate secrets BEFORE the server starts accepting traffic.
-  const jwtSecret = config.get<string>('JWT_SECRET', '').trim();
+  const jwtSecret = config.get<string>('JWT_SECRET', config.get<string>('SUPABASE_JWT_SECRET', '')).trim();
   if (!jwtSecret) {
-    if (isProduction) throw new Error('JWT_SECRET must be configured in production');
+    if (isProduction) throw new Error('JWT_SECRET or SUPABASE_JWT_SECRET must be configured in production');
     console.warn('JWT_SECRET is empty; WebSocket auth is not safe outside local development');
   } else if (jwtSecret.length < 32) {
     console.warn('JWT_SECRET is shorter than 32 characters; use a long random value');
@@ -72,11 +72,16 @@ async function bootstrap() {
   }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new RequestObservabilityInterceptor());
-  await app.listen(port, '0.0.0.0');
   app.get(CommunicationWebSocket).attach(app.getHttpServer(), jwtSecret);
+  await app.init();
+  return { app, port };
 }
 
-bootstrap().catch((error: unknown) => {
-  console.error('Fatal error during API bootstrap', error);
-  process.exit(1);
-});
+if (!process.env.VERCEL) {
+  createApp()
+    .then(({ app, port }) => app.listen(port, '0.0.0.0'))
+    .catch((error: unknown) => {
+      console.error('Fatal error during API bootstrap', error);
+      process.exit(1);
+    });
+}
