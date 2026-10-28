@@ -9,7 +9,7 @@ function withApiPrefix(url: string) {
 
 const defaultApiUrl = process.env.NODE_ENV === 'development'
   ? 'http://localhost:4000/api/v1'
-  : 'https://jaslyn-net-api-18o7.onrender.com/api/v1';
+  : '/api/v1';
 
 export const API_URL = withApiPrefix(configuredApiUrl || defaultApiUrl);
 
