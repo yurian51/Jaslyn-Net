@@ -221,7 +221,7 @@ export class MikroTikCapabilityAdapter implements NetworkCapabilityAdapter {
         return { provider: this.provider, capability, command, status: verified ? 'VERIFIED' : 'FAILED', confirmed: verified, data: verification as T,
           ...(verified ? {} : { error: { code: 'PROVIDER_EXECUTION_UNCONFIRMED' as const, message: 'MikroTik provider did not confirm the requested bandwidth state', retryable: false, provider: this.provider, operation: command } }) };
       }
-      return new StaticUnsupportedAdapter(this.provider).execute<C, T>(capability, command, input, context);
+      return (await new StaticUnsupportedAdapter(this.provider).execute(capability, command, input, context)) as ProviderExecutionResult<T>;
     } catch (error) {
       const normalized = normalizeProviderError(error, this.provider, command);
       return { provider: this.provider, capability, command, status: 'FAILED', confirmed: false,
@@ -311,7 +311,7 @@ export class NetworkCapabilityRegistry {
 
   async execute<C extends NetworkCapability, T = unknown>(provider: NetworkProvider, capability: C, command: string, input: CapabilityInput<C>, context: CapabilityContext): Promise<ProviderExecutionResult<T>> {
     const schema = this.schema(provider, capability, command);
-    if (!schema) return new StaticUnsupportedAdapter(provider).execute<C, T>(capability, command, input, context);
+    if (!schema) return (await new StaticUnsupportedAdapter(provider).execute(capability, command, input, context)) as ProviderExecutionResult<T>;
     if (!context.tenantId.trim()) {
       const error = new TypedProviderError('UNAUTHORIZED', 'Tenant scope is required for provider execution', false, provider, command);
       return { provider, capability, command, status: 'FAILED', confirmed: false, error: { code: error.code, message: error.message, retryable: false, provider, operation: command } };
