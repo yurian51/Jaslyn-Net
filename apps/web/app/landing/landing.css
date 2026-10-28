@@ -229,3 +229,24 @@
 @media (prefers-reduced-motion: reduce) {
   .jl *, .jl *::before, .jl *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
+
+/* 2026 landing refresh: editorial fintech feel with clearer conversion paths. */
+.jl { --ink: #10243f; --ink-2: #29415d; --paper: #f7fafc; --white: #fff; --lagoon: #1769e0; --lagoon-d: #0c4fb8; --gold: #f4b740; --line: #dce6f0; --muted: #667891; }
+.jl-header { background: rgba(247,250,252,.88); border-bottom-color: rgba(220,230,240,.8); }
+.jl-header-in { min-height: 76px; }
+.jl-wordmark { letter-spacing: -.04em; }
+.jl-hero { padding-top: clamp(4rem, 9vw, 7.5rem); background: radial-gradient(circle at 82% 20%, rgba(23,105,224,.12), transparent 30%), linear-gradient(180deg, #f7fafc 0%, #edf5ff 100%); }
+.jl-hero h1 { max-width: 10ch; font-size: clamp(3.4rem, 7vw, 6.4rem); letter-spacing: -.075em; }
+.jl-lead { font-size: clamp(1.15rem, 2vw, 1.4rem); color: var(--ink-2); }
+.jl-btn { border-radius: 10px; box-shadow: 0 12px 24px -16px rgba(23,105,224,.8); }
+.jl-btn-ghost { border-color: #a8bad0; color: var(--ink) !important; box-shadow: none; }
+.jl-section { padding-block: clamp(4.5rem, 9vw, 8rem); }
+.jl-section:nth-of-type(even) { background: #fff; }
+.jl-h2 { font-size: clamp(2.2rem, 4vw, 3.5rem); letter-spacing: -.06em; }
+.jl-compare, .jl-deflist, .jl-plans { margin-top: 3rem; }
+.jl-deflist > div, .jl-plan { padding: 1.5rem 0 1.75rem; }
+.jl-steps li { padding-block: 1.6rem; }
+.jl-steps li::before, .jl-flow li::before { color: var(--lagoon); }
+.jl-hardware, .jl-pricing { background: #fff; }
+.jl-cta { background: linear-gradient(125deg, #10243f, #174d8d); }
+@media (max-width: 760px) { .jl-hero { padding-top: 3.5rem; } .jl-hero h1 { font-size: clamp(3rem, 14vw, 4.4rem); } .jl-section { padding-block: 3.75rem; } }

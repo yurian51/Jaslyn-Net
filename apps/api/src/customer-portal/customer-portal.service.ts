@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { createHash, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { SignJWT } from 'jose';
+import { signAudienceToken } from '../auth/jwt';
 import { PG_POOL } from '../database/database.module';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { CustomerCommerceService } from '../customer-commerce/customer-commerce.service';
@@ -127,9 +127,7 @@ export class CustomerPortalService {
       VALUES($1,$2,$3,now()+($4*interval '1 hour')) RETURNING expires_at AS "expiresAt"`,[sessionId,row.tenantId,row.customerId,SESSION_HOURS]);
     await this.db.query(`UPDATE customer_portal_credentials SET failed_login_attempts=0,locked_until=NULL,last_login_at=now()
       WHERE tenant_id=$1 AND customer_id=$2`,[row.tenantId,row.customerId]);
-    const token=await new SignJWT({tenantId:row.tenantId,role:'CUSTOMER',sid:sessionId,username:row.username})
-      .setProtectedHeader({alg:'HS256'}).setIssuer('jaslyn-net').setAudience('jaslyn-customer-portal')
-      .setSubject(row.customerId).setIssuedAt().setExpirationTime('12h').sign(new TextEncoder().encode(secret));
+    const token=signAudienceToken({sub:row.customerId,tenantId:row.tenantId,role:'CUSTOMER',sid:sessionId,username:row.username},secret,'jaslyn-customer-portal',SESSION_HOURS*60*60);
     await this.audit.record(row.tenantId,'CUSTOMER_PORTAL_LOGIN_SUCCEEDED','customer',row.customerId,{sessionId,ip:context.ip??null},{ipAddress:context.ip,userAgent:context.userAgent});
     return {accessToken:token,tokenType:'Bearer',expiresAt:session.rows[0].expiresAt,customer:{id:row.customerId,fullName:row.fullName,username:row.username,tenantSlug:row.tenantSlug,email:row.email??null}};
   }

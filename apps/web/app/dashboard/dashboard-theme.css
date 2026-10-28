@@ -1,0 +1,150 @@
+/*
+ * Dashboard theme: brings the overview in line with the public site (Bricolage Grotesque / Instrument Sans,
+ * lagoon accent, ink and paper). Colour comes from the --ov-* tokens that dashboard.css already uses, so this file
+ * is a thin layer. Delete the import in page.tsx to go back to the previous look.
+ */
+.overview-page {
+  --ov-bg: #f4f7f5;
+  --ov-surface: #ffffff;
+  --ov-surface-soft: #f4f7f5;
+  --ov-border: #d6dfdb;
+  --ov-border-soft: #e6ece9;
+  --ov-text: #0f1b2d;
+  --ov-copy: #46546b;
+  --ov-muted: #66748b;
+  --ov-blue: #0e7c86;
+  --ov-green: #1c7d4f;
+  --ov-red: #b3261e;
+  --ov-amber: #9a6208;
+  --jd-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
+  font-family: 'Instrument Sans Variable', 'Instrument Sans', system-ui, sans-serif;
+  color: var(--ov-text);
+  font-variant-numeric: tabular-nums;
+}
+.overview-page :is(button, input, select, textarea) { font-family: inherit; }
+.overview-page :focus-visible { outline: 3px solid #f2b33d; outline-offset: 2px; }
+
+/* ---- page header: greeting is the heading, everything else is quiet ---- */
+.overview-page .operator-welcome { background: none; border: 0; box-shadow: none; padding: 4px 0 0; align-items: flex-start; }
+.overview-page .operator-welcome h1 { font-family: var(--jd-display); font-weight: 700; font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.02; letter-spacing: -.035em; margin: .35rem 0 .5rem; color: var(--ov-text); }
+.overview-page .operator-welcome-eyebrow { font-size: .88rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ov-muted); }
+.overview-page .operator-welcome-copy > p { font-size: 1.05rem; color: var(--ov-copy); max-width: 58ch; }
+.overview-page .operator-welcome-actions { display: flex; flex-wrap: wrap; gap: .35rem 1.4rem; margin-top: 1rem; }
+.overview-page .operator-welcome-actions a { background: none; border: 0; box-shadow: none; padding: .2rem 0; min-height: 0; font-weight: 600; color: var(--ov-blue); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 5px; transition: text-decoration-color .15s; }
+.overview-page .operator-welcome-actions a:hover { text-decoration-color: currentColor; }
+.overview-page .operator-welcome-status { background: var(--ov-surface); border: 1px solid var(--ov-border); border-radius: 14px; box-shadow: none; }
+.overview-page .operator-welcome-status-label { letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--ov-muted); }
+
+/* ---- what to do next ---- */
+.overview-page .operator-focus { background: var(--ov-surface); border: 1px solid var(--ov-border); border-left-width: 5px; border-radius: 14px; box-shadow: none; }
+.overview-page .operator-focus-critical { border-left-color: var(--ov-red); background: #fff; }
+.overview-page .operator-focus-warning { border-left-color: #f2b33d; background: #fff; }
+.overview-page .operator-focus-good { border-left-color: var(--ov-blue); background: #fff; }
+.overview-page .operator-focus-copy > span { letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--ov-muted); font-size: .85rem; }
+.overview-page .operator-focus-copy strong { font-family: var(--jd-display); font-size: 1.25rem; letter-spacing: -.015em; }
+.overview-page .operator-focus > a { background: var(--ov-blue); border: 2px solid var(--ov-blue); color: #fff; border-radius: 12px; font-weight: 600; padding: .65rem 1.1rem; text-decoration: none; }
+.overview-page .operator-focus > a:hover { background: #0a626a; border-color: #0a626a; }
+.overview-page .operator-focus-critical > a { background: var(--ov-red); border-color: var(--ov-red); }
+
+/* ---- section heading and shortcut row ---- */
+.overview-page .overview-header { margin-top: .5rem; }
+.overview-page .overview-heading h2 { font-family: var(--jd-display); font-size: 1.15rem; font-weight: 650; letter-spacing: -.01em; margin: 0; color: var(--ov-copy); }
+.overview-page .overview-heading .context { margin: .15rem 0 0; font-size: .92rem; color: var(--ov-muted); }
+.overview-page .dashboard-commandbar { background: none; border: 0; border-top: 1px solid var(--ov-border); border-bottom: 1px solid var(--ov-border); border-radius: 0; box-shadow: none; padding: .35rem 0; gap: 1rem; }
+.overview-page .commandbar-primary { gap: .15rem 1.2rem; }
+.overview-page .commandbar-primary a { background: none; border: 0; box-shadow: none; padding: .45rem 0; min-height: 0; }
+.overview-page .commandbar-primary a span { font-weight: 600; color: var(--ov-text); font-size: .95rem; }
+.overview-page .commandbar-primary a small { display: none; }
+.overview-page .commandbar-primary a:hover span { color: var(--ov-blue); }
+.overview-page .commandbar-refresh { border: 1px solid var(--ov-border); border-radius: 999px; background: var(--ov-surface); color: var(--ov-text); font-weight: 600; flex: none; }
+
+/* ---- the numbers ---- */
+.overview-page .overview-kpis { gap: 1.5rem; background: none; border: 0; box-shadow: none; padding: 0; }
+.overview-page .overview-kpi { background: none; border: 0; border-top: 3px solid var(--ov-text); border-radius: 0; box-shadow: none; padding: .9rem 0 0; }
+.overview-page .overview-kpi-icon { display: none; }
+.overview-page .overview-kpi .kpi-label { letter-spacing: 0; text-transform: none; font-size: .95rem; font-weight: 600; color: var(--ov-copy); }
+.overview-page .overview-kpi strong { display: block; font-family: var(--jd-display); font-weight: 700; font-size: clamp(1.8rem, 2.6vw, 2.5rem); letter-spacing: -.03em; line-height: 1.1; margin: .25rem 0; color: var(--ov-text); }
+.overview-page .overview-kpi small { color: var(--ov-muted); font-size: .88rem; }
+.overview-page .operations-strip { background: var(--ov-surface); border: 1px solid var(--ov-border); border-radius: 12px; box-shadow: none; }
+.overview-page .operations-strip.has-attention { border-color: #e2c27a; background: #fffaf0; }
+.overview-page .operations-strip-label small { letter-spacing: 0; }
+
+/* ---- panels ---- */
+.overview-page .panel { background: var(--ov-surface); border: 1px solid var(--ov-border); border-radius: 16px; box-shadow: none; }
+.overview-page .panel-head h2 { font-family: var(--jd-display); font-size: 1.2rem; font-weight: 650; letter-spacing: -.015em; }
+.overview-page .panel-head p { color: var(--ov-muted); }
+.overview-page .panel-kicker { letter-spacing: 0; text-transform: none; font-size: .85rem; font-weight: 600; color: var(--ov-muted); }
+.overview-page .panel-badge { letter-spacing: 0; text-transform: none; border-radius: 999px; background: #eaf6f6; color: #0a626a; font-weight: 600; border: 0; }
+.overview-page .overview-chart svg polygon { fill: rgba(14, 124, 134, .09); }
+.overview-page .overview-chart svg line { stroke: #e6ece9; }
+.overview-page .table-wrap table th { letter-spacing: 0; text-transform: none; font-size: .85rem; font-weight: 600; color: var(--ov-muted); }
+.overview-page .table-wrap table td { font-size: .95rem; }
+.overview-page .health-stats span, .overview-page .truth-grid span { letter-spacing: 0; text-transform: none; }
+
+/* ---- all workspaces (folded) ---- */
+.overview-page .dashboard-workspaces { border-top: 1px solid var(--ov-border); margin-top: 1rem; padding-top: .25rem; }
+.overview-page .dashboard-workspaces > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 1rem 0; font-family: var(--jd-display); font-weight: 650; font-size: 1.2rem; letter-spacing: -.015em; }
+.overview-page .dashboard-workspaces > summary::-webkit-details-marker { display: none; }
+.overview-page .dashboard-workspaces > summary small { font-family: 'Instrument Sans Variable', system-ui, sans-serif; font-weight: 500; font-size: .9rem; color: var(--ov-muted); }
+.overview-page .dashboard-workspaces > summary::after { content: '+'; color: var(--ov-blue); font-size: 1.6rem; line-height: 1; margin-left: .5rem; }
+.overview-page .dashboard-workspaces[open] > summary::after { content: '\2212'; }
+.overview-page .dashboard-workspaces .operator-launchpad { box-shadow: none; }
+
+@media (max-width: 760px) {
+  .overview-page .overview-kpis { gap: 1rem; }
+  .overview-page .operator-welcome h1 { font-size: 2rem; }
+}
+@media (prefers-reduced-motion: reduce) { .overview-page * { transition: none !important; animation: none !important; } }
+
+/* ---- fixes for legacy rules that fight the layout ---- */
+/* KPI cells reserved a 35px icon column even with the icon hidden, squeezing the number and its caption. */
+.overview-page .overview-kpi { display: block; min-height: 0; border-right: 0; }
+.overview-page .overview-kpi strong { overflow-wrap: anywhere; }
+
+/* Shortcut row: wrap instead of clipping, and show the module name only. */
+.overview-page .dashboard-commandbar { flex-wrap: wrap; align-items: flex-start; }
+.overview-page .commandbar-primary { flex: 1 1 520px; flex-wrap: wrap; overflow: visible; }
+.overview-page .commandbar-primary a span { font-weight: 600; font-size: .95rem; color: var(--ov-text); }
+.overview-page .commandbar-primary a small { display: none; }
+
+/* Attention strip: let the chips wrap rather than run off the card. */
+.overview-page .operations-strip { flex-wrap: wrap; row-gap: .5rem; }
+.overview-page .operations-strip > * { min-width: 0; }
+
+/* Tables: readable header and cells (legacy td strong was 8px, headers were upper-case micro-labels). */
+.overview-page .panel .table-wrap table { min-width: 560px; }
+.overview-page .panel .table-wrap th { font-size: .85rem; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--ov-muted); padding: .6rem .75rem; }
+.overview-page .panel .table-wrap td { font-size: .95rem; padding: .7rem .75rem; }
+.overview-page .panel .table-wrap td strong { font-size: .95rem; }
+
+/* Router health: use the accent instead of the hard-coded blue in console-chrome.css and keep it inside the card. */
+.overview-page .network-summary .health-meter { background: conic-gradient(var(--ov-blue) var(--overview-availability, 0%), #e6ece9 0); max-width: 100%; margin: 8px auto 17px; }
+.overview-page .health-meter-value strong { font-family: var(--jd-display); }
+.overview-page .health-stats strong, .overview-page .truth-grid strong { font-family: var(--jd-display); }
+
+/* ---- legible text: the legacy labels were 6-8px ---- */
+.overview-page .health-stats b, .overview-page .truth-grid b { font-size: 1.6rem; font-family: var(--jd-display); }
+.overview-page .health-stats span, .overview-page .truth-grid span { font-size: .85rem; font-weight: 500; letter-spacing: 0; color: var(--ov-muted); line-height: 1.35; }
+.overview-page .location-row { gap: .75rem; padding: .8rem 0; }
+.overview-page .location-row > span { font-size: .9rem; letter-spacing: 0; }
+.overview-page .location-row strong { font-size: .95rem; color: var(--ov-text); }
+.overview-page .posture-panel :is(span, strong, small, div, li, p):not(.panel-kicker):not(.panel-badge) { font-size: max(.9rem, 1em); }
+.overview-page .overview-empty { font-size: .95rem; }
+.overview-page .operations-strip :is(span, small, b, strong) { font-size: max(.85rem, 1em); letter-spacing: 0; }
+.overview-page .panel-badge, .overview-page .panel-kicker { font-size: .8rem; }
+.overview-page .overview-heading .context, .overview-page .overview-operator-meta { font-size: .9rem; }
+
+/* ---- text floor ----
+ * Legacy dashboard.css / console-chrome.css set these at 7-10px. !important is deliberate and limited to this list;
+ * it is the only way to beat the legacy rules without editing them. Floor is 13px for secondary text, 15px for actions.
+ */
+.overview-page :is(.operator-welcome-actions a, .operator-focus a, .operator-focus-copy p, .operator-launchpad-heading p, .operator-launchpad-item-copy strong) { font-size: .95rem !important; }
+.overview-page :is(.operator-welcome-status-label, .operator-welcome-status small, .overview-operator-meta b, .overview-operator-meta small, .data-state-inline,
+  .panel-kicker, .panel-head p, .overview-total small, .overview-chart-axis span, .health-meter-value small, .status, .notice, .notice strong, .good, .warn, .bad,
+  .operator-launchpad-count, .operator-launchpad-item-copy small, .operator-launchpad-footnote, .operator-launchpad-footnote span) { font-size: .8125rem !important; letter-spacing: 0 !important; }
+.overview-page .operator-launchpad-arrow, .overview-page .operator-launchpad-footnote span { display: none; }
+.overview-page .operator-focus a { font-weight: 600; }
+
+/* Attention strip label must wrap on narrow screens (its larger text made it 432px wide). */
+.overview-page .operations-strip-label { min-width: 0; flex: 1 1 220px; white-space: normal; }
+.overview-page .operations-strip-label small { white-space: normal; overflow-wrap: anywhere; }

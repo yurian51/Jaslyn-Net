@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jwtVerify } from 'jose';
+import { verifyAccessToken } from '../auth/jwt';
 import type { Request } from 'express';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -19,7 +19,7 @@ export class CustomerPortalGuard implements CanActivate {
     const secret=this.config.get<string>('JWT_SECRET');
     if(!secret||secret.length<32)throw new UnauthorizedException('Customer portal authentication is not configured');
     let payload;
-    try{payload=(await jwtVerify(authorization.slice(7).trim(),new TextEncoder().encode(secret),{issuer:'jaslyn-net',audience:'jaslyn-customer-portal',algorithms:['HS256']})).payload;}
+    try{payload=verifyAccessToken(authorization.slice(7).trim(),secret,undefined,'jaslyn-customer-portal');}
     catch{throw new UnauthorizedException('Customer portal session is invalid or expired');}
     if(typeof payload.sub!=='string'||typeof payload.tenantId!=='string'||typeof payload.sid!=='string'||payload.role!=='CUSTOMER'||typeof payload.username!=='string')
       throw new UnauthorizedException('Customer portal session claims are incomplete');

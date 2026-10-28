@@ -1,6 +1,9 @@
 'use client';
 
 import './dashboard.css';
+import './dashboard-theme.css';
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource-variable/instrument-sans';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
@@ -37,6 +40,7 @@ const duration = (value?: string) => {
 };
 
 const OPERATOR_WORKSPACES = [
+  { label: 'UpesiLipa workspace', detail: 'Sites, packages, customers, vouchers and sales', href: '/upesilipa', terms: 'upesilipa wifi hotspot packages vouchers sales reports branding' },
   { label: 'Network & devices', detail: 'Routers, links and topology', href: '/network', terms: 'router device topology links' },
   { label: 'Customers', detail: 'Subscriber accounts and profiles', href: '/customers', terms: 'subscriber client account' },
   { label: 'Live sessions', detail: 'Connected users and activity', href: '/sessions', terms: 'online radius active users' },
@@ -74,6 +78,7 @@ export default function DashboardPage() {
   const [quickFind, setQuickFind] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
 
   useEffect(() => { setWelcomeNow(new Date()); }, []);
 
@@ -104,11 +109,19 @@ export default function DashboardPage() {
   }, [operatorProfile, operatorProfileLoaded]);
 
   useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCommandOpen(false);
+    const onKeyboardShortcut = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandQuery('');
+        setCommandOpen(true);
+      }
     };
-    window.addEventListener('keydown', onEscape);
-    return () => window.removeEventListener('keydown', onEscape);
+    window.addEventListener('keydown', onKeyboardShortcut);
+    return () => window.removeEventListener('keydown', onKeyboardShortcut);
   }, []);
 
   const exportOperationalSnapshot = useCallback(() => {
@@ -243,6 +256,11 @@ export default function DashboardPage() {
   const operatorEmail = operatorProfile?.email?.trim() || '';
   const operatorDisplayName = operatorFullName ? operatorFullName.split(/\s+/)[0] : operatorUsername || operatorEmail.split('@')[0] || 'Operator';
   const hasOperationalSignals = Boolean(data && data.network?.offline !== undefined && data.network?.degraded !== undefined && data.operations?.networkCommands?.failed !== undefined && data.operations?.access?.expiredButActive !== undefined && data.operations?.access?.expiring24h !== undefined);
+  const filteredCommandWorkspaces = useMemo(() => OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())), [commandQuery]);
+  useEffect(() => {
+    setSelectedCommandIndex((current) => Math.min(current, Math.max(filteredCommandWorkspaces.length - 1, 0)));
+  }, [filteredCommandWorkspaces.length]);
+
   const operationalFocus = !data || !hasOperationalSignals
     ? { tone: 'unknown', title: loading ? 'Preparing your workspace' : 'Live overview unavailable', detail: loading ? 'Checking the latest network and service signals.' : data ? 'The API responded, but key health signals are missing; no healthy state is assumed.' : 'Reconnect or refresh to retrieve verified operational data.', href: '/network', action: loading ? 'Checking status' : 'Open network' }
     : network.offline > 0
@@ -261,41 +279,41 @@ export default function DashboardPage() {
     <main className="overview-page">
       <section className="operator-welcome" aria-labelledby="operator-welcome-title">
         <div className="operator-welcome-copy">
-          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> JASLYN NET · NETWORK OPERATIONS <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
-          <h2 id="operator-welcome-title">{greeting}, {operatorDisplayName}!</h2>
+          <div className="operator-welcome-eyebrow"><span className={`operator-welcome-live-dot ${connection === 'online' ? 'is-online' : connection === 'offline' || connection === 'degraded' ? 'is-offline' : 'is-checking'}`} /> Network operations <span className="operator-welcome-date">{welcomeNow ? welcomeNow.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) : ''}</span></div>
+          <h1 id="operator-welcome-title">{greeting}, {operatorDisplayName}</h1>
           {(operatorFullName || operatorUsername || operatorEmail) && <p style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', margin: '6px 0 0', fontSize: 12, color: '#64748b' }}>{operatorFullName && <span>{operatorFullName}</span>}{operatorUsername && <span>@{operatorUsername.replace(/^@/, '')}</span>}{operatorEmail && <span>{operatorEmail}</span>}</p>}
           <p>Your network, subscribers, payments and field operations — ready in one place.</p>
           <div className="operator-welcome-actions">
-            <a href="/network">Open network <span aria-hidden="true">↗</span></a>
-            <a href="/sessions">View live sessions <span aria-hidden="true">↗</span></a>
-            <a href="/payments">Review payments <span aria-hidden="true">↗</span></a>
-            <a href="/incidents">Incident center <span aria-hidden="true">↗</span></a>
-            <a href="/field-operations">Field operations <span aria-hidden="true">↗</span></a>
+            <a href="/network">Open network</a>
+            <a href="/sessions">View live sessions</a>
+            <a href="/payments">Review payments</a>
+            <a href="/incidents">Incident center</a>
+            <a href="/field-operations">Field operations</a>
           </div>
         </div>
         <div className="operator-welcome-status" aria-live="polite">
-          <span className="operator-welcome-status-label">WORKSPACE STATUS</span>
+          <span className="operator-welcome-status-label">Workspace status</span>
           <strong><i className={connection === 'online' ? 'is-online' : connection === 'offline' ? 'is-offline' : 'is-checking'} />{connection === 'online' ? 'Connected' : connection === 'offline' ? 'Offline' : connection === 'degraded' ? 'Needs attention' : 'Connecting…'}</strong>
           <small>{lastUpdatedAt ? 'Updated ' + lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Checking live API status'}</small>
         </div>
       </section>
       <section className={`operator-focus operator-focus-${operationalFocus.tone}`} aria-label="Suggested operational focus">
         <div className="operator-focus-symbol" aria-hidden="true">{operationalFocus.tone === 'critical' ? '!' : operationalFocus.tone === 'warning' ? '•' : operationalFocus.tone === 'good' ? '✓' : '…'}</div>
-        <div className="operator-focus-copy"><span>RECOMMENDED NEXT ACTION</span><strong>{operationalFocus.title}</strong><p>{operationalFocus.detail}</p></div>
-        <a href={operationalFocus.href}>{operationalFocus.action} <span aria-hidden="true">↗</span></a>
+        <div className="operator-focus-copy"><span>Recommended next action</span><strong>{operationalFocus.title}</strong><p>{operationalFocus.detail}</p></div>
+        <a href={operationalFocus.href}>{operationalFocus.action}</a>
       </section>
       {commandOpen && (
         <div className="operator-command-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCommandOpen(false); }}>
           <section className="operator-command-dialog" role="dialog" aria-modal="true" aria-labelledby="operator-command-title">
             <div className="operator-command-search-row">
               <span aria-hidden="true">⌕</span>
-              <input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search workspaces and actions…" aria-label="Search operator commands" />
+              <input autoFocus value={commandQuery} onChange={(event) => { setCommandQuery(event.target.value); setSelectedCommandIndex(0); }} onKeyDown={(event) => { if (event.nativeEvent.isComposing || event.keyCode === 229) return; if (event.key === 'ArrowDown') { event.preventDefault(); setSelectedCommandIndex((current) => Math.min(current + 1, Math.max(filteredCommandWorkspaces.length - 1, 0))); } if (event.key === 'ArrowUp') { event.preventDefault(); setSelectedCommandIndex((current) => Math.max(current - 1, 0)); } if (event.key === 'Enter' && filteredCommandWorkspaces[selectedCommandIndex]) { event.preventDefault(); window.location.href = filteredCommandWorkspaces[selectedCommandIndex].href; } }} placeholder="Search workspaces and actions…" aria-label="Search operator commands" aria-activedescendant={filteredCommandWorkspaces[selectedCommandIndex] ? `command-${selectedCommandIndex}` : undefined} />
               <kbd>ESC</kbd>
             </div>
-            <div className="operator-command-section-label" id="operator-command-title">QUICK ACTIONS</div>
+            <div className="operator-command-section-label" id="operator-command-title">Quick actions</div>
             <div className="operator-command-results">
-              {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).map((item) => (
-                <a key={item.href} href={item.href} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
+              {filteredCommandWorkspaces.map((item, index) => (
+                <a id={`command-${index}`} className={index === selectedCommandIndex ? 'is-selected' : ''} key={item.href} href={item.href} onMouseEnter={() => setSelectedCommandIndex(index)} onClick={() => setCommandOpen(false)}><span className="operator-command-result-icon" aria-hidden="true">↗</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><kbd>OPEN</kbd></a>
               ))}
               {'export operational snapshot'.includes(commandQuery.trim().toLowerCase()) && data && (
                 <button type="button" onClick={() => { exportOperationalSnapshot(); setCommandOpen(false); }}><span className="operator-command-result-icon" aria-hidden="true">↓</span><span><strong>Export operational snapshot</strong><small>Download the latest authenticated overview as JSON</small></span><kbd>EXPORT</kbd></button>
@@ -308,7 +326,7 @@ export default function DashboardPage() {
       )}
       <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
         <div className="operator-launchpad-heading">
-          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger">Dashboard actions</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <div><div className="panel-kicker">OPERATOR LAUNCHPAD</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger" title="Open dashboard actions (Ctrl or Command + K)">Dashboard actions <kbd>⌘K</kbd></button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
           <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
         </div>
         <label className="operator-launchpad-search">
@@ -332,8 +350,7 @@ export default function DashboardPage() {
       </section>
       <header className="overview-header">
         <div className="overview-heading">
-          <div className="eyebrow">JASLYN NET / CONTROL CENTER</div>
-          <h1>Network operations overview</h1>
+          <h2>Network operations overview</h2>
           <p className="context">Technical state, customer state and business state in one operator view.</p>
         </div>
         <div className="overview-operator-meta">
@@ -397,13 +414,13 @@ export default function DashboardPage() {
 
       <section className="overview-grid overview-primary">
         <article className="panel overview-panel">
-          <div className="panel-head"><div><div className="panel-kicker">COMMERCIAL TELEMETRY</div><h2>Revenue performance</h2><p>Returned payment series for this tenant.</p></div><span className="panel-badge">{revenue.length ? `${revenue.length} PERIODS` : 'NO SERIES'}</span></div>
+          <div className="panel-head"><div><div className="panel-kicker">Commercial telemetry</div><h2>Revenue performance</h2><p>Returned payment series for this tenant.</p></div><span className="panel-badge">{revenue.length ? `${revenue.length} periods` : 'No series'}</span></div>
           <div className="overview-total">{data ? money(currency, data.kpis?.monthlyRevenue ?? 0) : '—'}<small>{data ? `${money(currency, revenueTotal)} across returned periods` : 'Waiting for authenticated telemetry'}</small></div>
           {revenueChart ? <div className="overview-chart" role="img" aria-label="Revenue performance line chart"><svg viewBox="0 0 720 190" preserveAspectRatio="none"><line x1="18" y1="24" x2="702" y2="24" /><line x1="18" y1="74" x2="702" y2="74" /><line x1="18" y1="124" x2="702" y2="124" /><line x1="18" y1="174" x2="702" y2="174" /><polygon points={revenueChart.area} /><polyline points={revenueChart.line} /><circle cx={revenueChart.points.at(-1)?.x ?? 18} cy={revenueChart.points.at(-1)?.y ?? 174} r="4" /></svg><div className="overview-chart-axis"><span>Earlier periods</span><span>Latest returned period</span></div></div> : <div className="overview-empty"><strong>No revenue series returned.</strong><span>No invented figures are shown.</span></div>}
         </article>
 
         <article className="panel overview-panel network-summary">
-          <div className="panel-head"><div><div className="panel-kicker">NETWORK FABRIC</div><h2>Router health</h2><p>{n(network.totalRouters)} registered devices</p></div><span className={`panel-badge ${!data || !network.totalRouters || network.degraded + network.offline ? 'badge-danger' : ''}`}>{!data ? 'API UNAVAILABLE' : !network.totalRouters ? 'NO INVENTORY' : network.degraded + network.offline ? `${network.degraded + network.offline} ATTENTION` : 'STABLE'}</span></div>
+          <div className="panel-head"><div><div className="panel-kicker">Network fabric</div><h2>Router health</h2><p>{n(network.totalRouters)} registered devices</p></div><span className={`panel-badge ${!data || !network.totalRouters || network.degraded + network.offline ? 'badge-danger' : ''}`}>{!data ? 'API UNAVAILABLE' : !network.totalRouters ? 'NO INVENTORY' : network.degraded + network.offline ? `${network.degraded + network.offline} ATTENTION` : 'STABLE'}</span></div>
           <div className="health-meter" style={healthStyle}><div className="health-meter-value">{availability == null ? 'N/A' : `${availability}%`}<small>availability</small></div></div>
           <div className="health-stats"><div><b>{network.online}</b><span>ONLINE</span></div><div><b>{network.degraded}</b><span>DEGRADED</span></div><div><b>{network.offline}</b><span>OFFLINE</span></div></div>
         </article>
@@ -411,12 +428,12 @@ export default function DashboardPage() {
 
       <section className="overview-grid overview-secondary">
         <article className="panel overview-panel">
-          <div className="panel-head"><div><div className="panel-kicker">REAL-TIME ACCESS</div><h2>Active sessions</h2><p>Latest sessions returned by the operational overview.</p></div><a className="panel-badge" href="/sessions">OPEN SESSIONS →</a></div>
+          <div className="panel-head"><div><div className="panel-kicker">Real-time access</div><h2>Active sessions</h2><p>Latest sessions returned by the operational overview.</p></div><a className="panel-badge" href="/sessions">OPEN SESSIONS →</a></div>
           <div className="table-wrap"><table><thead><tr><th>CUSTOMER</th><th>LOCATION</th><th>ROUTER</th><th>IP</th><th>TRAFFIC</th><th>DURATION</th><th>STATE</th></tr></thead><tbody>{data?.sessions?.length ? data.sessions.slice(0, 8).map((session, index) => <tr key={`${session.customer ?? 'session'}-${index}`}><td><strong>{session.customer ?? 'Unknown'}</strong></td><td>{session.location ?? '—'}</td><td>{session.router ?? '—'}</td><td>{session.ip_address ?? '—'}</td><td>{bytes((session.bytesIn ?? 0) + (session.bytesOut ?? 0))}</td><td>{duration(session.started_at)}</td><td><span className="status active"><i />{session.status ?? 'ACTIVE'}</span></td></tr>) : <tr><td colSpan={7}><div className="empty-state">{loading ? 'Loading live session telemetry…' : 'No live session records returned by the API.'}</div></td></tr>}</tbody></table></div>
         </article>
 
         <article className="panel overview-panel">
-          <div className="panel-head"><div><div className="panel-kicker">SYSTEM INTEGRITY</div><h2>Operational truth</h2><p>Cross-domain consistency signals.</p></div><span className={`panel-badge ${integrityIssues ? 'badge-danger' : ''}`}>{data ? integrityIssues : '—'} ISSUES</span></div>
+          <div className="panel-head"><div><div className="panel-kicker">System integrity</div><h2>Operational truth</h2><p>Cross-domain consistency signals.</p></div><span className={`panel-badge ${integrityIssues ? 'badge-danger' : ''}`}>{data ? integrityIssues : '—'} ISSUES</span></div>
           <div className="truth-grid"><div><b>{operations.networkCommands.pending}</b><span>Commands pending</span></div><div><b>{operations.networkCommands.failed}</b><span>Commands failed</span></div><div><b>{operations.sessions.stale}</b><span>Stale sessions</span></div><div><b>{operations.sessions.accountingLagging}</b><span>Accounting lagging</span></div><div><b>{operations.access.expiredButActive}</b><span>Expired access active</span></div><div><b>{operations.access.expiring24h}</b><span>Expiring in 24h</span></div></div>
           {integrityIssues > 0 && <div className="notice"><strong>Operator attention required.</strong> {integrityIssues} consistency signal{integrityIssues === 1 ? '' : 's'} returned by the API.</div>}
         </article>
@@ -424,7 +441,7 @@ export default function DashboardPage() {
 
       <section className="overview-grid overview-tertiary">
         <article className="panel overview-panel">
-          <div className="panel-head"><div><div className="panel-kicker">SITE FOOTPRINT</div><h2>Locations</h2><p>Tenant locations and their returned router/user state.</p></div><a className="panel-badge" href="/network">OPEN NETWORK →</a></div>
+          <div className="panel-head"><div><div className="panel-kicker">Site footprint</div><h2>Locations</h2><p>Tenant locations and their returned router/user state.</p></div><a className="panel-badge" href="/network">OPEN NETWORK →</a></div>
           <div className="location-list">
             {locations.length ? locations.slice(0, 8).map((location, index) => {
               const routerTotal = location.routers ?? 0;
@@ -441,7 +458,7 @@ export default function DashboardPage() {
         </article>
 
         <article className="panel overview-panel posture-panel">
-          <div className="panel-head"><div><div className="panel-kicker">ACCESS POSTURE</div><h2>Entitlement state</h2><p>Access validity signals returned by the API.</p></div><span className={`panel-badge ${!data || operations.access.expiredButActive || operations.access.expiring24h ? 'badge-danger' : ''}`}>{!data ? 'API UNAVAILABLE' : operations.access.expiredButActive ? operations.access.expiredButActive + ' EXPIRED ACTIVE' : operations.access.expiring24h ? operations.access.expiring24h + ' EXPIRING' : 'STABLE'}</span></div>
+          <div className="panel-head"><div><div className="panel-kicker">Access posture</div><h2>Entitlement state</h2><p>Access validity signals returned by the API.</p></div><span className={`panel-badge ${!data || operations.access.expiredButActive || operations.access.expiring24h ? 'badge-danger' : ''}`}>{!data ? 'API UNAVAILABLE' : operations.access.expiredButActive ? operations.access.expiredButActive + ' EXPIRED ACTIVE' : operations.access.expiring24h ? operations.access.expiring24h + ' EXPIRING' : 'STABLE'}</span></div>
           <div className="posture-list">
             <div><span>Valid active access</span><strong>{n(operations.access.activeValid)}</strong></div>
             <div><span>Expired but still active</span><strong className={operations.access.expiredButActive ? 'bad-text' : ''}>{n(operations.access.expiredButActive)}</strong></div>
@@ -451,6 +468,33 @@ export default function DashboardPage() {
         </article>
       </section>
 
+      <details className="dashboard-workspaces">
+        <summary><span>All workspaces</span><small>{OPERATOR_WORKSPACES.length} shortcuts</small></summary>
+      <section className="operator-launchpad panel" aria-labelledby="operator-launchpad-title">
+        <div className="operator-launchpad-heading">
+          <div><div className="panel-kicker">Operator launchpad</div><h2 id="operator-launchpad-title">Where do you want to go?</h2><p>Search tools and jump directly to an operational workspace.</p></div><div className="operator-launchpad-tools"><button type="button" onClick={() => { setCommandQuery(''); setCommandOpen(true); }} className="operator-command-trigger">Dashboard actions</button><button type="button" onClick={exportOperationalSnapshot} className="operator-command-trigger" disabled={!data} title={!data ? "Wait for verified API data before exporting" : "Download the latest API snapshot"}>↓ Export snapshot</button></div>
+          <span className="operator-launchpad-count">{OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length} results</span>
+        </div>
+        <label className="operator-launchpad-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
+          <input type="search" value={quickFind} onChange={(event) => setQuickFind(event.target.value)} placeholder="Search network, customers, finance…" aria-label="Search operator workspaces" />
+          {quickFind && <button type="button" onClick={() => setQuickFind('')} aria-label="Clear workspace search">Clear</button>}
+        </label>
+        <div className="operator-launchpad-grid" aria-live="polite">
+          {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).map((item) => (
+            <a className="operator-launchpad-item" href={item.href} key={item.href}>
+              <span className="operator-launchpad-icon" aria-hidden="true">{item.label === 'Network & devices' ? '⌘' : item.label === 'Customers' ? '◎' : item.label === 'Live sessions' ? '◉' : item.label === 'Payments' ? '$' : item.label === 'Incident center' ? '!' : item.label === 'Field operations' ? '↗' : item.label === 'Network commands' ? '›_' : '✓'}</span>
+              <span className="operator-launchpad-item-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
+              <span className="operator-launchpad-arrow" aria-hidden="true">↗</span>
+            </a>
+          ))}
+          {OPERATOR_WORKSPACES.filter((item) => `${item.label} ${item.detail} ${item.terms}`.toLowerCase().includes(quickFind.trim().toLowerCase())).length === 0 && (
+            <div className="operator-launchpad-empty"><strong>No matching workspace</strong><span>Try a different keyword, such as network, payments or customers.</span></div>
+          )}
+        </div>
+        <div className="operator-launchpad-footnote"><span aria-hidden="true">↳</span> Shortcuts open existing Jaslyn Net pages; access permissions still apply.</div>
+      </section>
+      </details>
     </main>
   );
 }

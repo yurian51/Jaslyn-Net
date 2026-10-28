@@ -1,24 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
 
 :root {
-  --jn-bg: #f4f6f9;
+  --jn-bg: #f1f5f9;
   --jn-surface: #ffffff;
   --jn-surface-2: #f8fafc;
-  --jn-border: #dfe5ec;
-  --jn-border-strong: #cbd5e1;
-  --jn-text: #172033;
-  --jn-text-2: #475569;
-  --jn-muted: #7b8798;
-  --jn-subtle: #98a3b3;
-  --jn-navy: #0b1424;
-  --jn-navy-2: #101c30;
-  --jn-blue: #2563eb;
-  --jn-blue-2: #1d4ed8;
-  --jn-green: #14845a;
-  --jn-red: #b4232d;
-  --jn-amber: #a4660c;
-  --jn-radius: 10px;
-  --jn-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .045);
+  --jn-border: #dbe4ee;
+  --jn-border-strong: #c3d0df;
+  --jn-text: #17233a;
+  --jn-text-2: #52637a;
+  --jn-muted: #74839a;
+  --jn-subtle: #9aa8b8;
+  --jn-navy: #081525;
+  --jn-navy-2: #0e2036;
+  --jn-blue: #2b6de0;
+  --jn-blue-2: #1f57be;
+  --jn-green: #15966a;
+  --jn-red: #c13b49;
+  --jn-amber: #b6781d;
+  --jn-radius: 12px;
+  --jn-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 30px rgba(15, 23, 42, .055);
 }
 
 * { box-sizing: border-box; }
