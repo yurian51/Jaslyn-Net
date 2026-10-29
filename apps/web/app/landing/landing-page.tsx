@@ -24,6 +24,9 @@ export default function LandingPage({ lang }: { lang: Lang }) {
               <div className="jl-actions">
                 <Link href="/register" className="jl-btn">{t.hero.primary}</Link>
                 <Link href="/login" className="jl-btn jl-btn-ghost">{t.hero.secondary}</Link>
+                <Link href="/captive/demo" className="jl-btn jl-btn-ghost" style={{ borderColor: '#16a34a', color: '#15803d' }}>
+                  {lang === 'sw' ? 'Jaribu Captive Portal ↗' : 'Live Captive Portal ↗'}
+                </Link>
               </div>
               <div className="jl-rails">
                 <p>{t.hero.rails}</p>

@@ -1,0 +1,8 @@
+{
+  "name": "JASLYN NET",
+  "description": "Wi-Fi Billing, Subscriber Access & ISP Operations platform for network operations and subscriber management.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

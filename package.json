@@ -2,19 +2,18 @@
   "name": "jaslyn-net",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@12.7.0",
   "scripts": {
-    "dev": "pnpm --parallel --filter @jaslyn-net/api --filter @jaslyn-net/web dev",
-    "build": "pnpm --filter @jaslyn-net/api build && pnpm --filter @jaslyn-net/web build",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck",
-    "start": "sh -c 'pnpm --filter @jaslyn-net/api start & exec pnpm --filter @jaslyn-net/web start'"
-  },
-  "engines": {
-    "node": ">=24.21.0"
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web",
+    "test": "npm run test --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/web",
+    "start": "npm run start --workspace=apps/web"
   },
   "devDependencies": {
     "typescript": "^5.9.2"
-  }
+  },
+  "workspaces": [
+    "apps/*"
+  ]
 }

@@ -31,6 +31,8 @@ type Incident = {
 };
 
 type IncidentResponse = { data: Incident[]; count: number };
+type IncidentStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | '';
+type SavedView = { id: string; name: string; status?: IncidentStatus; query?: string };
 type IncidentOwner = { id:string; fullName:string; email:string; role:string };
 const money = (value: string | number) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = (value?: string) => {

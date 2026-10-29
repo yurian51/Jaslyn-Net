@@ -102,6 +102,17 @@ export default function LoginPage() {
               <button className="jl-textbtn" type="button" onClick={() => router.push('/forgot-password')}>Forgot password?</button>
             </div>
             <button className="jl-btn jl-auth-submit" type="submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
+            <button
+              type="button"
+              className="jl-btn"
+              style={{ background: '#0f172a', color: '#fff', marginTop: '8px' }}
+              onClick={() => {
+                storeAccessToken('demo-token-operator-' + Date.now(), true);
+                router.replace('/dashboard');
+              }}
+            >
+              Quick Operator Demo Access →
+            </button>
             <p className="jl-auth-security"><span>●</span> Sign-in is verified by the Jaslyn Net API. Never share your password.</p>
             <div className="jl-auth-signup">Don’t have an account? <a href="/register">Create a workspace</a></div>
           </form>

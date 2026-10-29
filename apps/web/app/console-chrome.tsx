@@ -116,7 +116,9 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
   useEffect(() => { setMoreOpen(false); setHeaderMenuOpen(false); }, [pathname]);
 
-
+  const [health, setHealth] = useState<'checking' | 'ready' | 'unavailable'>('checking');
+  const [operatorOnline, setOperatorOnline] = useState(true);
+  const [workspaceName, setWorkspaceName] = useState('TENANT WORKSPACE');
 
   useEffect(() => {
     if (!commandOpen) {
@@ -272,7 +274,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           <div className="console-chrome-mark"><BrandLogo alt="" /></div>
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
-        <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
+        <div className="console-chrome-workspace"><span /> <b>{workspaceName}</b><em aria-hidden="true">⌄</em></div>
         <button className="console-command-trigger" type="button" onClick={(event) => { commandOpenerRef.current = event.currentTarget; setCommandOpen(true); setCommandQuery(''); setCommandIndex(0); }}>
           <span>⌕</span><b>Search workspace</b><kbd>⌘K</kbd>
         </button>

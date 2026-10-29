@@ -150,6 +150,8 @@ export default function NetworkPage() {
   const [firmwareError, setFirmwareError] = useState<string | null>(null);
   const [maintenanceStart, setMaintenanceStart] = useState('');
   const [maintenanceEnd, setMaintenanceEnd] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [operational, setOperational] = useState<Record<string, any>>({});
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -558,10 +560,10 @@ export default function NetworkPage() {
                   <div><span>LATENCY / LOSS</span><b>{operational[router.id]?.telemetry.latency == null ? 'Not reported' : operational[router.id]?.telemetry.latency + ' ms'} / {operational[router.id]?.telemetry.packetLoss == null ? 'Not reported' : operational[router.id]?.telemetry.packetLoss + '%'}</b></div>
                   <div><span>BANDWIDTH</span><b>{operational[router.id]?.telemetry.bandwidth == null ? 'Not reported' : String(operational[router.id]?.telemetry.bandwidth)}</b></div>
                   <div><span>INTERFACES</span><b>{operational[router.id]?.telemetry.interfaces == null ? 'Not reported' : String(operational[router.id]?.telemetry.interfaces.length)}</b></div>
-                  <div className="network-device-history"><span>RECENT COMMANDS</span>{(operational[router.id]?.recentCommands ?? []).slice(0,5).map((command) => <small key={command.id}>{command.commandType} · {command.status}{command.error ? ' · ' + command.error : ''}</small>)}{!operational[router.id]?.recentCommands?.length && <small>No command records.</small>}</div>
-                  <div className="network-device-history"><span>RECENT INCIDENTS</span>{(operational[router.id]?.recentIncidents ?? []).slice(0,5).map((incident) => <small key={incident.id}>{incident.severity} · {incident.title}</small>)}{!operational[router.id]?.recentIncidents?.length && <small>No linked incident records.</small>}</div>
+                  <div className="network-device-history"><span>RECENT COMMANDS</span>{(operational[router.id]?.recentCommands ?? []).slice(0,5).map((command: any) => <small key={command.id}>{command.commandType} · {command.status}{command.error ? ' · ' + command.error : ''}</small>)}{!operational[router.id]?.recentCommands?.length && <small>No command records.</small>}</div>
+                  <div className="network-device-history"><span>RECENT INCIDENTS</span>{(operational[router.id]?.recentIncidents ?? []).slice(0,5).map((incident: any) => <small key={incident.id}>{incident.severity} · {incident.title}</small>)}{!operational[router.id]?.recentIncidents?.length && <small>No linked incident records.</small>}</div>
                   <div className="network-telemetry-note">{operational[router.id]?.telemetry.source === 'NOT_REPORTED_BY_CURRENT_TELEMETRY_MODEL' ? 'CPU, memory, interfaces, bandwidth, latency, packet loss and uptime are not persisted by the current telemetry model. Jaslyn Net does not invent them.' : 'Telemetry reported by the configured source.'}</div>
-                </div></td></tr>
+                </div></td></tr>}
                 </Fragment>
               ))}
             </tbody>
