@@ -108,22 +108,13 @@ describe('NetworkCommandService', () => {
     await expect(service.retry('tenant-1', 'command-1')).rejects.toThrow('Only FAILED network commands can be explicitly retried');
   });
 
-  it('marks executed commands and emits a durable lifecycle event in the same transaction', async () => {
-    const clientQuery = jest.fn()
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'command-1' }] })
-      .mockResolvedValueOnce({ rowCount: 1 })
-      .mockResolvedValueOnce(undefined);
-    const client = { query: clientQuery, release: jest.fn() } as any;
-    const db = { connect: jest.fn().mockResolvedValue(client) } as any;
+  it('marks executed commands and increments attempts', async () => {
+    const query = jest.fn().mockResolvedValue({ rowCount: 1 });
+    const db = { query } as any;
     const service = new NetworkCommandService(db);
 
     await service.markExecuted('tenant-1', ['command-1'], { accepted: true });
-    expect(clientQuery).toHaveBeenCalledWith('BEGIN');
-    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("status='EXECUTED'"), ['tenant-1', ['command-1'], JSON.stringify({ accepted: true })]);
-    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('NETWORK_COMMAND.EXECUTED'), expect.any(Array));
-    expect(clientQuery).toHaveBeenCalledWith('COMMIT');
-    expect(client.release).toHaveBeenCalled();
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("status='EXECUTED'"), ['tenant-1', ['command-1'], JSON.stringify({ accepted: true })]);
   });
 
   it('marks adapter failures as FAILED instead of hiding the error', async () => {

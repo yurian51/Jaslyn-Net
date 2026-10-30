@@ -88,13 +88,7 @@ export class VouchersService {
       if(!voucher.rowCount) throw new NotFoundException('Voucher or customer not found');
       const v=voucher.rows[0];
       if(v.status!=='UNUSED') throw new ConflictException('Voucher is '+v.status);
-      if(v.expires_at&&new Date(v.expires_at).getTime()<=Date.now()){
-        await client.query("UPDATE vouchers SET status='EXPIRED' WHERE tenant_id=$1 AND id=$2 AND status='UNUSED'",[tenantId,v.id]);
-        // Commit the terminal state before raising the business error; throwing before
-        // COMMIT would cause the catch block to roll the EXPIRED update back.
-        await client.query('COMMIT');
-        throw new ConflictException('Voucher has expired');
-      }
+      if(v.expires_at&&new Date(v.expires_at).getTime()<=Date.now()){await client.query('UPDATE vouchers SET status=\'EXPIRED\' WHERE tenant_id=$1 AND id=$2',[tenantId,v.id]);throw new ConflictException('Voucher has expired')}
       if(v.is_free_trial&&v.free_trial_frequency!=='UNLIMITED'){
         const trial= v.free_trial_frequency==='ONCE_PER_PHONE'
           ? await client.query(`SELECT 1 FROM wifi_plan_purchases p JOIN customers c ON c.tenant_id=p.tenant_id AND c.id=p.customer_id WHERE p.tenant_id=$1 AND p.package_id=$2 AND c.phone IS NOT NULL AND c.phone=$3 LIMIT 1`,[tenantId,v.package_id,v.phone])

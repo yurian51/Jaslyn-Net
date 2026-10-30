@@ -22,7 +22,6 @@ coverage/
 
 # Local databases / dumps
 *.sql
-!apps/api/migrations/*.sql
 *.dump
 *.sqlite
 *.sqlite3

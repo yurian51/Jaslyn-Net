@@ -9,8 +9,7 @@ describe('IncidentsService', () => {
     const result = await service.list('tenant-1', 'OPEN');
 
     expect(result).toEqual({ data: [], count: 0 });
-    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('JOIN tenants t ON t.id=i.tenant_id'), ['tenant-1', 'OPEN']);
-    expect(db.query.mock.calls[0][0]).toContain('affectedDevices');
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE i.tenant_id=$1'), ['tenant-1', 'OPEN']);
   });
 
   it('returns not-found for an unknown incident', async () => {

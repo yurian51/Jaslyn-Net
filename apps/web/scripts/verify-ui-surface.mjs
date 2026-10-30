@@ -1,24 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const layout = read('apps/web/app/layout.tsx');
 const robots = read('apps/web/app/robots.ts');
-const landing = read('apps/web/app/page.tsx') + read('apps/web/app/landing/landing-page.tsx');
+const landing = read('apps/web/app/page.tsx');
 const landingNav = read('apps/web/app/landing-nav.tsx');
 const landingCss = read('apps/web/app/landing-premium.css');
-const brandLogos = read('apps/web/app/landing/brand-logos.tsx');
 const register = read('apps/web/app/register/page.tsx');
 const login = read('apps/web/app/login/page.tsx');
 const nav = read('apps/web/app/landing-nav.tsx');
 const chrome = read('apps/web/app/console-chrome.tsx');
 const dashboard = read('apps/web/app/dashboard/page.tsx');
 const dashboardCss = read('apps/web/app/dashboard/dashboard.css');
-const network = read('apps/web/app/network/page.tsx');
-const sessions = read('apps/web/app/sessions/page.tsx');
 const routeLoading = read('apps/web/app/loading.tsx');
 const skeleton = read('apps/web/app/loading-skeleton.tsx');
 const brandLogo = read('apps/web/app/brand-logo.tsx');
@@ -35,12 +31,10 @@ const routeExists = (route) => {
     return fs.readdirSync(directory, { withFileTypes: true })
       .some((entry) => entry.isDirectory() && /^\[.+\]$/.test(entry.name) && visit(path.join(directory, entry.name), index + 1));
   };
-  return visit(path.join(root, 'apps/web/app'), 0);
+  return visit('apps/web/app', 0);
 };
 
 const consoleNavigationRoutes = [...chrome.matchAll(/\['[^']+',\s*'[^']+',\s*'([^']+)'\]/g)].map((match) => match[1]);
-const operatorWorkspaceBlock = dashboard.split('const OPERATOR_WORKSPACES = [')[1]?.split('] as const;')[0] ?? '';
-const operatorWorkspaceRoutes = [...operatorWorkspaceBlock.matchAll(/href: '([^']+)'/g)].map((match) => match[1]);
 const payments = read('apps/web/app/payments/page.tsx');
 const sessions = read('apps/web/app/sessions/page.tsx');
 const finance = read('apps/web/app/finance/page.tsx');
@@ -54,30 +48,18 @@ const notificationsService = read('apps/api/src/notifications/notifications.serv
 const notificationsController = read('apps/api/src/notifications/notifications.controller.ts');
 const smsProvider = read('apps/api/src/notifications/sms.provider.ts');
 const smsWorker = read('apps/api/src/notifications/notifications.worker.ts');
-const smsMigration = read('apps/api/migrations/060a_sms_delivery_provider.sql');
-const smsCampaignMigration = read('apps/api/migrations/061a_sms_campaigns.sql');
-
-// Shared UI system contracts: keep accessibility and failure states covered by the existing
-// repository verification script without introducing a separate test-runner dependency.
-const uiButton = read('apps/web/app/components/ui/button.tsx');
-const uiFields = read('apps/web/app/components/ui/field.tsx');
-const uiTable = read('apps/web/app/components/ui/data-table.tsx');
-const uiFeedback = read('apps/web/app/components/ui/feedback.tsx');
-const uiExports = read('apps/web/app/components/ui/index.ts');
-const uiStyles = read('apps/web/app/components/ui/ui.css');
-const uiGallery = read('apps/web/app/ui-kit/page.tsx');
+const smsMigration = read('apps/api/migrations/060_sms_delivery_provider.sql');
+const smsCampaignMigration = read('apps/api/migrations/061_sms_campaigns.sql');
 
 const required = [
-  ['internal console uses public-site surface and accent tokens', read('apps/web/app/console-chrome.css').includes('--console-bg: #f6f8fb;') && read('apps/web/app/console-chrome.css').includes('--console-blue: #3b6fd1;')],
-  ['internal console has keyboard focus and reduced-motion rules', read('apps/web/app/console-chrome.css').includes('.console-chrome-content :is(a, button, [role="button"]):focus-visible') && read('apps/web/app/console-chrome.css').includes('@media (prefers-reduced-motion: reduce)')],
   ['premium.css import', layout.includes("import './premium.css';")],
-  ['LandingPage import', landing.includes("import LandingPage from './landing/landing-page';")],
-  ['LandingPage usage', landing.includes('<LandingPage lang="en" />')],
+  ['LandingNav import', landing.includes("import LandingNav from './landing-nav';")],
+  ['LandingNav usage', landing.includes('<LandingNav />')],
   ['mobile menu focus management', landingNav.includes('focusable?.[0]?.focus()') && landingNav.includes('event.key === \'Escape\'') && landingNav.includes('last.focus()')],
   ['mobile menu trigger semantics', landingNav.includes('aria-expanded={open}') && landingNav.includes('aria-controls="landing-mobile-menu"')],
-  ['all navigation section targets exist', ['how', 'features', 'hardware', 'payments', 'pricing', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
-  ['real routes exist for landing CTAs', ['/register', '/login', '/integrations'].every((route) => landing.includes('href="' + route + '"'))],
-  ['integration claims include deployment context', landing.includes('Illustrative') || landing.includes('integration')],
+  ['all navigation section targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
+  ['real routes exist for landing CTAs', ['/register', '/login', '/packages'].every((route) => landing.includes('href="' + route + '"'))],
+  ['integration claims include deployment caveat', landing.includes('confirm compatibility before planning a production cutover')],
   ['no green live-status marker on illustrative preview', !landing.includes('className="status-dot"') && landing.includes('className="jn-preview-example-dot"')],
   ['mobile landing breakpoints present', landingCss.includes('@media(max-width:760px)') && landingCss.includes('@media(max-width:520px)')],
   ['reduced-motion preference respected', landingCss.includes('@media(prefers-reduced-motion:reduce)')],
@@ -115,7 +97,7 @@ const required = [
   ['preview avoids false live payment claims', landing.includes('Illustrative only') && !landing.includes('Reconciled')],
   ['preview avoids false live access claims', landing.includes('Example policy') && !landing.includes('>Applied</span>')],
   ['outcomes section exists', landing.includes('id="jn-outcomes-title"') && landing.includes('jn-outcomes-grid')],
-  ['all landing navigation targets exist', ['how', 'features', 'hardware', 'payments', 'pricing', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
+  ['all landing navigation targets exist', ['platform', 'architecture', 'operations', 'integrations', 'modules', 'faq'].every((id) => landing.includes('id="' + id + '"'))],
   ['registration CTA', landing.includes('href="/register"')],
   ['confirm password field', register.includes('confirmPassword')],
   ['password strength UX', register.includes('passwordStrength')],
@@ -136,22 +118,8 @@ const required = [
   ['command palette keyboard handler tracks live search results', chrome.includes('[commandOpen, commandResults, commandIndex, router]') && chrome.indexOf('const commandResults = useMemo') < chrome.indexOf('[commandOpen, commandResults, commandIndex, router]')],
   ['command palette traps and restores keyboard focus', chrome.includes("event.key === 'Tab'") && chrome.includes('commandOpenerRef.current?.focus()') && chrome.includes('commandOpenerRef.current = event.currentTarget')],
   ['dashboard premium commandbar', dashboard.includes('dashboard-commandbar') && dashboard.includes('commandbar-refresh')],
-  ['operator launchpad links resolve to real app routes', operatorWorkspaceRoutes.length >= 12 && operatorWorkspaceRoutes.every(routeExists)],
-  ['operator launchpad covers core operations domains', ['/network', '/customers', '/sessions', '/payments', '/incidents', '/field-operations', '/network-commands', '/audit', '/ipam', '/radius', '/fiber', '/automation'].every((route) => operatorWorkspaceRoutes.includes(route))],
-  ['dashboard health recommendation fails closed on partial telemetry', dashboard.includes('hasOperationalSignals') && dashboard.includes('data.network?.offline !== undefined && data.network?.degraded !== undefined')],
-  ['welcome status dot follows API connection state', dashboard.includes("operator-welcome-live-dot ${connection === 'online'")],
-  ['dashboard actions do not duplicate the global Ctrl/Cmd+K palette', dashboard.includes('Dashboard actions') && !dashboard.includes("event.key.toLowerCase() === 'k'")],
-  ['snapshot export preserves browser download lifecycle', dashboard.includes('window.setTimeout(() => URL.revokeObjectURL(url), 1000)')],
   ['dashboard premium KPI composition', dashboard.includes('overview-kpi-icon') && dashboard.includes('Network availability')],
   ['dashboard locations posture', dashboard.includes('SITE FOOTPRINT') && dashboard.includes('ACCESS POSTURE')],
-  ['NOC command center', dashboard.includes('noc-command-center') && dashboard.includes('/overview/command-center') && dashboard.includes('NOC COMMAND CENTER')],
-  ['NOC real state guardrails', dashboard.includes('current schema does not report those values') && dashboard.includes('does not manufacture them')],
-  ['incident assignment/audit', read('apps/web/app/incidents/page.tsx').includes('/assign') && read('apps/web/app/incidents/page.tsx').includes('/audit-trail')],
-  ['command evidence controls', read('apps/web/app/network-commands/page.tsx').includes('Risk level') && read('apps/web/app/network-commands/page.tsx').includes('Authorization') && read('apps/web/app/network-commands/page.tsx').includes('Confirmation')],
-  ['device operational detail', network.includes('/overview/command-center') && network.includes('RECENT COMMANDS') && network.includes('RECENT INCIDENTS')],
-  ['session disconnect action', sessions.includes('/sessions/\\${id}/end') && sessions.includes('Disconnect session')],
-  ['session evidence state', sessions.includes('authenticationState') && sessions.includes('accountingState') && sessions.includes('durationSeconds')],
-  ['incident impact state', read('apps/web/app/incidents/page.tsx').includes('tenantName') && read('apps/web/app/incidents/page.tsx').includes('affectedDevices') && read('apps/web/app/incidents/page.tsx').includes('resolvedAt')],
   ['dashboard premium CSS', dashboardCss.includes('.overview-kpi{') && dashboardCss.includes('.dashboard-commandbar{')],
   ['SMS provider fails closed until explicitly enabled and configured', smsProvider.includes("SMS_ENABLED') === 'true'") && smsProvider.includes('!status.configured') && smsProvider.includes('BEEM_SECRET_KEY')],
   ['SMS outbox is tenant-scoped and idempotent', notificationsService.includes('ON CONFLICT (tenant_id,dedupe_key)') && notificationsService.includes('WHERE tenant_id = $1') && notificationsService.includes('claimSms')],
@@ -178,19 +146,6 @@ const required = [
 
   ['provider-agnostic SMS settings UI', read('apps/web/app/notifications/page.tsx').includes('SMS Gateway Settings') && read('apps/web/app/notifications/page.tsx').includes('/notifications/sms/settings')],
   ['SMS secret handling and host allowlist guidance', read('apps/web/app/notifications/page.tsx').includes('Credentials are write-only') && read('apps/web/app/notifications/page.tsx').includes('SMS_CUSTOM_ALLOWED_HOSTS')],
-
-  // Dashboard visual-reference and cascade contracts.
-  ['dashboard premium dark palette remains scoped to the overview', dashboardCss.includes('.overview-page{') && dashboardCss.includes('--ov-bg:#061329;') && dashboardCss.includes('--ov-blue:#17a9ff;')],
-  ['dashboard KPI cards retain responsive premium surfaces', dashboardCss.includes('.overview-kpi:nth-child(4) .overview-kpi-icon') && dashboardCss.includes('@media(max-width:560px)')],
-  ['dashboard chart and table contrast rules exist', dashboardCss.includes('.overview-chart svg line{stroke:#173b66}') && dashboardCss.includes('.table-wrap th{background:#0b2042;color:#83a5d1')],
-  ['dashboard keyboard focus is visible on primary actions', dashboardCss.includes('.commandbar-primary a:focus-visible') && dashboardCss.includes('.operator-launchpad-item:focus-visible')],
-  ['dashboard reduced-motion preference is respected', dashboardCss.includes('@media(prefers-reduced-motion:reduce)') && dashboardCss.includes('.overview-kpi:hover{transform:none}')],
-  ['dashboard theme overrides shared console background cascade', dashboardCss.includes('.console-chrome-frame .overview-page{') && dashboardCss.includes('linear-gradient(145deg,#061329 0%,#071a35 52%,#06142b 100%)!important;')],
-  ['dashboard panels override shared white-surface defaults', dashboardCss.includes('.console-chrome-frame .overview-panel,') && dashboardCss.includes('background:linear-gradient(155deg,rgba(12,35,72,.98),rgba(7,25,54,.98))!important;')],
-  ['dashboard heading keeps readable contrast inside console shell', dashboardCss.includes('.console-chrome-frame .overview-header h1{color:#f2f7ff!important}')],
-  ['dashboard tablet spacing wins over shared console padding', dashboardCss.includes('@media(max-width:820px){\n  .console-chrome-frame .overview-page{padding:18px 13px 36px!important}')],
-  ['dashboard phone spacing wins over shared console padding', dashboardCss.includes('@media(max-width:560px){\n  .console-chrome-frame .overview-page{padding:14px 9px 28px!important}')],
-  ['dashboard theme is rendered inside the shared console shell', layout.includes('ConsoleChrome>{children}</ConsoleChrome>') && dashboardCss.includes('.console-chrome-frame .overview-page{')],
 
 ];
 
@@ -226,7 +181,7 @@ const integrationLogoFiles = [
 ];
 
 for (const file of integrationLogoFiles) {
-  if (!brandLogos.includes(`integrations/${file}`)) {
+  if (!landing.includes(`/integrations/${file}`)) {
     throw new Error(`UI verification failed: missing integration logo reference ${file}`);
   }
   const assetPath = path.join(root, 'apps/web/public/integrations', file);

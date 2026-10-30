@@ -4,7 +4,6 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { PERMISSIONS_KEY } from './permissions.decorator';
 import { AuthenticatedRequest } from './auth.guard';
-import { hasPermission } from './permission-resolver';
 
 export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'sessions.read':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],'sessions.revoke':['OWNER','ADMIN','CASHIER','AGENT','READ_ONLY'],
@@ -26,7 +25,6 @@ export const DEFAULT_PERMISSION_ROLES:Record<string,string[]>={
  'network.capacity.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'device.lifecycle.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'device.lifecycle.manage':['OWNER','ADMIN'],
  'power.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'power.ingest':['OWNER','ADMIN','AGENT'],'sla.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'sla.manage':['OWNER','ADMIN'],
  'automation.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'automation.manage':['OWNER','ADMIN'],
- 'operations.change.request':['OWNER','ADMIN','AGENT'],
  'automation.workflow.read':['OWNER','ADMIN','AGENT','READ_ONLY'],'automation.workflow.manage':['OWNER','ADMIN'],'automation.workflow.approve':['OWNER','ADMIN'],
  'msp.usage.read':['OWNER','ADMIN','READ_ONLY'],'msp.usage.manage':['OWNER','ADMIN'],
 };
@@ -40,7 +38,11 @@ export class PermissionsGuard implements CanActivate {
   const request=context.switchToHttp().getRequest<AuthenticatedRequest>();const user=request.user;
   if(!user?.tenantId||!user.id||!user.role)return false;
   for(const permission of permissions){
-   if(!(await hasPermission(this.db,{tenantId:user.tenantId,userId:user.id,role:user.role},permission)))return false;
+   const userOverride=await this.db.query('SELECT allowed FROM user_permission_overrides WHERE tenant_id=$1 AND user_id=$2 AND permission_key=$3',[user.tenantId,user.id,permission]);
+   if(userOverride.rowCount){if(userOverride.rows[0].allowed!==true)return false;continue;}
+   const roleOverride=await this.db.query('SELECT allowed FROM tenant_role_permissions WHERE tenant_id=$1 AND role=$2 AND permission_key=$3',[user.tenantId,user.role,permission]);
+   if(roleOverride.rowCount){if(roleOverride.rows[0].allowed!==true)return false;continue;}
+   if(!(DEFAULT_PERMISSION_ROLES[permission]??[]).includes(user.role))return false;
   }
   return true;
  }

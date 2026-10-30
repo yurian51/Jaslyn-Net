@@ -14,7 +14,7 @@ describe('PaymentsService', () => {
         if (sql === 'BEGIN' || sql === 'COMMIT') return { rowCount: 0, rows: [] };
         if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
         if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
-        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa', samePurchase: true }] };
+        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{ id: 'pay-1', status: 'PENDING', provider: 'mpesa' }] };
         return { rowCount: 0, rows: [] };
       }),
       release: jest.fn(),
@@ -23,30 +23,6 @@ describe('PaymentsService', () => {
     const result = await serviceWith(db).createIntent('tenant-1', { purchaseId: '00000000-0000-0000-0000-000000000001', provider: 'mpesa' });
 
     expect(result).toMatchObject({ id: 'pay-1', reused: true });
-    expect(client.release).toHaveBeenCalled();
-  });
-
-  it('rejects an idempotency key reused for a different purchase', async () => {
-    const client = {
-      query: jest.fn(async (sql: string) => {
-        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
-        if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
-        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
-        if (sql.includes('FROM payments WHERE')) return { rowCount: 1, rows: [{
-          id: 'pay-existing', status: 'PENDING', provider: 'mpesa',
-          samePurchase: false,
-        }] };
-        return { rowCount: 0, rows: [] };
-      }),
-      release: jest.fn(),
-    };
-    const db = { connect: jest.fn().mockResolvedValue(client) } as unknown as Pool;
-    await expect(serviceWith(db).createIntent('tenant-1', {
-      purchaseId: '00000000-0000-0000-0000-000000000001',
-      provider: 'mpesa',
-      idempotencyKey: 'reused-key-1234567890',
-    })).rejects.toThrow('Idempotency key is already bound to another purchase');
-    expect(client.query).toHaveBeenCalledWith('ROLLBACK');
     expect(client.release).toHaveBeenCalled();
   });
 
@@ -112,75 +88,6 @@ describe('PaymentsService', () => {
 
     expect(result).toMatchObject({ id: 'pay-concurrent', reused: true });
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining("status='PENDING'"), ['tenant-1', 'purchase-1']);
-    expect(client.release).toHaveBeenCalled();
-  });
-
-  it('reuses the matching payment after an idempotency unique-key race', async () => {
-    const client = {
-      query: jest.fn(async (sql: string) => {
-        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
-        if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
-        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
-        if (sql.includes('FROM payments WHERE') && sql.includes('idempotency_key')) return { rowCount: 0, rows: [] };
-        if (sql.includes('INSERT INTO payments')) {
-          const error = new Error('duplicate idempotency key') as Error & { code: string; constraint: string };
-          error.code = '23505';
-          error.constraint = 'payments_tenant_idempotency_key_uq';
-          throw error;
-        }
-        return { rowCount: 0, rows: [] };
-      }),
-      release: jest.fn(),
-    };
-    const db = {
-      connect: jest.fn().mockResolvedValue(client),
-      query: jest.fn().mockResolvedValue({
-        rowCount: 1,
-        rows: [{ id: 'pay-existing', status: 'PENDING', provider: 'mpesa', samePurchase: true, idempotencyKey: 'retry-key-123456789' }],
-      }),
-    } as unknown as Pool;
-
-    const result = await serviceWith(db).createIntent('tenant-1', {
-      purchaseId: '00000000-0000-0000-0000-000000000001',
-      provider: 'mpesa',
-      idempotencyKey: 'retry-key-123456789',
-    });
-
-    expect(result).toMatchObject({ id: 'pay-existing', reused: true });
-    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('AS "samePurchase"'), ['tenant-1', 'retry-key-123456789', '00000000-0000-0000-0000-000000000001']);
-    expect(client.release).toHaveBeenCalled();
-  });
-
-  it('rejects cross-purchase idempotency reuse when recovering a unique-key race', async () => {
-    const client = {
-      query: jest.fn(async (sql: string) => {
-        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
-        if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'c1', price: '1000', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
-        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
-        if (sql.includes('FROM payments WHERE') && sql.includes('idempotency_key')) return { rowCount: 0, rows: [] };
-        if (sql.includes('INSERT INTO payments')) {
-          const error = new Error('duplicate idempotency key') as Error & { code: string; constraint: string };
-          error.code = '23505';
-          error.constraint = 'payments_tenant_idempotency_key_uq';
-          throw error;
-        }
-        return { rowCount: 0, rows: [] };
-      }),
-      release: jest.fn(),
-    };
-    const db = {
-      connect: jest.fn().mockResolvedValue(client),
-      query: jest.fn().mockResolvedValue({
-        rowCount: 1,
-        rows: [{ id: 'pay-existing', status: 'PENDING', provider: 'mpesa', samePurchase: false, idempotencyKey: 'reused-key-1234567890' }],
-      }),
-    } as unknown as Pool;
-
-    await expect(serviceWith(db).createIntent('tenant-1', {
-      purchaseId: '00000000-0000-0000-0000-000000000001',
-      provider: 'mpesa',
-      idempotencyKey: 'reused-key-1234567890',
-    })).rejects.toThrow('Idempotency key is already bound to another purchase');
     expect(client.release).toHaveBeenCalled();
   });
 
@@ -371,42 +278,4 @@ describe('PaymentsService', () => {
     expect(db.connect).not.toHaveBeenCalled();
   });
 
-
-  it('rejects reuse of a provider event identifier with changed payment facts', async () => {
-    const secret = 'test-webhook-secret';
-    const rawBody = Buffer.from('{"event":"payment.success","status":"PAID"}');
-    const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
-    const eventClient = {
-      query: jest.fn(async (sql: string) => {
-        if (sql === 'BEGIN') return { rowCount: 0, rows: [] };
-        if (sql.includes('INSERT INTO payment_events')) return { rowCount: 0, rows: [] };
-        if (sql.includes('FROM payment_events')) return { rowCount: 1, rows: [{
-          id: 'event-1', eventType: 'payment.success', processingStatus: 'PROCESSED',
-          paymentId: 'pay-1', payload: { status: 'FAILED', paymentId: 'pay-1', purchaseId: 'purchase-1', providerReference: 'provider-ref-1' },
-        }] };
-        if (sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
-        return { rowCount: 0, rows: [] };
-      }),
-      release: jest.fn(),
-    };
-    const config = { get: jest.fn().mockReturnValue(secret) } as unknown as ConfigService;
-    const db = {
-      query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [{ webhookSecretRef: 'PAYMENT_WEBHOOK_SECRET' }] }),
-      connect: jest.fn().mockResolvedValue(eventClient),
-    } as unknown as Pool;
-    const service = new PaymentsService(db, config, { enqueue: jest.fn().mockResolvedValue(undefined) } as never);
-
-    await expect(service.webhook('tenant-1', {
-      provider: 'mpesa',
-      providerEventId: 'evt-immutable-1',
-      eventType: 'payment.success',
-      status: 'PAID',
-      paymentId: 'pay-1',
-      purchaseId: 'purchase-1',
-      providerReference: 'provider-ref-1',
-    }, rawBody, signature)).rejects.toThrow('Payment event identifier is already bound to different payment data');
-
-    expect(eventClient.query).toHaveBeenCalledWith('ROLLBACK');
-    expect(eventClient.release).toHaveBeenCalled();
-  });
 });

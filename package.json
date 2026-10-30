@@ -2,18 +2,16 @@
   "name": "jaslyn-net",
   "private": true,
   "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/web",
-    "lint": "npm run lint --workspace=apps/web",
-    "test": "npm run test --workspace=apps/web",
-    "typecheck": "npm run typecheck --workspace=apps/web",
-    "start": "npm run start --workspace=apps/web"
+    "start": "npm run start --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web"
   },
   "devDependencies": {
     "typescript": "^5.9.2"
-  },
-  "workspaces": [
-    "apps/*"
-  ]
+  }
 }

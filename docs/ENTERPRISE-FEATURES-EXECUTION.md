@@ -7,15 +7,15 @@
 
 ## New migrations
 
-Apply in order after migrations 062–072 on current `main`:
+Apply in order after the security/operations branch migrations 062–070:
 
-- `073_financial_procurement_msp_platform.sql`
-- `074_network_experience_capacity_power_sla.sql`
-- `075_event_driven_automation.sql`
-- `076_tenant_usage_quotas.sql`
-- `077_financial_audit_head_guard.sql`
+- `071_financial_procurement_msp_platform.sql`
+- `072_network_experience_capacity_power_sla.sql`
+- `073_event_driven_automation.sql`
+- `074_tenant_usage_quotas.sql`
+- `075_financial_audit_head_guard.sql`
 
-**Migration numbering note:** current `main` already uses 071 for public captive-portal voucher security and 072 for captive-portal settings. The finance/MSP migrations are therefore renumbered to 073–077 to avoid duplicate sequence prefixes. CI now checks numeric-prefix uniqueness. Review these against a disposable PostgreSQL database first. Migration files existing in Git do not mean they have been applied to any environment.
+Review these against a disposable PostgreSQL database first. Migration files existing in Git do not mean they have been applied to any environment.
 
 ## Included backend and frontend work
 

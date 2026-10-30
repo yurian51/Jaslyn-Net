@@ -60,26 +60,9 @@ export class PurchasesService {
 
   async create(tenantId: string, input: CreatePurchaseDto) {
     const client = await this.db.connect();
-    const correlationId = input.idempotencyKey ? `customer-portal:${tenantId}:${input.customerId}:${input.idempotencyKey}` : getCorrelationId() ?? `purchase:${input.customerId}:${input.packageId}`;
+    const correlationId = getCorrelationId() ?? `purchase:${input.customerId}:${input.packageId}`;
     try {
       await client.query('BEGIN');
-      if (input.idempotencyKey) {
-        const existing = await client.query(
-          `SELECT id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId",
-             price, currency, discount_amount AS "discountAmount", promo_code_id AS "promoCodeId",
-             status, created_at AS "createdAt", updated_at AS "updatedAt"
-           FROM wifi_plan_purchases WHERE tenant_id=$1 AND correlation_id=$2 FOR UPDATE`,
-          [tenantId, correlationId],
-        );
-        if (existing.rowCount) {
-          const row = existing.rows[0];
-          if (row.customerId !== input.customerId || row.packageId !== input.packageId || (row.routerId ?? null) !== (input.routerId ?? null)) {
-            throw new ConflictException('Purchase idempotency key is already bound to a different request');
-          }
-          await client.query('COMMIT');
-          return row;
-        }
-      }
       const packageResult = await client.query(
         `SELECT id, name, price, currency, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id = $1 AND id = $2 AND is_active = true FOR UPDATE`,
         [tenantId, input.packageId],
@@ -109,29 +92,11 @@ export class PurchasesService {
         `INSERT INTO wifi_plan_purchases
           (tenant_id, customer_id, package_id, router_id, price, currency, discount_amount, promo_code_id, status, correlation_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'PENDING_PAYMENT',$9)
-         ON CONFLICT DO NOTHING
          RETURNING id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId",
                    price, currency, discount_amount AS "discountAmount", promo_code_id AS "promoCodeId",
                    status, created_at AS "createdAt", updated_at AS "updatedAt"`,
         [tenantId, input.customerId, input.packageId, input.routerId ?? null, payableAmount, plan.currency, discountAmount, promotion?.promoId ?? null, correlationId],
       );
-      if (!result.rowCount && input.idempotencyKey) {
-        const existing = await client.query(
-          `SELECT id, customer_id AS "customerId", package_id AS "packageId", router_id AS "routerId",
-             price, currency, discount_amount AS "discountAmount", promo_code_id AS "promoCodeId",
-             status, created_at AS "createdAt", updated_at AS "updatedAt"
-           FROM wifi_plan_purchases WHERE tenant_id=$1 AND correlation_id=$2 FOR UPDATE`,
-          [tenantId, correlationId],
-        );
-        if (!existing.rowCount) throw new ConflictException('Purchase idempotency conflict could not be resolved');
-        const row = existing.rows[0];
-        if (row.customerId !== input.customerId || row.packageId !== input.packageId || (row.routerId ?? null) !== (input.routerId ?? null)) {
-          throw new ConflictException('Purchase idempotency key is already bound to a different request');
-        }
-        await client.query('COMMIT');
-        return row;
-      }
-      if (!result.rowCount) throw new ConflictException('Purchase could not be created');
       await client.query('COMMIT');
       return result.rows[0];
     } catch (error) {
@@ -212,11 +177,6 @@ export class PurchasesService {
         if (existing.purchaseId !== purchaseId) throw new ConflictException('Idempotency key is already bound to another purchase');
         if (existing.provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
         if (existing.status === 'PAID') {
-          // An idempotency key must not silently accept a changed manual receipt
-          // reference after payment has already been recorded.
-          if (existing.providerReference && existing.providerReference !== providerReference) {
-            throw new ConflictException('Idempotency key is already bound to another provider reference');
-          }
           await client.query('COMMIT');
           return this.get(tenantId, purchaseId);
         }
@@ -289,10 +249,6 @@ export class PurchasesService {
           await client.query('COMMIT');
           return { purchase: await this.get(tenantId, purchaseId), paymentId };
         }
-        // A newly created manual payment is already PAID; post its settlement
-        // through the same idempotent ledger/invoice path as an existing intent.
-        // Keep this inside the purchase transaction so failures roll back both.
-        await this.payments.recordVerifiedSettlement(client, tenantId, paymentId, current.price, current.currency, provider);
       }
 
       const packageResult = await client.query(`SELECT id, name, duration_seconds, data_limit_bytes, download_bps, upload_bps FROM packages WHERE tenant_id=$1 AND id=$2 FOR SHARE`, [tenantId, current.package_id]);

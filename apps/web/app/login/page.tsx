@@ -4,120 +4,162 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '../../lib/api';
 import { getAccessToken, storeAccessToken } from '../../lib/auth';
-import SiteShell from '../landing/site-chrome';
-import { FieldHint, PasswordToggle, PhoneField, phoneLooksValid } from '../landing/auth-controls';
+import BrandLogo from '../brand-logo';
 
-type LoginResponse = { accessToken: string; expiresIn: number; user: { fullName: string; email: string; role: string }; tenant: { name: string; timezone: string; currency: string } };
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+type LoginResponse = {
+  accessToken: string;
+  expiresIn: number;
+  user: { fullName: string; email: string; role: string };
+  tenant: { name: string; timezone: string; currency: string };
+};
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'email' | 'phone'>('email');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [email, setEmail] = useState('admin@jaslyn.net');
+  const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [fieldError, setFieldError] = useState('');
 
-  useEffect(() => { if (getAccessToken()) router.replace('/dashboard'); }, [router]);
+  useEffect(() => {
+    if (getAccessToken()) router.replace('/dashboard');
+  }, [router]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setError('');
-    setFieldError('');
-    if (mode === 'email' && !EMAIL_PATTERN.test(email.trim())) {
-      setFieldError('Enter a valid email address.');
-      return;
-    }
-    if (mode === 'phone' && !phoneLooksValid(phone)) {
-      setFieldError('Enter a valid mobile number, for example 0712 345 678.');
-      return;
-    }
-    if (!password) {
-      setFieldError('Enter your password.');
-      return;
-    }
+  async function performLogin(loginEmail: string, loginPass: string) {
     setBusy(true);
+    setError('');
     try {
       const result = await apiFetch<LoginResponse>('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: (mode === 'email' ? email : phone).trim(), password }),
+        body: JSON.stringify({ email: loginEmail.trim(), password: loginPass }),
       });
-      storeAccessToken(result.accessToken, rememberMe);
+      storeAccessToken(result.accessToken);
       router.replace('/dashboard');
     } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 401) setError(mode === 'email' ? 'The email or password is incorrect.' : 'The mobile number or password is incorrect.');
-      else setError(cause instanceof Error ? cause.message : 'Unable to sign in. Please try again.');
+      if (cause instanceof ApiError && cause.status === 401) {
+        setError('Barua pepe au nenosiri si sahihi.');
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Imeshindikana kuingia. Tafadhali jaribu tena.');
+      }
     } finally {
       setBusy(false);
     }
   }
 
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    await performLogin(email, password);
+  }
+
   return (
-    <SiteShell mainClass="jl-auth-main">
-      <section className="jl-auth" aria-label="Jaslyn Net sign in">
-        <div className="jl-auth-grid">
-          <div className="jl-auth-intro">
-            <h1>Welcome back.</h1>
-            <p>Sign in to manage your sites, packages and payments.</p>
-            <ul><li>Packages and vouchers</li><li>Payments you can check</li><li>Router and session status</li></ul>
+    <main className="auth-page">
+      <section className="auth-shell" aria-label="Jaslyn Net sign in">
+        <div className="auth-brand-block">
+          <BrandLogo className="auth-brand-logo" alt="JASLYN NET official logo" />
+        </div>
+        <div className="auth-layout">
+          <div className="auth-intro">
+            <span className="auth-kicker">NETWORK &amp; ISP OPERATIONS</span>
+            <h1>
+              Simamia mtandao wako<br />
+              kutoka kituo kimoja.
+            </h1>
+            <p>
+              Subscribers, active sessions, MikroTik/Ruijie/Cambium devices, Wi-Fi packages,
+              na malipo ya M-Pesa/Airtel Money katika mfumo mmoja thabiti.
+            </p>
+            <div className="auth-capabilities">
+              <span><i /> Taarifa za mtandao live</span>
+              <span><i /> Vouchers &amp; Hotspot billing</span>
+              <span><i /> Udhibiti wa wateja &amp; router</span>
+            </div>
           </div>
-          <form className="jl-auth-card" onSubmit={submit} noValidate>
-            <div className="jl-auth-head"><h2>Sign in</h2><p>Sign in to your Jaslyn Net workspace.</p></div>
-            {fieldError && <div className="jl-auth-error" role="alert">{fieldError}</div>}
-            {error && <div className="jl-auth-error" role="alert">{error}</div>}
-            <div className="jl-tabs" role="tablist" aria-label="Sign in with">
-              {(['email', 'phone'] as const).map((m) => (
-                <button key={m} type="button" role="tab" id={`login-tab-${m}`} aria-selected={mode === m} aria-controls="login-identifier-panel" tabIndex={mode === m ? 0 : -1}
-                  onClick={() => { setMode(m); setFieldError(''); setError(''); }}
-                  onKeyDown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); setMode(m === 'email' ? 'phone' : 'email'); } }}>
-                  {m === 'email' ? 'Email' : 'Phone number'}
+
+          <form className="auth-card" onSubmit={submit} noValidate>
+            <div className="auth-card-head">
+              <span>SECURE ACCESS · MFUMO WA MSIMAMIZI</span>
+              <h2>Ingia kwenye Mfumo</h2>
+              <p>Tumia akaunti yako ya msimamizi wa Jaslyn Net.</p>
+            </div>
+
+            {error && <div className="auth-error" role="alert">{error}</div>}
+
+            <label>
+              Barua pepe (Email)
+              <input
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="operator@company.com"
+              />
+            </label>
+
+            <label>
+              Nenosiri (Password)
+              <div className="auth-password">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Weka nenosiri"
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)}>
+                  {showPassword ? 'Ficha' : 'Onyesha'}
                 </button>
-              ))}
-            </div>
-            <div id="login-identifier-panel" role="tabpanel" aria-labelledby={`login-tab-${mode}`} className="jl-tabpanel">
-              {mode === 'email' ? (
-                <label htmlFor="login-email">Email address
-                  <input id="login-email" type="email" autoComplete="username" inputMode="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="operator@company.com" aria-invalid={Boolean(fieldError)} />
-                </label>
-              ) : (
-                <label htmlFor="login-phone">Mobile number
-                  <PhoneField id="login-phone" value={phone} onChange={setPhone} invalid={Boolean(fieldError)} describedBy="login-phone-hint" autoComplete="username" />
-                  <FieldHint id="login-phone-hint">Other country? Start with + and the country code.</FieldHint>
-                </label>
-              )}
-            </div>
-            <label htmlFor="login-password">Password
-              <div className="jl-auth-password">
-                <input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password" />
-                <PasswordToggle shown={showPassword} onToggle={() => setShowPassword(value => !value)} />
               </div>
             </label>
-            <div className="jl-auth-options">
-              <label className="jl-remember"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} /> <span>Remember me</span></label>
-              <button className="jl-textbtn" type="button" onClick={() => router.push('/forgot-password')}>Forgot password?</button>
-            </div>
-            <button className="jl-btn jl-auth-submit" type="submit" disabled={busy}>{busy ? 'Authenticating…' : 'Sign in to Jaslyn Net'}</button>
-            <button
-              type="button"
-              className="jl-btn"
-              style={{ background: '#0f172a', color: '#fff', marginTop: '8px' }}
-              onClick={() => {
-                storeAccessToken('demo-token-operator-' + Date.now(), true);
-                router.replace('/dashboard');
-              }}
-            >
-              Quick Operator Demo Access →
+
+            <button className="auth-submit" disabled={busy}>
+              {busy ? 'Inathibitisha…' : 'Ingia kwenye Jaslyn Net →'}
             </button>
-            <p className="jl-auth-security"><span>●</span> Sign-in is verified by the Jaslyn Net API. Never share your password.</p>
-            <div className="jl-auth-signup">Don’t have an account? <a href="/register">Create a workspace</a></div>
+
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0', display: 'grid', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => performLogin('admin@jaslyn.net', 'admin123')}
+                disabled={busy}
+                style={{
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                <span>⚡</span> Ingia Mara Moja kama Msimamizi (One-Click Demo)
+              </button>
+              <p style={{ margin: 0, fontSize: 11, color: '#64748b', textAlign: 'center' }}>
+                Akaunti ya majaribio: <b>admin@jaslyn.net</b> / <b>admin123</b>
+              </p>
+            </div>
+
+            <p className="auth-security">
+              <span>●</span> Vipindi vyote vilivyoidhinishwa vinalindwa na Jaslyn Net API.
+            </p>
           </form>
         </div>
+
+        <footer className="auth-footer">
+          <span>JASLYN NET</span>
+          <span>
+            <a href="/legal/privacy">Faragha</a> · <a href="/legal/terms">Vigezo</a> ·{' '}
+            <a href="/legal/cookies">Cookies</a> · <a href="/legal">Legal Center</a> · Mtandao mpya?{' '}
+            <a href="/register">Fungua akaunti mpya</a>
+          </span>
+        </footer>
       </section>
-    </SiteShell>
+    </main>
   );
 }

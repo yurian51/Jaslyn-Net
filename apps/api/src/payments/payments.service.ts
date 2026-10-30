@@ -69,10 +69,9 @@ export class PaymentsService {
       if (purchase.rows[0].status !== 'PENDING_PAYMENT') throw new ConflictException(`Purchase is ${purchase.rows[0].status}`);
       correlationId ??= purchase.rows[0].correlation_id ?? `payment-intent:${input.purchaseId}`;
       await this.assertMethodCanSettle(tenantId, provider, purchase.rows[0].currency, client);
-      const existing = await client.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
+      const existing = await client.query(`SELECT id, status, provider FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
       if (existing.rowCount) {
         if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-        if (existing.rows[0].samePurchase !== true) throw new ConflictException('Idempotency key is already bound to another purchase');
         await client.query('COMMIT');
         return { id: existing.rows[0].id, status: existing.rows[0].status, provider: existing.rows[0].provider, idempotencyKey: key, reused: true };
       }
@@ -90,10 +89,9 @@ export class PaymentsService {
         }
       }
       if (dbError.code === '23505') {
-        const existing = await this.db.query(`SELECT id, status, provider, (purchase_id = $3::uuid) AS "samePurchase", idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key, input.purchaseId]);
+        const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND idempotency_key=$2`, [tenantId, key]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('Idempotency key is already bound to another provider');
-          if (existing.rows[0].samePurchase !== true) throw new ConflictException('Idempotency key is already bound to another purchase');
           return { ...existing.rows[0], reused: true };
         }
       }
@@ -210,7 +208,6 @@ export class PaymentsService {
   async webhook(tenantId: string, input: PaymentWebhookDto, rawBody: Buffer, signature?: string) {
     const provider = input.provider.trim().toLowerCase();
     const providerEventId = input.providerEventId.trim();
-    const normalizedStatus = input.status === 'SUCCESS' ? 'PAID' : input.status;
     let correlationId = getCorrelationId() ?? null;
     if (!correlationId && input.paymentId) {
       const payment = await this.db.query<{ correlationId: string | null }>(`SELECT correlation_id AS "correlationId" FROM payments WHERE tenant_id=$1 AND id=$2`, [tenantId, input.paymentId]);
@@ -242,7 +239,7 @@ export class PaymentsService {
          DO NOTHING
          RETURNING id`,
         [tenantId, provider, providerEventId, input.eventType.trim(), {
-          status: normalizedStatus,
+          status: input.status,
           paymentId: input.paymentId ?? null,
           purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,
@@ -252,34 +249,15 @@ export class PaymentsService {
 
       if (!inserted.rowCount) {
         const existing = await eventClient.query(
-          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId", payload
+          `SELECT id, event_type AS "eventType", processing_status AS "processingStatus", payment_id AS "paymentId"
              FROM payment_events
             WHERE tenant_id=$1 AND provider=$2 AND provider_event_id=$3
             FOR UPDATE`,
           [tenantId, provider, providerEventId],
         );
         if (!existing.rowCount) throw new ConflictException('Payment event could not be resolved after conflict');
-        const existingEvent = existing.rows[0] as {
-          eventType: string;
-          processingStatus: string;
-          paymentId: string | null;
-          payload: { status?: string; paymentId?: string | null; purchaseId?: string | null; providerReference?: string | null } | null;
-        };
-        if (existingEvent.eventType !== input.eventType.trim()) {
+        if (existing.rows[0].eventType !== input.eventType.trim()) {
           throw new ConflictException('Payment event identifier is already bound to a different event type');
-        }
-        // A provider event ID is immutable: retries must carry the same business identity
-        // and settlement facts, not merely the same event type.
-        const prior = existingEvent.payload ?? {};
-        const sameOptional = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
-        if (
-          !sameOptional(existingEvent.paymentId, input.paymentId) ||
-          !sameOptional(prior.status, input.status) ||
-          !sameOptional(prior.paymentId, input.paymentId) ||
-          !sameOptional(prior.purchaseId, input.purchaseId) ||
-          !sameOptional(prior.providerReference, input.providerReference)
-        ) {
-          throw new ConflictException('Payment event identifier is already bound to different payment data');
         }
         await eventClient.query('COMMIT');
         return {
@@ -305,7 +283,7 @@ export class PaymentsService {
           provider,
           providerEventId,
           eventType: input.eventType.trim(),
-          status: normalizedStatus,
+          status: input.status,
           paymentId: input.paymentId ?? null,
           purchaseId: input.purchaseId ?? null,
           providerReference: input.providerReference ?? null,

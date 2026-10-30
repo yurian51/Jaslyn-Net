@@ -6,7 +6,6 @@ import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { CommunicationCommandService } from './communication.command';
 import { CommunicationService } from './communication.service';
-import { NetworkAiToolsService, NetworkToolName } from './network-ai-tools';
 
 type Actor = { userId: string; tenantId: string; role: string };
 
@@ -16,7 +15,6 @@ type ToolDefinition = {
   input_schema: { type: 'object'; properties: Record<string, unknown>; required: string[] };
   requiresConfirmation: boolean;
   permission: string;
-  risk: 'READ_ONLY' | 'LOW_RISK' | 'MODERATE_RISK' | 'HIGH_RISK' | 'DESTRUCTIVE';
 };
 
 type ToolCall = { id: string; name: string; input: Record<string, unknown> };
@@ -36,7 +34,6 @@ export class CommunicationAiService {
     private readonly audit: AuditService,
     private readonly communication: CommunicationService,
     private readonly commands: CommunicationCommandService,
-    private readonly networkTools: NetworkAiToolsService,
   ) {
     this.provider = this.config.get<string>('JASLYN_AI_PROVIDER', '').trim().toLowerCase();
     this.apiKey = this.config.get<string>('JASLYN_AI_API_KEY', '').trim();
@@ -46,36 +43,35 @@ export class CommunicationAiService {
 
   private tools(): ToolDefinition[] {
     return [
-      { name:'getSubscriber', description:'Get verified subscriber/customer information by username.', permission:'subscribers.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getSubscriber', description:'Get verified subscriber/customer information by username.', permission:'subscribers.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{username:{type:'string'}},required:['username']} },
-      { name:'getInvoice', description:'Get verified invoice information by invoice id.', permission:'billing.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getInvoice', description:'Get verified invoice information by invoice id.', permission:'billing.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{invoiceId:{type:'string'}},required:['invoiceId']} },
-      { name:'getPayment', description:'Get verified payment information by payment id.', permission:'payments.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getPayment', description:'Get verified payment information by payment id.', permission:'payments.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{paymentId:{type:'string'}},required:['paymentId']} },
-      { name:'getPackage', description:'Get the latest verified package purchase for a subscriber username.', permission:'billing.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getPackage', description:'Get the latest verified package purchase for a subscriber username.', permission:'billing.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{username:{type:'string'}},required:['username']} },
-      { name:'getSession', description:'Get a verified active session by session id.', permission:'sessions.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getSession', description:'Get a verified active session by session id.', permission:'sessions.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{sessionId:{type:'string'}},required:['sessionId']} },
-      { name:'getRouter', description:'Get verified router state by router id.', permission:'network.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getRouter', description:'Get verified router state by router id.', permission:'network.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{routerId:{type:'string'}},required:['routerId']} },
-      { name:'getNetworkStatus', description:'Get verified tenant network status counts.', permission:'network.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getNetworkStatus', description:'Get verified tenant network status counts.', permission:'network.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{},required:[]} },
-      { name:'getIncident', description:'Get a verified incident and its impacts.', permission:'incidents.read', risk:'READ_ONLY', requiresConfirmation:false,
+      { name:'getIncident', description:'Get a verified incident and its impacts.', permission:'incidents.read', requiresConfirmation:false,
         input_schema:{type:'object',properties:{incidentId:{type:'string'}},required:['incidentId']} },
-      { name:'createTicket', description:'Create a support ticket for a verified subscriber.', permission:'support.write', risk:'MODERATE_RISK', requiresConfirmation:false,
+      { name:'createTicket', description:'Create a support ticket for a verified subscriber.', permission:'support.write', requiresConfirmation:false,
         input_schema:{type:'object',properties:{subject:{type:'string'},category:{type:'string'},customerId:{type:'string'},priority:{type:'string'}},required:['subject','category']} },
-      { name:'sendMessage', description:'Send a communication message to a conversation the actor can access.', permission:'messages.send', risk:'LOW_RISK', requiresConfirmation:false,
+      { name:'sendMessage', description:'Send a communication message to a conversation the actor can access.', permission:'messages.send', requiresConfirmation:false,
         input_schema:{type:'object',properties:{conversationId:{type:'string'},body:{type:'string'}},required:['conversationId','body']} },
-      { name:'scheduleMessage', description:'Schedule a message in a conversation the actor can access.', permission:'messages.schedule', risk:'MODERATE_RISK', requiresConfirmation:false,
+      { name:'scheduleMessage', description:'Schedule a message in a conversation the actor can access.', permission:'messages.schedule', requiresConfirmation:false,
         input_schema:{type:'object',properties:{conversationId:{type:'string'},body:{type:'string'},scheduledAt:{type:'string'},timezone:{type:'string'}},required:['conversationId','body','scheduledAt']} },
-      { name:'terminateSession', description:'Disconnect an active subscriber session through the existing Network Command Fabric. This is destructive and always requires human confirmation.', permission:'network.commands.execute', risk:'DESTRUCTIVE', requiresConfirmation:true,
+      { name:'terminateSession', description:'Disconnect an active subscriber session through the existing Network Command Fabric. This is destructive and always requires human confirmation.', permission:'network.commands.execute', requiresConfirmation:true,
         input_schema:{type:'object',properties:{sessionId:{type:'string'}},required:['sessionId']} },
-      ...this.networkTools.listTools().map((tool) => ({ name:tool.name, description:tool.description, permission:tool.permission, risk:tool.risk, requiresConfirmation:tool.risk === 'HIGH_RISK' || tool.risk === 'DESTRUCTIVE' || tool.name === 'preview_network_command', input_schema:tool.inputSchema })),
     ];
   }
 
   listTools() {
-    return this.tools().map(({name,description,input_schema,requiresConfirmation,permission,risk}) => ({name,description,inputSchema:input_schema,requiresConfirmation,permission,risk}));
+    return this.tools().map(({name,description,input_schema,requiresConfirmation,permission}) => ({name,description,inputSchema:input_schema,requiresConfirmation,permission}));
   }
 
   async chat(actor: Actor, prompt: string, conversationId?: string) {
@@ -134,96 +130,33 @@ export class CommunicationAiService {
   }
 
   async confirm(actor: Actor, executionId: string) {
-    // Claim the execution in a short transaction. Never hold a PostgreSQL
-    // transaction open while waiting on a network provider.
-    const client = await this.db.connect();
-    let row: any;
-    try {
-      await client.query('BEGIN');
-      const result = await client.query(
-        `SELECT id,ai_conversation_id AS "conversationId",tool_name AS "toolName",input,status
-         FROM ai_executions
-         WHERE tenant_id=$1 AND id=$2 AND actor_user_id=$3
-         FOR UPDATE`,
-        [actor.tenantId,executionId,actor.userId],
-      );
-      if (!result.rowCount) {
-        await client.query('ROLLBACK');
-        throw new NotFoundException('AI execution not found');
-      }
-      row = result.rows[0];
-      if (row.status !== 'AWAITING_CONFIRMATION') {
-        await client.query('ROLLBACK');
-        throw new BadRequestException('AI execution is no longer awaiting confirmation');
-      }
+    const row = await this.db.query(
+      `SELECT id,ai_conversation_id AS "conversationId",tool_name AS "toolName",input,status
+       FROM ai_executions
+       WHERE tenant_id=$1 AND id=$2 AND actor_user_id=$3
+       FOR UPDATE`,
+      [actor.tenantId,executionId,actor.userId],
+    );
+    if (!row.rowCount) throw new NotFoundException('AI execution not found');
+    if (row.rows[0].status !== 'AWAITING_CONFIRMATION') throw new BadRequestException('AI execution is no longer awaiting confirmation');
+    const tool = this.tools().find(item => item.name === row.rows[0].toolName);
+    if (!tool?.requiresConfirmation) throw new BadRequestException('Execution does not require confirmation');
+    this.assertPermission(actor,tool);
 
-      const tool = this.tools().find(item => item.name === row.toolName);
-      if (!tool?.requiresConfirmation) {
-        await client.query('ROLLBACK');
-        throw new BadRequestException('Execution does not require confirmation');
-      }
-      this.assertPermission(actor,tool);
-
-      const claimed = await client.query(
-        `UPDATE ai_executions
-         SET status='EXECUTING',confirmed_at=now(),updated_at=now()
-         WHERE tenant_id=$1 AND id=$2 AND status='AWAITING_CONFIRMATION'
-         RETURNING id`,
-        [actor.tenantId,executionId],
-      );
-      if (!claimed.rowCount) {
-        await client.query('ROLLBACK');
-        throw new BadRequestException('AI execution is no longer available for confirmation');
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
-
-    const tool = this.tools().find(item => item.name === row.toolName)!;
-    const call: ToolCall = { id:executionId,name:tool.name,input:tool.name === 'execute_network_command' ? { ...row.input, confirmationId: executionId } : row.input };
-
+    const call: ToolCall = { id:executionId,name:tool.name,input:row.rows[0].input };
     try {
       const result = await this.executeTool(actor,call);
-      const queued = typeof result === 'object' && result !== null && (
-        (result as Record<string,unknown>).queued === true ||
-        (result as Record<string,unknown>).status === 'QUEUED'
-      );
-
-      if (queued) {
-        await this.db.query(
-          `UPDATE ai_executions
-           SET output=$3::jsonb,network_command_id=$4,updated_at=now()
-           WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
-          [actor.tenantId,executionId,JSON.stringify(result),typeof (result as Record<string,unknown>).commandId === 'string' ? (result as Record<string,unknown>).commandId : null],
-        );
-        await this.audit.record(actor.tenantId,'AI_COMMAND_QUEUED','ai_execution',executionId,{tool:tool.name,result},{userId:actor.userId,requestId:executionId});
-        return {
-          status:'QUEUED',
-          verified:false,
-          executionId,
-          tool:tool.name,
-          result,
-          message:'The command was accepted by the Network Command Fabric but has not been verified as executed.',
-        };
-      }
-
       await this.db.query(
-        `UPDATE ai_executions
-         SET status='SUCCESS',output=$3::jsonb,completed_at=now(),updated_at=now()
-         WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
+        `UPDATE ai_executions SET status='SUCCESS',confirmed_at=now(),output=$3::jsonb,completed_at=now()
+         WHERE tenant_id=$1 AND id=$2 AND status='AWAITING_CONFIRMATION'`,
         [actor.tenantId,executionId,JSON.stringify(result)],
       );
       await this.audit.record(actor.tenantId,'AI_COMMAND_EXECUTED','ai_execution',executionId,{tool:tool.name,result},{userId:actor.userId,requestId:executionId});
       return { status:'SUCCESS',verified:true,executionId,tool:tool.name,result };
     } catch (error) {
       await this.db.query(
-        `UPDATE ai_executions
-         SET status='FAILED',output=$3::jsonb,completed_at=now(),updated_at=now()
-         WHERE tenant_id=$1 AND id=$2 AND status='EXECUTING'`,
+        `UPDATE ai_executions SET status='FAILED',output=$3::jsonb,completed_at=now()
+         WHERE tenant_id=$1 AND id=$2 AND status='AWAITING_CONFIRMATION'`,
         [actor.tenantId,executionId,JSON.stringify({error:error instanceof Error ? error.message : String(error)})],
       );
       throw error;
@@ -264,18 +197,12 @@ export class CommunicationAiService {
   }
 
   private async previewTool(actor: Actor, call: ToolCall) {
-    if (call.name === 'execute_network_command') {
-      return this.networkTools.preview(actor, { id:call.id, name:'preview_network_command', input:call.input });
-    }
     if (call.name !== 'terminateSession') throw new BadRequestException('Unsupported confirmation tool');
     const sessionId = this.stringInput(call.input,'sessionId');
     return this.commands.execute(actor,`terminate session ${sessionId}`,false);
   }
 
   private async executeTool(actor: Actor, call: ToolCall) {
-    if (this.networkTools.listTools().some((tool) => tool.name === call.name)) {
-      return this.networkTools.execute(actor, { id:call.id, name:call.name as NetworkToolName, input:call.input });
-    }
     switch(call.name) {
       case 'getSubscriber': return this.getSubscriber(actor,this.stringInput(call.input,'username'));
       case 'getInvoice': return this.getInvoice(actor,this.stringInput(call.input,'invoiceId'));
@@ -288,7 +215,7 @@ export class CommunicationAiService {
       case 'createTicket': return this.createTicket(actor,call.input);
       case 'sendMessage': return this.communication.sendMessage(actor,this.stringInput(call.input,'conversationId'),{body:this.stringInput(call.input,'body'),idempotencyKey:`ai:${call.id}`});
       case 'scheduleMessage': return this.communication.scheduleMessage(actor,this.stringInput(call.input,'conversationId'),{body:this.stringInput(call.input,'body'),scheduledAt:this.stringInput(call.input,'scheduledAt'),timezone:typeof call.input.timezone==='string'?call.input.timezone:undefined});
-      case 'terminateSession': return this.commands.execute(actor,`terminate session ${this.stringInput(call.input,'sessionId')}`,true,call.id);
+      case 'terminateSession': return this.commands.execute(actor,`terminate session ${this.stringInput(call.input,'sessionId')}`,true);
       default: throw new BadRequestException(`Unknown AI tool: ${call.name}`);
     }
   }

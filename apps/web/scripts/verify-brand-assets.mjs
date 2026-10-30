@@ -1,1 +1,47 @@
-import { readdir, readFile, stat } from 'node:fs/promises';\nimport { join, relative } from 'node:path';\n\nconst root = new URL('..', import.meta.url).pathname;\nconst sourceRoots = ['app', 'lib'];\nconst brandRoot = join(root, 'public', 'brand');\nconst referenced = new Map();\n\nasync function walk(directory) {\n  const entries = await readdir(directory, { withFileTypes: true });\n  for (const entry of entries) {\n    const full = join(directory, entry.name);\n    if (entry.isDirectory()) await walk(full);\n    else if (/\.(tsx?|css|scss|md|json)$/.test(entry.name)) {\n      const source = await readFile(full, 'utf8');\n      const regex = /\/brand\/([^'\")?#}]+)/g;\n      for (const match of source.matchAll(regex)) {\n        const asset = match[1].trim();\n        if (!asset || asset.includes('${')) continue;\n        const list = referenced.get(asset) ?? [];\n        list.push(relative(root, full));\n        referenced.set(asset, list);\n      }\n    }\n  }\n}\n\nfor (const sourceRoot of sourceRoots) await walk(join(root, sourceRoot));\n\nconst missing = [];\nfor (const [asset, sources] of referenced) {\n  try {\n    const target = join(brandRoot, decodeURIComponent(asset));\n    const info = await stat(target);\n    if (!info.isFile()) missing.push({ asset, sources });\n  } catch {\n    missing.push({ asset, sources });\n  }\n}\n\nif (missing.length) {\n  console.error('Missing JASLYN NET brand assets:');\n  for (const item of missing) console.error('- /brand/' + item.asset + ' <- ' + item.sources.join(', '));\n  process.exit(1);\n}\n\nconsole.log('Brand asset integrity OK: ' + referenced.size + ' referenced asset(s) resolved.');
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { join, relative } from 'node:path';
+
+const root = new URL('..', import.meta.url).pathname;
+const sourceRoots = ['app', 'lib'];
+const brandRoot = join(root, 'public', 'brand');
+const referenced = new Map();
+
+async function walk(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = join(directory, entry.name);
+    if (entry.isDirectory()) await walk(full);
+    else if (/\.(tsx?|css|scss|md|json)$/.test(entry.name)) {
+      const source = await readFile(full, 'utf8');
+      const regex = /\/brand\/([^'"`\)?#}]+)/g;
+      for (const match of source.matchAll(regex)) {
+        const asset = match[1].trim();
+        if (!asset || asset.includes('${')) continue;
+        const list = referenced.get(asset) ?? [];
+        list.push(relative(root, full));
+        referenced.set(asset, list);
+      }
+    }
+  }
+}
+
+for (const sourceRoot of sourceRoots) await walk(join(root, sourceRoot));
+
+const missing = [];
+for (const [asset, sources] of referenced) {
+  try {
+    const target = join(brandRoot, decodeURIComponent(asset));
+    const info = await stat(target);
+    if (!info.isFile()) missing.push({ asset, sources });
+  } catch {
+    missing.push({ asset, sources });
+  }
+}
+
+if (missing.length) {
+  console.error('Missing JASLYN NET brand assets:');
+  for (const item of missing) console.error('- /brand/' + item.asset + ' <- ' + item.sources.join(', '));
+  process.exit(1);
+}
+
+console.log('Brand asset integrity OK: ' + referenced.size + ' referenced asset(s) resolved.');

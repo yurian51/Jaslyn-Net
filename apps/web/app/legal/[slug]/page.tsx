@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import SiteShell from '../../landing/site-chrome';
 import { legalDocumentMap, legalDocuments } from '../legal-documents';
 import LegalAcceptance from '../legal-acceptance';
 
@@ -20,28 +19,30 @@ export default async function LegalDocumentPage({ params }: { params: Promise<{ 
   const document = legalDocumentMap.get(slug);
   if (!document) notFound();
 
-  return (
-    <SiteShell>
-      <article className="jl-doc">
-        <div className="jl-wrap jl-doc-in">
-          <Link href="/legal" className="jl-textlink jl-doc-back">All legal documents</Link>
-          <h1>{document.title}</h1>
-          <p className="jl-lead">{document.summary}</p>
-          <p className="jl-meta">Effective {document.effectiveDate}. Owner: YURIAN TECH LTD.</p>
-          <p className="jl-caveat"><strong>Important. </strong>This document is part of the JASLYN NET service terms. It is written for operational use and should be read with any signed order, applicable service-specific agreement and mandatory law.</p>
-          {(document.slug === 'terms' || document.slug === 'privacy') && <LegalAcceptance documentType={document.slug === 'terms' ? 'TERMS_OF_USE' : 'PRIVACY_NOTICE'} documentVersion="2026-09-18" />}
-          <div className="jl-doc-body">
-            {document.sections.map((section) => (
-              <section key={section.title}>
-                <h2>{section.title}</h2>
-                {section.paragraphs?.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
-                {section.bullets && <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}
-              </section>
-            ))}
-          </div>
-          <p className="jl-meta jl-doc-foot">YURIAN TECH LTD · JASLYN NET</p>
-        </div>
-      </article>
-    </SiteShell>
-  );
+  return <main className="legal-shell legal-document-shell">
+    <header className="legal-document-top">
+      <Link href="/legal" className="legal-brand"><img src="/brand/jaslyn-net-icon.svg" alt="" /><span>JASLYN NET</span></Link>
+      <Link href="/legal" className="legal-back">← Legal Center</Link>
+    </header>
+    <article className="legal-document">
+      <div className="legal-document-heading">
+        <span className="legal-kicker">JASLYN NET / LEGAL</span>
+        <h1>{document.title}</h1>
+        <p>{document.summary}</p>
+        <div className="legal-meta"><span>Effective: {document.effectiveDate}</span><span>Owner: YURIAN TECH LTD</span></div>
+      </div>
+      <aside className="legal-notice"><strong>Important</strong><span>This document is part of the JASLYN NET service terms. It is written for operational use and should be read with any signed order, applicable service-specific agreement and mandatory law.</span></aside>
+      {(document.slug === 'terms' || document.slug === 'privacy') && <LegalAcceptance documentType={document.slug === 'terms' ? 'TERMS_OF_USE' : 'PRIVACY_NOTICE'} documentVersion="2026-09-18" />}\n      <div className="legal-content">
+        {document.sections.map((section) => <section key={section.title}>
+          <h2>{section.title}</h2>
+          {section.paragraphs?.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+          {section.bullets && <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}
+        </section>)}
+      </div>
+      <div className="legal-document-footer">
+        <span>YURIAN TECH LTD · JASLYN NET</span>
+        <Link href="/legal">All legal documents</Link>
+      </div>
+    </article>
+  </main>;
 }

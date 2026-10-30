@@ -5,15 +5,13 @@
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3000 -H 0.0.0.0",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "verify:assets": "node scripts/verify-brand-assets.mjs",
     "verify:ui": "node scripts/verify-ui-surface.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
-    "@fontsource-variable/instrument-sans": "^5.3.0",
     "next": "^16.3.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

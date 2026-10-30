@@ -5,11 +5,11 @@ import Link from 'next/link';
 import BrandLogo from './brand-logo';
 
 const sectionLinks: ReadonlyArray<[string, string]> = [
-  ['/product', 'Features'],
-  ['/operations', 'Operations'],
-  ['/integrations', 'Integrations'],
+  ['#features', 'Features'],
+  ['#how-it-works', 'How it works'],
+  ['#integrations', 'Integrations'],
+  ['#pricing', 'Pricing'],
   ['/platform', 'Platform'],
-  ['/architecture', 'Architecture'],
   ['/faq', 'FAQ'],
 ];
 

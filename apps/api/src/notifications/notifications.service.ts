@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
@@ -69,13 +69,9 @@ export class NotificationsService {
        ON CONFLICT (tenant_id,dedupe_key) WHERE dedupe_key IS NOT NULL
        DO UPDATE SET updated_at=notification_outbox.updated_at
        RETURNING id,status,attempts,available_at AS "availableAt",created_at AS "createdAt",
-                 dedupe_key AS "dedupeKey",category,
-                 recipient=$2 AND event_type=$3 AND payload=$4::jsonb AND category IS NOT DISTINCT FROM $7 AS "requestMatches"`,
+                 dedupe_key AS "dedupeKey",category`,
       [tenantId, recipient, category, JSON.stringify({ message }), input.availableAt ?? new Date(), idempotencyKey, category],
     );
-    if (result.rows[0]?.requestMatches === false) {
-      throw new ConflictException('SMS idempotency key is already bound to a different message');
-    }
     return result.rows[0];
   }
 

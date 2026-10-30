@@ -47,23 +47,6 @@ describe('NotificationsService SMS queue', () => {
     })).rejects.toThrow('idempotency key');
     expect(db.query).not.toHaveBeenCalled();
   });
-  it('rejects reuse of an SMS idempotency key for a different message', async () => {
-    const db = {
-      query: jest.fn().mockResolvedValue({
-        rows: [{ id: 'sms-existing', status: 'PENDING', requestMatches: false }],
-        rowCount: 1,
-      }),
-    };
-    const service = new NotificationsService(db as any);
-    await expect(service.enqueueSms('tenant-a', {
-      recipient: '0712345678',
-      message: 'A different message',
-      category: 'PAYMENT',
-      idempotencyKey: 'payment-sms-1',
-    })).rejects.toThrow('SMS idempotency key is already bound to a different message');
-    expect(db.query).toHaveBeenCalledTimes(1);
-  });
-
 });
 
 

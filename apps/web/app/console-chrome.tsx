@@ -49,8 +49,13 @@ const mobileMoreGroups: ReadonlyArray<[string, string[]]> = [
   ['Workspace', ['/account', '/settings']],
 ];
 
-const publicRoutes = new Set(['/', '/sw', '/login', '/register', '/platform', '/architecture', '/operations', '/integrations', '/product', '/faq']);
-const isPublicRoute = (pathname: string) => publicRoutes.has(pathname) || pathname === '/legal' || pathname.startsWith('/legal/');
+const publicRoutes = new Set(['/', '/login', '/register', '/platform', '/architecture', '/operations', '/integrations', '/product', '/faq']);
+const isPublicRoute = (pathname: string) =>
+  publicRoutes.has(pathname) ||
+  pathname === '/legal' ||
+  pathname.startsWith('/legal/') ||
+  pathname.startsWith('/captive/') ||
+  pathname.startsWith('/status/');
 const isRouteActive = (pathname: string, href: string) => pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 
 function NavIcon({ name }: { name: IconName }) {
@@ -116,9 +121,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
 
   useEffect(() => { setMoreOpen(false); setHeaderMenuOpen(false); }, [pathname]);
 
-  const [health, setHealth] = useState<'checking' | 'ready' | 'unavailable'>('checking');
-  const [operatorOnline, setOperatorOnline] = useState(true);
-  const [workspaceName, setWorkspaceName] = useState('TENANT WORKSPACE');
+
 
   useEffect(() => {
     if (!commandOpen) {
@@ -134,44 +137,6 @@ function OperationsChrome({ children }: { children: ReactNode }) {
     if (!query) return nav.slice(0, 10);
     return nav.filter(([label, , href]) => `${label} ${href}`.toLowerCase().includes(query)).slice(0, 12);
   }, [commandQuery]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const checkHealth = async () => {
-      try {
-        await apiFetch<{ status: string }>('/health/ready');
-        if (!cancelled) setHealth('ready');
-      } catch {
-        if (!cancelled) setHealth('unavailable');
-      }
-    };
-    void checkHealth();
-    const timer = window.setInterval(checkHealth, 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
-
-  useEffect(() => {
-    const update = () => setOperatorOnline(navigator.onLine);
-    update();
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const token = getAccessToken();
-    if (!token) return;
-    apiFetch<{ tenant?: { name?: string } }>('/account', {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then((result) => {
-      if (!cancelled && result.tenant?.name) setWorkspaceName(result.tenant.name);
-    }).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -274,7 +239,7 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           <div className="console-chrome-mark"><BrandLogo alt="" /></div>
           <div><strong>JASLYN NET</strong><small>Connectivity operations</small></div>
         </div>
-        <div className="console-chrome-workspace"><span /> <b>{workspaceName}</b><em aria-hidden="true">⌄</em></div>
+        <div className="console-chrome-workspace"><span /> <b>TENANT WORKSPACE</b><em aria-hidden="true">⌄</em></div>
         <button className="console-command-trigger" type="button" onClick={(event) => { commandOpenerRef.current = event.currentTarget; setCommandOpen(true); setCommandQuery(''); setCommandIndex(0); }}>
           <span>⌕</span><b>Search workspace</b><kbd>⌘K</kbd>
         </button>
@@ -286,29 +251,10 @@ function OperationsChrome({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="console-chrome-footer">
-          <div className="console-operator-strip" aria-label="Operator session status">
-            <span className={operatorOnline ? 'operator-presence online' : 'operator-presence offline'} aria-hidden="true" />
-            <span><b>Operator session</b><small>{operatorOnline ? 'Online on this device' : 'Offline on this device'}</small></span>
-          </div>
-          <Link className="console-system-health" href="/network" aria-label={health === 'ready' ? 'System health ready' : health === 'checking' ? 'Checking system health' : 'System health unavailable'}>
-            <i className={`health-dot ${health}`} aria-hidden="true" />
-            <span><b>Control plane</b><small>{health === 'ready' ? 'Ready' : health === 'checking' ? 'Checking…' : 'Unavailable'}</small></span>
-          </Link>
-          <Link className="console-chrome-legal" href="/legal/privacy">Privacy & legal</Link>
+          <div className="console-chrome-health"><i aria-hidden="true" /> <span><b>Workspace session</b><small>Authenticated operator access</small></span></div><Link className="console-chrome-legal" href="/legal/privacy">Privacy & legal</Link>
           <button className="console-chrome-user" type="button" onClick={() => { clearAccessToken(); router.replace('/login'); }}><strong><BrandLogo alt="" /></strong><span><b>JASLYN NET</b><small>Sign out securely</small></span><em aria-hidden="true">↪</em></button>
         </div>
       </aside>
-      <div className="console-context-bar" aria-label="Current workspace context">
-        <nav className="console-breadcrumbs" aria-label="Breadcrumb">
-          <Link href="/dashboard">Operations</Link>
-          <span aria-hidden="true">/</span>
-          <span aria-current="page">{nav.find(([, , href]) => isRouteActive(pathname, href))?.[0] ?? 'Workspace'}</span>
-        </nav>
-        <div className="console-context-actions">
-          <Link href="/notifications" className="console-notification-link" aria-label="Open notification center"><NavIcon name="notifications" /><span>Notifications</span></Link>
-          <span className={health === 'ready' ? 'context-health ready' : 'context-health'}><i aria-hidden="true" />{health === 'ready' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Unavailable'}</span>
-        </div>
-      </div>
       <header className="console-mobile-header">
         <Link href="/dashboard" className="console-mobile-brand" aria-label="JASLYN NET overview">
           <span><BrandLogo alt="" /></span>

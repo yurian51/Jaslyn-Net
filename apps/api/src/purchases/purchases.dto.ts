@@ -15,12 +15,6 @@ export class CreatePurchaseDto {
   @IsString()
   @MaxLength(80)
   promoCode?: string;
-
-  @IsOptional()
-  @IsString()
-  @MinLength(16)
-  @MaxLength(160)
-  idempotencyKey?: string;
 }
 
 export class CreatePurchaseFromTierDto {

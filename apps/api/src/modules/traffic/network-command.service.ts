@@ -199,119 +199,46 @@ export class NetworkCommandService {
 
   async markExecuted(tenantId: string, ids: string[], response: unknown = {}) {
     if (!ids.length) return;
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await client.query<{ id: string }>(
-        `UPDATE network_commands SET status='EXECUTED', attempts=attempts+1, response=$3::jsonb,
-                sent_at=COALESCE(sent_at,now()), completed_at=now(), updated_at=now()
-         WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status IN ('QUEUED','SENT','ACCEPTED','RETRYING')
-         RETURNING id`,
-        [tenantId, ids, JSON.stringify(response)],
-      );
-      if (result.rowCount) {
-        await this.enqueueLifecycleEvents(client, tenantId, result.rows.map((row) => row.id), 'EXECUTED', { response });
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    await this.db.query(
+      `UPDATE network_commands SET status='EXECUTED', attempts=attempts+1, response=$3::jsonb,
+              sent_at=COALESCE(sent_at,now()), completed_at=now(), updated_at=now()
+       WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status IN ('QUEUED','SENT','ACCEPTED','RETRYING')`,
+      [tenantId, ids, JSON.stringify(response)],
+    );
   }
 
   async markFailed(tenantId: string, ids: string[], error: unknown) {
     if (!ids.length) return;
     const message = error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000);
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await client.query<{ id: string }>(
-        `UPDATE network_commands SET status='FAILED', attempts=attempts+1, error=$3, completed_at=now(), updated_at=now()
-         WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status IN ('QUEUED','SENT','ACCEPTED','RETRYING')
-         RETURNING id`,
-        [tenantId, ids, message],
-      );
-      if (result.rowCount) {
-        await this.enqueueLifecycleEvents(client, tenantId, result.rows.map((row) => row.id), 'FAILED', { error: message });
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    await this.db.query(
+      `UPDATE network_commands SET status='FAILED', attempts=attempts+1, error=$3, completed_at=now(), updated_at=now()
+       WHERE tenant_id=$1 AND id=ANY($2::uuid[]) AND status IN ('QUEUED','SENT','ACCEPTED','RETRYING')`,
+      [tenantId, ids, message],
+    );
   }
 
   async markVerificationFailed(tenantId: string, id: string, verification: unknown) {
     const message = typeof verification === 'object' && verification !== null && 'reason' in verification
       ? String((verification as { reason?: unknown }).reason ?? 'NETWORK_VERIFICATION_FAILED')
       : 'NETWORK_VERIFICATION_FAILED';
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await client.query(
-        `UPDATE network_commands
-         SET status='FAILED', error=$3, verification=$4::jsonb, completed_at=now(), updated_at=now()
-         WHERE tenant_id=$1 AND id=$2 AND status='EXECUTED'
-         RETURNING id, status, verification, error`,
-        [tenantId, id, message.slice(0, 2000), JSON.stringify(verification ?? {})],
-      );
-      if (result.rowCount) {
-        await this.enqueueLifecycleEvents(client, tenantId, [id], 'FAILED', { error: message, verification });
-      }
-      await client.query('COMMIT');
-      return result.rows[0] ?? null;
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    const result = await this.db.query(
+      `UPDATE network_commands
+       SET status='FAILED', error=$3, verification=$4::jsonb, completed_at=now(), updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 AND status='EXECUTED'
+       RETURNING id, status, verification, error`,
+      [tenantId, id, message.slice(0, 2000), JSON.stringify(verification ?? {})],
+    );
+    return result.rows[0] ?? null;
   }
 
   async markVerified(tenantId: string, id: string, verification: unknown) {
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await client.query(
-        `UPDATE network_commands SET status='VERIFIED', verification=$3::jsonb, verified_at=now(), updated_at=now()
-         WHERE tenant_id=$1 AND id=$2 AND status='EXECUTED'
-         RETURNING id, status, verified_at AS "verifiedAt"`,
-        [tenantId, id, JSON.stringify(verification)],
-      );
-      if (result.rowCount) {
-        await this.enqueueLifecycleEvents(client, tenantId, [id], 'VERIFIED', { verification });
-      }
-      await client.query('COMMIT');
-      return result.rows[0] ?? null;
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  private async enqueueLifecycleEvents(
-    client: { query: Pool['query'] },
-    tenantId: string,
-    ids: string[],
-    status: 'EXECUTED' | 'VERIFIED' | 'FAILED',
-    payload: Record<string, unknown>,
-  ) {
-    for (const id of ids) {
-      await client.query(
-        `INSERT INTO communication_domain_events
-          (tenant_id,event_key,event_type,aggregate_type,aggregate_id,payload)
-         VALUES ($1,$2,$3,'network_command',$4,$5::jsonb)
-         ON CONFLICT (tenant_id,event_key) DO NOTHING`,
-        [tenantId, `network-command:${id}:${status}`, `NETWORK_COMMAND.${status}`,
-          JSON.stringify({ commandId: id, status, ...payload })],
-      );
-    }
+    const result = await this.db.query(
+      `UPDATE network_commands SET status='VERIFIED', verification=$3::jsonb, verified_at=now(), updated_at=now()
+       WHERE tenant_id=$1 AND id=$2 AND status='EXECUTED'
+       RETURNING id, status, verified_at AS "verifiedAt"`,
+      [tenantId, id, JSON.stringify(verification)],
+    );
+    return result.rows[0] ?? null;
   }
 
   async list(tenantId: string, routerId?: string, status?: NetworkCommandStatus, limit = 100) {

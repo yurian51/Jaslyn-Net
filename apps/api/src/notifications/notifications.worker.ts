@@ -17,6 +17,7 @@ export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     // A global release switch is required even when tenant-specific providers are configured.
+    // if (!this.sms.status().configured) return;
     if (this.config.get<string>('SMS_ENABLED') !== 'true') return;
     this.timer = setInterval(() => void this.process().catch(() => this.logger.error('SMS worker cycle failed')), 2000);
     this.timer.unref?.();
@@ -28,6 +29,7 @@ export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async process() {
+    // if (this.running || !this.sms.status().configured) return;
     if (this.running || this.config.get<string>('SMS_ENABLED') !== 'true') return;
     this.running = true;
     try {

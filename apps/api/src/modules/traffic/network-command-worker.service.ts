@@ -78,9 +78,6 @@ export class NetworkCommandWorkerService implements OnModuleInit, OnModuleDestro
     const protocol = this.parseProtocol(command.provider);
     if (!protocol) throw new Error(`Unsupported network command provider: ${command.provider ?? 'missing'}`);
     const router = command.routerId ? await this.getRouter(command.tenantId, command.routerId) : undefined;
-    if (router && router.managementProtocol !== protocol) {
-      throw new Error(`Network command provider ${protocol} does not match router management protocol ${router.managementProtocol}`);
-    }
     const credentials = router?.managementCredentialsEncrypted ? this.credentials.decrypt(router.managementCredentialsEncrypted) : undefined;
 
     if (command.commandType === 'BANDWIDTH_ENFORCEMENT') {

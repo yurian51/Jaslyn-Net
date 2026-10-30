@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../../lib/api';
 import { clearAccessToken, getAccessToken } from '../../lib/auth';
 import './security-sessions.css';
@@ -39,10 +39,6 @@ export default function SecuritySessionsPage() {
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'CURRENT' | 'REVOKED' | 'EXPIRED'>('ALL');
-  const [sortOrder, setSortOrder] = useState<'RECENT' | 'OLDEST'>('RECENT');
-  const [showFullIp, setShowFullIp] = useState(false);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -99,54 +95,6 @@ export default function SecuritySessionsPage() {
   }
 
   const activeOtherSessions = sessions.filter((session) => session.isActive && !session.isCurrent).length;
-  const currentSessions = sessions.filter((session) => session.isCurrent).length;
-  const revokedSessions = sessions.filter((session) => Boolean(session.revokedAt)).length;
-  const filteredSessions = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return sessions.filter((session) => {
-      const device = deviceLabel(session.userAgent).toLowerCase();
-      const matchesQuery = !normalized || device.includes(normalized)
-        || (session.ipAddress ?? '').toLowerCase().includes(normalized)
-        || session.id.toLowerCase().includes(normalized);
-      const matchesStatus = statusFilter === 'ALL'
-        || (statusFilter === 'ACTIVE' && session.isActive)
-        || (statusFilter === 'CURRENT' && session.isCurrent)
-        || (statusFilter === 'REVOKED' && Boolean(session.revokedAt))
-        || (statusFilter === 'EXPIRED' && !session.isActive && !session.revokedAt);
-      return matchesQuery && matchesStatus;
-    }).sort((a, b) => {
-      if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
-      const delta = new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime();
-      return sortOrder === 'RECENT' ? delta : -delta;
-    });
-  }, [sessions, query, statusFilter, sortOrder]);
-
-  function exportCsv() {
-    const columns: Array<keyof SessionRecord> = ['id', 'userAgent', 'ipAddress', 'createdAt', 'lastSeenAt', 'expiresAt', 'revokedAt', 'isCurrent', 'isActive'];
-    const escapeCell = (value: unknown) => {
-      const raw = String(value ?? '');
-      const safe = /^[\u0009\u000d=+\-@]/.test(raw) ? "'" + raw : raw;
-      return '"' + safe.replace(/"/g, '""') + '"';
-    };
-    const csv = [columns.join(','), ...filteredSessions.map((session) => columns.map((key) => escapeCell(session[key])).join(','))].join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'jaslyn-net-sessions-' + new Date().toISOString().slice(0, 10) + '.csv';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  function displayIp(ip?: string | null) {
-    if (!ip) return 'IP address unavailable';
-    if (showFullIp) return ip;
-    const ipv4 = ip.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}$/);
-    if (ipv4) return ipv4[1] + '•••';
-    if (ip.includes(':')) return ip.split(':').slice(0, 3).join(':') + ':•••';
-    return ip.length > 8 ? ip.slice(0, 4) + '•••' : '•••';
-  }
 
   return (
     <main className="security-sessions-page">
@@ -157,8 +105,7 @@ export default function SecuritySessionsPage() {
           <p>Review signed-in devices and revoke access you no longer trust.</p>
         </div>
         <div className="security-header-actions">
-          <button type="button" className="security-button secondary" onClick={exportCsv} disabled={loading || filteredSessions.length === 0}>Export CSV</button>
-          <button type="button" className="security-button secondary" onClick={() => void load()} disabled={loading || Boolean(working)}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+          <button type="button" className="security-button secondary" onClick={() => void load()} disabled={loading || Boolean(working)}>Refresh</button>
           <button type="button" className="security-button danger" onClick={() => void revokeOthers()} disabled={loading || Boolean(working) || activeOtherSessions === 0}>
             {working === 'others' ? 'Revoking…' : 'Sign out other sessions'}
           </button>
@@ -166,36 +113,17 @@ export default function SecuritySessionsPage() {
       </header>
 
       <section className="security-session-summary" aria-label="Session summary">
-        <article><span>Listed sessions</span><strong>{sessions.length}</strong><small>All records returned by the API</small></article>
-        <article><span>Other active sessions</span><strong>{activeOtherSessions}</strong><small>{currentSessions} current session(s) · {revokedSessions} revoked</small></article>
-        <article><span>Access control</span><strong>Server-enforced</strong><small>Revocation is checked against the server session record.</small></article>
+        <article><span>Listed sessions</span><strong>{sessions.length}</strong></article>
+        <article><span>Other active sessions</span><strong>{activeOtherSessions}</strong></article>
+        <article><span>Revocation</span><strong>Immediate</strong><small>API access is checked against the server session record.</small></article>
       </section>
 
       {error && <div className="security-message error" role="alert">{error}</div>}
       {notice && <div className="security-message success" role="status">{notice}</div>}
-      <section className="security-session-tools" aria-label="Filter session records">
-        <label className="security-session-search">Search devices, IP addresses or session IDs
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sessions…" type="search" />
-        </label>
-        <label>Status
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
-            <option value="ALL">All sessions</option><option value="ACTIVE">Active</option><option value="CURRENT">This device</option><option value="REVOKED">Revoked</option><option value="EXPIRED">Expired</option>
-          </select>
-        </label>
-        <label>Sort by activity
-          <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}>
-            <option value="RECENT">Most recent first</option><option value="OLDEST">Oldest first</option>
-          </select>
-        </label>
-        <label className="security-ip-toggle"><input type="checkbox" checked={showFullIp} onChange={(event) => setShowFullIp(event.target.checked)} /> Show full IP addresses</label>
-        <span className="security-filter-count">{filteredSessions.length} of {sessions.length} sessions</span>
-      </section>
       {loading ? <div className="security-empty">Loading session records…</div> : sessions.length === 0
         ? <div className="security-empty">No session records were returned.</div>
-        : filteredSessions.length === 0
-          ? <div className="security-empty">No sessions match these filters. Try changing your search or status.</div>
         : <section className="security-session-list" aria-label="Your sessions">
-          {filteredSessions.map((session) => (
+          {sessions.map((session) => (
             <article className="security-session-card" key={session.id}>
               <div className="security-session-icon" aria-hidden="true">⌁</div>
               <div className="security-session-main">
@@ -206,7 +134,7 @@ export default function SecuritySessionsPage() {
                   {session.isActive && !session.isCurrent && <span className="session-pill active">Active session</span>}
                   {!session.isActive && !session.revokedAt && <span className="session-pill revoked">Expired</span>}
                 </div>
-                <p>{displayIp(session.ipAddress)} · Started {formatDate(session.createdAt)}</p>
+                <p>{session.ipAddress || 'IP address unavailable'} · Started {formatDate(session.createdAt)}</p>
                 <p>Last seen {formatDate(session.lastSeenAt)} · Expires {formatDate(session.expiresAt)}</p>
                 {session.revokedAt && <p>Revoked {formatDate(session.revokedAt)}</p>}
               </div>

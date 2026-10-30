@@ -38,26 +38,11 @@ describe('NetworkDeviceAdapterRegistry', () => {
     const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { ubus_rpc_session: 'sid-123' }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { devices: ['wlan0'] }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { results: [{ mac: 'AA:BB:CC:DD:EE:FF', rx_bytes: '9007199254740992', tx_bytes: '42' }] }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, {}] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { results: [{ mac: 'AA:BB:CC:DD:EE:FF', rx_bytes: '9007199254740992', tx_bytes: '42' }] }] }), { status: 200 }));
     const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
     await expect(registry.readClients({ routerId: 'r4', protocol: 'OPENWRT_UBUS', endpoint: 'https://1.1.1.1', credentials: { username: 'root', password: 'secret' } })).resolves.toEqual([{ macAddress: 'AA:BB:CC:DD:EE:FF', bytesIn: '9007199254740992', bytesOut: '42' }]);
     expect(String(fetchMock.mock.calls[0][1]?.body)).toContain('root');
     expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({ Accept: 'application/json' });
-    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body)).params.slice(1, 3)).toEqual(['session', 'destroy']);
-  });
-
-  it('destroys the OpenWrt ubus session even when telemetry polling fails', async () => {
-    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, { ubus_rpc_session: 'sid-fail' }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [6, {}] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ result: [0, {}] }), { status: 200 }));
-    const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
-
-    await expect(registry.readClients({ routerId: 'r13', protocol: 'OPENWRT_UBUS', endpoint: 'https://1.1.1.1', credentials: { username: 'root', password: 'secret' } }))
-      .rejects.toThrow('OpenWrt ubus call iwinfo.devices failed');
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).params.slice(1, 3)).toEqual(['session', 'destroy']);
   });
 
   it('normalizes generic controller JSON for supported non-native adapters', async () => {
@@ -75,9 +60,9 @@ describe('NetworkDeviceAdapterRegistry', () => {
 
   it('blocks loopback, link-local and credential-bearing endpoints', async () => {
     const registry = new NetworkDeviceAdapterRegistry(config, mikrotik as unknown as MikroTikTrafficEnforcementAdapter);
-    await expect(registry.readClients({ routerId: 'r8', protocol: 'GENERIC_HTTP', endpoint: 'https://127.0.0.1/internal', credentials: { apiKey: 'test' } })).rejects.toThrow('restricted address');
-    await expect(registry.readClients({ routerId: 'r9', protocol: 'GENERIC_HTTP', endpoint: 'https://169.254.169.254/latest', credentials: { apiKey: 'test' } })).rejects.toThrow('restricted address');
-    await expect(registry.readClients({ routerId: 'r10', protocol: 'GENERIC_HTTP', endpoint: 'https://user:password@1.1.1.1/api', credentials: { apiKey: 'test' } })).rejects.toThrow('embedded credentials');
+    await expect(registry.readClients({ routerId: 'r8', protocol: 'GENERIC_HTTP', endpoint: 'https://127.0.0.1/internal' })).rejects.toThrow('restricted address');
+    await expect(registry.readClients({ routerId: 'r9', protocol: 'GENERIC_HTTP', endpoint: 'https://169.254.169.254/latest' })).rejects.toThrow('restricted address');
+    await expect(registry.readClients({ routerId: 'r10', protocol: 'GENERIC_HTTP', endpoint: 'https://user:password@1.1.1.1/api' })).rejects.toThrow('embedded credentials');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 

@@ -4,10 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { PG_POOL } from '../database/database.module';
 import { AuditService } from '../audit/audit.service';
 import { NetworkCommandService } from '../modules/traffic/network-command.service';
-import { CommandFabricService } from '../commands/command-fabric.service';
-import { CommandPrincipal } from '../commands/command-authorization.service';
 
-type Actor = CommandPrincipal;
+type Actor = { userId:string; tenantId:string; role:string };
+
+const OPERATOR_ROLES = new Set(['OWNER','ADMIN','NETWORK_ADMIN','NOC_ENGINEER']);
 
 @Injectable()
 export class CommunicationCommandService {
@@ -15,20 +15,19 @@ export class CommunicationCommandService {
     @Inject(PG_POOL) private readonly db: Pool,
     private readonly audit: AuditService,
     private readonly networkCommands: NetworkCommandService,
-    private readonly fabric: CommandFabricService = new CommandFabricService(db, audit, networkCommands),
   ) {}
 
-  async execute(actor: Actor, command: string, confirm = false, requestIdOverride?: string) {
+  async execute(actor: Actor, command: string, confirm = false) {
     const normalized = command.trim().replace(/\s+/g,' ');
     if (!normalized || normalized.length > 500) throw new BadRequestException('Command is required');
-    const requestId = requestIdOverride ?? randomUUID();
+    const requestId = randomUUID();
 
-    // Authorization is decided by the shared command authorizer (also used by the automation engine).
-    const decision = this.fabric.authorize(actor, normalized, confirm);
-    const dangerous = decision.destructive;
-    if (decision.decision === 'DENY') throw new ForbiddenException(decision.reason);
-    if (decision.decision === 'REQUIRE_CONFIRMATION') {
-      const preview = await this.fabric.previewDangerous(actor, normalized);
+    const dangerous = /^(restart router|suspend subscriber|refund payment|terminate session|disable account|delete message|delete user)\b/i.test(normalized);
+    if (dangerous && !OPERATOR_ROLES.has(actor.role)) {
+      throw new ForbiddenException('Operator confirmation permission required');
+    }
+    if (dangerous && !confirm) {
+      const preview = await this.previewDangerous(actor, normalized);
       await this.record(actor, normalized, 'AWAITING_CONFIRMATION', preview, requestId);
       return { status:'AWAITING_CONFIRMATION', command:normalized, requestId, preview };
     }
@@ -37,8 +36,11 @@ export class CommunicationCommandService {
     const verb = parts[0].toLowerCase();
     let result: Record<string, unknown>;
 
-    if (dangerous) {
-      result = await this.fabric.executeDestructive(actor, normalized, { confirmed: confirm, requestId });
+    if (verb === 'terminate' && parts[1]?.toLowerCase() === 'session') {
+      if (!parts[2]) throw new BadRequestException('Usage: terminate session <session-id>');
+      result = await this.queueSessionTermination(actor, parts[2], requestId);
+    } else if (dangerous) {
+      throw new ForbiddenException('This destructive command is not connected to a verified execution fabric');
     } else if (verb === '/status' || verb === 'status') {
       const active = await this.db.query(
         'SELECT COUNT(*)::int AS sessions FROM sessions WHERE tenant_id=$1 AND status=\'ACTIVE\'',
@@ -98,7 +100,97 @@ export class CommunicationCommandService {
     return { status:'SUCCESS', command:normalized, requestId, actor:actor.userId, resource:result.router ?? result.customer ?? null, result, timestamp:new Date().toISOString() };
   }
 
+  private async queueSessionTermination(actor: Actor, sessionId: string, requestId: string) {
+    const session = await this.db.query(
+      `SELECT s.id,s.customer_id AS "customerId",s.router_id AS "routerId",s.username,
+              s.ip_address AS "ipAddress",s.mac_address::text AS "macAddress",
+              r.name AS "routerName",r.management_protocol AS "managementProtocol",
+              r.management_enabled AS "managementEnabled",r.api_endpoint AS "apiEndpoint"
+         FROM sessions s
+         LEFT JOIN routers r ON r.tenant_id=s.tenant_id AND r.id=s.router_id
+        WHERE s.tenant_id=$1 AND s.id=$2 AND s.status='ACTIVE'
+        LIMIT 1`,
+      [actor.tenantId, sessionId],
+    );
+    if (!session.rowCount) throw new BadRequestException('Active session not found or already ended');
+
+    const row = session.rows[0];
+    if (!row.routerId || !row.managementProtocol || row.managementEnabled !== true || !row.apiEndpoint) {
+      throw new ForbiddenException('Session cannot be terminated: verified network management is unavailable');
+    }
+
+    const correlationId = `communication:terminate-session:${requestId}`;
+    const queued = await this.networkCommands.queue(actor.tenantId, {
+      routerId: row.routerId,
+      commandType: 'DISCONNECT_SESSION',
+      actor: actor.userId,
+      provider: row.managementProtocol,
+      correlationId,
+      target: {
+        sessionId: row.id,
+        customerId: row.customerId,
+        username: row.username,
+        ipAddress: row.ipAddress,
+        macAddress: row.macAddress,
+      },
+      request: { reason: 'OPERATOR_COMMAND', requestId },
+    });
+
+    return {
+      verified: true,
+      queued: true,
+      commandId: queued.id,
+      status: 'QUEUED',
+      session: {
+        id: row.id,
+        customerId: row.customerId,
+        routerId: row.routerId,
+        routerName: row.routerName,
+        username: row.username,
+        ipAddress: row.ipAddress,
+      },
+      message: 'Session termination queued through the verified network command fabric.',
+    };
+  }
+
+  private async previewDangerous(actor: Actor, command: string) {
+    const parts = command.split(' ');
+    const preview: Record<string, unknown> = {
+      scope:'COMMAND',
+      command,
+      requiresConfirmation:true,
+      actor:actor.userId,
+      warning:'This operation can change service state and requires explicit confirmation.',
+    };
+
+    if (parts[0]?.toLowerCase() === 'terminate' && parts[1]?.toLowerCase() === 'session' && parts[2]) {
+      const session = await this.db.query(
+        `SELECT s.id,s.customer_id AS "customerId",s.router_id AS "routerId",s.username,
+                s.ip_address AS "ipAddress",r.name AS "routerName",r.status AS "routerStatus"
+           FROM sessions s
+           LEFT JOIN routers r ON r.tenant_id=s.tenant_id AND r.id=s.router_id
+          WHERE s.tenant_id=$1 AND s.id=$2 AND s.status='ACTIVE'`,
+        [actor.tenantId,parts[2]],
+      );
+      if (!session.rowCount) return { ...preview, dataAvailable:false, message:'Active session not found.' };
+      return {
+        ...preview,
+        dataAvailable:true,
+        target:session.rows[0],
+        warning:'This will disconnect the selected active session through the configured network command fabric.',
+      };
+    }
+
+    return preview;
+  }
+
   private async record(actor:Actor, command:string, status:string, result:Record<string,unknown>, requestId:string) {
-    await this.fabric.record(actor, command, status, result, requestId);
+    await this.db.query(
+      status === 'AWAITING_CONFIRMATION'
+      ? 'INSERT INTO command_executions (tenant_id,actor_user_id,command,status,result,request_id) VALUES ($1,$2,$3,$4,$5,$6)'
+      : 'INSERT INTO command_executions (tenant_id,actor_user_id,command,status,result,request_id,completed_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
+      [actor.tenantId,actor.userId,command,status,JSON.stringify(result),requestId],
+    );
+    await this.audit.record(actor.tenantId,status === 'AWAITING_CONFIRMATION' ? 'COMMAND_PREVIEWED' : 'COMMAND_EXECUTED','command',requestId,{command,status,result},{userId:actor.userId,requestId});
   }
 }

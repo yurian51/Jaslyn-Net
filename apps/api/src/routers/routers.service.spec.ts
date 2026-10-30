@@ -8,8 +8,8 @@ describe('RoutersService', () => {
   const query = jest.fn();
   const connect = jest.fn();
   const db = { query, connect } as unknown as Pool;
-  const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) } as any;
-  const incidents = { syncRouterOffline: jest.fn(), resolveRouterOffline: jest.fn() } as any;
+  const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+  const incidents = { syncRouterOffline: jest.fn() } as any;
   const config = { get: jest.fn() } as unknown as ConfigService;
   let service: RoutersService;
 
@@ -155,7 +155,7 @@ describe('RoutersService', () => {
     const key = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
     service = new RoutersService(db, audit, new SecureNetworkCredentials(new ConfigService({ JASLYN_NETWORK_CREDENTIAL_KEY: key })), incidents);
 
-    await expect(service.rotateCredentials('tenant-a', { userId: 'owner-1' })).rejects.toThrow('Invalid encrypted network credentials');
+    await expect(service.rotateCredentials('tenant-a', { userId: 'owner-1' })).rejects.toThrow('Unable to decrypt network device credentials');
     expect(clientQuery).toHaveBeenCalledWith('ROLLBACK');
     expect(client.release).toHaveBeenCalled();
   });

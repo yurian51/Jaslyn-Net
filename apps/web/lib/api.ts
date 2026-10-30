@@ -1,17 +1,5 @@
-import { clearAccessToken, getAccessToken } from './auth';
-
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '');
-
-function withApiPrefix(url: string) {
-  if (!url) return url;
-  return /\/api\/v1$/i.test(url) ? url : `${url}/api/v1`;
-}
-
-const defaultApiUrl = '/api/v1';
-
-export const API_URL = withApiPrefix(
-  configuredApiUrl && !configuredApiUrl.includes('localhost:4000') ? configuredApiUrl : defaultApiUrl
-);
+export const API_URL = configuredApiUrl || '/api/v1';
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -38,15 +26,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const requestId = createRequestId();
   const signal = init.signal ?? AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS);
-  const accessToken = getAccessToken();
-  const headers = new Headers(init.headers);
-  headers.set('Accept', 'application/json');
-  headers.set('x-request-id', requestId);
-  if (accessToken && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${accessToken}`);
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${normalizedPath}`, { ...init, mode: 'cors', credentials: 'include', signal, headers });
+    response = await fetch(`${API_URL}${normalizedPath}`, {
+      ...init,
+      signal,
+      headers: { Accept: 'application/json', 'x-request-id': requestId, ...init.headers },
+    });
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'TimeoutError') throw new ApiError('The API request timed out. Please retry the operation.', 408, requestId);
     if (error instanceof Error && error.name === 'AbortError') throw new ApiError('The API request was cancelled.', 499, requestId);
@@ -56,11 +43,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const responseRequestId = response.headers.get('x-request-id') ?? requestId;
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== 'undefined'
-      && !window.location.pathname.startsWith('/login')
-      && !window.location.pathname.startsWith('/register')
-      && !window.location.pathname.startsWith('/customer-portal')) {
-      clearAccessToken();
+    if (response.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+      window.localStorage.removeItem('jaslyn.accessToken');
+      window.localStorage.removeItem('nexora.accessToken');
       window.location.replace('/login');
     }
     throw new ApiError(extractApiError(payload) ?? `Request failed with status ${response.status}`, response.status, responseRequestId);

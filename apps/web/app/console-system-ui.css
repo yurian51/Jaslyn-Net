@@ -376,30 +376,3 @@ body { color: var(--jn-ui-ink); }
 
   .kpi > strong { font-size: 19px !important; }
 }
-
-/* Premium operator shell: state-first chrome, restrained surfaces, keyboard-visible controls. */
-.console-context-bar{position:sticky;top:0;z-index:70;min-height:42px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:18px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--jn-ui-border);backdrop-filter:blur(12px)}
-.console-breadcrumbs{display:flex;align-items:center;gap:8px;min-width:0;color:var(--jn-ui-muted);font-size:10px;font-weight:650}
-.console-breadcrumbs a{color:#53647a;text-decoration:none}.console-breadcrumbs a:hover{color:var(--jn-ui-blue)}
-.console-breadcrumbs span:last-child{color:#1d2b40;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.console-context-actions{display:flex;align-items:center;gap:10px}
-.console-notification-link{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;color:#56667a;text-decoration:none;border:1px solid transparent;border-radius:6px;font-size:9px;font-weight:700}
-.console-notification-link:hover{background:#f7f9fc;border-color:var(--jn-ui-border)}.console-notification-link .console-nav-icon{width:14px;height:14px}
-.context-health{display:inline-flex;align-items:center;gap:6px;color:#8b97a7;font-size:8px;font-weight:750}
-.context-health i,.health-dot,.operator-presence{width:6px;height:6px;border-radius:50%;background:#9aa6b5}
-.context-health.ready i,.health-dot.ready,.operator-presence.online{background:#18865b;box-shadow:0 0 0 3px rgba(24,134,91,.09)}
-.health-dot.checking{background:#b8791d}.health-dot.unavailable,.operator-presence.offline{background:#b6434d;box-shadow:0 0 0 3px rgba(182,67,77,.08)}
-.console-chrome-workspace{width:calc(100% - 20px);margin:8px 10px;padding:9px 10px;display:grid;grid-template-columns:7px minmax(0,1fr) auto;align-items:center;gap:8px;text-align:left;color:#304157;text-decoration:none;background:#f7f9fc;border:1px solid #e5eaf0;border-radius:7px}
-.console-chrome-workspace:hover{border-color:#d4dce7;background:#fff}.console-chrome-workspace div{min-width:0}
-.console-chrome-workspace b,.console-chrome-workspace small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.console-chrome-workspace b{font-size:9px;font-weight:800}.console-chrome-workspace small{margin-top:2px;color:#8b97a6;font-size:7px}
-.console-workspace-dot{width:6px;height:6px;border-radius:50%;background:#5478b8}.console-chrome-workspace em{font-size:12px;color:#8d99a8;font-style:normal}
-.console-operator-strip,.console-system-health{display:flex;align-items:center;gap:8px;min-height:34px;padding:7px 8px;border-top:1px solid #edf1f5}
-.console-operator-strip span:last-child,.console-system-health span{display:flex;flex-direction:column;gap:2px;min-width:0}
-.console-operator-strip b,.console-system-health b{color:#44546a;font-size:8px}.console-operator-strip small,.console-system-health small{color:#98a3b0;font-size:7px}
-.console-system-health{color:#55657a;text-decoration:none}.console-system-health:hover{background:#f8fafc}
-.console-chrome-nav a:focus-visible,.console-chrome-workspace:focus-visible,.console-notification-link:focus-visible,.console-system-health:focus-visible,.console-command-trigger:focus-visible,.console-mobile-header a:focus-visible,.console-mobile-header button:focus-visible{outline:2px solid #4e76d4;outline-offset:2px}
-.console-command-palette{border-radius:8px!important;box-shadow:0 24px 70px rgba(8,18,31,.22)!important}.console-command-input input{outline:none}
-.console-command-input:focus-within{border-color:#6a8ee4!important;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
-@media(max-width:820px){.console-context-bar{position:sticky;top:72px;z-index:65;min-height:38px;padding:0 12px}.console-breadcrumbs{font-size:9px}.console-context-actions{gap:7px}.console-notification-link span{display:none}.context-health{font-size:7px}}
-@media(prefers-contrast:more){.console-context-bar,.console-chrome-workspace,.console-notification-link{border-color:#8b98aa}}
