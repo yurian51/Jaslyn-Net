@@ -47,8 +47,11 @@ export class AuthGuard implements CanActivate {
     }
 
     if (typeof payload === 'string' || typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
-      || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
+      || typeof payload.role !== 'string' || typeof payload.sid !== 'string' || typeof payload.jti !== 'string') {
       throw new UnauthorizedException('Access token is missing required session claims');
+    }
+    if (payload.jti !== payload.sid) {
+      throw new UnauthorizedException('Access token session binding is invalid');
     }
 
     // This database check makes revocation effective immediately rather than
