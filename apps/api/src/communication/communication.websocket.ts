@@ -117,9 +117,16 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     this.validatingSessions = true;
     try {
       const now = Date.now();
-      const activeSockets = [...this.sockets.entries()].filter(([client, context]) =>
-        client.readyState === WebSocket.OPEN && now < context.tokenExpiresAt * 1000,
-      );
+      const activeSockets: Array<[WebSocket, SocketContext]> = [];
+      for (const [client, context] of this.sockets) {
+        if (now >= context.tokenExpiresAt * 1000) {
+          client.close(1008, 'Access token expired');
+          this.removeSocket(client);
+          continue;
+        }
+        if (client.readyState === WebSocket.OPEN) activeSockets.push([client, context]);
+      }
+
       const sessionIds = [...new Set(activeSockets.map(([, context]) => context.sessionId))];
       if (!sessionIds.length) return;
 

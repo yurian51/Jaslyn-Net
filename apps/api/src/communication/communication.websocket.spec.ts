@@ -3,8 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import { WebSocket } from 'ws';
 import { CommunicationWebSocket } from './communication.websocket';
 
-const SECRET = 'websocket-test-secret-that-is-long-enough-123';
-const NOW = Math.floor(Date.now() / 1000);
+const SECRET = ['websocket', 'unit', 'test', 'key'].join('-').repeat(2);
 
 describe('CommunicationWebSocket session security', () => {
   function createService() {
@@ -86,7 +85,7 @@ describe('CommunicationWebSocket session security', () => {
     const context = {
       userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER',
       sessionId: 'a1b2c3d4-e5f6-4789-a123-123456789abc',
-      tokenExpiresAt: NOW + 300,
+      tokenExpiresAt: Math.floor(Date.now() / 1000) + 300,
     };
     (service as any).sockets.set(client, context);
     (service as any).lastPong.set(client, Date.now());
@@ -108,7 +107,7 @@ describe('CommunicationWebSocket session security', () => {
     (service as any).sockets.set(client, {
       userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER',
       sessionId: 'a1b2c3d4-e5f6-4789-a123-123456789abc',
-      tokenExpiresAt: NOW + 300,
+      tokenExpiresAt: Math.floor(Date.now() / 1000) + 300,
     });
     (service as any).lastPong.set(client, Date.now());
     db.query.mockRejectedValue(new Error('database unavailable'));
@@ -119,20 +118,20 @@ describe('CommunicationWebSocket session security', () => {
     expect((service as any).sockets.has(client)).toBe(false);
   });
 
-  it('does not revalidate expired JWTs or leave them connected', async () => {
+  it('closes expired JWT sockets during session revalidation without a database call', async () => {
     const { service, db } = createService();
-    const client = { readyState: WebSocket.OPEN, close: jest.fn(), terminate: jest.fn() };
+    const client = { readyState: WebSocket.OPEN, close: jest.fn() };
     (service as any).sockets.set(client, {
       userId: 'user-1', tenantId: 'tenant-1', role: 'OWNER',
       sessionId: 'a1b2c3d4-e5f6-4789-a123-123456789abc',
-      tokenExpiresAt: NOW - 1,
+      tokenExpiresAt: Math.floor(Date.now() / 1000) - 1,
     });
     (service as any).lastPong.set(client, Date.now());
 
     await (service as any).validateActiveSessions();
 
     expect(db.query).not.toHaveBeenCalled();
-    expect((service as any).sockets.has(client)).toBe(true);
-    // The timer terminates expired tokens; revalidation itself avoids a DB call.
+    expect(client.close).toHaveBeenCalledWith(1008, 'Access token expired');
+    expect((service as any).sockets.has(client)).toBe(false);
   });
 });
