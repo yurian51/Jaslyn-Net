@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { jwtVerify } from 'jose';
+import * as jwt from 'jsonwebtoken';
+import type { JwtPayload } from 'jsonwebtoken';
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { CommunicationRealtime, CommunicationEvent } from './communication.realtime';
@@ -8,6 +9,9 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
 type SocketContext = { tenantId: string; userId: string; role: string };
+
+const ISSUER = 'jaslyn-net';
+const AUDIENCE = 'jaslyn-net-api';
 
 @Injectable()
 export class CommunicationWebSocket implements OnModuleDestroy {
@@ -59,14 +63,39 @@ export class CommunicationWebSocket implements OnModuleDestroy {
     const url = new URL(request.url || '/', 'http://jaslyn.local');
     const token = url.searchParams.get('access_token')?.trim();
     if (!token) throw new Error('access_token is required');
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
-      issuer: 'jaslyn-net',
-      audience: 'jaslyn-net-api',
-      algorithms: ['HS256'],
-    });
-    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string' || typeof payload.role !== 'string') {
+
+    let payload: string | JwtPayload;
+    try {
+      payload = jwt.verify(token, secret, {
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        algorithms: ['HS256'],
+      });
+    } catch {
+      throw new Error('invalid authentication token');
+    }
+
+    if (typeof payload === 'string'
+      || typeof payload.sub !== 'string'
+      || typeof payload.tenantId !== 'string'
+      || typeof payload.role !== 'string'
+      || typeof payload.sid !== 'string'
+      || typeof payload.jti !== 'string'
+      || typeof payload.exp !== 'number') {
       throw new Error('invalid authentication claims');
     }
+    if (payload.jti !== payload.sid) throw new Error('invalid session binding');
+
+    // Match HTTP authentication: revoked, expired, or otherwise inactive sessions
+    // must not retain WebSocket access until the JWT itself expires.
+    const session = await this.db.query(
+      `SELECT id FROM auth_sessions
+       WHERE id=$1 AND tenant_id=$2 AND user_id=$3
+         AND revoked_at IS NULL AND expires_at>now()`,
+      [payload.sid, payload.tenantId, payload.sub],
+    );
+    if (!session.rowCount) throw new Error('session is revoked or expired');
+
     return { userId: payload.sub, tenantId: payload.tenantId, role: payload.role };
   }
 
