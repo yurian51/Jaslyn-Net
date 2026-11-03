@@ -4,7 +4,7 @@ import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { SignJWT } from 'jose';
+import * as jwt from 'jsonwebtoken';
 import { PG_POOL } from '../database/database.module';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthenticatedRequest } from './auth.guard';
@@ -113,8 +113,17 @@ export class AuthService {
        VALUES ($1,$2,$3,$4,$5,now()+interval '30 days')`,
       [sessionId, tenant.id, user.id, context.userAgent?.slice(0, 500) ?? null, context.ip ?? null],
     );
-    const accessToken = await new SignJWT({ sub: user.id, sid: sessionId, tenantId: tenant.id, role: user.role, email: user.email })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setIssuer(ISSUER).setAudience(AUDIENCE).setJti(sessionId).setIssuedAt().setExpirationTime('15m').sign(new TextEncoder().encode(secret));
+    const accessToken = jwt.sign(
+      { sub: user.id, sid: sessionId, tenantId: tenant.id, role: user.role, email: user.email },
+      secret,
+      {
+        algorithm: 'HS256',
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        jwtid: sessionId,
+        expiresIn: '15m',
+      },
+    );
     return { accessToken, tokenType: 'Bearer', expiresIn: 900, session: { id: sessionId }, user: { id: user.id, tenantId: tenant.id, email: user.email, fullName: user.full_name, role: user.role }, tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status, currency: tenant.currency, timezone: tenant.timezone } };
   }
 
