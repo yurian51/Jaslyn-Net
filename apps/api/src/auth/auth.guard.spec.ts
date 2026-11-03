@@ -1,17 +1,21 @@
-import { SignJWT } from 'jose';
+import * as jwt from 'jsonwebtoken';
 import { AuthGuard } from './auth.guard';
 
 describe('AuthGuard server-side session revocation', () => {
   const secret = 'x'.repeat(64);
 
-  async function token() {
-    return new SignJWT({ sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com' })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setIssuer('jaslyn-net')
-      .setAudience('jaslyn-net-api')
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(new TextEncoder().encode(secret));
+  function token() {
+    return jwt.sign(
+      { sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com' },
+      secret,
+      {
+        algorithm: 'HS256',
+        issuer: 'jaslyn-net',
+        audience: 'jaslyn-net-api',
+        jwtid: 'session-1',
+        expiresIn: '5m',
+      },
+    );
   }
 
   function context(authorization: string) {
@@ -33,6 +37,6 @@ describe('AuthGuard server-side session revocation', () => {
     const db = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) } as any;
     const guard = new AuthGuard({ get: jest.fn().mockReturnValue(secret) } as any, db);
 
-    await expect(guard.canActivate(context(`Bearer ${await token()}`) as any)).rejects.toThrow('Invalid or expired access token');
+    await expect(guard.canActivate(context(`Bearer ${await token()}`) as any)).rejects.toThrow('Session has been revoked or expired');
   });
 });
