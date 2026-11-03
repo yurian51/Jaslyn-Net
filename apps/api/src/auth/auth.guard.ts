@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jwtVerify } from 'jose';
+import * as jwt from 'jsonwebtoken';
+import type { JwtPayload } from 'jsonwebtoken';
 import type { Request } from 'express';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
@@ -34,19 +35,18 @@ export class AuthGuard implements CanActivate {
     const secret = this.config.get<string>('JWT_SECRET');
     if (!secret || secret.length < 32) throw new UnauthorizedException('Authentication is not configured');
 
-    let payload;
+    let payload: string | JwtPayload;
     try {
-      const verified = await jwtVerify(token, new TextEncoder().encode(secret), {
+      payload = jwt.verify(token, secret, {
         issuer: ISSUER,
         audience: AUDIENCE,
         algorithms: ['HS256'],
       });
-      payload = verified.payload;
     } catch {
       throw new UnauthorizedException('Invalid or expired access token');
     }
 
-    if (typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
+    if (typeof payload === 'string' || typeof payload.sub !== 'string' || typeof payload.tenantId !== 'string'
       || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
       throw new UnauthorizedException('Access token is missing required session claims');
     }
