@@ -4,8 +4,19 @@ import { AuthGuard } from './auth.guard';
 describe('AuthGuard server-side session revocation', () => {
   const secret = 'x'.repeat(64);
 
-  async function token(options: { issuer?: string; audience?: string; expiresIn?: string } = {}) {
-    return new SignJWT({ sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com' })
+  async function token(options: {
+    issuer?: string;
+    audience?: string;
+    expiresIn?: string;
+    claims?: Record<string, unknown>;
+  } = {}) {
+    return new SignJWT(options.claims ?? {
+      sub: 'user-1',
+      sid: 'session-1',
+      tenantId: 'tenant-1',
+      role: 'OWNER',
+      email: 'owner@example.com',
+    })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setIssuer(options.issuer ?? 'jaslyn-net')
       .setAudience(options.audience ?? 'jaslyn-net-api')
@@ -47,6 +58,42 @@ describe('AuthGuard server-side session revocation', () => {
     const { guard, db } = guard();
 
     await expect(guard.canActivate(context(`Bearer ${await token(options)}`) as any)).rejects.toThrow('Invalid or expired access token');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token with an invalid signature before checking the session', async () => {
+    const { guard, db } = guard();
+    const [header, payload] = (await token()).split('.');
+    const invalidSignature = Buffer.from('not-the-token-signature').toString('base64url');
+
+    await expect(guard.canActivate(context(`Bearer ${header}.${payload}.${invalidSignature}`) as any))
+      .rejects.toThrow('Invalid or expired access token');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects tokens missing required session claims before checking the session', async () => {
+    const { guard, db } = guard();
+    const invalidClaims = await token({ claims: { sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1' } });
+
+    await expect(guard.canActivate(context(`Bearer ${invalidClaims}`) as any))
+      .rejects.toThrow('Access token is missing required session claims');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects an authorization token signed with an algorithm other than HS256', async () => {
+    const { guard, db } = guard();
+    const tokenWithWrongAlgorithm = new SignJWT({
+      sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1', role: 'OWNER',
+    })
+      .setProtectedHeader({ alg: 'HS384', typ: 'JWT' })
+      .setIssuer('jaslyn-net')
+      .setAudience('jaslyn-net-api')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(new TextEncoder().encode(secret));
+
+    await expect(guard.canActivate(context(`Bearer ${await tokenWithWrongAlgorithm}`) as any))
+      .rejects.toThrow('Invalid or expired access token');
     expect(db.query).not.toHaveBeenCalled();
   });
 });
