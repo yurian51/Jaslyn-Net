@@ -10,6 +10,7 @@ describe('AuthGuard server-side session revocation', () => {
     expiresIn?: string;
     claims?: Record<string, unknown>;
     algorithm?: jwt.Algorithm;
+    tokenId?: string;
   } = {}) {
     return jwt.sign(
       (options.claims ?? {
@@ -24,7 +25,7 @@ describe('AuthGuard server-side session revocation', () => {
         algorithm: options.algorithm ?? 'HS256',
         issuer: options.issuer ?? 'jaslyn-net',
         audience: options.audience ?? 'jaslyn-net-api',
-        jwtid: 'session-1',
+        jwtid: options.tokenId ?? 'session-1',
         expiresIn: options.expiresIn ?? '5m',
       },
     );
@@ -102,6 +103,15 @@ describe('AuthGuard server-side session revocation', () => {
 
     await expect(guard.canActivate(context(`Bearer ${invalidClaims}`) as any))
       .rejects.toThrow('Access token is missing required session claims');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects tokens whose JWT ID is not bound to the session ID', async () => {
+    const { guard, db } = guard();
+    const mismatchedBinding = token({ tokenId: 'different-session' });
+
+    await expect(guard.canActivate(context(`Bearer ${mismatchedBinding}`) as any))
+      .rejects.toThrow('Access token session binding is invalid');
     expect(db.query).not.toHaveBeenCalled();
   });
 
