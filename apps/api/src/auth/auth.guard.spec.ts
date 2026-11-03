@@ -4,16 +4,16 @@ import { AuthGuard } from './auth.guard';
 describe('AuthGuard server-side session revocation', () => {
   const secret = 'x'.repeat(64);
 
-  function token() {
+  function token(options: { issuer?: string; audience?: string; expiresIn?: string } = {}) {
     return jwt.sign(
       { sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1', role: 'OWNER', email: 'owner@example.com' },
       secret,
       {
         algorithm: 'HS256',
-        issuer: 'jaslyn-net',
-        audience: 'jaslyn-net-api',
+        issuer: options.issuer ?? 'jaslyn-net',
+        audience: options.audience ?? 'jaslyn-net-api',
         jwtid: 'session-1',
-        expiresIn: '5m',
+        expiresIn: options.expiresIn ?? '5m',
       },
     );
   }
@@ -31,6 +31,18 @@ describe('AuthGuard server-side session revocation', () => {
     await expect(guard.canActivate(ctx as any)).resolves.toBe(true);
     expect(ctx.request.user).toMatchObject({ id: 'user-1', tenantId: 'tenant-1', sessionId: 'session-1' });
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining('revoked_at IS NULL AND expires_at>now()'), ['session-1', 'tenant-1', 'user-1']);
+  });
+
+  it.each([
+    ['wrong issuer', { issuer: 'other-issuer' }],
+    ['wrong audience', { audience: 'other-audience' }],
+    ['expired token', { expiresIn: '0s' }],
+  ])('rejects a token with %s', async (_label, options) => {
+    const db = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'session-1' }], rowCount: 1 }) } as any;
+    const guard = new AuthGuard({ get: jest.fn().mockReturnValue(secret) } as any, db);
+
+    await expect(guard.canActivate(context(`Bearer ${token(options)}`) as any)).rejects.toThrow('Invalid or expired access token');
+    expect(db.query).not.toHaveBeenCalled();
   });
 
   it('rejects a revoked or missing server-side session', async () => {
