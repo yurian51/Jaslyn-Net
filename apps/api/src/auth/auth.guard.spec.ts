@@ -115,6 +115,19 @@ describe('AuthGuard server-side session revocation', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  it('rejects tokens without an expiration claim', async () => {
+    const { guard, db } = guard();
+    const noExpiryToken = jwt.sign(
+      { sub: 'user-1', sid: 'session-1', tenantId: 'tenant-1', role: 'OWNER' },
+      secret,
+      { algorithm: 'HS256', issuer: 'jaslyn-net', audience: 'jaslyn-net-api', jwtid: 'session-1' },
+    );
+
+    await expect(guard.canActivate(context(`Bearer ${noExpiryToken}`) as any))
+      .rejects.toThrow('Access token is missing required session claims');
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   it('rejects an authorization token signed with an algorithm other than HS256', async () => {
     const { guard, db } = guard();
     const tokenWithWrongAlgorithm = token({ algorithm: 'HS384' });
