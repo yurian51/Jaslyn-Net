@@ -91,6 +91,31 @@ describe('PaymentsService', () => {
     expect(client.release).toHaveBeenCalled();
   });
 
+  it('rejects reusing an idempotency key for a different purchase in the same tenant', async () => {
+    const client = {
+      query: jest.fn(async (sql: string) => {
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rowCount: 0, rows: [] };
+        if (sql.includes('FROM wifi_plan_purchases')) return { rowCount: 1, rows: [{ customer_id: 'customer-2', price: '2500', currency: 'TZS', status: 'PENDING_PAYMENT' }] };
+        if (sql.includes('FROM payment_provider_configs')) return { rowCount: 1, rows: [{ metadata: {} }] };
+        if (sql.includes('FROM payments WHERE') && sql.includes('idempotency_key')) {
+          return { rowCount: 1, rows: [{ id: 'payment-for-other-purchase', status: 'PENDING', provider: 'mpesa', purchaseId: '00000000-0000-0000-0000-000000000002' }] };
+        }
+        return { rowCount: 0, rows: [] };
+      }),
+      release: jest.fn(),
+    };
+    const db = { connect: jest.fn().mockResolvedValue(client) } as unknown as Pool;
+
+    await expect(serviceWith(db).createIntent('tenant-1', {
+      purchaseId: '00000000-0000-0000-0000-000000000001',
+      provider: 'mpesa',
+      idempotencyKey: 'client-reused-key',
+    })).rejects.toThrow('Idempotency key is already bound to another purchase');
+
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(client.release).toHaveBeenCalled();
+  });
+
   it('rejects reuse of a provider event identifier for a different event type', async () => {
     const secret = 'test-webhook-secret';
     const rawBody = Buffer.from('{"event":"payment.failed"}');
