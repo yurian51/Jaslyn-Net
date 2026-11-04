@@ -29,8 +29,8 @@ export class OverviewService {
         [tenantId],
       ),
       this.db.query(
-        `SELECT COALESCE(SUM(amount) FILTER (WHERE status = 'SUCCESS'), 0)::numeric AS revenue,
-                COUNT(*) FILTER (WHERE status = 'SUCCESS')::int AS successful,
+        `SELECT COALESCE(SUM(amount) FILTER (WHERE status = 'PAID'), 0)::numeric AS revenue,
+                COUNT(*) FILTER (WHERE status = 'PAID')::int AS successful,
                 COUNT(*) FILTER (WHERE status = 'FAILED')::int AS failed
          FROM payments
          WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
@@ -69,7 +69,7 @@ export class OverviewService {
       ),
       this.db.query(
         `SELECT EXTRACT(DAY FROM day)::int AS day,
-                COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'SUCCESS'), 0)::numeric AS revenue
+                COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'PAID'), 0)::numeric AS revenue
          FROM generate_series(date_trunc('month', now()), date_trunc('month', now()) + interval '1 month' - interval '1 day', interval '1 day') day
          LEFT JOIN payments p ON p.tenant_id = $1 AND p.created_at >= day AND p.created_at < day + interval '1 day'
          GROUP BY day
