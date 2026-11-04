@@ -24,14 +24,18 @@ const integrationList = [
 ];
 
 const platformModules = [
-  { id: '01', title: 'Customers & CRM', copy: 'Profiles, service status, usage metrics and subscriber lifecycle for hotspot & fiber users.', href: '/customers' },
-  { id: '02', title: 'Wi-Fi Packages & Billing', copy: 'Speed profiles, quotas, validity policies, auto-invoicing and platform subscription plans.', href: '/packages' },
-  { id: '03', title: 'Hotspot & Vouchers', copy: 'Branded captive portals, thermal printer voucher batches, QR codes and instant SMS delivery.', href: '/vouchers' },
-  { id: '04', title: 'Automated Payments', copy: 'Instant Lipa na M-Pesa STK push, mobile money reconciliation, direct settlement and receipts.', href: '/payments' },
-  { id: '05', title: 'Network Control Plane', copy: 'MikroTik & UniFi routers, live interfaces, traffic queues, dynamic DHCP and WAN failover.', href: '/network' },
-  { id: '06', title: 'Field Operations & QR', copy: 'Mobile QR scanner for pole equipment, ONT optical testing and offline sync for field technicians.', href: '/field-operations' },
-  { id: '07', title: 'Security & Audit Logs', copy: 'Append-only audit ledger, operator role permissions, command histories and compliance records.', href: '/audit' },
-  { id: '08', title: 'Subscriber Portal', copy: 'Customer self-service portal for speed tests, quota checks, renewals and receipt downloads.', href: '/captive/manage' },
+  { id: '01', title: 'Subscribers & CRM', copy: 'Customer profiles, service status, device bindings and subscriber lifecycle.', href: '/customers' },
+  { id: '02', title: 'Hotspot & PPPoE Plans', copy: 'Service packages, speed profiles, quotas, validity and subscription management.', href: '/packages' },
+  { id: '03', title: 'Vouchers & Captive Portal', copy: 'Voucher management, hotspot access, device binding and customer onboarding.', href: '/vouchers' },
+  { id: '04', title: 'Payments & Reconciliation', copy: 'Payment attempts, provider references, transaction history and financial reconciliation.', href: '/payments' },
+  { id: '05', title: 'Routers & Access Points', copy: 'Router inventory, access-point operations, connectivity state and network events.', href: '/routers' },
+  { id: '06', title: 'RADIUS & Live Sessions', copy: 'AAA operations, subscriber sessions, accounting records and access enforcement.', href: '/radius' },
+  { id: '07', title: 'Traffic & FUP Policies', copy: 'Usage visibility, quota policy and bandwidth enforcement where supported.', href: '/traffic' },
+  { id: '08', title: 'Incidents & Field Teams', copy: 'Operational incidents, technician workflows and evidence-backed troubleshooting.', href: '/incidents' },
+  { id: '09', title: 'Reports & Revenue Assurance', copy: 'Operational reporting with traceable financial sources and reporting periods.', href: '/reports' },
+  { id: '10', title: 'Notifications & Support', copy: 'Customer communications, service notices and support workflows.', href: '/notifications' },
+  { id: '11', title: 'Network Integrations', copy: 'Vendor adapters with explicit compatibility and operational-readiness boundaries.', href: '/integrations' },
+  { id: '12', title: 'Subscriber Self-Service', copy: 'Customer-facing account and service tools through the subscriber portal.', href: '/captive/manage' },
 ];
 
 function ArrowIcon() {
@@ -55,10 +59,10 @@ export default function Home() {
             JASLYN NET / CONNECTIVITY OPERATIONS
           </div>
           <h1>
-            Run your Wi-Fi and ISP operations <em>from one place.</em>
+            Run your connectivity business <em>from one control plane.</em>
           </h1>
           <p className="jn-hero-lead">
-            JASLYN NET connects customer accounts, Wi-Fi packages, M-Pesa payments, network access control and field operations into one reliable control plane.
+            Manage hotspot and PPPoE subscribers, packages, payments, vouchers, routers, RADIUS sessions and field operations through one operational workspace.
           </p>
           <div className="jn-hero-actions">
             <Link className="jn-btn jn-btn-primary" href="/register">
@@ -91,7 +95,7 @@ export default function Home() {
                 <i />
                 <i />
               </div>
-              <span>JASLYN NET · ILLUSTRATIVE WORKSPACE</span>
+              <span>JASLYN NET · PRODUCT PREVIEW</span>
               <b>OPERATOR VIEW</b>
             </div>
             <div className="jn-preview-body">
@@ -129,36 +133,36 @@ export default function Home() {
               <div className="jn-preview-content">
                 <div className="jn-preview-heading">
                   <div>
-                    <small>OPERATIONAL DASHBOARD</small>
-                    <h3>Primary Network Overview</h3>
-                    <p>Live session distribution across registered access gateways</p>
+                    <small>ISP OPERATIONS WORKSPACE</small>
+                    <h3>Connectivity Operations</h3>
+                    <p>One view across subscribers, services, payments and network infrastructure</p>
                   </div>
                   <span>OPERATIONAL CONTEXT</span>
                 </div>
 
                 <div className="jn-preview-metrics">
                   <article>
-                    <small>ACTIVE SUBSCRIBERS</small>
-                    <strong>1,420 Verified</strong>
-                    <span>Operational snapshot</span>
+                    <small>SUBSCRIBER SERVICES</small>
+                    <strong>Hotspot · PPPoE · Static IP</strong>
+                    <span>Service lifecycle management</span>
                   </article>
                   <article>
-                    <small>NETWORK THROUGHPUT</small>
-                    <strong>482 Mbps Aggregated</strong>
-                    <span>Core WAN link</span>
+                    <small>NETWORK OPERATIONS</small>
+                    <strong>Routers · Access Points · RADIUS</strong>
+                    <span>Monitoring and access control</span>
                   </article>
                   <article>
-                    <small>PAYMENT CLEARING</small>
-                    <strong>99.8% Automated</strong>
-                    <span>Direct mobile money</span>
+                    <small>FINANCIAL OPERATIONS</small>
+                    <strong>Payments · Ledger · Reconciliation</strong>
+                    <span>Traceable transaction lifecycle</span>
                   </article>
                 </div>
 
                 <div className="jn-preview-grid">
                   <div className="jn-preview-panel">
-                    <small className="jn-panel-kicker">SUBSCRIBER SERVICE LIFECYCLE</small>
-                    <h4>Purchase-to-Access Verification Chain</h4>
-                    <p>Deterministic policy transition from mobile payment to gateway authorization.</p>
+                    <small className="jn-panel-kicker">END-TO-END SERVICE CONTROL</small>
+                    <h4>From payment to verified connectivity</h4>
+                    <p>Each transition is tracked across financial, subscriber and network systems.</p>
 
                     <div className="jn-flow-chain">
                       <div className="jn-flow-node">
@@ -173,39 +177,39 @@ export default function Home() {
                       </div>
                       <div className="jn-flow-node">
                         <span>STEP 3</span>
-                        <b>M-Pesa STK</b>
+                        <b>Payment</b>
                         <ArrowIcon />
                       </div>
                       <div className="jn-flow-node">
                         <span>STEP 4</span>
-                        <b>RADIUS AAA</b>
+                        <b>AAA</b>
                         <ArrowIcon />
                       </div>
                       <div className="jn-flow-node">
                         <span>STEP 5</span>
-                        <b>Online</b>
+                        <b>Session</b>
                       </div>
                     </div>
                   </div>
 
                   <div className="jn-preview-panel">
-                    <small className="jn-panel-kicker">SYSTEM INTEGRITY</small>
-                    <h4>Core Services</h4>
+                    <small className="jn-panel-kicker">OPERATOR TOOLKIT</small>
+                    <h4>Core operational areas</h4>
                     <div className="jn-health-row">
-                      <span><i aria-hidden="true" /> RADIUS Service</span>
-                      <b>ACTIVE</b>
+                      <span><i aria-hidden="true" /> Subscriber management</span>
+                      <b>CRM</b>
                     </div>
                     <div className="jn-health-row">
-                      <span><i aria-hidden="true" /> Payment Webhook</span>
-                      <b>VERIFIED</b>
+                      <span><i aria-hidden="true" /> Voucher and package control</span>
+                      <b>ACCESS</b>
                     </div>
                     <div className="jn-health-row">
-                      <span><i className="neutral" aria-hidden="true" /> MikroTik API</span>
-                      <b>CONNECTED</b>
+                      <span><i className="neutral" aria-hidden="true" /> Router and RADIUS operations</span>
+                      <b>NETWORK</b>
                     </div>
                     <div className="jn-preview-footer">
-                      <span>Audit trail recorded</span>
-                      <b>v2026.4</b>
+                      <span>Illustrative interface · not live telemetry</span>
+                      <b>PREVIEW</b>
                     </div>
                   </div>
                 </div>
@@ -227,11 +231,11 @@ export default function Home() {
       <div className="jn-proof-strip">
         <div>
           <span>OPERATOR ARCHITECTURE</span>
-          <b>MikroTik RouterOS Core</b>
-          <b>Ubiquiti UniFi APs</b>
-          <b>PPPoE & Hotspot Vouchers</b>
-          <b>Direct Lipa na M-Pesa Settlement</b>
-          <b>Multi-Site Network Operations</b>
+          <b>Hotspot & PPPoE</b>
+          <b>RADIUS / AAA</b>
+          <b>Vouchers & Packages</b>
+          <b>Mobile Money Integrations</b>
+          <b>Multi-Router Operations</b>
         </div>
       </div>
 
@@ -245,7 +249,7 @@ export default function Home() {
             </h2>
           </div>
           <p>
-            Rather than juggling disconnected captive portal portals, separate billing apps, manual M-Pesa statements and scattered router logins, JASLYN NET connects each piece into a single control plane.
+            Bring subscriber management, billing, access control, network operations and financial records into one connected operating workflow.
           </p>
         </div>
 
@@ -271,13 +275,13 @@ export default function Home() {
           <article>
             <small>PAYMENTS & SETTLEMENT</small>
             <h3>Payment Processing</h3>
-            <p>Native STK Push for M-Pesa and Airtel Money with zero manual reconciliation, instant receipts and automatic unblocking.</p>
+            <p>Connect payment-provider events to purchases, receipts and reconciliation. Access changes must follow verified payment state.</p>
             <ArrowIcon />
           </article>
           <article>
             <small>INFRASTRUCTURE & NOC</small>
             <h3>Network Operations</h3>
-            <p>Monitor routers, wireless access points, fiber switches, interface traffic, DHCP leases and link availability in real time.</p>
+            <p>Manage router inventory, access points, RADIUS services, network events and telemetry with clear source and freshness indicators.</p>
             <ArrowIcon />
           </article>
         </div>
@@ -294,7 +298,7 @@ export default function Home() {
               </h2>
             </div>
             <p>
-              From customer captive splash to active bandwidth queue, every transaction follows a deterministic, audited lifecycle.
+              A successful payment is not the same as an active session. JASLYN NET tracks the hand-off from payment verification through entitlement, AAA and network enforcement.
             </p>
           </div>
 
@@ -334,7 +338,7 @@ export default function Home() {
 
           <div className="jn-architecture-caption">
             <span>DETERMINISTIC ENTITLEMENT STATE</span>
-            <b>Sub-2 second transaction clearing from mobile push to router unblock</b>
+            <b>Every state transition must be reconciled and verified</b>
           </div>
         </div>
       </section>
@@ -343,7 +347,7 @@ export default function Home() {
       <section className="jn-outcomes" id="jn-outcomes-title" aria-label="Operator Outcomes">
         <div className="jn-outcomes-inner">
           <div className="jn-outcomes-heading">
-            <div className="jn-kicker">03 / REAL RESULTS FOR OPERATORS</div>
+            <div className="jn-kicker">03 / OPERATOR WORKFLOWS</div>
             <h2>
               Built for the daily reality of <span>East African & Global ISPs.</span>
             </h2>
@@ -366,8 +370,8 @@ export default function Home() {
             <article>
               <span>OUTCOME 02</span>
               <div className="jn-outcome-icon" aria-hidden="true">⚡</div>
-              <h3>Automate 100% of Payments</h3>
-              <p>Eliminate manual verification phone calls and shared receipts. Customers pay via M-Pesa STK Push and are connected immediately.</p>
+              <h3>Connect payments to service</h3>
+              <p>Track payment initiation, provider confirmation, ledger posting and access provisioning as distinct, auditable steps.</p>
               <Link href="/architecture">
                 Review workflow architecture <ArrowIcon />
               </Link>
@@ -384,7 +388,7 @@ export default function Home() {
             </article>
           </div>
           <div className="jn-outcomes-note">
-            * Field tested across rural WISPs, multi-tenant residential estates, and commercial Wi-Fi hotspots.
+            Capabilities depend on configured providers, supported hardware and successful end-to-end verification.
           </div>
         </div>
       </section>
@@ -445,7 +449,7 @@ export default function Home() {
               </h2>
             </div>
             <p>
-              Vendor-tested adapters for industry-standard routers, access points, controllers and AAA services. Note: confirm compatibility before planning a production cutover.
+              Adapter coverage varies by vendor, model, firmware and deployment configuration. Confirm each integration's readiness before production use.
             </p>
           </div>
 
@@ -536,7 +540,7 @@ export default function Home() {
                   How does M-Pesa automated billing work? <b>+</b>
                 </summary>
                 <p>
-                  When a subscriber taps Buy Package on your captive portal, JASLYN NET initiates an automated Lipa na M-Pesa Online STK Push directly to their phone. Upon entering their MPIN, the webhook validates the payment and provisions internet access in under two seconds without any cashier intervention.
+                  A subscriber can start a package purchase through a configured payment flow. The provider response must be verified before the system posts the financial result, grants entitlement or requests network access. Actual activation time depends on provider and network response.
                 </p>
               </details>
 
@@ -545,7 +549,7 @@ export default function Home() {
                   Can I print physical scratch cards and paper vouchers? <b>+</b>
                 </summary>
                 <p>
-                  Yes. The Vouchers module supports generating batches with custom prefixes, expiration rules, rate limits, and formatted thermal paper print layouts ready for 58mm and 80mm POS receipt printers.
+                  Voucher management is part of the platform scope. Batch generation, redemption, expiry, print layouts and replay protection must each be verified against the deployed implementation before being treated as production-ready.
                 </p>
               </details>
 
@@ -563,7 +567,7 @@ export default function Home() {
                   Where is data stored and is multi-tenancy supported? <b>+</b>
                 </summary>
                 <p>
-                  Every tenant operates within an isolated workspace schema with strict role-based access control (RBAC), append-only security logs, and comprehensive audit trails.
+                  JASLYN NET is designed for tenant-scoped workspaces and role-based access. Isolation, permissions and audit guarantees must be validated through automated security tests for the deployed environment.
                 </p>
               </details>
             </div>
