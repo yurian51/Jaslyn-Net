@@ -87,7 +87,7 @@ describe('PaymentsService', () => {
     });
 
     expect(result).toMatchObject({ id: 'pay-concurrent', reused: true });
-    expect(db.query).toHaveBeenCalledWith(expect.stringContaining("status='PENDING'"), ['tenant-1', 'purchase-1']);
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining("status IN ('INITIATED','PENDING','AUTHORIZED')"), ['tenant-1', 'purchase-1']);
     expect(client.release).toHaveBeenCalled();
   });
 
