@@ -20,6 +20,19 @@ describe('OverviewService', () => {
     return db;
   }
 
+  it('calculates dashboard revenue from the canonical PAID payment state', async () => {
+    const db = mockDb({ total: '1', online: '1', degraded: '0', offline: '0' });
+    const service = new OverviewService(db);
+
+    await service.getOverview('tenant-1');
+
+    const queries = (db.query as jest.Mock).mock.calls.map(([sql]) => String(sql));
+    expect(queries[4]).toContain("status = 'PAID'");
+    expect(queries[4]).not.toContain("status = 'SUCCESS'");
+    expect(queries[7]).toContain("p.status = 'PAID'");
+    expect(queries[7]).not.toContain("p.status = 'SUCCESS'");
+  });
+
   it('does not report 100% availability when no routers exist', async () => {
     const db = mockDb({ total: '0', online: '0', degraded: '0', offline: '0' });
     const service = new OverviewService(db);
