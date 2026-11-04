@@ -12,7 +12,7 @@ export const ATTR = {
   USER_NAME: 1, USER_PASSWORD: 2, CHAP_PASSWORD: 3, NAS_IP_ADDRESS: 4, FRAMED_IP_ADDRESS: 8, FILTER_ID: 11,
   SESSION_TIMEOUT: 27, CALLED_STATION_ID: 30, CALLING_STATION_ID: 31, NAS_IDENTIFIER: 32, NAS_PORT: 5,
   REPLY_MESSAGE: 18, ACCT_STATUS_TYPE: 40, ACCT_SESSION_ID: 44, ACCT_SESSION_TIME: 46,
-  ACCT_INPUT_OCTETS: 42, ACCT_OUTPUT_OCTETS: 43, ACCT_TERMINATE_CAUSE: 49, ACCT_INTERIM_INTERVAL: 85,
+  ACCT_INPUT_OCTETS: 42, ACCT_OUTPUT_OCTETS: 43, ACCT_TERMINATE_CAUSE: 49, ACCT_INPUT_GIGAWORDS: 52, ACCT_OUTPUT_GIGAWORDS: 53, ACCT_INTERIM_INTERVAL: 85,
   VENDOR_SPECIFIC: 26,
 } as const;
 
@@ -35,7 +35,7 @@ export function parsePacket(buffer: Buffer): RadiusPacket {
 
 export function attribute(packet: RadiusPacket, type: number) { return packet.attributes.find(a => a.type === type)?.value; }
 export function stringAttribute(packet: RadiusPacket, type: number) { const v=attribute(packet,type); return v?.toString('utf8'); }
-export function uint32Attribute(packet: RadiusPacket, type: number) { const v=attribute(packet,type); return v && v.length===4 ? v.readUInt32BE(0) : undefined; }
+export function uint32Attribute(packet: RadiusPacket, type: number) { const v=attribute(packet,type); return v && v.length===4 ? v.readUInt32BE(0) : undefined; }\n\n/** Combines RFC 2869 Gigawords with the low 32-bit octet counter without precision loss. */\nexport function uint64CounterAttribute(packet: RadiusPacket, lowType: number, highType: number): bigint | undefined {\n  const low = attribute(packet, lowType);\n  const high = attribute(packet, highType);\n  if (!low && !high) return undefined;\n  if ((low && low.length !== 4) || (high && high.length !== 4)) return undefined;\n  const lowWord = BigInt(low?.readUInt32BE(0) ?? 0);\n  const highWord = BigInt(high?.readUInt32BE(0) ?? 0);\n  return (highWord << 32n) | lowWord;\n}
 
 export function decryptUserPassword(value: Buffer, secret: Buffer, requestAuthenticator: Buffer): Buffer {
   if (!value.length || value.length % 16 !== 0) throw new Error('Invalid User-Password attribute');
