@@ -82,7 +82,7 @@ export class PaymentsService {
     } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => undefined);
       const dbError = error as DatabaseError;
-      if (dbError.code === '23505' && dbError.constraint === 'payments_one_active_attempt_per_purchase_uq') {
+      if (dbError.code === '23505' && ['payments_one_pending_per_purchase_uq', 'payments_one_active_attempt_per_purchase_uq'].includes(dbError.constraint ?? '')) {
         const existing = await this.db.query(`SELECT id, status, provider, idempotency_key AS "idempotencyKey" FROM payments WHERE tenant_id=$1 AND purchase_id=$2 AND status IN ('INITIATED','PENDING','AUTHORIZED') ORDER BY created_at ASC LIMIT 1`, [tenantId, input.purchaseId]);
         if (existing.rowCount) {
           if (existing.rows[0].provider !== provider) throw new ConflictException('A pending payment already exists for another provider');
