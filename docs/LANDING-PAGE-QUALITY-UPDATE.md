@@ -32,3 +32,20 @@ Updated the public JASLYN NET landing page to improve product clarity, conversio
 - Extended UI regression assertions for section anchors, CTA routes, mobile focus behavior, responsive breakpoints, reduced motion, integration caveats, and metadata.
 - Source inspection confirmed the six navigation targets exist once each, the key CTAs reference `/register`, `/login`, and `/packages`, and all 15 referenced integration-logo paths are present in the branch tree.
 - Execution limitation remains: the environment could not clone the repository because GitHub DNS/network access was unavailable, and GitHub Actions has not returned a successful run. Browser rendering, production build, and typecheck are therefore not claimed as verified.
+
+
+## ISP benchmark refresh — 2026-11-04
+
+- Repositioned the homepage hero around the ISP operations control plane: hotspot, PPPoE, subscribers, packages, payments, vouchers, routers, RADIUS and field operations.
+- Replaced invented dashboard figures and success indicators with capability-oriented product-preview content. The preview explicitly states that it is not live customer data or live telemetry.
+- Reframed the service flow around payment verification, entitlement, AAA and sessions, without promising a fixed activation time.
+- Removed unsupported conversion claims such as 100% automated payments and sub-two-second clearing.
+- Expanded the module directory to 12 operator areas covering subscribers, plans, vouchers, finance, network, RADIUS, incidents, notifications and integrations.
+- Aligned module links to routes confirmed in the benchmark branch; modules without a confirmed dedicated route link to an existing relevant workspace entry.
+- Updated feature descriptions and FAQ copy to distinguish product intent from verified production readiness.
+
+## Validation status
+
+- Source inspection confirms the old fabricated dashboard figures and sub-two-second/100%-automation claims are absent.
+- Route targets for the refreshed module directory were checked against files in the branch; subscriber self-service is linked to sign-in until a dedicated public portal route is confirmed.
+- Full build, lint, typecheck, automated UI verification and browser/mobile review remain unrun in this environment. No deployment or production visual verification is claimed.
