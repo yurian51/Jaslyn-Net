@@ -54,7 +54,77 @@ A successful payment must not be confused with a verified access grant. A router
 | Support tickets and technician assignment | Incident and field operations | Reuse incidents, assignments, SLA, timeline and audit modules; avoid a duplicate ticket system | P2 |
 | Revenue, package and router analytics | Revenue assurance and operator reporting | Derive totals from ledger/reconciled transactions; include time range, timezone, currency and source freshness | P1 |
 
-## 4. Execution order
+## 4. Full public feature inventory
+
+The following is the complete feature inventory advertised on the public Hotspot Tanzania site, including its additional operator tools. Each row is a requirement to audit and implement in Jaslyn Net where relevant. **A mapped Jaslyn module is not proof that the complete workflow is implemented or verified.** Every row remains functionally unverified until its API, UI, authorization, persistence, external integration and failure path have been tested.
+
+| Advertised feature | Jaslyn Net domain to audit / extend | Verification state |
+|---|---|---|
+| Hotspot plans and time/data-based packages | Packages, purchases, captive portal | Audit pending |
+| PPPoE plans and subscriber billing | Customers, packages, access bindings, RADIUS | Audit pending |
+| Static IP plans and billing | IPAM, customers, access bindings | Audit pending |
+| Bandwidth plans and speed profiles | Traffic policy and network enforcement | Audit pending |
+| Prepaid subscriber management | Customers, subscriptions, access bindings | Audit pending |
+| Active, expired, online and offline subscriber states | Subscriptions, sessions, RADIUS accounting | Audit pending |
+| Cross-router customer roaming | Subscriber identity, RADIUS, sessions, network policy | Audit pending |
+| Voucher batch generation | Vouchers | Audit pending |
+| Voucher printing and export | Vouchers and operator UI | Audit pending |
+| Hotspot binding / device binding | Captive portal, access policy, sessions | Audit pending |
+| Fair Usage Policy and automatic throttling | Traffic usage, quota policy, network enforcement | Audit pending |
+| Bulk transfer between routers | Router operations and subscriber migration | Audit pending |
+| Hotspot trials / trial packages | Captive portal, packages, access policy | Audit pending |
+| Router online/offline monitoring | Routers, synthetic monitoring, incidents | Audit pending |
+| IP pool management | IPAM | Audit pending |
+| Router configuration backups and restore | Router adapters, secrets vault, audit | Audit pending |
+| Wireless settings management | Vendor-specific network adapters | Audit pending |
+| Bridge configuration | Vendor-specific network adapters | Audit pending |
+| IP address management | IPAM | Audit pending |
+| Customer self-installation | Customer commerce, captive portal, field operations | Audit pending |
+| Router replacement workflow | Routers, access bindings, network jobs | Audit pending |
+| Remote VPN access to routers | Secure network access / remote access gateway | Audit pending |
+| TR-069 / CWMP ACS and CPE management | CPE integration adapter; separate ACS compatibility proof required | Audit pending |
+| MikroTik logs | Router adapter and event ingestion | Audit pending |
+| Router interface monitoring | Traffic collector, router telemetry | Audit pending |
+| M-Pesa and Tigo Pesa / Mixx by Yas | Payment provider adapters and reconciliation | Audit pending |
+| M-Pesa Paybill and Till collections | Payment provider configuration and callback verification | Audit pending |
+| Daily and period transaction reports | Payments and revenue assurance | Audit pending |
+| Activation history | Purchases, access bindings, audit | Audit pending |
+| Transaction graphs and comparisons | Finance / reporting | Audit pending |
+| Monthly sales charts | Revenue assurance and reporting | Audit pending |
+| Best-selling package reports | Packages and reconciled revenue | Audit pending |
+| Daily, weekly and monthly data usage | RADIUS accounting and traffic samples | Audit pending |
+| Top downloaders | Authoritative usage accounting | Audit pending |
+| Income today and this month | Financial ledger and reconciliation | Audit pending |
+| Revenue per router | Ledger, router attribution and reconciliation | Audit pending |
+| WhatsApp notifications and gateway | Notification outbox plus approved WhatsApp provider | Audit pending |
+| SMS notifications | Notification outbox and SMS provider | Audit pending |
+| Bulk SMS / WhatsApp campaigns | Consent-aware notification orchestration | Audit pending |
+| Plan-specific messaging | Notification segmentation and package events | Audit pending |
+| Router-specific messaging | Router/site targeting and notification outbox | Audit pending |
+| Scheduled SMS | Scheduled notification jobs | Audit pending |
+| SMS groups | Customer segments and consent controls | Audit pending |
+| Email notifications | Notification outbox and email provider | Audit pending |
+| Telegram alerts | Incident / notification integration | Audit pending |
+| Support tickets and technician assignment | Incidents, assignments and SLA workflows | Audit pending |
+| Custom hotspot page builder | Captive portal settings, templates and tenant assets | Audit pending |
+| Bonga points / loyalty | Customer loyalty ledger and redemption policy | Audit pending |
+| Multi-admin roles (SuperAdmin, Admin, Technician, Sales Agent, Reports) | Auth, access control and tenant-scoped permissions | Audit pending |
+| Customer self-service portal | Customer commerce and captive portal | Audit pending |
+| Hotspot troubleshooting and one-click recovery | Evidence-backed diagnostics and network command verification | Audit pending |
+| Automatic reconnection SMS | Session/incident events and notification outbox | Audit pending |
+| Customer location map | Customer/site geospatial data and privacy controls | Audit pending |
+| English / Swahili localization | Web and notification localization | Audit pending |
+| CSV export for customers, payments and prepaid users | Tenant-scoped export jobs and audit | Audit pending |
+| Forced password changes, OTP, session management, CSRF and admin login audit | Auth and security posture | Audit pending |
+| Referral programme and referral tracking | Promotions / partner attribution and ledger controls | Audit pending |
+| Remote radio access for Ubiquiti, Tenda and Huawei | Vendor-specific secure remote access adapters | Audit pending |
+| Remote MikroTik access | Router adapter and secure remote access boundary | Audit pending |
+
+### Demo inspection access
+
+The public marketing site links to the live demo at https://demo.ispledger.com/. The demo currently exposes a sign-in form but the public page does not disclose a demo username or password. No login has been completed and no internal feature has been independently inspected. The `admin/admin` credentials shown on the vendor's installation guide are described as first-login defaults for a newly installed customer panel; they are **not** verified demo credentials and must not be assumed to work on the public demo. Obtain the vendor's published demo credentials or an authorized test account before attempting access.
+
+## 5. Execution order
 
 ### P0 — Protect money, identity and access
 
@@ -83,7 +153,7 @@ A successful payment must not be confused with a verified access grant. A router
 - Expand technician workflows, ticket SLAs and maintenance windows.
 - Add capacity planning only when enough clean historical telemetry exists.
 
-## 5. Mandatory capability truth
+## 6. Mandatory capability truth
 
 Every benchmark item must have a registry record with:
 
@@ -97,7 +167,7 @@ Every benchmark item must have a registry record with:
 
 A logo, settings form, API route, documentation entry or successful HTTP response is not proof of an operational integration.
 
-## 6. Acceptance criteria
+## 7. Acceptance criteria
 
 A benchmark capability is complete only when its applicable checks pass:
 
@@ -113,7 +183,7 @@ A benchmark capability is complete only when its applicable checks pass:
 - **Analytics:** revenue agrees with the authoritative ledger and reports disclose timezone, currency and period.
 - **TR-069:** device model/version compatibility, authentication, parameter access and safe write/read-back are tested before operational status is granted.
 
-## 7. Release discipline
+## 8. Release discipline
 
 - Do not seed fake subscribers, payments, router telemetry, uptime or revenue to make dashboards look populated.
 - Do not run bulk router writes, payment mutations or access changes against production as a benchmark exercise.
@@ -122,6 +192,6 @@ A benchmark capability is complete only when its applicable checks pass:
 - Record commit SHA, CI run, test counts and external provider/device evidence.
 - If a check cannot run, report it as blocked or unverified. Do not describe the benchmark roadmap as shipped functionality.
 
-## 8. Source
+## 9. Source
 
 - Hotspot Tanzania public product site: https://hotspots.co.tz/ (reviewed 2026-11-04).
