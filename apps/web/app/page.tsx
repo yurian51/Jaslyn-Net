@@ -28,14 +28,14 @@ const platformModules = [
   { id: '02', title: 'Hotspot & PPPoE Plans', copy: 'Service packages, speed profiles, quotas, validity and subscription management.', href: '/packages' },
   { id: '03', title: 'Vouchers & Captive Portal', copy: 'Voucher management, hotspot access, device binding and customer onboarding.', href: '/vouchers' },
   { id: '04', title: 'Payments & Reconciliation', copy: 'Payment attempts, provider references, transaction history and financial reconciliation.', href: '/payments' },
-  { id: '05', title: 'Routers & Access Points', copy: 'Router inventory, access-point operations, connectivity state and network events.', href: '/routers' },
+  { id: '05', title: 'Routers & Access Points', copy: 'Router inventory, access-point operations, connectivity state and network events.', href: '/network' },
   { id: '06', title: 'RADIUS & Live Sessions', copy: 'AAA operations, subscriber sessions, accounting records and access enforcement.', href: '/radius' },
-  { id: '07', title: 'Traffic & FUP Policies', copy: 'Usage visibility, quota policy and bandwidth enforcement where supported.', href: '/traffic' },
+  { id: '07', title: 'Traffic & FUP Policies', copy: 'Usage visibility, quota policy and bandwidth enforcement where supported.', href: '/network' },
   { id: '08', title: 'Incidents & Field Teams', copy: 'Operational incidents, technician workflows and evidence-backed troubleshooting.', href: '/incidents' },
-  { id: '09', title: 'Reports & Revenue Assurance', copy: 'Operational reporting with traceable financial sources and reporting periods.', href: '/reports' },
+  { id: '09', title: 'Reports & Revenue Assurance', copy: 'Operational reporting with traceable financial sources and reporting periods.', href: '/finance' },
   { id: '10', title: 'Notifications & Support', copy: 'Customer communications, service notices and support workflows.', href: '/notifications' },
   { id: '11', title: 'Network Integrations', copy: 'Vendor adapters with explicit compatibility and operational-readiness boundaries.', href: '/integrations' },
-  { id: '12', title: 'Subscriber Self-Service', copy: 'Customer-facing account and service tools through the subscriber portal.', href: '/captive/manage' },
+  { id: '12', title: 'Subscriber Self-Service', copy: 'Customer-facing account and service tools through the subscriber portal.', href: '/login' },
 ];
 
 function ArrowIcon() {
@@ -314,7 +314,7 @@ export default function Home() {
             <div className="jn-architecture-step">
               <span>02</span>
               <h3>Package & M-Pesa</h3>
-              <p>Subscriber selects an internet package; instant STK Push prompts user on mobile phone for PIN.</p>
+              <p>Subscriber selects an internet package; a configured STK Push flow requests payment authorization on the mobile phone.</p>
             </div>
 
             <div className="jn-architecture-step">
@@ -361,7 +361,7 @@ export default function Home() {
               <span>OUTCOME 01</span>
               <div className="jn-outcome-icon" aria-hidden="true">📦</div>
               <h3>Transparent Wi-Fi Packages</h3>
-              <p>Create clear, compelling packages that customers understand instantly: hourly, 24-hour hotspot, weekly passes or monthly uncapped fiber.</p>
+              <p>Create clear packages for different service periods, data allowances and bandwidth policies.</p>
               <Link href="/packages">
                 Explore plan catalogue <ArrowIcon />
               </Link>
@@ -411,7 +411,7 @@ export default function Home() {
           <article>
             <span className="jn-scenario-number">FEATURE 01</span>
             <h3>Field Technician QR Scanner</h3>
-            <p>Technicians on poles or at subscriber premises scan equipment QR codes with their phone camera to instantly fetch router configuration, uptime, and test signals.</p>
+            <p>Technicians scan equipment QR codes to open the relevant asset and field-service workflow, subject to device and data availability.</p>
             <small>ACCELERATED FIELD WORK</small>
           </article>
 
