@@ -120,9 +120,35 @@ The following is the complete feature inventory advertised on the public Hotspot
 | Remote radio access for Ubiquiti, Tenda and Huawei | Vendor-specific secure remote access adapters | Audit pending |
 | Remote MikroTik access | Router adapter and secure remote access boundary | Audit pending |
 
+### 4.1 Authenticated demo: screenshot evidence
+
+The user supplied two screenshots from the authenticated demo.ispledger.com operator panel. This upgrades the evidence from public marketing copy to **visible authenticated UI evidence**, but only for the menu entries and dashboard widgets actually shown. It does not prove that each menu item works, that integrations are connected, or that displayed counters are accurate/live.
+
+**Dashboard widgets visible**
+- Income today and income summary/report shortcuts.
+- Active/expired subscriber count and total subscriber count.
+- Hotspot online users, PPPoE online users and static online users.
+- Router Status list with per-router Offline state, last-seen timestamp and a Refresh Status action.
+
+**Authenticated navigation entries visible across the screenshots**
+- Data Usage; Hotspot Vouchers; Hotspot Binding; Packages/Plans; Transactions.
+- Support Ticket; Notifications; Network; FreeispOS.
+- Bulk Actions; Radius; Static Pages.
+- TR069 ACS; Access Points; Access PPPoE Routers; Access Hotspot APs.
+- Settings; PPPoE Settings; Hotspot Settings; Page Builder.
+- Loyalty Points; Extras; Inventory & Expenses; Uisp; Logs.
+- AI Assistant; Escalate; Social Spot/Support.
+- Fix Hotspot; Fix PPPoE; Recycle Bin.
+
+**Evidence limitations**
+- The screenshots show the menu and dashboard only. No feature detail page, form submission, mutation, report export, payment flow, voucher redemption, router command or integration test is shown.
+- The router cards show several offline demo routers and a refresh button. This is evidence that the UI exposes router status controls, not evidence of successful live router monitoring or recovery.
+- Dashboard figures and demo-router names are sample/demo display values and must not be copied into Jaslyn Net as real data.
+- Competitor UI presence is not a Jaslyn implementation pass. Every equivalent capability in Jaslyn remains subject to API, UI, authorization, persistence, integration and failure-path testing.
+
 ### Demo inspection access
 
-The public marketing site links to the live demo at https://demo.ispledger.com/. The demo currently exposes a sign-in form but the public page does not disclose a demo username or password. No login has been completed and no internal feature has been independently inspected. The `admin/admin` credentials shown on the vendor's installation guide are described as first-login defaults for a newly installed customer panel; they are **not** verified demo credentials and must not be assumed to work on the public demo. Obtain the vendor's published demo credentials or an authorized test account before attempting access.
+The public marketing site links to the live demo at https://demo.ispledger.com/. The user supplied access for the demo inspection and then provided the two authenticated dashboard/menu screenshots documented above. This review is limited to those supplied screenshots; no independent browser-driven navigation or action testing has been performed. The vendor's `admin/admin` credentials shown on its installation guide are first-login defaults for a newly installed customer panel; they are **not** the credentials used for this demo and must not be assumed to work on the public demo.
 
 ## 5. Execution order
 
