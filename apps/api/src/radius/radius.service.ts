@@ -8,7 +8,7 @@ import { CommunicationDomainEventsService } from '../communication/communication
 import { AuditService } from '../audit/audit.service';
 import { SecureNetworkCredentials } from '../common/secure-network-credentials';
 import { CreateRadiusNasDto, DisconnectRadiusSessionDto, SetRadiusCredentialDto } from './radius.dto';
-import { ATTR, attribute, decryptUserPassword, encodeRequest, encodeResponse, makeString, makeUInt32, makeVendorSpecific, parsePacket, RADIUS_CODES, stringAttribute, uint32Attribute, verifyRequestAuthenticator } from './radius.protocol';
+import { ATTR, attribute, decryptUserPassword, encodeRequest, encodeResponse, makeString, makeUInt32, makeVendorSpecific, parsePacket, RADIUS_CODES, stringAttribute, uint32Attribute, uint64CounterAttribute, verifyRequestAuthenticator } from './radius.protocol';
 
 @Injectable()
 export class RadiusService implements OnModuleInit, OnModuleDestroy {
@@ -127,8 +127,8 @@ export class RadiusService implements OnModuleInit, OnModuleDestroy {
     const binding = username ? await this.db.query(`SELECT correlation_id AS "correlationId" FROM customer_access_bindings WHERE tenant_id=$1 AND username=$2 LIMIT 1`,[tenantId,username]) : { rows: [] as Array<{ correlationId: string | null }> };
     const packetFingerprint = packet.authenticator.toString('hex');
     const correlationId = binding.rows[0]?.correlationId ?? `radius:${tenantId}:${nasId}:${packet.identifier}:${packetFingerprint}`;
-    const inputOctets=uint32Attribute(packet,ATTR.ACCT_INPUT_OCTETS)??null;
-    const outputOctets=uint32Attribute(packet,ATTR.ACCT_OUTPUT_OCTETS)??null;
+    const inputOctets=uint64CounterAttribute(packet,ATTR.ACCT_INPUT_OCTETS,ATTR.ACCT_INPUT_GIGAWORDS)?.toString()??null;
+    const outputOctets=uint64CounterAttribute(packet,ATTR.ACCT_OUTPUT_OCTETS,ATTR.ACCT_OUTPUT_GIGAWORDS)?.toString()??null;
     const sessionTime=uint32Attribute(packet,ATTR.ACCT_SESSION_TIME)??null;
     await this.db.query(`INSERT INTO radius_accounting_events(tenant_id,nas_client_id,username,acct_session_id,status_type,calling_station_id,input_octets,output_octets,session_time,raw_attributes,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[tenantId,nasId,username,sessionId,statusType,stringAttribute(packet,ATTR.CALLING_STATION_ID)??null,inputOctets,outputOctets,sessionTime,JSON.stringify(packet.attributes.map((a:any)=>({type:a.type,value:a.value.toString('base64')}))),correlationId]);
     await this.domainEvents.enqueue({
