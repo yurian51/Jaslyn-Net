@@ -35,7 +35,18 @@ export function parsePacket(buffer: Buffer): RadiusPacket {
 
 export function attribute(packet: RadiusPacket, type: number) { return packet.attributes.find(a => a.type === type)?.value; }
 export function stringAttribute(packet: RadiusPacket, type: number) { const v=attribute(packet,type); return v?.toString('utf8'); }
-export function uint32Attribute(packet: RadiusPacket, type: number) { const v=attribute(packet,type); return v && v.length===4 ? v.readUInt32BE(0) : undefined; }\n\n/** Combines RFC 2869 Gigawords with the low 32-bit octet counter without precision loss. */\nexport function uint64CounterAttribute(packet: RadiusPacket, lowType: number, highType: number): bigint | undefined {\n  const low = attribute(packet, lowType);\n  const high = attribute(packet, highType);\n  if (!low && !high) return undefined;\n  if ((low && low.length !== 4) || (high && high.length !== 4)) return undefined;\n  const lowWord = BigInt(low?.readUInt32BE(0) ?? 0);\n  const highWord = BigInt(high?.readUInt32BE(0) ?? 0);\n  return (highWord << 32n) | lowWord;\n}
+export function uint32Attribute(packet: RadiusPacket, type: number) { const v=attribute(packet,type); return v && v.length===4 ? v.readUInt32BE(0) : undefined; }
+
+/** Combines RFC 2869 Gigawords with the low 32-bit octet counter without precision loss. */
+export function uint64CounterAttribute(packet: RadiusPacket, lowType: number, highType: number): bigint | undefined {
+  const low = attribute(packet, lowType);
+  const high = attribute(packet, highType);
+  if (!low && !high) return undefined;
+  if ((low && low.length !== 4) || (high && high.length !== 4)) return undefined;
+  const lowWord = BigInt(low?.readUInt32BE(0) ?? 0);
+  const highWord = BigInt(high?.readUInt32BE(0) ?? 0);
+  return (highWord << 32n) | lowWord;
+}
 
 export function decryptUserPassword(value: Buffer, secret: Buffer, requestAuthenticator: Buffer): Buffer {
   if (!value.length || value.length % 16 !== 0) throw new Error('Invalid User-Password attribute');
